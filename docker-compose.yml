@@ -1,0 +1,60 @@
+services:
+  caddy:
+    image: caddy:2-alpine
+    container_name: gullify-caddy
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - app
+    restart: unless-stopped
+
+  app:
+    build: .
+    container_name: gullify
+    user: root
+    expose:
+      - "80"
+    volumes:
+      - ${MUSIC_HOST_PATH:-./music}:/music
+      - gullify_data:/app/data
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - MYSQL_HOST=db
+      - MYSQL_DATABASE=gullify
+      - MYSQL_USER=gullify
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD:-gullify_secret}
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  db:
+    image: mysql:8.0
+    container_name: gullify-db
+    environment:
+      MYSQL_DATABASE: gullify
+      MYSQL_USER: gullify
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-gullify_secret}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root_secret}
+    volumes:
+      - gullify_db:/var/lib/mysql
+      - ./setup/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  gullify_data:
+  gullify_db:
+  caddy_data:
+  caddy_config:

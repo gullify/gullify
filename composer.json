@@ -1,0 +1,16 @@
+{
+    "name": "gullify/music-streamer",
+    "description": "Gullify - Self-hosted music streaming",
+    "type": "project",
+    "require": {
+        "php": ">=8.1",
+        "phpseclib/phpseclib": "~3.0"
+    },
+    "config": {
+        "optimize-autoloader": true,
+        "sort-packages": true,
+        "vendor-dir": "vendor"
+    },
+    "prefer-stable": true,
+    "minimum-stability": "stable"
+}

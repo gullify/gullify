@@ -1,0 +1,12 @@
+.git
+.claude
+db/
+*.backup*
+*.log
+download_queue.log
+android-app/
+node_modules/
+.env.local
+data/cache/*
+data/logs/*
+data/downloads/*
