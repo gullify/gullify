@@ -2792,21 +2792,21 @@
                 const response = await fetch(`${BASE_PATH}/get_artist_news.php?artist=${encodeURIComponent(artistName)}`);
                 const result = await response.json();
 
-                if (result.error) {
-                    container.innerHTML = `<p style="color: var(--text-secondary);">${result.error}</p>`;
+                if (!result.success) {
+                    container.innerHTML = `<p style="color: var(--text-secondary);">${result.error || 'Erreur inconnue'}</p>`;
                     return;
                 }
 
-                if (!result.articles || result.articles.length === 0) {
+                const articles = result.news?.articles || [];
+                if (articles.length === 0) {
                     container.innerHTML = `<p style="color: var(--text-secondary);">Aucune actualité récente trouvée pour cet artiste.</p>`;
                     return;
                 }
 
-                const newsHtml = result.articles.map(article => `
+                const newsHtml = articles.map(article => `
                     <a class="news-item" href="${article.url}" target="_blank" rel="noopener noreferrer">
                         <div class="news-title">${escapeHtml(article.title)}</div>
                         <div class="news-source">${escapeHtml(article.source)} - <span class="news-date">${new Date(article.date).toLocaleDateString()}</span></div>
-                        <div class="news-snippet">${escapeHtml(article.snippet)}</div>
                     </a>
                 `).join('');
 
