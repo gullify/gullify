@@ -6,7 +6,7 @@ Self-hosted music streaming server with a YouTube Music-style interface.
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/xxx/gullify.git
+   git clone https://github.com/gullify/gullify.git
    cd gullify
    ```
 
