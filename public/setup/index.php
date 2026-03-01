@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../../src/AppConfig.php';
+header('Content-Type: text/html; charset=UTF-8');
 // If already set up, go to main app
 if (AppConfig::isSetupDone()) {
     header('Location: /');
@@ -549,6 +550,7 @@ async function createAdmin() {
         document.getElementById('adminNext').disabled = false;
         document.getElementById('adminNext').onclick = () => goStep(4);
     } else if (r.message && r.message.includes('existe deja')) {
+        if (r.user_id) adminUserId = r.user_id;
         showStatus('adminStatus', r.message + ' Vous pouvez continuer.', 'info');
         document.getElementById('createAdminBtn').textContent = 'Ajouter utilisateur';
         document.getElementById('adminNext').disabled = false;

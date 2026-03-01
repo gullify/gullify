@@ -6,7 +6,7 @@
  * Each action returns a JSON response with success/error status.
  */
 
-header('Content-Type: application/json');
+header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store, no-cache, must-revalidate');
 
 // Error handling
@@ -358,10 +358,12 @@ function handleCreateAdmin(): void {
         $db = AppConfig::getDB();
 
         // Check if admin already exists
-        $stmt = $db->query('SELECT COUNT(*) FROM users WHERE is_admin = 1');
-        $adminCount = $stmt->fetchColumn();
-        if ($adminCount > 0) {
-            jsonResponse(false, 'Un compte administrateur existe deja.');
+        $stmt = $db->query('SELECT id FROM users WHERE is_admin = 1 LIMIT 1');
+        $existingAdmin = $stmt->fetch(PDO::FETCH_ASSOC);
+        if ($existingAdmin) {
+            jsonResponse(false, 'Un compte administrateur existe deja.', [
+                'user_id' => (int) $existingAdmin['id'],
+            ]);
         }
 
         $hash = password_hash($password, PASSWORD_BCRYPT, ['cost' => 12]);
@@ -635,7 +637,14 @@ function handleSaveStorage(): void {
     $storageType = trim($data['storage_type'] ?? 'local');
 
     if (!$userId) {
-        jsonResponse(false, 'user_id requis.');
+        // Fallback: use the first admin user
+        $stmt = $db->query('SELECT id FROM users WHERE is_admin = 1 LIMIT 1');
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if ($row) {
+            $userId = (int) $row['id'];
+        } else {
+            jsonResponse(false, 'Aucun utilisateur trouve. Creez un compte a l\'etape precedente.');
+        }
     }
 
     $db = AppConfig::getDB();
