@@ -135,7 +135,7 @@
 
             // Populate playlist sub-menu
             const subMenu = document.getElementById('contextMenuPlaylistSubMenu');
-            subMenu.innerHTML = '<div class="context-menu-item">Chargement...</div>';
+            subMenu.innerHTML = `<div class="context-menu-item">${t('context_menu.loading', 'Chargement...')}</div>`;
 
             fetch(`${API_URL}?action=get_playlists&user=${app.currentUser}`)
                 .then(res => res.json())
@@ -418,7 +418,7 @@
                 const response = await fetch(`${API_URL}?action=add_to_playlist`, { method: 'POST', body: formData });
                 const result = await response.json();
                 if (result.error) throw new Error(result.error);
-                showToast('Chanson ajoutée à la playlist!', 'success');
+                showToast(t('toast.song_added_playlist', 'Chanson ajoutée à la playlist!'), 'success');
             } catch (error) {
                 showToast(`Erreur: ${error.message}`, 'error');
             }
@@ -433,6 +433,9 @@
 
         // Initialisation
         function init() {
+            // Apply i18n to static DOM elements (sidebar, player tooltips)
+            if (window.applyI18n) applyI18n();
+
             // Instantiate unified player
             if (window.UnifiedMusicPlayer && window.gullifyPlayerConfig) {
                 window.gullifyPlayer = new UnifiedMusicPlayer(window.gullifyPlayerConfig);
@@ -459,10 +462,10 @@
             if (themeIcon && themeText) {
                 if (theme === 'dark') {
                     themeIcon.className = 'ri-sun-line';
-                    themeText.textContent = 'Mode Clair';
+                    themeText.textContent = t('settings.light_mode', 'Mode Clair');
                 } else {
                     themeIcon.className = 'ri-moon-line';
-                    themeText.textContent = 'Mode Sombre';
+                    themeText.textContent = t('settings.dark_mode', 'Mode Sombre');
                 }
             }
 
@@ -687,7 +690,7 @@
         async function renderNewReleases() {
             hideAlbumBackground();
             showLoading();
-            contentTitle.textContent = 'Nouveautés';
+            contentTitle.textContent = t('nav.new_releases', 'Nouveautés');
 
             try {
                 // Fetch albums from last 30 days
@@ -791,7 +794,7 @@
                     contentBody.innerHTML = html;
                 } else {
                     // Show all genres
-                    contentTitle.textContent = 'Genres';
+                    contentTitle.textContent = t('nav.genres', 'Genres');
 
                     const response = await fetch(`${BASE_PATH}/api/library.php?user=${app.currentUser}&action=get_genres`);
                     const result = await response.json();
@@ -851,7 +854,7 @@
 
         async function renderPlaylists() {
             hideAlbumBackground();
-            contentTitle.textContent = 'Playlists';
+            contentTitle.textContent = t('nav.playlists', 'Playlists');
             showLoading();
 
             try {
@@ -1008,7 +1011,7 @@
                 const response = await fetch(`${API_URL}?action=remove_from_playlist`, { method: 'POST', body: formData });
                 const result = await response.json();
                 if (result.error) throw new Error(result.error);
-                showToast('Chanson retirée!', 'success');
+                showToast(t('toast.song_removed_playlist', 'Chanson retirée!'), 'success');
                 viewPlaylist(playlistId); // Refresh the view
             } catch (error) {
                 showToast(`Erreur: ${error.message}`, 'error');
@@ -1029,7 +1032,7 @@
                 const response = await fetch(`${API_URL}?action=create_playlist`, { method: 'POST', body: formData });
                 const result = await response.json();
                 if (result.error) throw new Error(result.error);
-                showToast('Playlist créée!', 'success');
+                showToast(t('toast.playlist_created', 'Playlist créée!'), 'success');
                 renderPlaylists(); // Refresh the view
             } catch (error) {
                 showToast(`Erreur: ${error.message}`, 'error');
@@ -1049,7 +1052,7 @@
                 const response = await fetch(`${API_URL}?action=rename_playlist`, { method: 'POST', body: formData });
                 const result = await response.json();
                 if (result.error) throw new Error(result.error);
-                showToast('Playlist renommée!', 'success');
+                showToast(t('toast.playlist_renamed', 'Playlist renommée!'), 'success');
                 renderPlaylists(); // Refresh the view
             } catch (error) {
                 showToast(`Erreur: ${error.message}`, 'error');
@@ -1067,7 +1070,7 @@
                 const response = await fetch(`${API_URL}?action=delete_playlist`, { method: 'POST', body: formData });
                 const result = await response.json();
                 if (result.error) throw new Error(result.error);
-                showToast('Playlist supprimée!', 'success');
+                showToast(t('toast.playlist_deleted', 'Playlist supprimée!'), 'success');
                 renderPlaylists(); // Refresh the view
             } catch (error) {
                 showToast(`Erreur: ${error.message}`, 'error');
@@ -1076,7 +1079,7 @@
 
         async function renderStatistics() {
             hideAlbumBackground();
-            contentTitle.textContent = 'Statistiques';
+            contentTitle.textContent = t('nav.statistics', 'Statistiques');
             showLoading();
 
             try {
@@ -1573,7 +1576,7 @@
 
         async function renderFavorites() {
             hideAlbumBackground();
-            contentTitle.textContent = 'Vos favoris';
+            contentTitle.textContent = t('favorites.title', 'Vos favoris');
             showLoading();
 
             try {
@@ -1772,7 +1775,7 @@
 
         async function renderDownloads() {
             hideAlbumBackground();
-            contentTitle.textContent = 'Téléchargements';
+            contentTitle.textContent = t('nav.downloads', 'Téléchargements');
 
             // Clear any existing poll
             if (downloadsPollInterval) {
@@ -2087,7 +2090,7 @@
         async function renderWebRadio() {
             hideAlbumBackground();
             showLoading();
-            contentTitle.textContent = 'Radio Web';
+            contentTitle.textContent = t('nav.radio', 'Radio Web');
 
             try {
                 const response = await fetch(`${BASE_PATH}/web_radio_api.php?action=list`);
@@ -2224,7 +2227,7 @@
         function playWebRadio(stationId) {
             const station = webRadioStations.find(s => s.id === stationId);
             if (!station || !station.streams?.[0]?.url) {
-                showToast('Stream non disponible', 'error');
+                showToast(t('toast.stream_unavailable', 'Stream non disponible'), 'error');
                 return;
             }
 
@@ -2257,7 +2260,7 @@
                 }
                 radioAudio.src = streamUrl;
                 radioAudio.play().then(() => {
-                    showToast(`En lecture: ${station.name}`, 'success');
+                    showToast(t('toast.now_playing', 'En lecture: {name}').replace('{name}', station.name), 'success');
                 }).catch(err => {
                     console.error('Fallback audio play failed:', err);
                     showToast('Erreur de lecture - appuyez pour réessayer', 'error');
@@ -2279,7 +2282,7 @@
                 }
             });
 
-            showToast(`Lecture: ${station.name}`, 'success');
+            showToast(t('toast.playing', 'Lecture: {name}').replace('{name}', station.name), 'success');
         }
 
         function stopWebRadio() {
@@ -2316,7 +2319,7 @@
 
         async function renderHome() {
             hideAlbumBackground();
-            contentTitle.textContent = 'Accueil';
+            contentTitle.textContent = t('home.title', 'Accueil');
 
             if (!app.library) {
                 showEmpty('Aucune musique disponible');
@@ -2542,11 +2545,11 @@
 
         async function playRecentAlbums() {
             if (!window.recentAlbumsData || window.recentAlbumsData.length === 0) {
-                showToast('Aucun album récent disponible', 'error');
+                showToast(t('toast.no_recent_albums', 'Aucun album récent disponible'), 'error');
                 return;
             }
 
-            showToast('Chargement des nouveautés...', 'info');
+            showToast(t('toast.loading_new', 'Chargement des nouveautés...'), 'info');
 
             try {
                 // Fetch songs from all recent albums
@@ -2574,7 +2577,7 @@
                 }
 
                 if (allTracks.length === 0) {
-                    showToast('Aucune chanson trouvée', 'error');
+                    showToast(t('toast.no_songs_found', 'Aucune chanson trouvée'), 'error');
                     return;
                 }
 
@@ -2588,10 +2591,10 @@
                 app.currentTrackIndex = 0;
                 loadTrack(allTracks[0]);
                 renderQueue();
-                showToast(`${allTracks.length} chansons ajoutées`, 'success');
+                showToast(t('toast.songs_added', '{n} chansons ajoutées').replace('{n}', allTracks.length), 'success');
             } catch (e) {
                 console.error('Error playing recent albums:', e);
-                showToast('Erreur lors du chargement', 'error');
+                showToast(t('toast.load_error', 'Erreur lors du chargement'), 'error');
             }
         }
 
@@ -3476,7 +3479,7 @@
         }
 
         function renderSongs() {
-            contentTitle.textContent = 'Chansons';
+            contentTitle.textContent = t('nav.songs', 'Chansons');
 
             const html = `
                 <div style="text-align: center; padding: 60px 20px;">
@@ -3596,7 +3599,7 @@
                     }
 
                     // Show toast notification
-                    showToast(`Bibliothèque mise à jour: ${changeText.join(', ')}`, 'success');
+                    showToast(`${t('toast.library_updated', 'Bibliothèque mise à jour !')}: ${changeText.join(', ')}`, 'success');
 
                     // Reload artist page after a short delay to show updated data
                     // BUT only if user is still on this artist's page
@@ -4070,7 +4073,7 @@
                 showArtistBackground(imgSrc);
 
                 // Show success message
-                showToast('✅ Image uploadée avec succès!');
+                showToast('✅ ' + t('toast.image_uploaded', 'Image uploadée avec succès!'));
 
             } catch (error) {
                 console.error('Error uploading artist image:', error);
@@ -4194,13 +4197,13 @@
         function addSongToQueue(song) {
             if (window.gullifyPlayer) {
                 window.gullifyPlayer.addToQueue(song);
-                showToast('Ajouté à la file d\'attente', 'success');
+                showToast(t('toast.added_queue', "Ajouté à la file d'attente"), 'success');
             }
         }
 
         function renderSettings() {
             hideAlbumBackground();
-            contentTitle.textContent = 'Paramètres';
+            contentTitle.textContent = t('settings.title', 'Paramètres');
 
             const currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
             const isDark = currentTheme === 'dark';
@@ -4208,72 +4211,72 @@
             contentBody.innerHTML = `
                 <div class="settings-page">
                     <div class="settings-section">
-                        <div class="settings-section-title"><i class="ri-palette-line"></i> Apparence</div>
+                        <div class="settings-section-title"><i class="ri-palette-line"></i> ${t('settings.appearance', 'Apparence')}</div>
                         <div class="settings-row">
                             <div class="settings-row-label">
-                                <span>Thème</span>
-                                <span>Basculer entre le mode clair et sombre</span>
+                                <span>${t('settings.theme', 'Thème')}</span>
+                                <span>${t('settings.theme_desc', 'Basculer entre le mode clair et sombre')}</span>
                             </div>
                             <button class="rescan-btn" id="settingsThemeBtn" onclick="toggleTheme(); updateThemeButton();" style="flex-shrink:0;">
                                 <i class="${isDark ? 'ri-sun-line' : 'ri-moon-line'}" id="themeIcon"></i>
-                                <span id="themeText">${isDark ? 'Mode Clair' : 'Mode Sombre'}</span>
+                                <span id="themeText">${isDark ? t('settings.light_mode', 'Mode Clair') : t('settings.dark_mode', 'Mode Sombre')}</span>
                             </button>
                         </div>
                     </div>
 
                     <div class="settings-section">
-                        <div class="settings-section-title"><i class="ri-translate-2"></i> Langue</div>
+                        <div class="settings-section-title"><i class="ri-translate-2"></i> ${t('settings.language', 'Langue')}</div>
                         <div class="settings-row">
                             <div class="settings-row-label">
-                                <span>Langue de l'interface</span>
-                                <span>Changer la langue d'affichage</span>
+                                <span>${t('settings.interface_lang', "Langue de l'interface")}</span>
+                                <span>${t('settings.change_lang', "Changer la langue d'affichage")}</span>
                             </div>
                             <div style="display:flex;gap:8px;flex-shrink:0;">
                                 <button class="rescan-btn" onclick="setLang('fr')" id="langFrBtn" style="${app.lang === 'fr' ? 'background:var(--accent);color:#fff;' : ''}">🇫🇷 Français</button>
-                                <button class="rescan-btn" onclick="setLang('en')" id="langEnBtn" style="${app.lang === 'en' ? 'background:var(--accent);color:#fff;' : ''}" title="Traduction à venir">🇬🇧 English</button>
+                                <button class="rescan-btn" onclick="setLang('en')" id="langEnBtn" style="${app.lang === 'en' ? 'background:var(--accent);color:#fff;' : ''}">🇬🇧 English</button>
                             </div>
                         </div>
                     </div>
 
                     <div class="settings-section">
-                        <div class="settings-section-title"><i class="ri-music-library-line"></i> Bibliothèque</div>
+                        <div class="settings-section-title"><i class="ri-music-library-line"></i> ${t('scan.library', 'Bibliothèque')}</div>
                         <div class="settings-row">
                             <div class="settings-row-label">
-                                <span>Scan rapide</span>
-                                <span>Détecte les nouveaux fichiers sans relire les métadonnées ID3 ni les pochettes</span>
+                                <span>${t('scan.quick', 'Scan rapide')}</span>
+                                <span>${t('scan.quick_desc', 'Détecte les nouveaux fichiers sans relire les métadonnées ID3 ni les pochettes')}</span>
                             </div>
                             <button class="rescan-btn" onclick="window.triggerLibraryScan('fast', this)" style="flex-shrink:0;">
                                 <i class="ri-folder-search-line"></i>
-                                <span>Lancer</span>
+                                <span>${t('common.run', 'Lancer')}</span>
                             </button>
                         </div>
                         <div class="settings-row">
                             <div class="settings-row-label">
-                                <span>Scan complet</span>
-                                <span>Relit toutes les métadonnées ID3 et met à jour les pochettes</span>
+                                <span>${t('scan.full', 'Scan complet')}</span>
+                                <span>${t('scan.full_desc', 'Relit toutes les métadonnées ID3 et met à jour les pochettes')}</span>
                             </div>
                             <button class="rescan-btn" onclick="window.triggerLibraryScan('force', this)" style="flex-shrink:0;">
                                 <i class="ri-refresh-line"></i>
-                                <span>Lancer</span>
+                                <span>${t('common.run', 'Lancer')}</span>
                             </button>
                         </div>
                         <div class="settings-row">
                             <div class="settings-row-label">
-                                <span>Scan artwork</span>
-                                <span>Met à jour les pochettes manquantes uniquement (cover.jpg + ID3 embarqué)</span>
+                                <span>${t('scan.artwork', 'Scan artwork')}</span>
+                                <span>${t('scan.artwork_desc', 'Met à jour les pochettes manquantes uniquement (cover.jpg + ID3 embarqué)')}</span>
                             </div>
                             <button class="rescan-btn" onclick="window.triggerLibraryScan('artwork', this)" style="flex-shrink:0;">
                                 <i class="ri-image-line"></i>
-                                <span>Lancer</span>
+                                <span>${t('common.run', 'Lancer')}</span>
                             </button>
                         </div>
                     </div>
 
                     <div id="scan-progress-container" style="display:none; margin-top:-10px; margin-bottom:20px;">
                         <div class="settings-section" style="border:1px solid var(--accent);background:rgba(var(--accent-rgb),0.05);">
-                            <div class="settings-section-title"><i class="ri-loader-4-line"></i> Progression du scan</div>
+                            <div class="settings-section-title"><i class="ri-loader-4-line"></i> ${t('scan.progress', 'Progression du scan')}</div>
                             <div style="display:flex;justify-content:space-between;margin-bottom:6px;font-size:13px;">
-                                <span id="scan-status-text" style="font-weight:600;">Initialisation...</span>
+                                <span id="scan-status-text" style="font-weight:600;">${t('scan.initializing', 'Initialisation...')}</span>
                                 <span id="scan-percent-text" style="color:var(--accent);font-weight:600;">0%</span>
                             </div>
                             <div style="width:100%;height:8px;background:var(--hover-bg);border-radius:4px;overflow:hidden;margin-bottom:6px;">
@@ -4435,11 +4438,11 @@
                     const musicDir = document.getElementById('newMusicDir')?.value;
                     const isAdmin  = document.getElementById('newIsAdmin')?.checked ? 1 : 0;
 
-                    if (!username || !password) { showToast('Nom d\'utilisateur et mot de passe requis', 'error'); return; }
+                    if (!username || !password) { showToast(t('setup.username_pass_required', "Nom d'utilisateur et mot de passe requis"), 'error'); return; }
 
                     const result = await adminFetch('create_user', { username, password, full_name: fullName, music_directory: musicDir, is_admin: isAdmin });
                     if (result.success) {
-                        showToast('Utilisateur créé', 'success');
+                        showToast(t('toast.user_created', 'Utilisateur créé'), 'success');
                         document.getElementById('newUsername').value = '';
                         document.getElementById('newPassword').value = '';
                         document.getElementById('newFullName').value = '';
@@ -4454,7 +4457,7 @@
                 window.adminDeleteUser = async (userId, username) => {
                     if (!confirm(`Supprimer l'utilisateur "${username}" ? Cette action est irréversible.`)) return;
                     const result = await adminFetch('delete_user', { user_id: userId });
-                    if (result.success) { showToast('Utilisateur supprimé', 'success'); loadAdminUsers(); }
+                    if (result.success) { showToast(t('toast.user_deleted', 'Utilisateur supprimé'), 'success'); loadAdminUsers(); }
                     else showToast(result.error, 'error');
                 };
 
@@ -4474,7 +4477,7 @@
                     const password = prompt(`Nouveau mot de passe pour "${username}" (min 6 caractères) :`);
                     if (!password) return;
                     const result = await adminFetch('update_password', { user_id: userId, password });
-                    if (result.success) showToast('Mot de passe mis à jour', 'success');
+                    if (result.success) showToast(t('toast.password_updated', 'Mot de passe mis à jour'), 'success');
                     else showToast(result.error, 'error');
                 };
 
@@ -4504,7 +4507,7 @@
                         const dir = document.getElementById('dirModalSelect').value;
                         const result = await adminFetch('update_directory', { user_id: userId, music_directory: dir });
                         modal.remove();
-                        if (result.success) { showToast('Répertoire mis à jour', 'success'); loadAdminUsers(); }
+                        if (result.success) { showToast(t('toast.dir_updated', 'Répertoire mis à jour'), 'success'); loadAdminUsers(); }
                         else showToast(result.error, 'error');
                     };
                 };
@@ -4735,18 +4738,26 @@
                         app.sftpUser = document.getElementById('mySftpUser')?.value || '';
                         app.sftpPath = document.getElementById('mySftpPath')?.value || '';
                     }
-                    showToast('Paramètres de stockage enregistrés', 'success');
+                    showToast(t('toast.storage_saved', 'Paramètres de stockage enregistrés'), 'success');
                     renderSettings(); // refresh to show updated info
                 } else {
-                    showToast(r.error || 'Erreur', 'error');
+                    showToast(r.error || t('common.error', 'Erreur'), 'error');
                 }
             };
 
             // Lang
-            window.setLang = (lang) => {
+            window.setLang = async (lang) => {
                 app.lang = lang;
                 localStorage.setItem('gullify_lang', lang);
-                if (lang === 'en') showToast('English translation coming soon!', 'info');
+                document.cookie = `gullify_lang=${encodeURIComponent(lang)};path=/;max-age=31536000`;
+                try {
+                    const resp = await fetch(`get_lang.php?lang=${encodeURIComponent(lang)}`);
+                    window.gullifyLang = await resp.json();
+                } catch (e) {
+                    console.warn('Failed to load translations for', lang, e);
+                }
+                document.documentElement.lang = lang;
+                applyI18n();
                 renderSettings();
             };
 
@@ -4761,11 +4772,11 @@
             const icon = btn.querySelector('i');
             const text = btn.querySelector('span');
             const origIcon = icon ? icon.className : '';
-            const origText = text ? text.textContent : 'Lancer';
+            const origText = text ? text.textContent : t('common.run', 'Lancer');
 
             btn.disabled = true;
             if (icon) icon.className = 'ri-loader-4-line ri-spin';
-            if (text) text.textContent = 'Scan en cours...';
+            if (text) text.textContent = t('scan.scanning', 'Scan en cours...');
 
             const actionMap = { fast: 'fast_scan', force: 'force_scan', artwork: 'artwork_scan' };
             const action = actionMap[scanType] || 'force_scan';
@@ -4773,8 +4784,8 @@
             try {
                 const response = await fetch(`${API_URL}?action=${action}&user=${encodeURIComponent(app.currentUser)}`);
                 const result = await response.json();
-                if (!result.success) throw new Error(result.error || 'Erreur');
-                showToast('Scan lancé...', 'info');
+                if (!result.success) throw new Error(result.error || t('common.error', 'Erreur'));
+                showToast(t('scan.launched', 'Scan lancé...'), 'info');
 
                 const progressContainer = document.getElementById('scan-progress-container');
                 const statusText = document.getElementById('scan-status-text');
@@ -4828,11 +4839,11 @@
                                                                     clearInterval(_scanPollingInterval);
                                                                     _scanPollingInterval = null;
                                                                     if (icon) icon.className = 'ri-check-line';
-                                                                    if (text) text.textContent = 'Terminé !';
+                                                                    if (text) text.textContent = t('scan.complete', 'Terminé !');
                                                                     if (percentText) percentText.textContent = '100%';
                                                                     if (scanProgressBar) scanProgressBar.style.width = '100%';
                                                                     await loadLibrary();
-                                showToast('Bibliothèque mise à jour !', 'success');
+                                showToast(t('toast.library_updated', 'Bibliothèque mise à jour !'), 'success');
 
                                 setTimeout(() => {
                                     btn.disabled = false;
@@ -4847,7 +4858,7 @@
 
             } catch (error) {
                 if (icon) icon.className = 'ri-error-warning-line';
-                if (text) text.textContent = 'Erreur';
+                if (text) text.textContent = t('common.error', 'Erreur');
                 showToast(error.message, 'error');
                 setTimeout(() => {
                     btn.disabled = false;
@@ -5048,7 +5059,7 @@
                 const isFavorite = result.data.isFavorite;
                 btn.innerHTML = isFavorite ? '<i class="ri-heart-fill"></i>' : '<i class="ri-heart-line"></i>';
                 btn.classList.toggle('active', isFavorite);
-                showToast(isFavorite ? 'Artiste ajouté aux favoris' : 'Artiste retiré des favoris', 'success');
+                showToast(isFavorite ? t('favorites.artist_added', 'Artiste ajouté aux favoris') : t('favorites.artist_removed', 'Artiste retiré des favoris'), 'success');
             } catch (error) {
                 console.error('Error toggling artist favorite:', error);
                 showToast('Erreur lors de la mise à jour', 'error');
@@ -5094,7 +5105,7 @@
                 const isFavorite = result.data.isFavorite;
                 btn.innerHTML = isFavorite ? '<i class="ri-heart-fill"></i>' : '<i class="ri-heart-line"></i>';
                 btn.classList.toggle('active', isFavorite);
-                showToast(isFavorite ? 'Album ajouté aux favoris' : 'Album retiré des favoris', 'success');
+                showToast(isFavorite ? t('favorites.album_added', 'Album ajouté aux favoris') : t('favorites.album_removed', 'Album retiré des favoris'), 'success');
             } catch (error) {
                 console.error('Error toggling album favorite:', error);
                 showToast('Erreur lors de la mise à jour', 'error');

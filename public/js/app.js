@@ -3,6 +3,38 @@
  */
 
 /**
+ * i18n: Translation helper (dot-notation key lookup)
+ * Usage: t('nav.home') or t('common.loading', 'Loading...')
+ */
+window.t = function(key, fallback) {
+    const parts = key.split('.');
+    let val = window.gullifyLang || {};
+    for (const p of parts) {
+        val = val?.[p];
+        if (val === undefined) return fallback ?? key;
+    }
+    return val ?? fallback ?? key;
+};
+
+/**
+ * i18n: Apply data-i18n attributes to DOM elements
+ * Elements with data-i18n="key" get their textContent replaced.
+ * Elements with data-i18n-attr="placeholder" get that attribute set instead.
+ */
+window.applyI18n = function() {
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+        const key = el.dataset.i18n;
+        const attr = el.dataset.i18nAttr;
+        const translation = window.t(key, el.textContent);
+        if (attr) {
+            el.setAttribute(attr, translation);
+        } else {
+            el.textContent = translation;
+        }
+    });
+};
+
+/**
  * Utility: Format Time
  */
 function formatTime(seconds) {
@@ -33,7 +65,7 @@ function showToast(message, type = 'info') {
 function showLoading() {
     const contentBody = document.getElementById('contentBody');
     if (contentBody) {
-        contentBody.innerHTML = '<div class="loading"><div class="loading-spinner"></div><p>Chargement...</p></div>';
+        contentBody.innerHTML = `<div class="loading"><div class="loading-spinner"></div><p>${t('common.loading', 'Chargement...')}</p></div>`;
     }
 }
 

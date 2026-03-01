@@ -1,6 +1,13 @@
 <?php
 require_once __DIR__ . '/../src/AppConfig.php';
 
+// Language detection (cookie → default fr)
+$_allowedLangs = ['fr', 'en'];
+$appLang = $_COOKIE['gullify_lang'] ?? 'fr';
+if (!in_array($appLang, $_allowedLangs, true)) $appLang = 'fr';
+$_langFile = __DIR__ . '/lang/' . $appLang . '.json';
+$_langData = file_exists($_langFile) ? file_get_contents($_langFile) : '{}';
+
 // Redirect to setup wizard if not configured
 if (!AppConfig::isSetupDone()) {
     header('Location: /setup/');
@@ -37,7 +44,7 @@ try {
 }
 ?>
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="<?= htmlspecialchars($appLang) ?>">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -83,9 +90,9 @@ try {
             <div class="content-header">
                 <div class="header-top" id="headerTop">
                     <button class="menu-btn" id="menuBtn">☰</button>
-                    <h2 id="contentTitle">Accueil</h2>
+                    <h2 id="contentTitle" data-i18n="home.title">Accueil</h2>
                     <div class="header-search-wrap" id="headerSearchWrap">
-                        <input type="text" class="header-search-input" id="searchInput" placeholder="Rechercher artistes, albums, chansons...">
+                        <input type="text" class="header-search-input" id="searchInput" placeholder="Rechercher artistes, albums, chansons..." data-i18n="common.search_placeholder" data-i18n-attr="placeholder">
                         <button class="search-icon-btn" id="searchBtn">
                             <i class="ri-search-line" id="searchBtnIcon"></i>
                         </button>
@@ -111,16 +118,16 @@ try {
     <!-- Context menu for song right-click -->
     <div class="context-menu" id="contextMenu">
         <div class="context-menu-item" onclick="addSongToQueueById(window._contextMenuSongId)">
-            <i class="ri-add-line"></i> Ajouter à la file
+            <i class="ri-add-line"></i> <span data-i18n="context_menu.add_to_queue">Ajouter à la file</span>
         </div>
         <div class="context-menu-divider"></div>
         <div class="context-menu-item" style="position:relative;">
-            <i class="ri-play-list-add-line"></i> Ajouter à une playlist
+            <i class="ri-play-list-add-line"></i> <span data-i18n="context_menu.add_to_playlist">Ajouter à une playlist</span>
             <div class="context-menu-sub-menu" id="contextMenuPlaylistSubMenu"></div>
         </div>
         <div class="context-menu-divider"></div>
         <div class="context-menu-item" onclick="showSongProperties(window._contextMenuSongId)">
-            <i class="ri-file-info-line"></i> Propriétés
+            <i class="ri-file-info-line"></i> <span data-i18n="context_menu.properties">Propriétés</span>
         </div>
     </div>
 
@@ -179,6 +186,9 @@ try {
             <div id="artworkSaveStatus" style="margin-top:10px;font-size:12px;text-align:center;"></div>
         </div>
     </div>
+
+    <!-- i18n: inline translations to avoid FOUC -->
+    <script>window.gullifyLang = <?= $_langData ?>;</script>
 
     <!-- Scripts -->
     <script>

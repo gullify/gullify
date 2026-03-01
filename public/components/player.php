@@ -8,14 +8,14 @@
             🎵
         </div>
         <div class="player-details">
-            <div class="player-song-title" id="playerTitle">Aucune chanson</div>
-            <div class="player-song-artist" id="playerArtist">Sélectionnez une chanson</div>
+            <div class="player-song-title" id="playerTitle" data-i18n="player.no_song">Aucune chanson</div>
+            <div class="player-song-artist" id="playerArtist" data-i18n="player.select_song">Sélectionnez une chanson</div>
         </div>
     </div>
 
     <div class="player-controls">
         <div class="player-buttons">
-            <button class="player-btn" id="shuffleBtn" title="Aléatoire">
+            <button class="player-btn" id="shuffleBtn" title="Aléatoire" data-i18n="player.shuffle" data-i18n-attr="title">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <polyline points="16 3 21 3 21 8"></polyline>
                     <line x1="4" y1="20" x2="21" y2="3"></line>
@@ -24,24 +24,24 @@
                     <line x1="4" y1="4" x2="9" y2="9"></line>
                 </svg>
             </button>
-            <button class="player-btn" id="prevBtn" title="Précédent">
+            <button class="player-btn" id="prevBtn" title="Précédent" data-i18n="player.prev" data-i18n-attr="title">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <polygon points="11 19 2 12 11 5 11 19"></polygon>
                     <polygon points="22 19 13 12 22 5 22 19"></polygon>
                 </svg>
             </button>
-            <button class="player-btn play-btn" id="playBtn" title="Lecture">
+            <button class="player-btn play-btn" id="playBtn" title="Lecture" data-i18n="player.play" data-i18n-attr="title">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <polygon points="5 3 19 12 5 21 5 3"></polygon>
                 </svg>
             </button>
-            <button class="player-btn" id="nextBtn" title="Suivant">
+            <button class="player-btn" id="nextBtn" title="Suivant" data-i18n="player.next" data-i18n-attr="title">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <polygon points="13 19 22 12 13 5 13 19"></polygon>
                     <polygon points="2 19 11 12 2 5 2 19"></polygon>
                 </svg>
             </button>
-            <button class="player-btn" id="repeatBtn" title="Répéter">
+            <button class="player-btn" id="repeatBtn" title="Répéter" data-i18n="player.repeat" data-i18n-attr="title">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <polyline points="17 1 21 5 17 9"></polyline>
                     <path d="M3 11V9a4 4 0 0 1 4-4h14"></path>
@@ -58,7 +58,7 @@
     </div>
 
     <div class="player-extras">
-        <button class="player-btn" id="playerFavoriteBtn" title="Ajouter aux favoris">
+        <button class="player-btn" id="playerFavoriteBtn" title="Ajouter aux favoris" data-i18n="player.favorite" data-i18n-attr="title">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
             </svg>
@@ -70,7 +70,7 @@
             </svg>
             <input type="range" class="volume-slider" id="volumeSlider" min="0" max="100" value="80">
         </div>
-        <button class="player-btn" id="queueToggle" title="File d'attente">
+        <button class="player-btn" id="queueToggle" title="File d'attente" data-i18n="player.queue" data-i18n-attr="title">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <line x1="8" y1="6" x2="21" y2="6"></line>
                 <line x1="8" y1="12" x2="21" y2="12"></line>

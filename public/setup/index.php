@@ -6,9 +6,16 @@ if (AppConfig::isSetupDone()) {
     header('Location: /');
     exit;
 }
+
+// Language detection (cookie → default fr)
+$_allowedLangs = ['fr', 'en'];
+$setupLang = $_COOKIE['gullify_lang'] ?? 'fr';
+if (!in_array($setupLang, $_allowedLangs, true)) $setupLang = 'fr';
+$_langFile = __DIR__ . '/../lang/' . $setupLang . '.json';
+$_langData = file_exists($_langFile) ? file_get_contents($_langFile) : '{}';
 ?>
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="<?= htmlspecialchars($setupLang) ?>">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -247,55 +254,55 @@ if (AppConfig::isSetupDone()) {
 <div class="wizard">
     <div class="logo">
         <img src="../logo_gullify_wh.png" alt="Gullify">
-        <p>Assistant de configuration</p>
+        <p id="setupSubtitle">Assistant de configuration</p>
     </div>
 
     <div class="steps" id="stepDots"></div>
 
     <!-- Step 1: Requirements -->
     <div class="card step-card" id="step-1">
-        <h2>Verification du systeme</h2>
-        <p class="subtitle">Verification des prerequis necessaires au fonctionnement de Gullify.</p>
+        <h2 id="s1-title">Vérification du système</h2>
+        <p class="subtitle" id="s1-sub">Vérification des prérequis nécessaires au fonctionnement de Gullify.</p>
         <ul class="check-list" id="reqList">
-            <li><span class="check-icon wait">...</span> Verification en cours...</li>
+            <li><span class="check-icon wait">...</span> <span id="s1-checking">Vérification en cours...</span></li>
         </ul>
         <div class="actions">
             <div></div>
-            <button class="btn btn-primary" id="reqNext" disabled>Suivant</button>
+            <button class="btn btn-primary" id="reqNext" disabled id="s1-next">Suivant</button>
         </div>
     </div>
 
     <!-- Step 2: Database -->
     <div class="card step-card hidden" id="step-2">
-        <h2>Base de donnees</h2>
-        <p class="subtitle">Les parametres MySQL sont preconfigures via Docker. Verifiez la connexion.</p>
+        <h2 id="s2-title">Base de données</h2>
+        <p class="subtitle" id="s2-sub">Les paramètres MySQL sont préconfigurés via Docker. Vérifiez la connexion.</p>
         <div class="form-row">
             <div class="form-group">
-                <label>Hote</label>
+                <label id="s2-host">Hôte</label>
                 <input type="text" id="dbHost" value="db" readonly>
             </div>
             <div class="form-group" style="max-width: 100px;">
-                <label>Port</label>
+                <label id="s2-port">Port</label>
                 <input type="text" id="dbPort" value="3306" readonly>
             </div>
         </div>
         <div class="form-group">
-            <label>Base de donnees</label>
+            <label id="s2-dbname">Base de données</label>
             <input type="text" id="dbName" value="gullify" readonly>
         </div>
         <div class="form-row">
             <div class="form-group">
-                <label>Utilisateur</label>
+                <label id="s2-user">Utilisateur</label>
                 <input type="text" id="dbUser" value="gullify" readonly>
             </div>
             <div class="form-group">
-                <label>Mot de passe</label>
+                <label id="s2-pass">Mot de passe</label>
                 <input type="password" id="dbPass" value="gullify_secret" readonly>
             </div>
         </div>
         <div id="dbStatus"></div>
         <div class="actions">
-            <button class="btn btn-secondary" onclick="goStep(1)">Retour</button>
+            <button class="btn btn-secondary" onclick="goStep(1)" id="s2-back">Retour</button>
             <div style="display:flex;gap:8px;">
                 <button class="btn btn-secondary" id="dbTestBtn" onclick="testDatabase()">Tester</button>
                 <button class="btn btn-primary" id="dbNext" disabled>Suivant</button>
@@ -305,28 +312,28 @@ if (AppConfig::isSetupDone()) {
 
     <!-- Step 3: Admin account -->
     <div class="card step-card hidden" id="step-3">
-        <h2>Compte administrateur</h2>
-        <p class="subtitle">Creez le premier compte pour acceder a Gullify.</p>
+        <h2 id="s3-title">Compte administrateur</h2>
+        <p class="subtitle" id="s3-sub">Créez le premier compte pour accéder à Gullify.</p>
         <div class="form-group">
-            <label>Nom complet</label>
+            <label id="s3-fullname">Nom complet</label>
             <input type="text" id="adminFullName" placeholder="Maxime Dupont">
         </div>
         <div class="form-row">
             <div class="form-group">
-                <label>Nom d'utilisateur</label>
+                <label id="s3-username">Nom d'utilisateur</label>
                 <input type="text" id="adminUser" placeholder="maxime">
             </div>
             <div class="form-group">
-                <label>Mot de passe</label>
-                <input type="password" id="adminPass" placeholder="Min. 6 caracteres">
+                <label id="s3-password">Mot de passe</label>
+                <input type="password" id="adminPass" placeholder="Min. 6 caractères">
             </div>
         </div>
         <div id="adminStatus"></div>
         <div id="userList"></div>
         <div class="actions">
-            <button class="btn btn-secondary" onclick="goStep(2)">Retour</button>
+            <button class="btn btn-secondary" onclick="goStep(2)" id="s3-back">Retour</button>
             <div style="display:flex;gap:8px;">
-                <button class="btn btn-secondary" id="createAdminBtn" onclick="createAdmin()">Creer</button>
+                <button class="btn btn-secondary" id="createAdminBtn" onclick="createAdmin()">Créer</button>
                 <button class="btn btn-primary" id="adminNext" disabled>Suivant</button>
             </div>
         </div>
@@ -334,21 +341,21 @@ if (AppConfig::isSetupDone()) {
 
     <!-- Step 4: Storage -->
     <div class="card step-card hidden" id="step-4">
-        <h2>Stockage de la musique</h2>
-        <p class="subtitle">Ou se trouvent vos fichiers audio ?</p>
+        <h2 id="s4-title">Stockage de la musique</h2>
+        <p class="subtitle" id="s4-sub">Où se trouvent vos fichiers audio ?</p>
         <div class="storage-options">
             <div class="storage-option active" id="opt-local" onclick="selectStorage('local')">
                 <div class="storage-icon">🖥️</div>
                 <div>
-                    <strong>Stockage local</strong>
-                    <p>Les fichiers sont sur ce serveur, montes via le volume Docker <code>/music</code></p>
+                    <strong id="s4-local-title">Stockage local</strong>
+                    <p id="s4-local-desc">Les fichiers sont sur ce serveur, montés via le volume Docker <code>/music</code></p>
                 </div>
             </div>
             <div class="storage-option" id="opt-sftp" onclick="selectStorage('sftp')">
                 <div class="storage-icon">🌐</div>
                 <div>
-                    <strong>SFTP / NAS distant</strong>
-                    <p>Les fichiers sont sur un NAS ou serveur distant, accessible via SFTP</p>
+                    <strong id="s4-sftp-title">SFTP / NAS distant</strong>
+                    <p id="s4-sftp-desc">Les fichiers sont sur un NAS ou serveur distant, accessible via SFTP</p>
                 </div>
             </div>
         </div>
@@ -356,11 +363,11 @@ if (AppConfig::isSetupDone()) {
         <!-- Local fields -->
         <div id="local-fields">
             <div class="form-group">
-                <label>Sous-dossier dans /music <span style="color:#555">(optionnel)</span></label>
+                <label id="s4-subdir">Sous-dossier dans /music <span style="color:#555">(optionnel)</span></label>
                 <input type="text" id="musicDir" placeholder="ex: maxime  — laisser vide pour utiliser /music directement">
             </div>
-            <div class="status-msg info">
-                Le dossier <strong>/music</strong> est monte depuis votre machine hote. Configurez <code>MUSIC_HOST_PATH</code> dans votre <code>.env</code> pour pointer vers votre bibliotheque.
+            <div class="status-msg info" id="s4-local-hint">
+                Le dossier <strong>/music</strong> est monté depuis votre machine hôte. Configurez <code>MUSIC_HOST_PATH</code> dans votre <code>.env</code> pour pointer vers votre bibliothèque.
             </div>
         </div>
 
@@ -368,26 +375,26 @@ if (AppConfig::isSetupDone()) {
         <div id="sftp-fields" class="hidden sftp-fields">
             <div class="form-row">
                 <div class="form-group" style="flex: 3;">
-                    <label>Hote SFTP</label>
+                    <label id="s4-sftp-host">Hôte SFTP</label>
                     <input type="text" id="sftpHost" placeholder="nas.exemple.com ou 192.168.1.100">
                 </div>
                 <div class="form-group" style="flex: 1;">
-                    <label>Port</label>
+                    <label id="s4-sftp-port">Port</label>
                     <input type="number" id="sftpPort" value="22">
                 </div>
             </div>
             <div class="form-row">
                 <div class="form-group">
-                    <label>Utilisateur SFTP</label>
+                    <label id="s4-sftp-user">Utilisateur SFTP</label>
                     <input type="text" id="sftpUser" placeholder="admin">
                 </div>
                 <div class="form-group">
-                    <label>Mot de passe</label>
+                    <label id="s4-sftp-pass">Mot de passe</label>
                     <input type="password" id="sftpPass" placeholder="••••••••">
                 </div>
             </div>
             <div class="form-group">
-                <label>Chemin distant</label>
+                <label id="s4-sftp-path">Chemin distant</label>
                 <input type="text" id="sftpPath" placeholder="/volume1/Musique">
             </div>
             <button class="btn btn-secondary" id="sftpTestBtn" onclick="testSftp()">Tester la connexion</button>
@@ -395,9 +402,9 @@ if (AppConfig::isSetupDone()) {
 
         <div id="storageStatus"></div>
         <div class="actions">
-            <button class="btn btn-secondary" onclick="goStep(3)">Retour</button>
+            <button class="btn btn-secondary" onclick="goStep(3)" id="s4-back">Retour</button>
             <div style="display:flex;gap:8px;">
-                <button class="btn btn-secondary" onclick="goStep(5)">Passer</button>
+                <button class="btn btn-secondary" onclick="goStep(5)" id="s4-skip">Passer</button>
                 <button class="btn btn-primary" id="storageSaveBtn" onclick="saveStorage()">Enregistrer</button>
             </div>
         </div>
@@ -405,20 +412,29 @@ if (AppConfig::isSetupDone()) {
 
     <!-- Step 5: Done -->
     <div class="card step-card hidden" id="step-5">
-        <h2>Configuration terminee !</h2>
-        <p class="subtitle">Gullify est pret a utiliser.</p>
+        <h2 id="s5-title">Configuration terminée !</h2>
+        <p class="subtitle" id="s5-sub">Gullify est prêt à utiliser.</p>
         <div class="done-icon">&#127925;</div>
-        <div class="done-hint">
-            Connectez-vous et rendez-vous dans <strong>Parametres</strong> pour ajuster votre configuration de stockage et lancer le scan de votre bibliotheque.
+        <div class="done-hint" id="s5-hint">
+            Connectez-vous et rendez-vous dans <strong>Paramètres</strong> pour ajuster votre configuration de stockage et lancer le scan de votre bibliothèque.
         </div>
         <div class="actions">
             <div></div>
-            <button class="btn btn-success" onclick="finishSetup()">Acceder a Gullify</button>
+            <button class="btn btn-success" onclick="finishSetup()" id="s5-finish">Accéder à Gullify</button>
         </div>
     </div>
 </div>
 
 <script>
+// i18n: inline translations
+window.gullifyLang = <?= $_langData ?>;
+window.t = function(key, fallback) {
+    const parts = key.split('.');
+    let val = window.gullifyLang || {};
+    for (const p of parts) { val = val?.[p]; if (val === undefined) return fallback ?? key; }
+    return val ?? fallback ?? key;
+};
+
 const TOTAL_STEPS = 5;
 let currentStep = 1;
 let users = [];
@@ -426,8 +442,60 @@ let dbConnected = false;
 let adminUserId = null;
 let selectedStorage = 'local';
 
+// Apply i18n translations to static elements
+function applySetupI18n() {
+    const m = {
+        'setupSubtitle': t('setup.config_wizard', 'Assistant de configuration'),
+        's1-title':      t('setup.sys_check', 'Vérification du système'),
+        's1-sub':        t('setup.sys_check_subtitle', 'Vérification des prérequis nécessaires au fonctionnement de Gullify.'),
+        's1-checking':   t('setup.check_in_progress', 'Vérification en cours...'),
+        's2-title':      t('setup.database', 'Base de données'),
+        's2-sub':        t('setup.database_subtitle', 'Les paramètres MySQL sont préconfigurés via Docker. Vérifiez la connexion.'),
+        's2-host':       t('setup.db_host', 'Hôte'),
+        's2-port':       t('setup.db_port', 'Port'),
+        's2-dbname':     t('setup.db_name', 'Base de données'),
+        's2-user':       t('setup.db_user', 'Utilisateur'),
+        's2-pass':       t('setup.db_pass', 'Mot de passe'),
+        's2-back':       t('setup.back', 'Retour'),
+        'dbTestBtn':     t('setup.test', 'Tester'),
+        'dbNext':        t('setup.next', 'Suivant'),
+        'reqNext':       t('setup.next', 'Suivant'),
+        's3-title':      t('setup.admin_account', 'Compte administrateur'),
+        's3-sub':        t('setup.admin_subtitle', 'Créez le premier compte pour accéder à Gullify.'),
+        's3-fullname':   t('setup.full_name', 'Nom complet'),
+        's3-username':   t('setup.username', "Nom d'utilisateur"),
+        's3-password':   t('setup.password', 'Mot de passe'),
+        's3-back':       t('setup.back', 'Retour'),
+        'createAdminBtn': t('setup.create', 'Créer'),
+        'adminNext':     t('setup.next', 'Suivant'),
+        's4-title':      t('setup.storage_title', 'Stockage de la musique'),
+        's4-sub':        t('setup.storage_subtitle', 'Où se trouvent vos fichiers audio ?'),
+        's4-local-title': t('setup.local_storage', 'Stockage local'),
+        's4-local-desc': t('setup.local_desc', 'Les fichiers sont sur ce serveur, montés via le volume Docker /music'),
+        's4-sftp-title': t('setup.sftp_storage', 'SFTP / NAS distant'),
+        's4-sftp-desc':  t('setup.sftp_desc', 'Les fichiers sont sur un NAS ou serveur distant, accessible via SFTP'),
+        's4-sftp-host':  t('setup.sftp_host', 'Hôte SFTP'),
+        's4-sftp-port':  t('setup.sftp_port', 'Port'),
+        's4-sftp-user':  t('setup.sftp_user', 'Utilisateur SFTP'),
+        's4-sftp-pass':  t('setup.sftp_pass', 'Mot de passe'),
+        's4-sftp-path':  t('setup.sftp_path', 'Chemin distant'),
+        'sftpTestBtn':   t('setup.test_connection', 'Tester la connexion'),
+        's4-back':       t('setup.back', 'Retour'),
+        's4-skip':       t('setup.skip', 'Passer'),
+        'storageSaveBtn': t('setup.save', 'Enregistrer'),
+        's5-title':      t('setup.complete', 'Configuration terminée !'),
+        's5-sub':        t('setup.complete_subtitle', 'Gullify est prêt à utiliser.'),
+        's5-finish':     t('setup.finish', 'Accéder à Gullify'),
+    };
+    for (const [id, text] of Object.entries(m)) {
+        const el = document.getElementById(id);
+        if (el) el.textContent = text;
+    }
+}
+
 // Init
 document.addEventListener('DOMContentLoaded', () => {
+    applySetupI18n();
     buildStepDots();
     checkRequirements();
 });
@@ -499,7 +567,7 @@ async function testDatabase() {
         password: document.getElementById('dbPass').value,
     });
 
-    btn.innerHTML = 'Tester';
+    btn.innerHTML = t('setup.test', 'Tester');
     btn.disabled = false;
 
     if (r.success) {
@@ -530,7 +598,7 @@ async function createAdmin() {
     const fullName = document.getElementById('adminFullName').value.trim();
 
     if (!username || !password) {
-        showStatus('adminStatus', 'Nom d\'utilisateur et mot de passe requis.', 'error');
+        showStatus('adminStatus', t('setup.username_pass_required', "Nom d'utilisateur et mot de passe requis."), 'error');
         return;
     }
 
@@ -546,13 +614,13 @@ async function createAdmin() {
         document.getElementById('adminUser').value = '';
         document.getElementById('adminPass').value = '';
         document.getElementById('adminFullName').value = '';
-        document.getElementById('createAdminBtn').textContent = 'Ajouter utilisateur';
+        document.getElementById('createAdminBtn').textContent = t('setup.add_user', 'Ajouter utilisateur');
         document.getElementById('adminNext').disabled = false;
         document.getElementById('adminNext').onclick = () => goStep(4);
     } else if (r.message && r.message.includes('existe deja')) {
         if (r.user_id) adminUserId = r.user_id;
-        showStatus('adminStatus', r.message + ' Vous pouvez continuer.', 'info');
-        document.getElementById('createAdminBtn').textContent = 'Ajouter utilisateur';
+        showStatus('adminStatus', r.message + ' ' + t('setup.can_continue', 'Vous pouvez continuer.'), 'info');
+        document.getElementById('createAdminBtn').textContent = t('setup.add_user', 'Ajouter utilisateur');
         document.getElementById('adminNext').disabled = false;
         document.getElementById('adminNext').onclick = () => goStep(4);
     } else {
@@ -593,7 +661,7 @@ async function testSftp() {
         sftp_path: document.getElementById('sftpPath').value,
     });
 
-    btn.innerHTML = 'Tester la connexion';
+    btn.innerHTML = t('setup.test_connection', 'Tester la connexion');
     btn.disabled = false;
     showStatus('storageStatus', r.message || r.error, r.success ? 'success' : 'error');
 }
@@ -617,7 +685,7 @@ async function saveStorage() {
 
     const r = await api('save_storage', data);
 
-    btn.innerHTML = 'Enregistrer';
+    btn.innerHTML = t('setup.save', 'Enregistrer');
     btn.disabled = false;
 
     if (r.success) {
@@ -634,7 +702,7 @@ async function finishSetup() {
     if (r.success) {
         window.location.href = '/';
     } else {
-        alert('Erreur: ' + r.message);
+        alert(t('setup.error', 'Erreur') + ': ' + r.message);
     }
 }
 </script>
