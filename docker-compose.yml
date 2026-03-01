@@ -23,6 +23,7 @@ services:
     expose:
       - "80"
     volumes:
+      - ./.env:/app/.env
       - ${MUSIC_HOST_PATH:-./music}:/music
       - gullify_data:/app/data
     environment:

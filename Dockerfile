@@ -41,10 +41,9 @@ RUN sed -i 's|/var/www/html|/app/public|g' /etc/apache2/sites-available/000-defa
 RUN printf "upload_max_filesize=50M\npost_max_size=50M\nmemory_limit=256M\nmax_execution_time=3600\n" \
     > /usr/local/etc/php/conf.d/gullify.ini
 
-# Data directories + writable .env for setup wizard
+# Data directories
 RUN mkdir -p /app/data/cache /app/data/logs /app/data/downloads \
-    && chown -R www-data:www-data /app/data \
-    && chown www-data:www-data /app/.env
+    && chown -R www-data:www-data /app/data
 
 # Make scripts executable and readable by www-data
 RUN chmod 755 /app/scripts/*.sh /app/scripts/*.php
@@ -68,7 +67,11 @@ fi\n\
 echo "Fixing script permissions and line endings..."\n\
 dos2unix /app/scripts/*.php /app/scripts/*.sh 2>/dev/null\n\
 chmod 755 /app/scripts/*.sh /app/scripts/*.php\n\
-echo "Ensuring ownership of data, config and music folders..."\n\
+echo "Ensuring ownership of data and music folders..."\n\
+if [ ! -f /app/.env ]; then\n\
+  echo "No .env found, copying from .env.example..."\n\
+  cp /app/.env.example /app/.env\n\
+fi\n\
 chown www-data:www-data /app/.env\n\
 chown -R www-data:www-data /app/data /music\n\
 echo "Starting services..."\n\
