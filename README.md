@@ -16,17 +16,24 @@ Self-hosted music streaming server with a YouTube Music-style interface.
      - /path/to/your/music:/music:ro
    ```
 
-3. Copy the environment file:
+3. Copy and configure the environment file:
    ```bash
    cp .env.example .env
    ```
+   Edit `.env` and set at minimum:
+   - `APP_DOMAIN` — your domain (e.g. `music.example.com`)
+   - `APP_URL` — your full URL (e.g. `https://music.example.com`)
+   - `MYSQL_PASSWORD` / `MYSQL_ROOT_PASSWORD` — strong passwords
+   - `APP_SECRET` — a long random string
+   - `MUSIC_HOST_PATH` — path to your music on the host
 
-4. Start the containers:
+4. Point your domain's DNS to your server's IP, then start:
    ```bash
    docker-compose up -d
    ```
+   Caddy will automatically obtain a Let's Encrypt SSL certificate for your domain. Ports 80 and 443 must be open on your firewall.
 
-5. Open http://localhost:8080 and follow the setup wizard.
+5. Open `https://your-domain.com` and follow the setup wizard.
 
 ## Features
 
