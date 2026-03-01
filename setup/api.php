@@ -44,6 +44,12 @@ try {
         case 'scan_status':
             handleScanStatus();
             break;
+        case 'test_sftp':
+            handleTestSftp();
+            break;
+        case 'save_storage':
+            handleSaveStorage();
+            break;
         case 'finish_setup':
             handleFinishSetup();
             break;
@@ -595,6 +601,70 @@ function handleScanStatus(): void {
     }
 
     jsonResponse(true, $progress['message'] ?? '', $progress);
+}
+
+function handleTestSftp(): void {
+    $data = getPostData();
+    $host = trim($data['sftp_host'] ?? '');
+    $port = (int) ($data['sftp_port'] ?? 22);
+    $user = trim($data['sftp_user'] ?? '');
+    $pass = $data['sftp_password'] ?? '';
+    $path = trim($data['sftp_path'] ?? '');
+
+    if (empty($host) || empty($user) || empty($pass) || empty($path)) {
+        jsonResponse(false, 'Tous les champs SFTP sont requis pour tester la connexion.');
+    }
+
+    require_once __DIR__ . '/../src/Storage/SFTPStorage.php';
+
+    try {
+        $sftp = new SFTPStorage($host, $port, $user, $pass, $path);
+        if ($sftp->isDir($path)) {
+            jsonResponse(true, 'Connexion SFTP reussie ! Le chemin est accessible.');
+        } else {
+            jsonResponse(false, "Le chemin '$path' est inaccessible ou inexistant.");
+        }
+    } catch (Throwable $e) {
+        jsonResponse(false, 'Erreur SFTP: ' . $e->getMessage());
+    }
+}
+
+function handleSaveStorage(): void {
+    $data = getPostData();
+    $userId = (int) ($data['user_id'] ?? 0);
+    $storageType = trim($data['storage_type'] ?? 'local');
+
+    if (!$userId) {
+        jsonResponse(false, 'user_id requis.');
+    }
+
+    $db = AppConfig::getDB();
+
+    if ($storageType === 'sftp') {
+        $host = trim($data['sftp_host'] ?? '');
+        $port = (int) ($data['sftp_port'] ?? 22);
+        $user = trim($data['sftp_user'] ?? '');
+        $pass = $data['sftp_password'] ?? '';
+        $path = trim($data['sftp_path'] ?? '');
+
+        if (empty($host) || empty($user) || empty($pass) || empty($path)) {
+            jsonResponse(false, 'Tous les champs SFTP sont requis.');
+        }
+
+        require_once __DIR__ . '/../src/Storage/StorageFactory.php';
+        $encryptedPass = StorageFactory::encryptPassword($pass);
+
+        $stmt = $db->prepare(
+            'UPDATE users SET storage_type=?, sftp_host=?, sftp_port=?, sftp_user=?, sftp_password=?, sftp_path=? WHERE id=?'
+        );
+        $stmt->execute(['sftp', $host, $port ?: 22, $user, $encryptedPass, $path, $userId]);
+    } else {
+        $musicDir = trim($data['music_directory'] ?? '');
+        $stmt = $db->prepare('UPDATE users SET storage_type=?, music_directory=? WHERE id=?');
+        $stmt->execute(['local', $musicDir ?: null, $userId]);
+    }
+
+    jsonResponse(true, 'Configuration du stockage enregistree.');
 }
 
 function handleFinishSetup(): void {

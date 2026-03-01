@@ -129,6 +129,7 @@ if (AppConfig::isSetupDone()) {
             color: #ccc;
         }
         .btn-secondary:hover { background: #2a2a2a; }
+        .btn-secondary:disabled { opacity: 0.5; cursor: not-allowed; }
         .btn-success {
             background: #00b894;
             color: #fff;
@@ -215,6 +216,30 @@ if (AppConfig::isSetupDone()) {
             background: #1a1a1a;
             border-radius: 8px;
         }
+        /* Storage step */
+        .storage-options {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+        .storage-option {
+            flex: 1;
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            padding: 14px;
+            background: #1a1a1a;
+            border: 2px solid #2a2a2a;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .storage-option:hover { border-color: #444; }
+        .storage-option.active { border-color: #6c5ce7; background: #6c5ce710; }
+        .storage-option .storage-icon { font-size: 22px; flex-shrink: 0; margin-top: 2px; }
+        .storage-option strong { display: block; font-size: 14px; color: #e0e0e0; margin-bottom: 3px; }
+        .storage-option p { font-size: 12px; color: #666; margin: 0; line-height: 1.4; }
+        .sftp-fields { margin-top: 4px; }
     </style>
 </head>
 <body>
@@ -280,7 +305,7 @@ if (AppConfig::isSetupDone()) {
     <!-- Step 3: Admin account -->
     <div class="card step-card hidden" id="step-3">
         <h2>Compte administrateur</h2>
-        <p class="subtitle">Creez le premier compte pour acceder a Gullify. Vous pourrez configurer le stockage depuis les parametres.</p>
+        <p class="subtitle">Creez le premier compte pour acceder a Gullify.</p>
         <div class="form-group">
             <label>Nom complet</label>
             <input type="text" id="adminFullName" placeholder="Maxime Dupont">
@@ -306,13 +331,84 @@ if (AppConfig::isSetupDone()) {
         </div>
     </div>
 
-    <!-- Step 4: Done -->
+    <!-- Step 4: Storage -->
     <div class="card step-card hidden" id="step-4">
+        <h2>Stockage de la musique</h2>
+        <p class="subtitle">Ou se trouvent vos fichiers audio ?</p>
+        <div class="storage-options">
+            <div class="storage-option active" id="opt-local" onclick="selectStorage('local')">
+                <div class="storage-icon">🖥️</div>
+                <div>
+                    <strong>Stockage local</strong>
+                    <p>Les fichiers sont sur ce serveur, montes via le volume Docker <code>/music</code></p>
+                </div>
+            </div>
+            <div class="storage-option" id="opt-sftp" onclick="selectStorage('sftp')">
+                <div class="storage-icon">🌐</div>
+                <div>
+                    <strong>SFTP / NAS distant</strong>
+                    <p>Les fichiers sont sur un NAS ou serveur distant, accessible via SFTP</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Local fields -->
+        <div id="local-fields">
+            <div class="form-group">
+                <label>Sous-dossier dans /music <span style="color:#555">(optionnel)</span></label>
+                <input type="text" id="musicDir" placeholder="ex: maxime  — laisser vide pour utiliser /music directement">
+            </div>
+            <div class="status-msg info">
+                Le dossier <strong>/music</strong> est monte depuis votre machine hote. Configurez <code>MUSIC_HOST_PATH</code> dans votre <code>.env</code> pour pointer vers votre bibliotheque.
+            </div>
+        </div>
+
+        <!-- SFTP fields -->
+        <div id="sftp-fields" class="hidden sftp-fields">
+            <div class="form-row">
+                <div class="form-group" style="flex: 3;">
+                    <label>Hote SFTP</label>
+                    <input type="text" id="sftpHost" placeholder="nas.exemple.com ou 192.168.1.100">
+                </div>
+                <div class="form-group" style="flex: 1;">
+                    <label>Port</label>
+                    <input type="number" id="sftpPort" value="22">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Utilisateur SFTP</label>
+                    <input type="text" id="sftpUser" placeholder="admin">
+                </div>
+                <div class="form-group">
+                    <label>Mot de passe</label>
+                    <input type="password" id="sftpPass" placeholder="••••••••">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Chemin distant</label>
+                <input type="text" id="sftpPath" placeholder="/volume1/Musique">
+            </div>
+            <button class="btn btn-secondary" id="sftpTestBtn" onclick="testSftp()">Tester la connexion</button>
+        </div>
+
+        <div id="storageStatus"></div>
+        <div class="actions">
+            <button class="btn btn-secondary" onclick="goStep(3)">Retour</button>
+            <div style="display:flex;gap:8px;">
+                <button class="btn btn-secondary" onclick="goStep(5)">Passer</button>
+                <button class="btn btn-primary" id="storageSaveBtn" onclick="saveStorage()">Enregistrer</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Step 5: Done -->
+    <div class="card step-card hidden" id="step-5">
         <h2>Configuration terminee !</h2>
         <p class="subtitle">Gullify est pret a utiliser.</p>
         <div class="done-icon">&#127925;</div>
         <div class="done-hint">
-            Connectez-vous et rendez-vous dans <strong>Parametres</strong> pour configurer votre bibliotheque musicale (dossier local ou SFTP) et lancer le scan.
+            Connectez-vous et rendez-vous dans <strong>Parametres</strong> pour ajuster votre configuration de stockage et lancer le scan de votre bibliotheque.
         </div>
         <div class="actions">
             <div></div>
@@ -322,10 +418,12 @@ if (AppConfig::isSetupDone()) {
 </div>
 
 <script>
-const TOTAL_STEPS = 4;
+const TOTAL_STEPS = 5;
 let currentStep = 1;
 let users = [];
 let dbConnected = false;
+let adminUserId = null;
+let selectedStorage = 'local';
 
 // Init
 document.addEventListener('DOMContentLoaded', () => {
@@ -437,11 +535,10 @@ async function createAdmin() {
 
     const isFirst = users.length === 0;
     const action = isFirst ? 'create_admin' : 'add_user';
+    const r = await api(action, { username, password, full_name: fullName });
 
-    const data = { username, password, full_name: fullName };
-
-    const r = await api(action, data);
     if (r.success) {
+        adminUserId = r.user_id;
         users.push({ username, fullName, isAdmin: isFirst });
         renderUsers();
         showStatus('adminStatus', r.message, 'success');
@@ -452,7 +549,6 @@ async function createAdmin() {
         document.getElementById('adminNext').disabled = false;
         document.getElementById('adminNext').onclick = () => goStep(4);
     } else if (r.message && r.message.includes('existe deja')) {
-        // Admin already exists — allow proceeding
         showStatus('adminStatus', r.message + ' Vous pouvez continuer.', 'info');
         document.getElementById('createAdminBtn').textContent = 'Ajouter utilisateur';
         document.getElementById('adminNext').disabled = false;
@@ -472,7 +568,65 @@ function renderUsers() {
     ).join('');
 }
 
-// Step 4
+// Step 4 — Storage
+function selectStorage(type) {
+    selectedStorage = type;
+    document.getElementById('opt-local').classList.toggle('active', type === 'local');
+    document.getElementById('opt-sftp').classList.toggle('active', type === 'sftp');
+    document.getElementById('local-fields').classList.toggle('hidden', type !== 'local');
+    document.getElementById('sftp-fields').classList.toggle('hidden', type !== 'sftp');
+    document.getElementById('storageStatus').innerHTML = '';
+}
+
+async function testSftp() {
+    const btn = document.getElementById('sftpTestBtn');
+    btn.innerHTML = '<span class="spinner"></span>';
+    btn.disabled = true;
+
+    const r = await api('test_sftp', {
+        sftp_host: document.getElementById('sftpHost').value,
+        sftp_port: document.getElementById('sftpPort').value,
+        sftp_user: document.getElementById('sftpUser').value,
+        sftp_password: document.getElementById('sftpPass').value,
+        sftp_path: document.getElementById('sftpPath').value,
+    });
+
+    btn.innerHTML = 'Tester la connexion';
+    btn.disabled = false;
+    showStatus('storageStatus', r.message || r.error, r.success ? 'success' : 'error');
+}
+
+async function saveStorage() {
+    const btn = document.getElementById('storageSaveBtn');
+    btn.innerHTML = '<span class="spinner"></span>';
+    btn.disabled = true;
+
+    const data = { user_id: adminUserId, storage_type: selectedStorage };
+
+    if (selectedStorage === 'local') {
+        data.music_directory = document.getElementById('musicDir').value.trim();
+    } else {
+        data.sftp_host = document.getElementById('sftpHost').value.trim();
+        data.sftp_port = document.getElementById('sftpPort').value;
+        data.sftp_user = document.getElementById('sftpUser').value.trim();
+        data.sftp_password = document.getElementById('sftpPass').value;
+        data.sftp_path = document.getElementById('sftpPath').value.trim();
+    }
+
+    const r = await api('save_storage', data);
+
+    btn.innerHTML = 'Enregistrer';
+    btn.disabled = false;
+
+    if (r.success) {
+        showStatus('storageStatus', r.message, 'success');
+        setTimeout(() => goStep(5), 800);
+    } else {
+        showStatus('storageStatus', r.message || r.error, 'error');
+    }
+}
+
+// Step 5
 async function finishSetup() {
     const r = await api('finish_setup');
     if (r.success) {
