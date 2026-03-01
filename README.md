@@ -10,7 +10,7 @@ Self-hosted music streaming server with a YouTube Music-style interface.
    cd gullify
    ```
 
-2. Edit `docker-compose.yml` — set your music directory path:
+2. Edit `docker compose.yml` — set your music directory path:
    ```yaml
    volumes:
      - /path/to/your/music:/music:ro
@@ -29,7 +29,7 @@ Self-hosted music streaming server with a YouTube Music-style interface.
 
 4. Point your domain's DNS to your server's IP, then start:
    ```bash
-   docker-compose up -d
+   docker compose up -d
    ```
    Caddy will automatically obtain a Let's Encrypt SSL certificate for your domain. Ports 80 and 443 must be open on your firewall.
 
