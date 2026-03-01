@@ -1,0 +1,21 @@
+# Environment - never commit real credentials
+.env
+
+# Runtime data
+data/cache/
+data/logs/
+data/downloads/
+
+# PHP dependencies (vendored getid3 is kept intentionally)
+# vendor/
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
