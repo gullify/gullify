@@ -213,6 +213,7 @@ class AppConfig {
             'app.url' => 'http://localhost:8080',
             'app.debug' => 'false',
             'app.secret' => '',
+            'lastfm.api_key' => '',
         ];
     }
 
@@ -262,6 +263,7 @@ class AppConfig {
             'APP_URL' => 'app.url',
             'APP_DEBUG' => 'app.debug',
             'APP_SECRET' => 'app.secret',
+            'LASTFM_API_KEY' => 'lastfm.api_key',
         ];
 
         foreach ($envMap as $envKey => $configKey) {
@@ -285,6 +287,7 @@ class AppConfig {
             'APP_URL' => 'app.url',
             'APP_DEBUG' => 'app.debug',
             'APP_SECRET' => 'app.secret',
+            'LASTFM_API_KEY' => 'lastfm.api_key',
         ];
 
         if (isset($map[$key])) {
