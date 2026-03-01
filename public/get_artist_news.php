@@ -19,21 +19,22 @@ if (!$artistName) {
     exit;
 }
 
+$debug  = !empty($_GET['debug']);
 $result = ['success' => true, 'artist' => $artistName];
 
 if ($section === 'all' || $section === 'bio') {
-    $result['bio'] = fetchLastFmBio($artistName);
+    $result['bio'] = fetchLastFmBio($artistName, $debug);
 }
 
 if ($section === 'all' || $section === 'news') {
-    $result['news'] = fetchGoogleNews($artistName);
+    $result['news'] = fetchGoogleNews($artistName, $debug);
 }
 
-echo json_encode($result, JSON_UNESCAPED_UNICODE);
+echo json_encode($result, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
 
 // ─── Last.fm ──────────────────────────────────────────────────────────────────
 
-function fetchLastFmBio(string $artist): array {
+function fetchLastFmBio(string $artist, bool $debug = false): array {
     $apiKey = AppConfig::get('lastfm.api_key');
 
     if (empty($apiKey)) {
@@ -51,12 +52,12 @@ function fetchLastFmBio(string $artist): array {
 
     $data = httpGet($url);
     if (!$data) {
-        return ['available' => false, 'reason' => 'fetch_failed'];
+        return ['available' => false, 'reason' => 'fetch_failed', 'debug' => $debug ? 'curl returned empty' : null];
     }
 
     $json = json_decode($data, true);
     if (!isset($json['artist'])) {
-        return ['available' => false, 'reason' => 'not_found'];
+        return ['available' => false, 'reason' => 'not_found', 'debug' => $debug ? substr($data, 0, 300) : null];
     }
 
     $a = $json['artist'];
@@ -95,22 +96,33 @@ function lastFmImage(array $images): ?string {
 
 // ─── Google News RSS ──────────────────────────────────────────────────────────
 
-function fetchGoogleNews(string $artist): array {
+function fetchGoogleNews(string $artist, bool $debug = false): array {
     $articles = [];
     $seenUrls = [];
+    $debugInfo = [];
 
     $queries = [
-        ['q' => '"' . $artist . '" music OR album OR concert OR tour', 'hl' => 'en', 'gl' => 'US', 'ceid' => 'US:en'],
-        ['q' => '"' . $artist . '" musique OR album OR concert OR tournée', 'hl' => 'fr', 'gl' => 'FR', 'ceid' => 'FR:fr'],
+        ['q' => '"' . $artist . '" music OR album OR concert OR tour', 'hl' => 'en-US', 'gl' => 'US', 'ceid' => 'US:en'],
+        ['q' => '"' . $artist . '" musique OR album OR concert', 'hl' => 'fr-FR', 'gl' => 'FR', 'ceid' => 'FR:fr'],
     ];
 
     foreach ($queries as $params) {
         $url = 'https://news.google.com/rss/search?' . http_build_query($params);
-        $xml = httpGet($url, 5);
-        if (!$xml) continue;
+        $xml = httpGet($url, 8);
 
-        $feed = @simplexml_load_string($xml);
-        if (!$feed) continue;
+        if (!$xml) {
+            if ($debug) $debugInfo[] = ['url' => $url, 'error' => 'empty response'];
+            continue;
+        }
+
+        libxml_use_internal_errors(true);
+        $feed = simplexml_load_string($xml);
+        if (!$feed) {
+            if ($debug) $debugInfo[] = ['url' => $url, 'error' => 'xml parse failed', 'raw' => substr($xml, 0, 500)];
+            continue;
+        }
+
+        if ($debug) $debugInfo[] = ['url' => $url, 'items_found' => count($feed->channel->item ?? [])];
 
         $items = $feed->channel->item ?? [];
         $count = 0;
@@ -130,24 +142,40 @@ function fetchGoogleNews(string $artist): array {
         }
     }
 
-    // Sort by date descending, keep top 6
     usort($articles, fn($a, $b) => strtotime($b['date']) - strtotime($a['date']));
     $articles = array_slice($articles, 0, 6);
 
-    return [
+    $result = [
         'available' => !empty($articles),
         'articles'  => $articles,
     ];
+    if ($debug) $result['debug'] = $debugInfo;
+    return $result;
 }
 
 // ─── HTTP helper ──────────────────────────────────────────────────────────────
 
 function httpGet(string $url, int $timeout = 8): string|false {
+    if (function_exists('curl_init')) {
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => $timeout,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_SSL_VERIFYPEER => true,
+            CURLOPT_USERAGENT      => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            CURLOPT_HTTPHEADER     => ['Accept: application/rss+xml, application/xml, text/xml, */*'],
+        ]);
+        $result = curl_exec($ch);
+        curl_close($ch);
+        return $result ?: false;
+    }
+
+    // Fallback
     $ctx = stream_context_create(['http' => [
-        'timeout'          => $timeout,
-        'user_agent'       => 'Gullify/1.0',
-        'follow_location'  => true,
-        'ignore_errors'    => true,
+        'timeout'        => $timeout,
+        'user_agent'     => 'Mozilla/5.0 (compatible; Gullify/1.0)',
+        'follow_location' => true,
     ]]);
     return @file_get_contents($url, false, $ctx);
 }
