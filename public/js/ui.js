@@ -420,7 +420,7 @@
                 if (result.error) throw new Error(result.error);
                 showToast(t('toast.song_added_playlist', 'Chanson ajoutée à la playlist!'), 'success');
             } catch (error) {
-                showToast(`Erreur: ${error.message}`, 'error');
+                showToast(`${t('common.error','Erreur')}: ${error.message}`, 'error');
             }
             hideContextMenu();
         }
@@ -712,9 +712,9 @@
 
                 const html = `
                     <div style="margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center;">
-                        <p style="color: var(--text-secondary); margin: 0;">${albums.length} albums ajoutés ces 30 derniers jours</p>
+                        <p style="color: var(--text-secondary); margin: 0;">${t('new_releases.count', '{n} albums ajoutés ces 30 derniers jours').replace('{n}', albums.length)}</p>
                         <button onclick="playRecentAlbums()" class="nouveautes-play-btn">
-                            <i class="ri-play-fill"></i> Tout écouter
+                            <i class="ri-play-fill"></i> ${t('new_releases.play_all', 'Tout écouter')}
                         </button>
                     </div>
                     <div class="album-grid" style="grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));">
@@ -747,7 +747,7 @@
             try {
                 if (selectedGenre) {
                     // Show artists for selected genre
-                    contentTitle.textContent = `Genre: ${selectedGenre}`;
+                    contentTitle.textContent = t('genres.genre_title', 'Genre : {name}').replace('{name}', selectedGenre);
 
                     const response = await fetch(`${BASE_PATH}/api/library.php?user=${app.currentUser}&action=get_artists_by_genre&genre=${encodeURIComponent(selectedGenre)}`);
                     const result = await response.json();
@@ -767,7 +767,7 @@
                     const html = `
                         <div style="margin-bottom: 15px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
                             <button onclick="renderGenres()" style="padding: 8px 16px; background: var(--hover-bg); border: none; border-radius: 8px; color: var(--text-primary); cursor: pointer; font-size: 14px;">
-                                ← Retour aux genres
+                                ${t('genres.back', '← Retour aux genres')}
                             </button>
                             <button onclick="startGenreRadio('${escapeHtml(selectedGenre).replace(/'/g, "\\'")}')" class="rescan-btn" style="font-size:13px;">
                                 <i class="ri-radio-line"></i> Radio ${escapeHtml(selectedGenre)}
@@ -819,7 +819,7 @@
                     const html = `
                         <div style="margin-bottom: 12px; display:flex; align-items:center; gap:10px;">
                             <button onclick="toggleGenreManager()" class="rescan-btn" style="font-size:13px;padding:6px 14px;">
-                                <i class="ri-settings-3-line"></i> Gérer les genres
+                                <i class="ri-settings-3-line"></i> ${t('genres.manage_btn', 'Gérer les genres')}
                             </button>
                         </div>
                         <div id="genre-manager-container" style="display:none;"></div>
@@ -831,7 +831,7 @@
                                     <div class="genre-card genre-card-colored" style="--genre-hue:${hue};" onclick="renderGenres('${escapeHtml(genre.name).replace(/'/g, "\\'")}')">
                                         <div class="genre-icon"><i class="ri-disc-fill"></i></div>
                                         <div class="genre-name">${escapeHtml(genre.name)}</div>
-                                        <div class="genre-stats">${genre.artistCount} artistes • ${genre.albumCount} albums</div>
+                                        <div class="genre-stats">${t('genres.artists_albums', '{a} artistes • {b} albums').replace('{a}', genre.artistCount).replace('{b}', genre.albumCount)}</div>
                                         <button class="genre-radio-btn" onclick="startGenreRadio('${escapeHtml(genre.name).replace(/'/g, "\\'")}')" title="Radio ${escapeHtml(genre.name)}">
                                             <i class="ri-radio-line"></i>
                                         </button>
@@ -871,7 +871,7 @@
                 let html = `
                     <div style="margin-bottom: 20px; text-align: right;">
                         <button onclick="createNewPlaylist()" class="album-action-btn album-play-btn">
-                            ➕ Nouvelle Playlist
+                            ${t('playlists.new_btn', '➕ Nouvelle Playlist')}
                         </button>
                     </div>
                 `;
@@ -930,13 +930,13 @@
 
                 const playlist = playlistsResult.data.find(p => p.id == playlistId);
                 const songs = songsResult.data;
-                contentTitle.textContent = playlist ? playlist.name : 'Playlist';
+                contentTitle.textContent = playlist ? playlist.name : t('playlists.label', 'Playlist');
 
                 let html = `
                     <div>
                         <div style="margin-bottom: 20px;">
                             <button onclick="renderView('playlists')" class="back-btn">
-                                ← Retour aux playlists
+                                ${t('playlists.back', '← Retour aux playlists')}
                             </button>
                         </div>
                         <div class="album-header-container">
@@ -944,7 +944,7 @@
                                 <div style="color: white; font-size: 80px; font-weight: 700;">🎶</div>
                             </div>
                             <div class="album-header-info">
-                                <p style="color: var(--text-secondary); font-size: 11px; text-transform: uppercase; font-weight: 600; margin-bottom: 5px;">Playlist</p>
+                                <p style="color: var(--text-secondary); font-size: 11px; text-transform: uppercase; font-weight: 600; margin-bottom: 5px;">${t('playlists.label', 'Playlist')}</p>
                                 <h2 class="album-title">${escapeHtml(playlist.name)}</h2>
                                 <p style="color: var(--text-secondary); font-size: 13px; margin-bottom: 15px;">${t('counts.songs','{n} chansons').replace('{n}', songs.length)}</p>
                                 <button onclick="playPlaylist(${playlistId})" class="album-action-btn album-play-btn">
@@ -1021,7 +1021,7 @@
 
 
         async function createNewPlaylist() {
-            const name = prompt('Entrez le nom de la nouvelle playlist:');
+            const name = prompt(t('playlists.prompt_create', 'Entrez le nom de la nouvelle playlist :'));
             if (!name) return;
 
             const formData = new FormData();
@@ -1040,7 +1040,7 @@
         }
 
         async function renamePlaylist(playlistId, currentName) {
-            const newName = prompt('Entrez le nouveau nom de la playlist:', currentName);
+            const newName = prompt(t('playlists.prompt_rename', 'Entrez le nouveau nom de la playlist :'), currentName);
             if (!newName || newName === currentName) return;
 
             const formData = new FormData();
@@ -1102,13 +1102,13 @@
                     const date = new Date(dateStr);
                     const diffMs = now - date;
                     const diffMin = Math.floor(diffMs / 60000);
-                    if (diffMin < 1) return "à l'instant";
-                    if (diffMin < 60) return `il y a ${diffMin}min`;
+                    if (diffMin < 1) return t('common.just_now', "à l'instant");
+                    if (diffMin < 60) return t('common.ago_min', 'il y a {n}min').replace('{n}', diffMin);
                     const diffH = Math.floor(diffMin / 60);
-                    if (diffH < 24) return `il y a ${diffH}h`;
+                    if (diffH < 24) return t('common.ago_hours', 'il y a {n}h').replace('{n}', diffH);
                     const diffD = Math.floor(diffH / 24);
-                    if (diffD < 7) return `il y a ${diffD}j`;
-                    return date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+                    if (diffD < 7) return t('common.ago_days', 'il y a {n}j').replace('{n}', diffD);
+                    return date.toLocaleDateString(app.lang === 'en' ? 'en-GB' : 'fr-FR', { day: 'numeric', month: 'short' });
                 }
 
                 // Section 1: Hero Metrics
@@ -1117,22 +1117,22 @@
                         <div class="glass-card stats-hero-card">
                             <i class="ri-play-circle-fill stats-hero-icon accent"></i>
                             <div class="stats-hero-value">${stats.general.totalPlays.toLocaleString()}</div>
-                            <div class="stats-hero-label">Écoutes totales</div>
+                            <div class="stats-hero-label">${t('stats.total_plays', 'Écoutes totales')}</div>
                         </div>
                         <div class="glass-card stats-hero-card">
                             <i class="ri-time-fill stats-hero-icon blue"></i>
                             <div class="stats-hero-value">${stats.general.totalListenTimeFormatted}</div>
-                            <div class="stats-hero-label">Temps d'écoute</div>
+                            <div class="stats-hero-label">${t('stats.listen_time', "Temps d'écoute")}</div>
                         </div>
                         <div class="glass-card stats-hero-card">
                             <i class="ri-music-2-fill stats-hero-icon green"></i>
                             <div class="stats-hero-value">${stats.general.uniqueSongsPlayed.toLocaleString()}</div>
-                            <div class="stats-hero-label">Chansons uniques</div>
+                            <div class="stats-hero-label">${t('stats.unique_songs', 'Chansons uniques')}</div>
                         </div>
                         <div class="glass-card stats-hero-card">
                             <i class="ri-check-double-fill stats-hero-icon purple"></i>
                             <div class="stats-hero-value">${stats.general.completionRate}%</div>
-                            <div class="stats-hero-label">Taux de complétion</div>
+                            <div class="stats-hero-label">${t('stats.completion_rate', 'Taux de complétion')}</div>
                         </div>
                     </div>
                 `;
@@ -1140,7 +1140,7 @@
                 // Section 2: Activity Charts
                 const activityHtml = `
                     <div class="stats-section">
-                        <div class="stats-section-title"><i class="ri-bar-chart-2-fill"></i> Activité d'écoute</div>
+                        <div class="stats-section-title"><i class="ri-bar-chart-2-fill"></i> ${t('stats.activity', "Activité d'écoute")}</div>
                         <div class="stats-row">
                             <div class="glass-card">
                                 <div class="chart-wrapper"><canvas id="dailyPlaysChart"></canvas></div>
@@ -1155,7 +1155,7 @@
                 // Section 3: Library Growth
                 const growthHtml = stats.libraryGrowth.labels.length > 1 ? `
                     <div class="stats-section">
-                        <div class="stats-section-title"><i class="ri-line-chart-fill"></i> Croissance de la bibliothèque</div>
+                        <div class="stats-section-title"><i class="ri-line-chart-fill"></i> ${t('stats.library_growth', 'Croissance de la bibliothèque')}</div>
                         <div class="glass-card">
                             <div class="chart-wrapper"><canvas id="growthChart"></canvas></div>
                         </div>
@@ -1174,7 +1174,7 @@
                             </button>
                             <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-secondary);cursor:pointer;">
                                 <input type="checkbox" id="genre-scan-force" style="cursor:pointer;">
-                                Forcer (réécrire existants)
+                                ${t('stats.genre_force', 'Forcer (réécrire existants)')}
                             </label>
                             <button id="orphan-cleanup-btn" onclick="cleanupOrphans()" class="rescan-btn" style="font-size:12px;padding:6px 14px;">
                                 <i class="ri-delete-bin-2-line" id="orphan-cleanup-icon"></i> ${t('scan.clean_btn','Nettoyer les orphelins')}
@@ -1184,7 +1184,7 @@
                         <div id="genre-scan-progress" style="display:none;margin-bottom:16px;">
                             <div class="glass-card" style="display:flex;align-items:center;gap:12px;padding:14px 18px;">
                                 <div class="scan-spinner"></div>
-                                <span id="genre-scan-progress-text">Scan en cours...</span>
+                                <span id="genre-scan-progress-text">${t('stats.scanning', 'Scan en cours...')}</span>
                             </div>
                         </div>
                         ${hasGenres ? `
@@ -1218,7 +1218,7 @@
                 // Section 5: Listening Habits
                 const habitsHtml = `
                     <div class="stats-section">
-                        <div class="stats-section-title"><i class="ri-calendar-fill"></i> Habitudes d'écoute</div>
+                        <div class="stats-section-title"><i class="ri-calendar-fill"></i> ${t('stats.habits', "Habitudes d'écoute")}</div>
                         <div class="stats-row">
                             <div class="glass-card">
                                 <div class="chart-wrapper"><canvas id="weekdayChart"></canvas></div>
@@ -1227,21 +1227,21 @@
                                 <div class="stats-insight-item">
                                     <div class="stats-insight-icon"><i class="ri-timer-flash-line"></i></div>
                                     <div>
-                                        <div class="stats-insight-label">Durée moyenne par écoute</div>
+                                        <div class="stats-insight-label">${t('stats.avg_duration', 'Durée moyenne par écoute')}</div>
                                         <div class="stats-insight-value">${stats.general.avgDurationFormatted}</div>
                                     </div>
                                 </div>
                                 <div class="stats-insight-item">
                                     <div class="stats-insight-icon"><i class="ri-fire-fill"></i></div>
                                     <div>
-                                        <div class="stats-insight-label">Jour le plus actif</div>
+                                        <div class="stats-insight-label">${t('stats.most_active_day', 'Jour le plus actif')}</div>
                                         <div class="stats-insight-value">${stats.insights.mostActiveDay || '—'}</div>
                                     </div>
                                 </div>
                                 <div class="stats-insight-item">
                                     <div class="stats-insight-icon"><i class="ri-skip-forward-fill"></i></div>
                                     <div>
-                                        <div class="stats-insight-label">Chansons passées</div>
+                                        <div class="stats-insight-label">${t('stats.skipped', 'Chansons passées')}</div>
                                         <div class="stats-insight-value">${stats.general.totalSkips.toLocaleString()}</div>
                                     </div>
                                 </div>
@@ -1253,7 +1253,7 @@
                 // Section 6: Top Artists & Albums (reuse home page card style)
                 const topGridHtml = `
                     <div class="stats-section">
-                        <div class="stats-section-title"><i class="ri-star-fill"></i> Top Artistes</div>
+                        <div class="stats-section-title"><i class="ri-star-fill"></i> ${t('stats.top_artists', 'Top Artistes')}</div>
                         <div class="artist-grid">
                             ${stats.topArtists.map(artist => `
                                 <div class="artist-card" onclick="viewArtist(${artist.id})">
@@ -1261,13 +1261,13 @@
                                         <img src="${artist.imageUrl}" alt="${artist.name}" loading="lazy" style="width:100%;height:100%;object-fit:cover;">
                                     </div>
                                     <div class="artist-name">${artist.name}</div>
-                                    <div class="artist-info">${artist.play_count} écoutes</div>
+                                    <div class="artist-info">${t('home.plays', '{n} écoutes').replace('{n}', artist.play_count)}</div>
                                 </div>
                             `).join('')}
                         </div>
                     </div>
                     <div class="stats-section">
-                        <div class="stats-section-title"><i class="ri-album-fill"></i> Top Albums</div>
+                        <div class="stats-section-title"><i class="ri-album-fill"></i> ${t('stats.top_albums', 'Top Albums')}</div>
                         <div class="artist-grid">
                             ${stats.topAlbums.map(album => `
                                 <div class="album-card" onclick="viewAlbum(${album.id})">
@@ -1275,7 +1275,7 @@
                                         <img src="${album.artworkUrl}" alt="${album.name}" loading="lazy" style="width:100%;height:100%;object-fit:cover;">
                                     </div>
                                     <div class="album-name">${album.name}</div>
-                                    <div class="album-info">${album.artist_name} · ${album.play_count} écoutes</div>
+                                    <div class="album-info">${escapeHtml(album.artist_name)} · ${t('home.plays', '{n} écoutes').replace('{n}', album.play_count)}</div>
                                 </div>
                             `).join('')}
                         </div>
@@ -1285,7 +1285,7 @@
                 // Section 7: Top Songs
                 const topSongsHtml = `
                     <div class="stats-section">
-                        <div class="stats-section-title"><i class="ri-music-fill"></i> Top Chansons</div>
+                        <div class="stats-section-title"><i class="ri-music-fill"></i> ${t('stats.top_songs', 'Top Chansons')}</div>
                         <div class="glass-card">
                             ${stats.topSongs.map((song, index) => {
                                 const pct = maxSongPlays > 0 ? (parseInt(song.play_count) / maxSongPlays * 100) : 0;
@@ -1311,7 +1311,7 @@
                 // Section 8: Recent Plays
                 const recentHtml = stats.recentPlays.length > 0 ? `
                     <div class="stats-section">
-                        <div class="stats-section-title"><i class="ri-history-fill"></i> Écoutes récentes</div>
+                        <div class="stats-section-title"><i class="ri-history-fill"></i> ${t('stats.recent', 'Écoutes récentes')}</div>
                         <div class="glass-card">
                             ${stats.recentPlays.map(play => `
                                 <div class="stats-timeline-item" onclick="viewAlbum(${play.album_id})">
@@ -1359,7 +1359,7 @@
                     data: {
                         labels: stats.dailyPlaysChart.labels,
                         datasets: [{
-                            label: 'Écoutes',
+                            label: t('stats.plays', 'Écoutes'),
                             data: stats.dailyPlaysChart.data,
                             borderColor: 'rgba(255, 0, 0, 0.9)',
                             backgroundColor: dailyGradient,
@@ -1381,7 +1381,7 @@
                         },
                         plugins: {
                             legend: { display: false },
-                            title: { display: true, text: '30 derniers jours', color: tickColor, font: { size: 13 } }
+                            title: { display: true, text: t('home.last_30_days', '30 derniers jours'), color: tickColor, font: { size: 13 } }
                         }
                     }
                 });
@@ -1416,7 +1416,7 @@
                         },
                         plugins: {
                             legend: { display: false },
-                            title: { display: true, text: 'Heures d\'écoute', color: tickColor, font: { size: 13 } }
+                            title: { display: true, text: t('stats.listen_hours', "Heures d'écoute"), color: tickColor, font: { size: 13 } }
                         }
                     }
                 });
@@ -1430,7 +1430,7 @@
                             labels: stats.libraryGrowth.labels,
                             datasets: [
                                 {
-                                    label: 'Chansons',
+                                    label: t('nav.songs', 'Chansons'),
                                     data: stats.libraryGrowth.songs,
                                     borderColor: '#34C759',
                                     backgroundColor: 'rgba(52, 199, 89, 0.1)',
@@ -1441,7 +1441,7 @@
                                     yAxisID: 'y',
                                 },
                                 {
-                                    label: 'Albums',
+                                    label: t('nav.albums', 'Albums'),
                                     data: stats.libraryGrowth.albums,
                                     borderColor: '#007AFF',
                                     backgroundColor: 'rgba(0, 122, 255, 0.1)',
@@ -1452,7 +1452,7 @@
                                     yAxisID: 'y1',
                                 },
                                 {
-                                    label: 'Artistes',
+                                    label: t('nav.artists', 'Artistes'),
                                     data: stats.libraryGrowth.artists,
                                     borderColor: '#AF52DE',
                                     backgroundColor: 'rgba(175, 82, 222, 0.1)',
@@ -1474,14 +1474,14 @@
                                     position: 'left',
                                     grid: { color: gridColor },
                                     ticks: { color: '#34C759' },
-                                    title: { display: true, text: 'Chansons', color: '#34C759' }
+                                    title: { display: true, text: t('nav.songs', 'Chansons'), color: '#34C759' }
                                 },
                                 y1: {
                                     type: 'linear',
                                     position: 'right',
                                     grid: { drawOnChartArea: false },
                                     ticks: { color: '#007AFF' },
-                                    title: { display: true, text: 'Albums / Artistes', color: '#007AFF' }
+                                    title: { display: true, text: t('stats.albums_artists', 'Albums / Artistes'), color: '#007AFF' }
                                 },
                                 x: { grid: { display: false }, ticks: { color: tickColor } }
                             },
@@ -1530,7 +1530,7 @@
                     data: {
                         labels: stats.weekdayChart.labels,
                         datasets: [{
-                            label: 'Écoutes',
+                            label: t('stats.plays', 'Écoutes'),
                             data: stats.weekdayChart.data,
                             backgroundColor: weekdayColors,
                             borderRadius: 6,
@@ -1547,7 +1547,7 @@
                         },
                         plugins: {
                             legend: { display: false },
-                            title: { display: true, text: 'Écoutes par jour', color: tickColor, font: { size: 13 } }
+                            title: { display: true, text: t('stats.by_day', 'Écoutes par jour'), color: tickColor, font: { size: 13 } }
                         }
                     }
                 });
@@ -1602,8 +1602,8 @@
                     html += `
                         <div class="favorites-section">
                             <div class="favorites-section-header">
-                                <h3 class="favorites-section-title"><i class="ri-mic-line"></i> Artistes (${artists.length})</h3>
-                                <button onclick="playFavoriteArtists()" class="favorites-play-btn"><i class="ri-play-fill"></i> Tout lire</button>
+                                <h3 class="favorites-section-title"><i class="ri-mic-line"></i> ${t('nav.artists', 'Artistes')} (${artists.length})</h3>
+                                <button onclick="playFavoriteArtists()" class="favorites-play-btn"><i class="ri-play-fill"></i> ${t('favorites.play_all', 'Tout lire')}</button>
                             </div>
                             <div class="artist-grid" style="grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));">
                                 ${artists.map(artist => `
@@ -1612,7 +1612,7 @@
                                             ${artist.imageUrl ? `<img src="${artist.imageUrl}" alt="${escapeHtml(artist.name)}" style="width: 100%; height: 100%; object-fit: cover;">` : artist.name.charAt(0).toUpperCase()}
                                         </div>
                                         <div class="artist-name">${escapeHtml(artist.name)}</div>
-                                        <div class="artist-info">${artist.album_count} albums</div>
+                                        <div class="artist-info">${t('counts.albums', '{n} albums').replace('{n}', artist.album_count)}</div>
                                     </div>
                                 `).join('')}
                             </div>
@@ -1625,8 +1625,8 @@
                     html += `
                         <div class="favorites-section">
                             <div class="favorites-section-header">
-                                <h3 class="favorites-section-title"><i class="ri-album-line"></i> Albums (${albums.length})</h3>
-                                <button onclick="playFavoriteAlbums()" class="favorites-play-btn"><i class="ri-play-fill"></i> Tout lire</button>
+                                <h3 class="favorites-section-title"><i class="ri-album-line"></i> ${t('nav.albums', 'Albums')} (${albums.length})</h3>
+                                <button onclick="playFavoriteAlbums()" class="favorites-play-btn"><i class="ri-play-fill"></i> ${t('favorites.play_all', 'Tout lire')}</button>
                             </div>
                             <div class="album-grid" style="grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));">
                                 ${albums.map(album => `
@@ -1648,8 +1648,8 @@
                     html += `
                         <div class="favorites-section">
                             <div class="favorites-section-header">
-                                <h3 class="favorites-section-title"><i class="ri-music-2-line"></i> Chansons (${songs.length})</h3>
-                                <button onclick="playFavorites(0)" class="favorites-play-btn"><i class="ri-play-fill"></i> Tout lire</button>
+                                <h3 class="favorites-section-title"><i class="ri-music-2-line"></i> ${t('nav.songs', 'Chansons')} (${songs.length})</h3>
+                                <button onclick="playFavorites(0)" class="favorites-play-btn"><i class="ri-play-fill"></i> ${t('favorites.play_all', 'Tout lire')}</button>
                             </div>
                             <div class="song-list">
                                 ${songs.map((song, index) => `
@@ -1786,9 +1786,9 @@
                 <div class="downloads-page">
                     <!-- New Download Form -->
                     <div class="download-form-card">
-                        <h3><i class="ri-add-circle-line"></i> Nouveau téléchargement</h3>
+                        <h3><i class="ri-add-circle-line"></i> ${t('downloads.new_title', 'Nouveau téléchargement')}</h3>
                         <p style="color: var(--text-secondary); font-size: 13px; margin-bottom: 15px;">
-                            Collez une URL YouTube Music (album, playlist, ou chanson)
+                            ${t('downloads.url_hint', 'Collez une URL YouTube Music (album, playlist, ou chanson)')}
                         </p>
                         <div class="download-form">
                             <input type="text" id="downloadUrl" placeholder="https://music.youtube.com/playlist?list=..." class="download-url-input">
@@ -1798,7 +1798,7 @@
                                 <option value="mylene">Mylène</option>
                             </select>
                             <button onclick="fetchYoutubeMetadata()" class="download-fetch-btn" id="fetchMetadataBtn">
-                                <i class="ri-search-line"></i> Analyser
+                                <i class="ri-search-line"></i> ${t('editor.analyze_btn', 'Analyser')}
                             </button>
                         </div>
                         <!-- Metadata preview (hidden by default) -->
@@ -1807,7 +1807,7 @@
 
                     <!-- Active Downloads -->
                     <div class="downloads-section">
-                        <h3><i class="ri-download-line"></i> En cours</h3>
+                        <h3><i class="ri-download-line"></i> ${t('downloads.active', 'En cours')}</h3>
                         <div id="activeDownloads">
                             <div class="loading-spinner"></div>
                         </div>
@@ -1815,7 +1815,7 @@
 
                     <!-- Recent Downloads -->
                     <div class="downloads-section">
-                        <h3><i class="ri-history-line"></i> Récents</h3>
+                        <h3><i class="ri-history-line"></i> ${t('downloads.recent', 'Récents')}</h3>
                         <div id="recentDownloads">
                             <div class="loading-spinner"></div>
                         </div>
@@ -1913,12 +1913,12 @@
                         ` : ''}
                     </div>
                     ${isActive ? `
-                        <button onclick="cancelDownload('${download.id}')" class="download-cancel-btn" title="Annuler">
+                        <button onclick="cancelDownload('${download.id}')" class="download-cancel-btn" title="${t('common.cancel', 'Annuler')}">
                             <i class="ri-close-line"></i>
                         </button>
                     ` : ''}
                     ${!isActive && (download.status === 'error' || download.status === 'cancelled') ? `
-                        <button onclick="retryDownload('${download.id}')" class="download-retry-btn" title="Réessayer">
+                        <button onclick="retryDownload('${download.id}')" class="download-retry-btn" title="${t('downloads.retry_title', 'Réessayer')}">
                             <i class="ri-refresh-line"></i>
                         </button>
                     ` : ''}
@@ -1980,19 +1980,19 @@
                         </div>
                         <div class="metadata-fields">
                             <div class="metadata-field">
-                                <label>Artiste</label>
-                                <input type="text" id="metaArtist" value="${escapeHtml(meta.artist || meta.uploader || '')}" placeholder="Nom de l'artiste">
+                                <label>${t('props.artist', 'Artiste')}</label>
+                                <input type="text" id="metaArtist" value="${escapeHtml(meta.artist || meta.uploader || '')}" placeholder="${t('downloads.artist_ph', "Nom de l'artiste")}">
                             </div>
                             <div class="metadata-field">
-                                <label>Album</label>
-                                <input type="text" id="metaAlbum" value="${escapeHtml(meta.album || meta.title || '')}" placeholder="Nom de l'album">
+                                <label>${t('props.album', 'Album')}</label>
+                                <input type="text" id="metaAlbum" value="${escapeHtml(meta.album || meta.title || '')}" placeholder="${t('downloads.album_ph', "Nom de l'album")}">
                             </div>
                             <div class="metadata-info">
                                 ${meta.track_count ? `<span><i class="ri-music-2-line"></i> ${t('counts.tracks','{n} pistes').replace('{n}', meta.track_count)}</span>` : ''}
                             </div>
                         </div>
                         <button onclick="startDownload('${jsStr(url)}')" class="download-start-btn">
-                            <i class="ri-download-line"></i> Télécharger
+                            <i class="ri-download-line"></i> ${t('downloads.download_btn', 'Télécharger')}
                         </button>
                     </div>
                 `;
@@ -2118,16 +2118,16 @@
                     <div class="web-radio-container">
                         <div class="web-radio-header">
                             <div class="web-radio-filters">
-                                <input type="text" id="radioSearchInput" placeholder="Rechercher une station..." class="search-input">
+                                <input type="text" id="radioSearchInput" placeholder="${t('radio.search_ph', 'Rechercher une station...')}" class="search-input">
                                 <select id="radioGenreSelect" class="genre-select">
-                                    <option value="all">Tous les genres (${result.data.count})</option>
+                                    <option value="all">${t('radio.all_genres', 'Tous les genres ({n})').replace('{n}', result.data.count)}</option>
                                     ${sortedGenres.map(([genre, stations]) =>
                                         `<option value="${genre}">${genre} (${stations.length})</option>`
                                     ).join('')}
                                 </select>
                             </div>
                             <div class="web-radio-info">
-                                ${result.data.count} stations
+                                ${result.data.count} ${t('radio.station','station')}${result.data.count > 1 ? 's' : ''}
                             </div>
                         </div>
 
@@ -2139,7 +2139,7 @@
                                 <span class="now-playing-name"></span>
                             </div>
                             <button class="stop-radio-btn" onclick="stopWebRadio()">
-                                <i class="ri-stop-fill"></i> Arrêter
+                                <i class="ri-stop-fill"></i> ${t('radio.stop_btn', 'Arrêter')}
                             </button>
                         </div>
 
@@ -2219,7 +2219,7 @@
             // Update count in header
             const infoEl = document.querySelector('.web-radio-info');
             if (infoEl) {
-                infoEl.textContent = `${visibleCount} station${visibleCount > 1 ? 's' : ''}`;
+                infoEl.textContent = `${visibleCount} ${t('radio.station','station')}${visibleCount > 1 ? 's' : ''}`;
             }
         }
 
@@ -2328,13 +2328,13 @@
             // Actions Rapides
             const actionsHtml = `
                 <div style="margin-bottom: 20px;">
-                    <h3 style="margin-bottom: 12px; font-size: 18px; font-weight: 600;"><i class="ri-play-circle-line"></i> Actions Rapides</h3>
+                    <h3 style="margin-bottom: 12px; font-size: 18px; font-weight: 600;"><i class="ri-play-circle-line"></i> ${t('home.quick_actions', 'Actions Rapides')}</h3>
                     <div style="display: flex; gap: 12px; flex-wrap: wrap;">
                         <button onclick="window.startRadio()" style="padding: 12px 30px; background: rgba(255, 255, 255, 0.1); color: var(--text-primary); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 25px; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); cursor: pointer; font-size: 14px; font-weight: 600; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); transition: all 0.2s ease;" onmouseenter="this.style.background='rgba(255, 255, 255, 0.2)'; this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 12px rgba(0, 0, 0, 0.15)'" onmouseleave="this.style.background='rgba(255, 255, 255, 0.1)'; this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 6px rgba(0, 0, 0, 0.1)'">
                             <i class="ri-radio-line"></i> Radio
                         </button>
                         <button onclick="playRandomArtist()" style="padding: 12px 30px; background: rgba(255, 255, 255, 0.1); color: var(--text-primary); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 25px; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); cursor: pointer; font-size: 14px; font-weight: 600; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); transition: all 0.2s ease;" onmouseenter="this.style.background='rgba(255, 255, 255, 0.2)'; this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 12px rgba(0, 0, 0, 0.15)'" onmouseleave="this.style.background='rgba(255, 255, 255, 0.1)'; this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 6px rgba(0, 0, 0, 0.1)'">
-                            <i class="ri-user-star-line"></i> Artiste Aléatoire
+                            <i class="ri-user-star-line"></i> ${t('home.random_artist', 'Artiste Aléatoire')}
                         </button>
                     </div>
                 </div>
@@ -2359,7 +2359,7 @@
                                 imageHtml +
                             '</div>' +
                             '<div class="artist-name">' + artist.name + '</div>' +
-                            '<div class="artist-info">' + (artist.album_count || 0) + ' albums • ' + (artist.song_count || 0) + ' chansons</div>' +
+                            '<div class="artist-info">' + t('counts.albums_songs', '{a} albums • {s} chansons').replace('{a}', artist.album_count || 0).replace('{s}', artist.song_count || 0) + '</div>' +
                         '</div>';
                     }).join('');
 
@@ -2377,7 +2377,7 @@
                     ${actionsHtml}
                     <div class="recent-albums-placeholder"></div>
                     <div style="margin-bottom: 20px;">
-                        <h3 style="margin-bottom: 12px; font-size: 18px; font-weight: 600;"><i class="ri-lightbulb-line"></i> Suggestions</h3>
+                        <h3 style="margin-bottom: 12px; font-size: 18px; font-weight: 600;"><i class="ri-lightbulb-line"></i> ${t('home.suggestions', 'Suggestions')}</h3>
                         ${randomArtistsHtml}
                     </div>
                     <div class="popular-placeholder"></div>
@@ -2407,7 +2407,7 @@
                         if (topArtists.length > 0) {
                             popularHtml = `
                                 <div style="margin-bottom: 20px;">
-                                    <h3 style="margin-bottom: 12px; font-size: 18px; font-weight: 600;"><i class="ri-fire-line"></i> Plus populaires</h3>
+                                    <h3 style="margin-bottom: 12px; font-size: 18px; font-weight: 600;"><i class="ri-fire-line"></i> ${t('home.popular', 'Plus populaires')}</h3>
                                     <div class="artist-grid" style="grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));">
                                         ${topArtists.map(artist => {
                                             let imageHtml = '👤';
@@ -2419,7 +2419,7 @@
                                                     ${imageHtml}
                                                 </div>
                                                 <div class="artist-name">${artist.name}</div>
-                                                <div class="artist-info">${artist.playCount} écoutes</div>
+                                                <div class="artist-info">${t('home.plays', '{n} écoutes').replace('{n}', artist.playCount)}</div>
                                             </div>`;
                                         }).join('')}
                                     </div>
@@ -2443,9 +2443,9 @@
                         recentAlbumsHtml = `
                             <div class="nouveautes-section">
                                 <div class="nouveautes-header">
-                                    <h3><i class="ri-sparkling-line"></i> Nouveautés</h3>
+                                    <h3><i class="ri-sparkling-line"></i> ${t('nav.new_releases', 'Nouveautés')}</h3>
                                     <button onclick="playRecentAlbums()" class="nouveautes-play-btn">
-                                        <i class="ri-play-fill"></i> Écouter
+                                        <i class="ri-play-fill"></i> ${t('home.listen', 'Écouter')}
                                     </button>
                                 </div>
                                 <div class="nouveautes-slider">
@@ -2467,8 +2467,8 @@
                                                     <div class="nouveaute-cover">
                                                         <div class="nouveaute-plus"><i class="ri-add-line"></i></div>
                                                     </div>
-                                                    <div class="nouveaute-title">Voir tout</div>
-                                                    <div class="nouveaute-artist">30 derniers jours</div>
+                                                    <div class="nouveaute-title">${t('home.see_all', 'Voir tout')}</div>
+                                                    <div class="nouveaute-artist">${t('home.last_30_days', '30 derniers jours')}</div>
                                                 </div>
                                             </div>
                                         </div>
@@ -2624,26 +2624,26 @@
             const html = `
                 <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px;">
                     <button id="manage-artists-btn" onclick="toggleArtistManageMode()" class="rescan-btn" style="font-size:12px;padding:6px 14px;">
-                        <i class="ri-edit-box-line"></i> Gérer
+                        <i class="ri-edit-box-line"></i> ${t('editor.manage_btn', 'Gérer')}
                     </button>
                     <button id="detect-artist-dupes-btn" onclick="detectArtistDuplicates()" class="rescan-btn" style="font-size:12px;padding:6px 14px;">
-                        <i id="detect-artist-dupes-icon" class="ri-search-line"></i> Doublons probables
+                        <i id="detect-artist-dupes-icon" class="ri-search-line"></i> ${t('home.probable_dupes', 'Doublons probables')}
                     </button>
                 </div>
 
                 <div id="artist-manage-bar" style="display:none;position:sticky;top:0;z-index:50;background:var(--bg-secondary);border:1px solid var(--border);border-radius:12px;padding:12px 16px;margin-bottom:12px;align-items:center;gap:10px;flex-wrap:wrap;backdrop-filter:blur(10px);">
-                    <span id="artist-manage-count" style="color:var(--text-primary);font-size:14px;font-weight:600;flex:1;">Aucun sélectionné</span>
+                    <span id="artist-manage-count" style="color:var(--text-primary);font-size:14px;font-weight:600;flex:1;">${t('common.none_selected', 'Aucun sélectionné')}</span>
                     <button id="rename-artist-btn" onclick="openRenameArtistDialog()" class="rescan-btn" style="font-size:12px;padding:6px 14px;" disabled>
-                        <i class="ri-pencil-line"></i> Renommer
+                        <i class="ri-pencil-line"></i> ${t('home.rename', 'Renommer')}
                     </button>
                     <button id="merge-artists-btn" onclick="openMergeArtistsDialog()" class="rescan-btn" style="font-size:12px;padding:6px 14px;background:var(--accent);color:white;" disabled>
-                        <i class="ri-git-merge-line"></i> Fusionner
+                        <i class="ri-git-merge-line"></i> ${t('home.merge', 'Fusionner')}
                     </button>
                     <button id="delete-artists-btn" onclick="deleteSelectedArtists()" class="rescan-btn" style="font-size:12px;padding:6px 14px;background:#c0392b;color:white;" disabled>
-                        <i class="ri-delete-bin-line"></i> Supprimer
+                        <i class="ri-delete-bin-line"></i> ${t('common.delete', 'Supprimer')}
                     </button>
                     <button onclick="toggleArtistManageMode()" class="rescan-btn" style="font-size:12px;padding:6px 14px;">
-                        <i class="ri-close-line"></i> Terminer
+                        <i class="ri-close-line"></i> ${t('editor.done_btn', 'Terminer')}
                     </button>
                 </div>
 
@@ -2795,7 +2795,7 @@
                 const result = await response.json();
 
                 if (!result.success) {
-                    container.innerHTML = `<p style="color: var(--text-secondary);">${result.error || 'Erreur inconnue'}</p>`;
+                    container.innerHTML = `<p style="color: var(--text-secondary);">${result.error || t('errors.unknown', 'Erreur inconnue')}</p>`;
                     return;
                 }
 
@@ -2867,7 +2867,7 @@
                         <!-- Breadcrumb -->
                         <div style="margin-bottom: 20px;">
                             <button onclick="searchInput.value=''; renderView('artists')" class="back-btn">
-                                ← Retour aux artistes
+                                ${t('artist.back', '← Retour aux artistes')}
                             </button>
                         </div>
 
@@ -2877,7 +2877,7 @@
                                     ${artist.imageUrl ? '<img src="' + artist.imageUrl + '" style="width:100%;height:100%;object-fit:cover;">' : '<span style="color:white;font-size:48px;font-weight:700;">' + artist.name.charAt(0).toUpperCase() + '</span>'}
                                     <div class="artwork-edit-overlay">
                                         <i class="ri-image-edit-line" style="font-size:24px;"></i>
-                                        <span style="font-size:11px;margin-top:4px;">Modifier</span>
+                                        <span style="font-size:11px;margin-top:4px;">${t('common.edit', 'Modifier')}</span>
                                     </div>
                                 </div>
                             </div>
@@ -2891,7 +2891,7 @@
                                     ${artist.genre ? `
                                         <span class="genre-badge">${artist.genre}</span>
                                     ` : `
-                                        <span style="color:rgba(255,255,255,0.5);font-size:13px;">Aucun genre</span>
+                                        <span style="color:rgba(255,255,255,0.5);font-size:13px;">${t('empty.no_genre', 'Aucun genre')}</span>
                                     `}
                                     <button onclick="editArtistGenre(${artistId}, '${(artist.genre || '').replace(/'/g, "\\'")}')" class="genre-edit-btn" title="Modifier le genre">
                                         <i class="ri-pencil-line"></i>
@@ -2901,15 +2901,15 @@
                                     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
                                         <select id="genre-select-${artistId}" class="genre-select"></select>
                                         <label style="color:rgba(255,255,255,0.8);font-size:12px;display:flex;align-items:center;gap:4px;cursor:pointer;">
-                                            <input type="checkbox" id="genre-apply-albums-${artistId}" checked> Appliquer aux albums
+                                            <input type="checkbox" id="genre-apply-albums-${artistId}" checked> ${t('artist.apply_to_albums', 'Appliquer aux albums')}
                                         </label>
                                     </div>
                                     <div style="display:flex;gap:8px;margin-top:8px;">
                                         <button onclick="saveArtistGenre(${artistId})" class="rescan-btn" style="font-size:12px;padding:5px 14px;">
-                                            <i class="ri-check-line"></i> Sauvegarder
+                                            <i class="ri-check-line"></i> ${t('common.save', 'Enregistrer')}
                                         </button>
                                         <button onclick="cancelEditGenre(${artistId})" class="rescan-btn" style="font-size:12px;padding:5px 14px;">
-                                            <i class="ri-close-line"></i> Annuler
+                                            <i class="ri-close-line"></i> ${t('common.cancel', 'Annuler')}
                                         </button>
                                     </div>
                                 </div>
@@ -2921,17 +2921,17 @@
                                         <i class="ri-heart-line"></i>
                                     </button>
                                     <button onclick="rescanArtist(${artistId})" class="rescan-btn" title="Rechercher nouveaux albums/chansons">
-                                        <i class="ri-refresh-line"></i> Rescan
+                                        <i class="ri-refresh-line"></i> ${t('artist.rescan', 'Rescan')}
                                     </button>
                                 </div>
                             </div>
                         </div>
 
                         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:15px;">
-                            <h3 style="font-size: 20px; color: white; text-shadow: 0 1px 3px rgba(0,0,0,0.8), 0 0 10px rgba(0,0,0,0.5);">Albums</h3>
+                            <h3 style="font-size: 20px; color: white; text-shadow: 0 1px 3px rgba(0,0,0,0.8), 0 0 10px rgba(0,0,0,0.5);">${t('nav.albums', 'Albums')}</h3>
                             ${albums.length > 1 ? `
                             <button id="manage-albums-btn-${artistId}" onclick="toggleAlbumManageMode(${artistId})" class="rescan-btn" style="font-size:12px;padding:5px 14px;">
-                                <i class="ri-edit-box-line"></i> Gérer
+                                <i class="ri-edit-box-line"></i> ${t('editor.manage_btn', 'Gérer')}
                             </button>` : ''}
                         </div>
                         ${albums.length > 0 ? `
@@ -2947,26 +2947,26 @@
                                 `).join('')}
                             </div>
                             <div id="album-manage-bar-${artistId}" style="display:none;position:sticky;bottom:80px;z-index:50;background:var(--bg-secondary);border:1px solid var(--border);border-radius:12px;padding:12px 16px;margin-top:12px;align-items:center;gap:10px;flex-wrap:wrap;backdrop-filter:blur(10px);">
-                                <span id="album-manage-count-${artistId}" style="color:var(--text-primary);font-size:14px;font-weight:600;flex:1;">0 sélectionné</span>
+                                <span id="album-manage-count-${artistId}" style="color:var(--text-primary);font-size:14px;font-weight:600;flex:1;">${t('common.none_selected', 'Aucun sélectionné')}</span>
                                 <button id="rename-album-btn-${artistId}" onclick="openRenameAlbumDialog(${artistId})" class="rescan-btn" style="font-size:12px;padding:6px 14px;" disabled>
-                                    <i class="ri-pencil-line"></i> Renommer
+                                    <i class="ri-pencil-line"></i> ${t('home.rename', 'Renommer')}
                                 </button>
                                 <button id="merge-albums-btn-${artistId}" onclick="openMergeAlbumsDialog(${artistId})" class="rescan-btn" style="font-size:12px;padding:6px 14px;background:var(--accent);color:white;" disabled>
-                                    <i class="ri-git-merge-line"></i> Fusionner
+                                    <i class="ri-git-merge-line"></i> ${t('home.merge', 'Fusionner')}
                                 </button>
                                 <button id="delete-albums-btn-${artistId}" onclick="deleteSelectedAlbums(${artistId})" class="rescan-btn" style="font-size:12px;padding:6px 14px;background:#c0392b;color:white;" disabled>
-                                    <i class="ri-delete-bin-line"></i> Supprimer
+                                    <i class="ri-delete-bin-line"></i> ${t('common.delete', 'Supprimer')}
                                 </button>
                                 <button onclick="toggleAlbumManageMode(${artistId})" class="rescan-btn" style="font-size:12px;padding:6px 14px;">
-                                    <i class="ri-close-line"></i> Terminer
+                                    <i class="ri-close-line"></i> ${t('editor.done_btn', 'Terminer')}
                                 </button>
                             </div>
                         ` : `
                             <div style="padding: 40px; text-align: center; color: var(--text-secondary); background: var(--bg-secondary); border-radius: 12px;">
                                 <div style="font-size: 48px; margin-bottom: 16px;">📀</div>
-                                <p style="font-size: 16px; margin-bottom: 8px;">Aucun album trouvé</p>
+                                <p style="font-size: 16px; margin-bottom: 8px;">${t('artist.no_albums', 'Aucun album trouvé')}</p>
                                 ${totalSongs > 0 ? `
-                                    <p style="font-size: 14px;">Cet artiste a ${totalSongs} chanson${totalSongs > 1 ? 's' : ''}, mais elles ne sont pas organisées en albums.</p>
+                                    <p style="font-size: 14px;">${t('artist.songs_no_albums', 'Cet artiste a {n} chanson(s), mais elles ne sont pas organisées en albums.').replace('{n}', totalSongs)}</p>
                                     <p style="font-size: 14px; margin-top: 8px;">${t('empty.no_songs_library', "Cet artiste n'a pas encore de chansons dans la bibliothèque.")}</p>
                                 ` : `
                                     <p style="font-size: 14px;">${t('empty.no_songs_library', "Cet artiste n'a pas encore de chansons dans la bibliothèque.")}</p>
@@ -2976,7 +2976,7 @@
 
                         <!-- Artist News Section -->
                         <div class="artist-news-section">
-                            <h3 style="margin-bottom: 15px; font-size: 20px; color: white; text-shadow: 0 1px 3px rgba(0,0,0,0.8), 0 0 10px rgba(0,0,0,0.5);">Actualités Récentes</h3>
+                            <h3 style="margin-bottom: 15px; font-size: 20px; color: white; text-shadow: 0 1px 3px rgba(0,0,0,0.8), 0 0 10px rgba(0,0,0,0.5);">${t('artist.recent_news', 'Actualités Récentes')}</h3>
                             <div id="artist-news-container">
                                 <div class="loading-spinner"></div>
                             </div>
@@ -3021,7 +3021,7 @@
             if (btn)  btn.disabled = true;
             if (icon) icon.className = 'ri-loader-4-line scan-spin-icon';
             panel.style.display = 'block';
-            panel.innerHTML = '<div style="padding:14px;color:var(--text-secondary);font-size:13px;">Analyse en cours...</div>';
+            panel.innerHTML = '<div style="padding:14px;color:var(--text-secondary);font-size:13px;">' + t('dupes.analyzing', 'Analyse en cours...') + '</div>';
 
             try {
                 const res    = await fetch(`${BASE_PATH}/api/library.php?action=detect_duplicates&user=${app.currentUser}`);
@@ -3034,7 +3034,7 @@
                     panel.innerHTML = `
                         <div class="glass-card" style="padding:14px 18px;display:flex;align-items:center;gap:10px;color:var(--text-secondary);font-size:13px;">
                             <i class="ri-checkbox-circle-line" style="color:#2ecc71;font-size:18px;"></i>
-                            Aucun doublon détecté — bibliothèque propre !
+                            ${t('dupes.none_clean', 'Aucun doublon détecté — bibliothèque propre !')}
                         </div>`;
                     return;
                 }
@@ -3043,7 +3043,7 @@
                     <div style="display:flex;align-items:baseline;gap:10px;padding:6px 0;border-bottom:1px solid var(--border);">
                         <span style="color:var(--text-secondary);font-size:12px;min-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(g.artist_name)}">${escapeHtml(g.artist_name)}</span>
                         <span style="flex:1;font-size:13px;" title="${g.album_names.map(n => escapeHtml(n)).join(' / ')}">${escapeHtml(g.canonical_name)}</span>
-                        <span style="color:var(--accent);font-size:12px;white-space:nowrap;">${g.album_count} versions • ${g.total_songs} chansons</span>
+                        <span style="color:var(--accent);font-size:12px;white-space:nowrap;">${t('dupes.versions_songs', '{count} versions • {s} chansons').replace('{count}', g.album_count).replace('{s}', g.total_songs)}</span>
                     </div>
                 `).join('');
 
@@ -3051,8 +3051,8 @@
                     <div class="glass-card" style="padding:16px 18px;">
                         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:12px;flex-wrap:wrap;">
                             <div>
-                                <span style="font-weight:600;font-size:14px;">${total_groups} groupe(s) de doublons trouvés</span>
-                                <span style="color:var(--text-secondary);font-size:12px;margin-left:8px;">(${total_redundant} album(s) redondant(s) à supprimer)</span>
+                                <span style="font-weight:600;font-size:14px;">${t('dupes.groups_found', '{n} groupe(s) de doublons trouvés').replace('{n}', total_groups)}</span>
+                                <span style="color:var(--text-secondary);font-size:12px;margin-left:8px;">${t('dupes.redundant', '({n} album(s) redondant(s) à supprimer)').replace('{n}', total_redundant)}</span>
                             </div>
                             <button onclick="autoMergeDuplicates()" id="auto-merge-btn"
                                 style="background:var(--accent);color:white;border:none;border-radius:8px;padding:8px 18px;cursor:pointer;font-size:13px;font-weight:600;white-space:nowrap;">
@@ -3061,14 +3061,14 @@
                         </div>
                         <div style="max-height:220px;overflow-y:auto;font-size:13px;">
                             <div style="display:flex;gap:10px;padding:4px 0 8px;border-bottom:2px solid var(--border);font-size:11px;color:var(--text-secondary);font-weight:600;text-transform:uppercase;letter-spacing:.05em;">
-                                <span style="min-width:160px;">Artiste</span><span style="flex:1;">Album (nom retenu)</span><span>Détail</span>
+                                <span style="min-width:160px;">${t('dupes.col_artist', 'Artiste')}</span><span style="flex:1;">${t('dupes.col_album', 'Album (nom retenu)')}</span><span>${t('dupes.col_detail', 'Détail')}</span>
                             </div>
                             ${rows}
                         </div>
                     </div>`;
             } catch (e) {
                 console.error('detect duplicates error:', e);
-                panel.innerHTML = '<div style="color:var(--error,#e74c3c);padding:14px;">Erreur lors de la détection.</div>';
+                panel.innerHTML = '<div style="color:var(--error,#e74c3c);padding:14px;">' + t('errors.detect', 'Erreur lors de la détection.') + '</div>';
             } finally {
                 if (btn)  btn.disabled = false;
                 if (icon) icon.className = 'ri-scan-line';
@@ -3089,9 +3089,9 @@
                 if (result.error) { alert(t('common.error_prefix','Erreur : ') + result.message); return; }
 
                 const d = result.data;
-                let msg = `Fusion terminée : ${d.groups_merged} groupe(s) traité(s).`;
-                if (d.tags_updated > 0) msg += `\n${d.tags_updated} tag(s) ID3 mis à jour.`;
-                if (d.tags_failed  > 0) msg += `\n⚠ ${d.tags_failed} fichier(s) non modifiés.`;
+                let msg = t('dupes.merge_complete', 'Fusion terminée : {n} groupe(s) traité(s).').replace('{n}', d.groups_merged);
+                if (d.tags_updated > 0) msg += '\n' + t('dupes.tags_updated', '{n} tag(s) ID3 mis à jour.').replace('{n}', d.tags_updated);
+                if (d.tags_failed  > 0) msg += '\n' + t('dupes.tags_failed', '⚠ {n} fichier(s) non modifiés.').replace('{n}', d.tags_failed);
                 alert(msg);
 
                 // Refresh albums view
@@ -3133,10 +3133,10 @@
                         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px;">
                             <span style="font-weight:600;font-size:14px;color:var(--text-primary);">
                                 <i class="ri-group-line" style="color:var(--accent);"></i>
-                                ${list.length} compilation${list.length > 1 ? 's' : ''} détectée${list.length > 1 ? 's' : ''}
+                                ${t('compilations.detected', '{n} compilation(s) détectée(s)').replace('{n}', list.length)}
                             </span>
                             <button onclick="mergeAllCompilations()" class="rescan-btn" style="font-size:12px;padding:6px 14px;background:var(--accent);color:white;">
-                                <i class="ri-git-merge-line"></i> Tout fusionner sous "Various Artists"
+                                <i class="ri-git-merge-line"></i> ${t('compilations.merge_all_btn', 'Tout fusionner sous "Various Artists"')}
                             </button>
                         </div>
                         ${list.map((c, i) => `
@@ -3144,7 +3144,7 @@
                                 <div style="flex:1;min-width:200px;">
                                     <div style="font-weight:600;font-size:13px;color:var(--text-primary);">${escapeHtml(c.album_name)}</div>
                                     <div style="font-size:11px;color:var(--text-secondary);margin-top:3px;">
-                                        ${c.artist_count} artistes · ${c.total_songs} chanson${c.total_songs > 1 ? 's' : ''}
+                                        ${t('compilations.artists_songs', '{a} artistes · {s} chanson(s)').replace('{a}', c.artist_count).replace('{s}', c.total_songs)}
                                     </div>
                                     <div style="font-size:11px;color:var(--text-secondary);margin-top:2px;">${c.artist_names.slice(0,5).map(a => escapeHtml(a)).join(', ')}${c.artist_names.length > 5 ? '…' : ''}</div>
                                 </div>
@@ -3178,8 +3178,11 @@
             const artistName = document.getElementById(`comp-artist-${index}`)?.value.trim() || 'Various Artists';
 
             const confirmed = confirm(
-                `Fusionner "${c.album_name}" (${c.artist_count} artistes, ${c.total_songs} chansons) sous "${artistName}" ?\n` +
-                `Les tags ID3 album_artist seront mis à jour.`
+                t('compilations.confirm_merge', 'Fusionner "{album}" ({a} artistes, {s} chansons) sous "{artist}" ?\nLes tags ID3 album_artist seront mis à jour.')
+                    .replace('{album}', c.album_name)
+                    .replace('{a}', c.artist_count)
+                    .replace('{s}', c.total_songs)
+                    .replace('{artist}', artistName)
             );
             if (!confirmed) return;
 
@@ -3193,9 +3196,9 @@
                 if (result.error) { alert(t('common.error_prefix','Erreur : ') + result.message); return; }
 
                 const d = result.data;
-                let msg = `"${d.name}" fusionné sous "${d.artist}" (${d.songs} chansons).`;
-                if (d.tags_updated > 0) msg += `\n${d.tags_updated} tag(s) ID3 mis à jour.`;
-                if (d.tags_failed  > 0) msg += `\n⚠ ${d.tags_failed} fichier(s) non modifiés.`;
+                let msg = t('compilations.merge_result', '"{name}" fusionné sous "{artist}" ({n} chansons).').replace('{name}', d.name).replace('{artist}', d.artist).replace('{n}', d.songs);
+                if (d.tags_updated > 0) msg += '\n' + t('dupes.tags_updated', '{n} tag(s) ID3 mis à jour.').replace('{n}', d.tags_updated);
+                if (d.tags_failed  > 0) msg += '\n' + t('dupes.tags_failed', '⚠ {n} fichier(s) non modifiés.').replace('{n}', d.tags_failed);
                 alert(msg);
 
                 renderAlbums(true);
@@ -3209,7 +3212,7 @@
             const list  = panel?._compilationList;
             if (!list?.length) return;
 
-            if (!confirm(`Fusionner ${list.length} compilation${list.length > 1 ? 's' : ''} sous "Various Artists" ?\nLes tags ID3 album_artist seront mis à jour.`)) return;
+            if (!confirm(t('compilations.confirm_merge_all', 'Fusionner {n} compilation(s) sous "Various Artists" ?\nLes tags ID3 album_artist seront mis à jour.').replace('{n}', list.length))) return;
 
             let done = 0, failed = 0;
             for (let i = 0; i < list.length; i++) {
@@ -3226,7 +3229,7 @@
                     if (result.error) failed++; else done++;
                 } catch { failed++; }
             }
-            alert(`${done} compilation${done > 1 ? 's' : ''} fusionnée${done > 1 ? 's' : ''}.${failed ? `\n⚠ ${failed} erreur(s).` : ''}`);
+            alert(t('compilations.merge_all_result', '{done} compilation(s) fusionnée(s).').replace('{done}', done) + (failed ? '\n' + t('dupes.tags_failed', '⚠ {n} fichier(s) non modifiés.').replace('{n}', failed) : ''));
             renderAlbums(true);
         }
 
@@ -3294,21 +3297,21 @@
                         <div style="display:flex;gap:12px;align-items:center;margin-bottom:16px;flex-wrap:wrap;">
                             <select id="albums-sort-select" onchange="albumsViewState.sort=this.value; renderAlbums(true)"
                                 style="background:var(--surface);color:var(--text-primary);border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer;">
-                                <option value="name">Par nom</option>
-                                <option value="artist">Par artiste</option>
-                                <option value="year">Par année</option>
-                                <option value="recent">Récemment ajoutés</option>
+                                <option value="name">${t('album.sort_name', 'Par nom')}</option>
+                                <option value="artist">${t('album.sort_artist', 'Par artiste')}</option>
+                                <option value="year">${t('album.sort_year', 'Par année')}</option>
+                                <option value="recent">${t('album.sort_recent', 'Récemment ajoutés')}</option>
                             </select>
-                            <input id="albums-search" type="text" placeholder="Rechercher un album ou artiste..."
+                            <input id="albums-search" type="text" placeholder="${t('album.search_placeholder', 'Rechercher un album ou artiste...')}"
                                 value="${escapeHtml(albumsViewState.search)}"
                                 oninput="albumsSearchDebounce(this.value)"
                                 style="background:var(--surface);color:var(--text-primary);border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-size:13px;flex:1;min-width:180px;outline:none;">
                             <span style="color:var(--text-secondary);font-size:13px;white-space:nowrap;">${total} albums</span>
                             <button id="detect-dupes-btn" onclick="detectAlbumDuplicates()" class="rescan-btn" style="font-size:12px;padding:6px 14px;white-space:nowrap;">
-                                <i class="ri-scan-line" id="detect-dupes-icon"></i> Détecter les doublons
+                                <i class="ri-scan-line" id="detect-dupes-icon"></i> ${t('album.detect_dupes', 'Détecter les doublons')}
                             </button>
                             <button id="detect-compilations-btn" onclick="detectCompilations()" class="rescan-btn" style="font-size:12px;padding:6px 14px;white-space:nowrap;">
-                                <i class="ri-group-line" id="detect-comp-icon"></i> Compilations
+                                <i class="ri-group-line" id="detect-comp-icon"></i> ${t('album.compilations_btn', 'Compilations')}
                             </button>
                         </div>
                         <div id="albums-duplicates-panel" style="display:none;margin-bottom:20px;"></div>
@@ -3319,7 +3322,7 @@
                         <div id="albums-load-more" style="text-align:center;padding:24px;display:${hasMore ? 'block' : 'none'};">
                             <button onclick="renderAlbums(false)"
                                 style="padding:10px 28px;background:var(--accent);color:white;border:none;border-radius:25px;cursor:pointer;font-size:14px;font-weight:600;">
-                                Charger plus (${total - albumsViewState.offset} restants)
+                                ${t('common.load_more', 'Charger plus ({n} restants)').replace('{n}', total - albumsViewState.offset)}
                             </button>
                         </div>
                     `;
@@ -3334,7 +3337,7 @@
                         } else {
                             loadMore.innerHTML = `<button onclick="renderAlbums(false)"
                                 style="padding:10px 28px;background:var(--accent);color:white;border:none;border-radius:25px;cursor:pointer;font-size:14px;font-weight:600;">
-                                Charger plus (${total - albumsViewState.offset} restants)
+                                ${t('common.load_more', 'Charger plus ({n} restants)').replace('{n}', total - albumsViewState.offset)}
                             </button>`;
                         }
                     }
@@ -3380,11 +3383,11 @@
                         <div style="margin-bottom: 20px;">
                             ${backArtist ? `
                                 <button onclick="viewArtist(${backArtist.id})" class="back-btn">
-                                    ← Retour à ${backArtist.name}
+                                    ${t('album.back_to', '← Retour à {name}').replace('{name}', backArtist.name)}
                                 </button>
                             ` : `
                                 <button onclick="searchInput.value=''; renderView('artists')" class="back-btn">
-                                    ← Retour aux artistes
+                                    ${t('artist.back', '← Retour aux artistes')}
                                 </button>
                             `}
                         </div>
@@ -3394,40 +3397,40 @@
                                 <img src="${albumData.artworkUrl || DEFAULT_ALBUM_IMG}" alt="${albumData.name}" style="width:100%; height:100%; object-fit:cover;">
                                 <div class="artwork-edit-overlay">
                                     <i class="ri-image-edit-line" style="font-size:28px;"></i>
-                                    <span style="font-size:12px;margin-top:4px;">Modifier</span>
+                                    <span style="font-size:12px;margin-top:4px;">${t('common.edit', 'Modifier')}</span>
                                 </div>
                             </div>
                             <div class="album-header-info">
-                                <p style="color: rgba(255,255,255,0.7); font-size: 11px; text-transform: uppercase; font-weight: 600; margin-bottom: 5px;">Album</p>
+                                <p style="color: rgba(255,255,255,0.7); font-size: 11px; text-transform: uppercase; font-weight: 600; margin-bottom: 5px;">${t('album.label', 'Album')}</p>
                                 <h2 class="album-title">${albumData.name}</h2>
                                 <p style="color: rgba(255,255,255,0.85); font-size: 13px; margin-bottom: 15px;">${albumData.artist.name || t('common.unknown_artist','Artiste inconnu')} • ${albumData.year || 'N/A'} • ${t('counts.songs','{n} chansons').replace('{n}', songs.length)}</p>
                                 <div style="display: flex; gap: 10px; flex-wrap: wrap;">
                                     <button onclick="playAlbum(${albumId})" class="album-action-btn album-play-btn">
-                                        <i class="ri-play-fill"></i> Lire
+                                        <i class="ri-play-fill"></i> ${t('album.play', 'Lire')}
                                     </button>
                                     <button onclick="shuffleAlbum(${albumId})" class="album-action-btn album-shuffle-btn">
-                                        <i class="ri-shuffle-line"></i> Aléatoire
+                                        <i class="ri-shuffle-line"></i> ${t('player.shuffle', 'Aléatoire')}
                                     </button>
                                     <button id="album-fav-btn-${albumId}" onclick="toggleAlbumFavorite(${albumId})" class="album-action-btn fav-action-btn" title="Ajouter aux favoris">
                                         <i class="ri-heart-line"></i>
                                     </button>
                                     <button onclick="openEditAlbumModal(${albumId})" class="album-action-btn album-edit-btn">
-                                        <i class="ri-edit-line"></i> Éditer
+                                        <i class="ri-edit-line"></i> ${t('album.edit', 'Éditer')}
                                     </button>
                                     <button id="manage-songs-btn-${albumId}" onclick="toggleSongManageMode(${albumId})" class="album-action-btn" style="background:var(--bg-tertiary);color:var(--text-primary);">
-                                        <i class="ri-checkbox-multiple-line"></i> Gérer
+                                        <i class="ri-checkbox-multiple-line"></i> ${t('editor.manage_btn', 'Gérer')}
                                     </button>
                                 </div>
                             </div>
                         </div>
 
                         <div id="song-manage-bar-${albumId}" style="display:none;position:sticky;top:0;z-index:50;background:var(--bg-secondary);border:1px solid var(--border);border-radius:12px;padding:10px 16px;margin-bottom:10px;align-items:center;gap:10px;flex-wrap:wrap;backdrop-filter:blur(10px);">
-                            <span id="song-manage-count-${albumId}" style="color:var(--text-primary);font-size:14px;font-weight:600;flex:1;">Aucune sélectionnée</span>
+                            <span id="song-manage-count-${albumId}" style="color:var(--text-primary);font-size:14px;font-weight:600;flex:1;">${t('common.none_selected_f', 'Aucune sélectionnée')}</span>
                             <button id="delete-songs-btn-${albumId}" onclick="deleteSelectedSongs(${albumId})" class="rescan-btn" style="font-size:12px;padding:6px 14px;background:#c0392b;color:white;" disabled>
-                                <i class="ri-delete-bin-line"></i> Supprimer
+                                <i class="ri-delete-bin-line"></i> ${t('common.delete', 'Supprimer')}
                             </button>
                             <button onclick="toggleSongManageMode(${albumId})" class="rescan-btn" style="font-size:12px;padding:6px 14px;">
-                                <i class="ri-close-line"></i> Terminer
+                                <i class="ri-close-line"></i> ${t('editor.done_btn', 'Terminer')}
                             </button>
                         </div>
 
@@ -3441,14 +3444,14 @@
                                     </div>
                                     <div class="song-info">
                                         <div class="song-title">${song.title}</div>
-                                        <div class="song-artist">${albumData.artist.name || 'Artiste Inconnu'}</div>
+                                        <div class="song-artist">${albumData.artist.name || t('common.unknown_artist', 'Artiste inconnu')}</div>
                                     </div>
                                     <div class="song-duration">${formatDuration(song.duration)}</div>
                                     <div class="song-actions">
                                         <button class="song-action-btn favorite-btn ${app.favorites.includes(song.id) ? 'active' : ''}" data-song-id="${song.id}" onclick="event.stopPropagation(); toggleFavorite(${song.id})" title="Favoris">
                                             <i class="${app.favorites.includes(song.id) ? 'ri-heart-fill' : 'ri-heart-line'}"></i>
                                         </button>
-                                        <button class="song-action-btn" onclick="event.stopPropagation(); addSongToQueueById(${song.id})" title="Ajouter à la file">
+                                        <button class="song-action-btn" onclick="event.stopPropagation(); addSongToQueueById(${song.id})" title="${t('context_menu.add_to_queue', 'Ajouter à la file')}">
                                             <i class="ri-add-line"></i>
                                         </button>
                                     </div>
@@ -3483,17 +3486,17 @@
             const html = `
                 <div style="text-align: center; padding: 60px 20px;">
                     <div style="font-size: 64px; margin-bottom: 20px;">🎵</div>
-                    <h3 style="margin-bottom: 10px; font-size: 20px;">Vue Chansons</h3>
+                    <h3 style="margin-bottom: 10px; font-size: 20px;">${t('songs.view_title', 'Vue Chansons')}</h3>
                     <p style="color: var(--text-secondary); margin-bottom: 30px;">
-                        ${app.library ? `Votre bibliothèque contient <strong>${app.library.totalSongs.toLocaleString()}</strong> chansons!<br>` : ''}
-                        Pour écouter vos chansons, naviguez dans les <strong>Artistes</strong> puis sélectionnez un album.
+                        ${app.library ? t('songs.library_count', 'Votre bibliothèque contient {n} chansons !').replace('{n}', `<strong>${app.library.totalSongs.toLocaleString()}</strong>`) + '<br>' : ''}
+                        ${t('songs.browse_hint', 'Pour écouter vos chansons, naviguez dans les Artistes puis sélectionnez un album.')}
                     </p>
                     <div style="display: flex; gap: 15px; justify-content: center; flex-wrap: wrap;">
                         <button onclick="window.startRadio()" style="padding: 12px 30px; background: rgba(255, 255, 255, 0.1); color: var(--text-primary); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 25px; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); cursor: pointer; font-size: 14px; font-weight: 600; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); transition: all 0.2s ease;" onmouseenter="this.style.background='rgba(255, 255, 255, 0.2)'; this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 12px rgba(0, 0, 0, 0.15)'" onmouseleave="this.style.background='rgba(255, 255, 255, 0.1)'; this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 6px rgba(0, 0, 0, 0.1)'">
                             📻 Radio
                         </button>
                         <button onclick="renderView('artists')" style="padding: 12px 30px; background: rgba(255, 255, 255, 0.1); color: var(--text-primary); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 25px; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); cursor: pointer; font-size: 14px; font-weight: 600; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); transition: all 0.2s ease;" onmouseenter="this.style.background='rgba(255, 255, 255, 0.2)'; this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 12px rgba(0, 0, 0, 0.15)'" onmouseleave="this.style.background='rgba(255, 255, 255, 0.1)'; this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 6px rgba(0, 0, 0, 0.1)'">
-                            👤 Voir les Artistes
+                            👤 ${t('songs.see_artists', 'Voir les Artistes')}
                         </button>
                     </div>
                 </div>
@@ -3507,7 +3510,7 @@
             contentBody.innerHTML = `
                 <div class="loading">
                     <div class="loading-spinner"></div>
-                    <p>Chargement...</p>
+                    <p>${t('common.loading', 'Chargement...')}</p>
                 </div>
             `;
         }
@@ -3524,7 +3527,7 @@
         function showError(message, retryAction = null) {
             const retryButton = retryAction ? `
                 <button onclick="${retryAction}" style="margin-top: 20px; padding: 12px 30px; background: var(--accent); color: white; border: none; border-radius: 25px; cursor: pointer; font-size: 14px; font-weight: 600;">
-                    🔄 Réessayer
+                    ${t('common.retry', '🔄 Réessayer')}
                 </button>
             ` : '';
 
@@ -3533,7 +3536,7 @@
                     <div class="empty-state-icon">⚠️</div>
                     <p style="color: var(--accent); margin-bottom: 10px; font-weight: 600;">${message}</p>
                     <p style="color: var(--text-secondary); font-size: 14px;">
-                        Vérifiez votre connexion ou réessayez plus tard.
+                        ${t('common.check_connection', 'Vérifiez votre connexion ou réessayez plus tard.')}
                     </p>
                     ${retryButton}
                 </div>
@@ -3752,16 +3755,16 @@
                 const genres = data.data.genres;
 
                 let html = '<div class="genre-manager">';
-                html += '<div class="genre-manager-header"><h3 style="margin:0;color:var(--text-primary);">Gestion des genres</h3>';
+                html += '<div class="genre-manager-header"><h3 style="margin:0;color:var(--text-primary);">' + t('genres.manager_title', 'Gestion des genres') + '</h3>';
                 html += '<button onclick="toggleGenreManager()" style="background:none;border:none;color:var(--text-secondary);cursor:pointer;font-size:18px;"><i class="ri-close-line"></i></button></div>';
 
                 genres.forEach(genre => {
                     html += `<div class="genre-manager-item">
                         <span class="genre-manager-name">${escapeHtml(genre.name)}</span>
                         <div class="genre-manager-actions">
-                            <button class="genre-manager-btn" onclick="renameGenre(${genre.id}, '${escapeHtml(genre.name).replace(/'/g, "\\'")}')" title="Renommer"><i class="ri-pencil-line"></i></button>
-                            <button class="genre-manager-btn genre-manager-btn-danger" onclick="deleteGenre(${genre.id}, '${escapeHtml(genre.name).replace(/'/g, "\\'")}')" title="Supprimer"><i class="ri-delete-bin-line"></i></button>
-                            <button class="genre-manager-btn genre-manager-btn-add" onclick="addGenre(${genre.id})" title="Ajouter un sous-genre"><i class="ri-add-line"></i></button>
+                            <button class="genre-manager-btn" onclick="renameGenre(${genre.id}, '${escapeHtml(genre.name).replace(/'/g, "\\'")}')" title="${t('home.rename','Renommer')}"><i class="ri-pencil-line"></i></button>
+                            <button class="genre-manager-btn genre-manager-btn-danger" onclick="deleteGenre(${genre.id}, '${escapeHtml(genre.name).replace(/'/g, "\\'")}')" title="${t('common.delete','Supprimer')}"><i class="ri-delete-bin-line"></i></button>
+                            <button class="genre-manager-btn genre-manager-btn-add" onclick="addGenre(${genre.id})" title="${t('genres.add_subgenre','Ajouter un sous-genre')}"><i class="ri-add-line"></i></button>
                         </div>
                     </div>`;
 
@@ -3770,25 +3773,25 @@
                             html += `<div class="genre-manager-item genre-manager-sub">
                                 <span class="genre-manager-name">${escapeHtml(sub.name)}</span>
                                 <div class="genre-manager-actions">
-                                    <button class="genre-manager-btn" onclick="renameGenre(${sub.id}, '${escapeHtml(sub.name).replace(/'/g, "\\'")}')" title="Renommer"><i class="ri-pencil-line"></i></button>
-                                    <button class="genre-manager-btn genre-manager-btn-danger" onclick="deleteGenre(${sub.id}, '${escapeHtml(sub.name).replace(/'/g, "\\'")}')" title="Supprimer"><i class="ri-delete-bin-line"></i></button>
+                                    <button class="genre-manager-btn" onclick="renameGenre(${sub.id}, '${escapeHtml(sub.name).replace(/'/g, "\\'")}')" title="${t('home.rename','Renommer')}"><i class="ri-pencil-line"></i></button>
+                                    <button class="genre-manager-btn genre-manager-btn-danger" onclick="deleteGenre(${sub.id}, '${escapeHtml(sub.name).replace(/'/g, "\\'")}')" title="${t('common.delete','Supprimer')}"><i class="ri-delete-bin-line"></i></button>
                                 </div>
                             </div>`;
                         });
                     }
                 });
 
-                html += '<div style="margin-top:12px;"><button class="genre-manager-add" onclick="addGenre(null)"><i class="ri-add-line"></i> Ajouter un genre principal</button></div>';
+                html += '<div style="margin-top:12px;"><button class="genre-manager-add" onclick="addGenre(null)"><i class="ri-add-line"></i> ' + t('genres.add_main', 'Ajouter un genre principal') + '</button></div>';
                 html += '</div>';
                 container.innerHTML = html;
             } catch (e) {
                 console.error('Error loading genre manager:', e);
-                container.innerHTML = `<div style="color:red;">${t('common.error','Erreur')} de chargement.</div>`;
+                container.innerHTML = `<div style="color:red;">${t('genres.load_error', 'Erreur de chargement.')}</div>`;
             }
         }
 
         async function addGenre(parentId) {
-            const label = parentId ? 'Nom du sous-genre:' : 'Nom du genre principal:';
+            const label = parentId ? t('genres.prompt_subgenre', 'Nom du sous-genre :') : t('genres.prompt_main_genre', 'Nom du genre principal :');
             const name = prompt(label);
             if (!name || !name.trim()) return;
 
@@ -3813,7 +3816,7 @@
         }
 
         async function renameGenre(id, currentName) {
-            const newName = prompt('Nouveau nom du genre:', currentName);
+            const newName = prompt(t('genres.prompt_rename', 'Nouveau nom du genre :'), currentName);
             if (!newName || !newName.trim() || newName.trim() === currentName) return;
 
             try {
@@ -3948,8 +3951,8 @@
                 } else {
                     const d = data.data;
                     const msg = d.artists_deleted === 0 && d.albums_deleted === 0
-                        ? 'Aucun orphelin trouvé.'
-                        : `Nettoyage terminé : ${d.artists_deleted} artiste(s) et ${d.albums_deleted} album(s) supprimés.`;
+                        ? t('genres.no_orphans', 'Aucun orphelin trouvé.')
+                        : t('genres.cleanup_result', 'Nettoyage terminé : {a} artiste(s) et {b} album(s) supprimés.').replace('{a}', d.artists_deleted).replace('{b}', d.albums_deleted);
                     alert(msg);
                     renderStatistics();
                 }
@@ -4021,14 +4024,14 @@
                 // Validate file type
                 const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
                 if (!allowedTypes.includes(file.type)) {
-                    alert('Type de fichier non supporté. Utilisez JPG, PNG ou WebP.');
+                    alert(t('alert.invalid_file_type', 'Type de fichier non supporté. Utilisez JPG, PNG ou WebP.'));
                     return;
                 }
 
                 // Validate file size (max 5MB)
                 const maxSize = 5 * 1024 * 1024;
                 if (file.size > maxSize) {
-                    alert('Le fichier est trop volumineux. Taille maximale: 5MB');
+                    alert(t('alert.file_too_large', 'Le fichier est trop volumineux. Taille maximale: 5MB'));
                     return;
                 }
 
@@ -4076,7 +4079,7 @@
 
             } catch (error) {
                 console.error('Error uploading artist image:', error);
-                alert('Erreur lors de l\'upload de l\'image: ' + error.message);
+                alert(t('errors.upload_image', "Erreur lors de l'upload de l'image: ") + error.message);
                 // Restore original content on error
                 const avatarEl = document.getElementById(`artist-avatar-${artistId}`);
                 if (avatarEl) {
@@ -4286,68 +4289,68 @@
                     </div>
 
                     <div class="settings-section">
-                        <div class="settings-section-title"><i class="ri-hard-drive-line"></i> Stockage</div>
+                        <div class="settings-section-title"><i class="ri-hard-drive-line"></i> ${t('settings.storage','Stockage')}</div>
                         <div class="settings-row">
                             <div class="settings-row-label">
-                                <span>Source de la bibliothèque</span>
+                                <span>${t('settings.storage_source','Source de la bibliothèque')}</span>
                                 <span>${app.storageType === 'sftp'
                                     ? `<span style="color:#00b894"><i class="ri-server-line"></i> SFTP — ${escapeHtml(app.sftpHost)}${app.sftpPath ? ':' + escapeHtml(app.sftpPath) : ''}</span>`
-                                    : app.musicDir ? `<i class="ri-folder-line"></i> ${escapeHtml(app.musicDir)}` : '<span style="color:var(--text-secondary)">Non configuré</span>'
+                                    : app.musicDir ? `<i class="ri-folder-line"></i> ${escapeHtml(app.musicDir)}` : `<span style="color:var(--text-secondary)">${t('settings.not_configured','Non configuré')}</span>`
                                 }</span>
                             </div>
                             <button class="rescan-btn" onclick="openStorageModal()" style="flex-shrink:0;">
-                                <i class="ri-settings-3-line"></i> Configurer
+                                <i class="ri-settings-3-line"></i> ${t('settings.configure','Configurer')}
                             </button>
                         </div>
                     </div>
 
                     <div class="settings-section">
-                        <div class="settings-section-title"><i class="ri-user-line"></i> Compte</div>
+                        <div class="settings-section-title"><i class="ri-user-line"></i> ${t('settings.account','Compte')}</div>
                         <div class="settings-row">
                             <div class="settings-row-label">
-                                <span>Connecté en tant que <strong>${escapeHtml(app.currentUser)}</strong>${app.isAdmin ? ' <span class="admin-badge">Admin</span>' : ''}</span>
-                                <span>Se déconnecter de toutes les sessions Gullify</span>
+                                <span>${t('settings.logged_as','Connecté en tant que')} <strong>${escapeHtml(app.currentUser)}</strong>${app.isAdmin ? ' <span class="admin-badge">Admin</span>' : ''}</span>
+                                <span>${t('settings.logout_desc','Se déconnecter de toutes les sessions Gullify')}</span>
                             </div>
                             <button class="rescan-btn" onclick="window.location.href='logout.php'" style="flex-shrink:0;background:rgba(255,107,107,0.12);color:#ff6b6b;border-color:rgba(255,107,107,0.3);">
                                 <i class="ri-logout-box-r-line"></i>
-                                <span>Se déconnecter</span>
+                                <span>${t('settings.logout','Se déconnecter')}</span>
                             </button>
                         </div>
                     </div>
 
                     ${app.isAdmin ? `
                     <div class="settings-section" id="adminUsersSection">
-                        <div class="settings-section-title"><i class="ri-shield-user-line"></i> Administration — Utilisateurs</div>
+                        <div class="settings-section-title"><i class="ri-shield-user-line"></i> ${t('admin.users_title','Administration — Utilisateurs')}</div>
 
                         <div id="adminUsersList" style="margin-bottom:20px;">
-                            <div style="color:var(--text-secondary);font-size:13px;padding:8px 0;">Chargement...</div>
+                            <div style="color:var(--text-secondary);font-size:13px;padding:8px 0;">${t('common.loading','Chargement...')}</div>
                         </div>
 
                         <div style="border-top:1px solid var(--border-color,rgba(128,128,128,0.1));padding-top:16px;">
-                            <div style="font-size:11px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.6px;margin-bottom:12px;">Nouvel utilisateur</div>
+                            <div style="font-size:11px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.6px;margin-bottom:12px;">${t('settings.new_user','Nouvel utilisateur')}</div>
                             <div class="admin-form-grid">
-                                <input type="text" id="newUsername" placeholder="Nom d'utilisateur" class="admin-input">
-                                <input type="text" id="newFullName" placeholder="Nom complet" class="admin-input">
-                                <input type="password" id="newPassword" placeholder="Mot de passe (min 6 car.)" class="admin-input">
+                                <input type="text" id="newUsername" placeholder="${t('setup.username',"Nom d'utilisateur")}" class="admin-input">
+                                <input type="text" id="newFullName" placeholder="${t('setup.full_name','Nom complet')}" class="admin-input">
+                                <input type="password" id="newPassword" placeholder="${t('settings.password_ph','Mot de passe (min 6 car.)')}" class="admin-input">
                                 <select id="newMusicDir" class="admin-input">
-                                    <option value="">— Répertoire musique —</option>
+                                    <option value="">${t('settings.music_dir_placeholder','— Répertoire musique —')}</option>
                                 </select>
                             </div>
                             <div class="admin-form-footer">
                                 <label>
-                                    <input type="checkbox" id="newIsAdmin"> Administrateur
+                                    <input type="checkbox" id="newIsAdmin"> ${t('settings.administrator','Administrateur')}
                                 </label>
                                 <button class="rescan-btn" id="createUserBtn" onclick="adminCreateUser()" style="margin-left:auto;">
-                                    <i class="ri-user-add-line"></i> Créer l'utilisateur
+                                    <i class="ri-user-add-line"></i> ${t('settings.create_user',"Créer l'utilisateur")}
                                 </button>
                             </div>
                         </div>
                     </div>
 
                     <div class="settings-section" id="adminDirsSection">
-                        <div class="settings-section-title"><i class="ri-folder-music-line"></i> Administration — Répertoires</div>
+                        <div class="settings-section-title"><i class="ri-folder-music-line"></i> ${t('admin.dirs_title','Administration — Répertoires')}</div>
                         <div id="adminDirsList">
-                            <div style="color:var(--text-secondary);font-size:13px;padding:8px 0;">Chargement...</div>
+                            <div style="color:var(--text-secondary);font-size:13px;padding:8px 0;">${t('common.loading','Chargement...')}</div>
                         </div>
                     </div>
                     ` : ''}
@@ -4374,27 +4377,27 @@
 
                     container.innerHTML = `
                         <table class="admin-table">
-                            <thead><tr><th>Utilisateur</th><th>Nom</th><th>Stockage</th><th>Rôle</th><th>Statut</th><th style="text-align:right">Actions</th></tr></thead>
+                            <thead><tr><th>${t('admin.col_user','Utilisateur')}</th><th>${t('admin.col_name','Nom')}</th><th>${t('admin.col_storage','Stockage')}</th><th>${t('admin.col_role','Rôle')}</th><th>${t('admin.col_status','Statut')}</th><th style="text-align:right">${t('admin.col_actions','Actions')}</th></tr></thead>
                             <tbody>
                             ${result.data.map(u => `
                                 <tr class="${!u.is_active ? 'admin-row-inactive' : ''}">
-                                    <td data-label="Utilisateur"><strong>${escapeHtml(u.username)}</strong></td>
-                                    <td data-label="Nom">${escapeHtml(u.full_name || '—')}</td>
-                                    <td data-label="Stockage">
+                                    <td data-label="${t('admin.col_user','Utilisateur')}"><strong>${escapeHtml(u.username)}</strong></td>
+                                    <td data-label="${t('admin.col_name','Nom')}">${escapeHtml(u.full_name || '—')}</td>
+                                    <td data-label="${t('admin.col_storage','Stockage')}">
                                         ${u.storage_type === 'sftp'
                                             ? `<span class="admin-dir-badge" style="color:#00b894;border-color:rgba(0,184,148,.4)"><i class="ri-server-line"></i> ${escapeHtml(u.sftp_host || '?')}</span>`
                                             : `<span class="admin-dir-badge"><i class="ri-folder-line"></i> ${escapeHtml(u.music_directory || '—')}</span>`
                                         }
                                     </td>
-                                    <td data-label="Rôle">${u.is_admin ? '<span class="admin-badge">Admin</span>' : '<span style="font-size:12px;color:var(--text-secondary)">Utilisateur</span>'}</td>
-                                    <td data-label="Statut">${u.is_active ? '<span style="color:#00b894;font-size:12px;font-weight:600">● Actif</span>' : '<span style="color:#ff6b6b;font-size:12px;font-weight:600">● Inactif</span>'}</td>
-                                    <td data-label="Actions" class="admin-actions">
-                                        <button class="admin-btn" onclick="adminChangePassword(${u.id}, '${jsStr(u.username)}')" title="Changer le mot de passe"><i class="ri-key-line"></i></button>
-                                        <button class="admin-btn" onclick="adminChangeDir(${u.id}, '${jsStr(u.username)}', '${jsStr(u.music_directory || '')}')" title="Changer le répertoire local"><i class="ri-folder-line"></i></button>
-                                        <button class="admin-btn ${u.storage_type === 'sftp' ? 'admin-btn-sftp' : ''}" onclick="adminEditSftp(${u.id}, '${jsStr(u.username)}', '${jsStr(u.storage_type || 'local')}', '${jsStr(u.sftp_host || '')}', ${u.sftp_port || 22}, '${jsStr(u.sftp_user || '')}', '${jsStr(u.sftp_path || '')}')" title="Paramètres SFTP"><i class="ri-server-line"></i></button>
+                                    <td data-label="${t('admin.col_role','Rôle')}">${u.is_admin ? '<span class="admin-badge">Admin</span>' : `<span style="font-size:12px;color:var(--text-secondary)">${t('settings.user_role','Utilisateur')}</span>`}</td>
+                                    <td data-label="${t('admin.col_status','Statut')}">${u.is_active ? `<span style="color:#00b894;font-size:12px;font-weight:600">${t('settings.active','● Actif')}</span>` : `<span style="color:#ff6b6b;font-size:12px;font-weight:600">${t('settings.inactive','● Inactif')}</span>`}</td>
+                                    <td data-label="${t('admin.col_actions','Actions')}" class="admin-actions">
+                                        <button class="admin-btn" onclick="adminChangePassword(${u.id}, '${jsStr(u.username)}')" title="${t('settings.change_password','Changer le mot de passe')}"><i class="ri-key-line"></i></button>
+                                        <button class="admin-btn" onclick="adminChangeDir(${u.id}, '${jsStr(u.username)}', '${jsStr(u.music_directory || '')}')" title="${t('settings.change_dir','Changer le répertoire local')}"><i class="ri-folder-line"></i></button>
+                                        <button class="admin-btn ${u.storage_type === 'sftp' ? 'admin-btn-sftp' : ''}" onclick="adminEditSftp(${u.id}, '${jsStr(u.username)}', '${jsStr(u.storage_type || 'local')}', '${jsStr(u.sftp_host || '')}', ${u.sftp_port || 22}, '${jsStr(u.sftp_user || '')}', '${jsStr(u.sftp_path || '')}')" title="${t('settings.sftp_settings','Paramètres SFTP')}"><i class="ri-server-line"></i></button>
                                         <button class="admin-btn" onclick="adminToggleAdmin(${u.id})" title="${u.is_admin ? t('admin.remove_admin','Retirer admin') : t('admin.make_admin','Rendre admin')}"><i class="ri-shield-${u.is_admin ? 'fill' : 'line'}"></i></button>
-                                        <button class="admin-btn" onclick="adminToggleActive(${u.id})" title="${u.is_active ? 'Désactiver' : 'Activer'}"><i class="ri-toggle-${u.is_active ? 'fill' : 'line'}"></i></button>
-                                        <button class="admin-btn admin-btn-danger" onclick="adminDeleteUser(${u.id}, '${escapeHtml(u.username)}')" title="Supprimer"><i class="ri-delete-bin-line"></i></button>
+                                        <button class="admin-btn" onclick="adminToggleActive(${u.id})" title="${u.is_active ? t('settings.deactivate','Désactiver') : t('settings.activate','Activer')}"><i class="ri-toggle-${u.is_active ? 'fill' : 'line'}"></i></button>
+                                        <button class="admin-btn admin-btn-danger" onclick="adminDeleteUser(${u.id}, '${escapeHtml(u.username)}')" title="${t('common.delete','Supprimer')}"><i class="ri-delete-bin-line"></i></button>
                                     </td>
                                 </tr>
                             `).join('')}
@@ -4421,10 +4424,10 @@
                     }
 
                     container.innerHTML = `
-                        <div style="font-size:13px;color:var(--text-secondary);margin-bottom:8px;">Répertoires dans <code>${escapeHtml(result.base_path)}</code></div>
+                        <div style="font-size:13px;color:var(--text-secondary);margin-bottom:8px;">${t('settings.dirs_in','Répertoires dans')} <code>${escapeHtml(result.base_path)}</code></div>
                         <div style="display:flex;flex-wrap:wrap;gap:8px;">
                             ${result.data.map(d => `<span class="admin-dir-badge"><i class="ri-folder-music-line"></i> ${escapeHtml(d)}</span>`).join('')}
-                            ${result.data.length === 0 ? '<span style="color:var(--text-secondary)">Aucun répertoire trouvé</span>' : ''}
+                            ${result.data.length === 0 ? `<span style="color:var(--text-secondary)">${t('settings.no_dirs','Aucun répertoire trouvé')}</span>` : ''}
                         </div>
                     `;
                 };
@@ -4490,14 +4493,14 @@
                     modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:99999;display:flex;align-items:center;justify-content:center;';
                     modal.innerHTML = `
                         <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:16px;padding:28px;min-width:320px;max-width:480px;width:90%;">
-                            <h3 style="margin-bottom:16px;">Répertoire de ${escapeHtml(username)}</h3>
+                            <h3 style="margin-bottom:16px;">${t('settings.dir_of','Répertoire de {name}').replace('{name}', escapeHtml(username))}</h3>
                             <select id="dirModalSelect" class="admin-input" style="width:100%;margin-bottom:16px;">
-                                <option value="">— Aucun —</option>
+                                <option value="">${t('settings.none_option','— Aucun —')}</option>
                                 ${options}
                             </select>
                             <div style="display:flex;gap:8px;justify-content:flex-end;">
-                                <button class="rescan-btn" onclick="this.closest('div[style]').remove()">Annuler</button>
-                                <button class="rescan-btn" id="dirModalSave" style="background:var(--accent);color:#fff;">Enregistrer</button>
+                                <button class="rescan-btn" onclick="this.closest('div[style]').remove()">${t('common.cancel','Annuler')}</button>
+                                <button class="rescan-btn" id="dirModalSave" style="background:var(--accent);color:#fff;">${t('common.save','Enregistrer')}</button>
                             </div>
                         </div>
                     `;
@@ -4517,51 +4520,51 @@
                     modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:99999;display:flex;align-items:center;justify-content:center;';
                     modal.innerHTML = `
                         <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:16px;padding:28px;min-width:360px;max-width:520px;width:92%;">
-                            <h3 style="margin-bottom:18px;"><i class="ri-server-line"></i> Stockage — ${escapeHtml(username)}</h3>
+                            <h3 style="margin-bottom:18px;"><i class="ri-server-line"></i> ${t('settings.storage_of','Stockage — {name}').replace('{name}', escapeHtml(username))}</h3>
 
                             <div style="margin-bottom:14px;">
-                                <label style="font-size:13px;display:block;margin-bottom:6px;">Type de stockage</label>
+                                <label style="font-size:13px;display:block;margin-bottom:6px;">${t('admin.storage_type','Type de stockage')}</label>
                                 <select id="sftpModalType" class="admin-input" style="width:100%" onchange="document.getElementById('sftpFields').style.display=this.value==='sftp'?'block':'none'">
-                                    <option value="local" ${storageType !== 'sftp' ? 'selected' : ''}>Local (répertoire sur le serveur)</option>
-                                    <option value="sftp" ${storageType === 'sftp' ? 'selected' : ''}>SFTP (serveur distant)</option>
+                                    <option value="local" ${storageType !== 'sftp' ? 'selected' : ''}>${t('settings.local_storage','Local (répertoire sur le serveur)')}</option>
+                                    <option value="sftp" ${storageType === 'sftp' ? 'selected' : ''}>${t('settings.sftp_storage','SFTP (serveur distant)')}</option>
                                 </select>
                             </div>
 
                             <div id="sftpFields" style="display:${storageType === 'sftp' ? 'block' : 'none'}">
                                 <div style="display:grid;grid-template-columns:1fr auto;gap:8px;margin-bottom:10px;">
                                     <div>
-                                        <label style="font-size:12px;display:block;margin-bottom:4px;">Hôte</label>
+                                        <label style="font-size:12px;display:block;margin-bottom:4px;">${t('settings.host','Hôte')}</label>
                                         <input id="sftpHost" class="admin-input" style="width:100%" placeholder="sftp.example.com" value="${escapeHtml(sftpHost)}">
                                     </div>
                                     <div style="width:80px;">
-                                        <label style="font-size:12px;display:block;margin-bottom:4px;">Port</label>
+                                        <label style="font-size:12px;display:block;margin-bottom:4px;">${t('setup.sftp_port','Port')}</label>
                                         <input id="sftpPort" class="admin-input" type="number" style="width:100%" value="${sftpPort || 22}">
                                     </div>
                                 </div>
                                 <div style="margin-bottom:10px;">
-                                    <label style="font-size:12px;display:block;margin-bottom:4px;">Utilisateur SFTP</label>
+                                    <label style="font-size:12px;display:block;margin-bottom:4px;">${t('setup.sftp_user','Utilisateur SFTP')}</label>
                                     <input id="sftpUser" class="admin-input" style="width:100%" placeholder="user" value="${escapeHtml(sftpUser)}">
                                 </div>
                                 <div style="margin-bottom:10px;">
-                                    <label style="font-size:12px;display:block;margin-bottom:4px;">Mot de passe SFTP <span style="color:var(--text-secondary);font-size:11px">(laisser vide pour conserver l'actuel)</span></label>
+                                    <label style="font-size:12px;display:block;margin-bottom:4px;">${t('settings.sftp_pass_label','Mot de passe SFTP')} <span style="color:var(--text-secondary);font-size:11px">${t('settings.sftp_pass_hint',"(laisser vide pour conserver l'actuel)")}</span></label>
                                     <input id="sftpPassword" class="admin-input" type="password" style="width:100%" placeholder="••••••••">
                                 </div>
                                 <div style="margin-bottom:14px;">
-                                    <label style="font-size:12px;display:block;margin-bottom:4px;">Chemin distant (racine musique)</label>
+                                    <label style="font-size:12px;display:block;margin-bottom:4px;">${t('settings.sftp_path_label','Chemin distant (racine musique)')}</label>
                                     <input id="sftpPath" class="admin-input" style="width:100%" placeholder="/home/user/music" value="${escapeHtml(sftpPath)}">
                                 </div>
                                 <div style="margin-bottom:16px;">
                                     <button id="sftpTestBtn" class="rescan-btn" style="width:100%;justify-content:center;" onclick="adminTestSftp(${userId})">
-                                        <i class="ri-wifi-line"></i> Tester la connexion
+                                        <i class="ri-wifi-line"></i> ${t('setup.test_connection','Tester la connexion')}
                                     </button>
                                     <div id="sftpTestResult" style="margin-top:6px;font-size:12px;min-height:16px;"></div>
                                 </div>
                             </div>
 
                             <div style="display:flex;gap:8px;justify-content:flex-end;">
-                                <button class="rescan-btn" onclick="this.closest('div[style*=fixed]').remove()">Annuler</button>
+                                <button class="rescan-btn" onclick="this.closest('div[style*=fixed]').remove()">${t('common.cancel','Annuler')}</button>
                                 <button class="rescan-btn" id="sftpSaveBtn" style="background:var(--accent);color:#fff;" onclick="adminSaveSftp(${userId})">
-                                    <i class="ri-save-line"></i> Enregistrer
+                                    <i class="ri-save-line"></i> ${t('common.save','Enregistrer')}
                                 </button>
                             </div>
                         </div>
@@ -4573,7 +4576,7 @@
                     const btn    = document.getElementById('sftpTestBtn');
                     const result = document.getElementById('sftpTestResult');
                     btn.disabled = true;
-                    result.textContent = 'Test en cours…';
+                    result.textContent = t('settings.testing', 'Test en cours…');
                     result.style.color = 'var(--text-secondary)';
 
                     const r = await adminFetch('test_sftp_connection', {
@@ -4587,10 +4590,10 @@
 
                     btn.disabled = false;
                     if (r.success) {
-                        result.textContent = '✓ ' + (r.message || 'Connexion réussie');
+                        result.textContent = r.message || t('admin.connection_ok', '✓ Connexion réussie');
                         result.style.color = '#00b894';
                     } else {
-                        result.textContent = '✗ ' + (r.error || 'Erreur inconnue');
+                        result.textContent = r.error || t('admin.connection_fail', '✗ Erreur inconnue');
                         result.style.color = '#ff6b6b';
                     }
                 };
@@ -4631,56 +4634,56 @@
                 modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:99999;display:flex;align-items:center;justify-content:center;';
                 modal.innerHTML = `
                     <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:16px;padding:28px;min-width:360px;max-width:520px;width:92%;">
-                        <h3 style="margin-bottom:18px;"><i class="ri-server-line"></i> Stockage — ${escapeHtml(app.currentUser)}</h3>
+                        <h3 style="margin-bottom:18px;"><i class="ri-server-line"></i> ${t('settings.storage_of','Stockage — {name}').replace('{name}', escapeHtml(app.currentUser))}</h3>
 
                         <div style="margin-bottom:14px;">
-                            <label style="font-size:13px;display:block;margin-bottom:6px;">Type de stockage</label>
+                            <label style="font-size:13px;display:block;margin-bottom:6px;">${t('admin.storage_type','Type de stockage')}</label>
                             <select id="myStorageType" class="admin-input" style="width:100%" onchange="document.getElementById('myLocalFields').style.display=this.value==='local'?'block':'none';document.getElementById('mySftpFields').style.display=this.value==='sftp'?'block':'none'">
-                                <option value="local" ${storageType !== 'sftp' ? 'selected' : ''}>Local (répertoire sur le serveur)</option>
-                                <option value="sftp" ${storageType === 'sftp' ? 'selected' : ''}>SFTP (serveur distant)</option>
+                                <option value="local" ${storageType !== 'sftp' ? 'selected' : ''}>${t('settings.local_storage','Local (répertoire sur le serveur)')}</option>
+                                <option value="sftp" ${storageType === 'sftp' ? 'selected' : ''}>${t('settings.sftp_storage','SFTP (serveur distant)')}</option>
                             </select>
                         </div>
 
                         <div id="myLocalFields" style="display:${storageType !== 'sftp' ? 'block' : 'none'};margin-bottom:14px;">
-                            <label style="font-size:12px;display:block;margin-bottom:4px;">Sous-dossier musique (relatif à /music)</label>
+                            <label style="font-size:12px;display:block;margin-bottom:4px;">${t('settings.local_subdir_label','Sous-dossier musique (relatif à /music)')}</label>
                             <input id="myMusicDir" class="admin-input" style="width:100%" placeholder="maxime" value="${escapeHtml(app.musicDir || '')}">
                         </div>
 
                         <div id="mySftpFields" style="display:${storageType === 'sftp' ? 'block' : 'none'}">
                             <div style="display:grid;grid-template-columns:1fr auto;gap:8px;margin-bottom:10px;">
                                 <div>
-                                    <label style="font-size:12px;display:block;margin-bottom:4px;">Hôte</label>
+                                    <label style="font-size:12px;display:block;margin-bottom:4px;">${t('settings.host','Hôte')}</label>
                                     <input id="mySftpHost" class="admin-input" style="width:100%" placeholder="sftp.example.com" value="${escapeHtml(app.sftpHost || '')}">
                                 </div>
                                 <div style="width:80px;">
-                                    <label style="font-size:12px;display:block;margin-bottom:4px;">Port</label>
+                                    <label style="font-size:12px;display:block;margin-bottom:4px;">${t('setup.sftp_port','Port')}</label>
                                     <input id="mySftpPort" class="admin-input" type="number" style="width:100%" value="${app.sftpPort || 22}">
                                 </div>
                             </div>
                             <div style="margin-bottom:10px;">
-                                <label style="font-size:12px;display:block;margin-bottom:4px;">Utilisateur SFTP</label>
+                                <label style="font-size:12px;display:block;margin-bottom:4px;">${t('setup.sftp_user','Utilisateur SFTP')}</label>
                                 <input id="mySftpUser" class="admin-input" style="width:100%" placeholder="user" value="${escapeHtml(app.sftpUser || '')}">
                             </div>
                             <div style="margin-bottom:10px;">
-                                <label style="font-size:12px;display:block;margin-bottom:4px;">Mot de passe SFTP <span style="color:var(--text-secondary);font-size:11px">(laisser vide pour conserver l'actuel)</span></label>
+                                <label style="font-size:12px;display:block;margin-bottom:4px;">${t('settings.sftp_pass_label','Mot de passe SFTP')} <span style="color:var(--text-secondary);font-size:11px">${t('settings.sftp_pass_hint',"(laisser vide pour conserver l'actuel)")}</span></label>
                                 <input id="mySftpPassword" class="admin-input" type="password" style="width:100%" placeholder="••••••••">
                             </div>
                             <div style="margin-bottom:14px;">
-                                <label style="font-size:12px;display:block;margin-bottom:4px;">Chemin distant (racine musique)</label>
+                                <label style="font-size:12px;display:block;margin-bottom:4px;">${t('settings.sftp_path_label','Chemin distant (racine musique)')}</label>
                                 <input id="mySftpPath" class="admin-input" style="width:100%" placeholder="/home/user/music" value="${escapeHtml(app.sftpPath || '')}">
                             </div>
                             <div style="margin-bottom:16px;">
                                 <button id="myStorageTestBtn" class="rescan-btn" style="width:100%;justify-content:center;" onclick="testMyStorage()">
-                                    <i class="ri-wifi-line"></i> Tester la connexion
+                                    <i class="ri-wifi-line"></i> ${t('setup.test_connection','Tester la connexion')}
                                 </button>
                                 <div id="myStorageTestResult" style="margin-top:6px;font-size:12px;min-height:16px;"></div>
                             </div>
                         </div>
 
                         <div style="display:flex;gap:8px;justify-content:flex-end;">
-                            <button class="rescan-btn" onclick="document.getElementById('storageModal')?.remove()">Annuler</button>
+                            <button class="rescan-btn" onclick="document.getElementById('storageModal')?.remove()">${t('common.cancel','Annuler')}</button>
                             <button class="rescan-btn" style="background:var(--accent);color:#fff;" onclick="saveMyStorage()">
-                                <i class="ri-save-line"></i> Enregistrer
+                                <i class="ri-save-line"></i> ${t('common.save','Enregistrer')}
                             </button>
                         </div>
                     </div>
@@ -4692,7 +4695,7 @@
                 const btn    = document.getElementById('myStorageTestBtn');
                 const result = document.getElementById('myStorageTestResult');
                 btn.disabled = true;
-                result.textContent = 'Test en cours…';
+                result.textContent = t('settings.testing', 'Test en cours…');
                 result.style.color = 'var(--text-secondary)';
 
                 const r = await storageFetch('test_sftp', {
@@ -4705,10 +4708,10 @@
 
                 btn.disabled = false;
                 if (r.success) {
-                    result.textContent = '✓ ' + (r.message || 'Connexion réussie');
+                    result.textContent = r.message || t('admin.connection_ok', '✓ Connexion réussie');
                     result.style.color = '#00b894';
                 } else {
-                    result.textContent = '✗ ' + (r.error || 'Erreur inconnue');
+                    result.textContent = r.error || t('admin.connection_fail', '✗ Erreur inconnue');
                     result.style.color = '#ff6b6b';
                 }
             };
