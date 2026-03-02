@@ -141,11 +141,11 @@
                 .then(res => res.json())
                 .then(result => {
                     if (result.error) {
-                        subMenu.innerHTML = '<div class="context-menu-item">Erreur</div>';
+                        subMenu.innerHTML = `<div class="context-menu-item">${t('context_menu.error', 'Erreur')}</div>`;
                         return;
                     }
                     if (result.data.length === 0) {
-                        subMenu.innerHTML = '<div class="context-menu-item">Aucune playlist</div>';
+                        subMenu.innerHTML = `<div class="context-menu-item">${t('context_menu.no_playlist', 'Aucune playlist')}</div>`;
                         return;
                     }
                     subMenu.innerHTML = result.data.map(p =>
@@ -192,21 +192,21 @@
                     </div>`;
 
                 content.innerHTML = `
-                    ${row('Titre',         p.title)}
-                    ${row('Artiste',       p.artist)}
-                    ${row('Album',         p.album)}
-                    ${row('Année',         p.year || '—')}
-                    ${row('Piste n°',      p.track_number || '—')}
-                    ${row('Durée',         fmtDur(p.duration))}
-                    ${row('Format',        p.format)}
-                    ${row('Taille',        fmtSize(p.file_size))}
-                    ${row('Modifié le',    fmtDate(p.mtime))}
-                    ${row('Stockage',      p.storage_type)}
-                    ${row('Chemin',        p.file_path, true)}
-                    ${row('Hash',          p.file_hash, true)}
+                    ${row(t('props.title','Titre'),         p.title)}
+                    ${row(t('props.artist','Artiste'),       p.artist)}
+                    ${row(t('props.album','Album'),         p.album)}
+                    ${row(t('props.year','Année'),         p.year || '—')}
+                    ${row(t('props.track_number','Piste n°'),      p.track_number || '—')}
+                    ${row(t('props.duration','Durée'),         fmtDur(p.duration))}
+                    ${row(t('props.format','Format'),        p.format)}
+                    ${row(t('props.file_size','Taille'),        fmtSize(p.file_size))}
+                    ${row(t('props.modified','Modifié le'),    fmtDate(p.mtime))}
+                    ${row(t('props.storage','Stockage'),      p.storage_type)}
+                    ${row(t('props.path','Chemin'),        p.file_path, true)}
+                    ${row(t('props.hash','Hash'),          p.file_hash, true)}
                 `;
             } catch (e) {
-                content.innerHTML = `<p style="color:#e74c3c;">Erreur : ${e.message}</p>`;
+                content.innerHTML = `<p style="color:#e74c3c;">${t('common.error_prefix','Erreur : ')}${e.message}</p>`;
             }
         }
 
@@ -238,7 +238,7 @@
             _openArtworkEditorBase(
                 albumId, 'album', currentUrl,
                 [artistName, albumName].filter(Boolean).join(' '),
-                'Pochette de l\'album'
+                t('artwork.album_title', "Pochette de l'album")
             );
         }
 
@@ -246,7 +246,7 @@
             _openArtworkEditorBase(
                 artistId, 'artist', currentUrl,
                 artistName,
-                'Photo de l\'artiste'
+                t('artwork.artist_title', "Photo de l'artiste")
             );
         }
 
@@ -529,7 +529,7 @@
 
                 const statsResult = await statsResponse.json();
                 if (statsResult.error) {
-                    showError('Erreur lors du chargement des statistiques.');
+                    showError(t('errors.load_stats', 'Erreur lors du chargement des statistiques.'));
                     return;
                 }
 
@@ -561,7 +561,7 @@
 
             } catch (error) {
                 console.error('Error loading initial data:', error);
-                showError('Impossible de charger les données initiales.');
+                showError(t('errors.load_data_fail', 'Impossible de charger les données initiales.'));
             }
         }
 
@@ -581,7 +581,7 @@
 				console.log("CONTENU BIBLIOTHÈQUE :", result.data);
 
                 if (result.error) {
-                    showError('Erreur lors du chargement de la bibliothèque', 'loadLibrary()');
+                    showError(t('errors.load_library', 'Erreur lors du chargement de la bibliothèque'), 'loadLibrary()');
                     return;
                 }
 
@@ -606,7 +606,7 @@
 
             } catch (error) {
                 console.error('Error loading library:', error);
-                showError('Impossible de charger la bibliothèque', 'loadLibrary()');
+                showError(t('errors.load_library_fail', 'Impossible de charger la bibliothèque'), 'loadLibrary()');
             }
         }
 
@@ -698,7 +698,7 @@
                 const result = await response.json();
 
                 if (result.error) {
-                    showError('Erreur lors du chargement des nouveautés.');
+                    showError(t('errors.load_new_releases', 'Erreur lors du chargement des nouveautés.'));
                     return;
                 }
 
@@ -706,7 +706,7 @@
                 window.recentAlbumsData = albums;
 
                 if (albums.length === 0) {
-                    showEmpty('Aucune nouveauté ce mois-ci');
+                    showEmpty(t('empty.no_releases', 'Aucune nouveauté ce mois-ci'));
                     return;
                 }
 
@@ -736,7 +736,7 @@
 
             } catch (error) {
                 console.error('Error loading new releases:', error);
-                showError('Erreur lors du chargement des nouveautés.');
+                showError(t('errors.load_new_releases', 'Erreur lors du chargement des nouveautés.'));
             }
         }
 
@@ -753,14 +753,14 @@
                     const result = await response.json();
 
                     if (result.error) {
-                        showError('Erreur lors du chargement des artistes.');
+                        showError(t('errors.load_artists', 'Erreur lors du chargement des artistes.'));
                         return;
                     }
 
                     const artists = result.data.artists;
 
                     if (artists.length === 0) {
-                        showEmpty('Aucun artiste dans ce genre');
+                        showEmpty(t('empty.no_genre_artists', 'Aucun artiste dans ce genre'));
                         return;
                     }
 
@@ -785,7 +785,7 @@
                                             ${imageHtml}
                                         </div>
                                         <div class="artist-name">${escapeHtml(artist.name)}</div>
-                                        <div class="artist-info">${artist.albumCount} albums • ${artist.songCount} chansons</div>
+                                        <div class="artist-info">${t('counts.albums_songs','{a} albums • {s} chansons').replace('{a}', artist.albumCount).replace('{s}', artist.songCount)}</div>
                                     </div>
                                 `;
                             }).join('')}
@@ -800,14 +800,14 @@
                     const result = await response.json();
 
                     if (result.error) {
-                        showError('Erreur lors du chargement des genres.');
+                        showError(t('errors.load_genres', 'Erreur lors du chargement des genres.'));
                         return;
                     }
 
                     const genres = result.data.genres;
 
                     if (genres.length === 0) {
-                        showEmpty('Aucun genre trouvé. Assignez des genres à vos albums via l\'éditeur de tags.');
+                        showEmpty(t('empty.no_genres', "Aucun genre trouvé. Assignez des genres à vos albums via l'éditeur de tags."));
                         return;
                     }
 
@@ -844,7 +844,7 @@
                 }
             } catch (e) {
                 console.error('Error loading genres:', e);
-                showError('Erreur lors du chargement des genres.');
+                showError(t('errors.load_genres', 'Erreur lors du chargement des genres.'));
             }
         }
 
@@ -862,7 +862,7 @@
                 const result = await response.json();
 
                 if (result.error) {
-                    showError('Erreur lors du chargement des playlists.');
+                    showError(t('errors.load_playlists', 'Erreur lors du chargement des playlists.'));
                     return;
                 }
 
@@ -879,7 +879,7 @@
                 if (playlists.length === 0) {
                     html += `<div class="empty-state" style="text-align: center; padding: 40px;">
                                 <div style="font-size: 48px; margin-bottom: 16px;">🎶</div>
-                                <p>Vous n'avez pas encore de playlist.</p>
+                                <p>${t('empty.no_playlist', "Vous n'avez pas encore de playlist.")}</p>
                              </div>`;
                 } else {
                     html += `
@@ -890,7 +890,7 @@
                                         <div style="color: white; font-size: 48px; font-weight: 700;">🎶</div>
                                     </div>
                                     <div class="album-name">${escapeHtml(p.name)}</div>
-                                    <div class="album-info">${p.song_count} chansons</div>
+                                    <div class="album-info">${t('counts.songs','{n} chansons').replace('{n}', p.song_count)}</div>
                                     <div class="playlist-actions" style="margin-top: 10px; display: flex; gap: 10px; justify-content: center;">
                                         <button class="song-action-btn" onclick="renamePlaylist(${p.id}, '${jsStr(p.name)}')">✏️</button>
                                         <button class="song-action-btn" onclick="deletePlaylist(${p.id}, '${jsStr(p.name)}')">🗑️</button>
@@ -905,7 +905,7 @@
 
             } catch (error) {
                 console.error('Error rendering playlists:', error);
-                showError('Impossible de charger les playlists.');
+                showError(t('errors.load_playlists_fail', 'Impossible de charger les playlists.'));
             }
         }
 
@@ -924,7 +924,7 @@
                 const songsResult = await songsResponse.json();
 
                 if (playlistsResult.error || songsResult.error) {
-                    showError(songsResult.error || 'Erreur lors du chargement de la playlist.');
+                    showError(songsResult.error || t('errors.load_playlist', 'Erreur lors du chargement de la playlist.'));
                     return;
                 }
 
@@ -946,9 +946,9 @@
                             <div class="album-header-info">
                                 <p style="color: var(--text-secondary); font-size: 11px; text-transform: uppercase; font-weight: 600; margin-bottom: 5px;">Playlist</p>
                                 <h2 class="album-title">${escapeHtml(playlist.name)}</h2>
-                                <p style="color: var(--text-secondary); font-size: 13px; margin-bottom: 15px;">${songs.length} chansons</p>
+                                <p style="color: var(--text-secondary); font-size: 13px; margin-bottom: 15px;">${t('counts.songs','{n} chansons').replace('{n}', songs.length)}</p>
                                 <button onclick="playPlaylist(${playlistId})" class="album-action-btn album-play-btn">
-                                    ▶ Lire tout
+                                    ${t('common.play_all', '▶ Lire tout')}
                                 </button>
                             </div>
                         </div>
@@ -978,7 +978,7 @@
 
             } catch (error) {
                 console.error('Error loading playlist:', error);
-                showError('Impossible de charger la playlist.');
+                showError(t('errors.load_playlist_fail', 'Impossible de charger la playlist.'));
             }
         }
 
@@ -996,12 +996,12 @@
                 loadTrack(app.queue[startIndex]);
                 renderQueue();
             } catch (error) {
-                showToast(`Erreur: ${error.message}`, 'error');
+                showToast(`${t('common.error','Erreur')}: ${error.message}`, 'error');
             }
         }
 
         async function removeFromPlaylistHandler(playlistSongId, playlistId) {
-            if (!confirm("Êtes-vous sûr de vouloir retirer cette chanson de la playlist ?")) return;
+            if (!confirm(t('confirm.remove_song_playlist', "Êtes-vous sûr de vouloir retirer cette chanson de la playlist ?"))) return;
 
             const formData = new FormData();
             formData.append('user', app.currentUser);
@@ -1014,7 +1014,7 @@
                 showToast(t('toast.song_removed_playlist', 'Chanson retirée!'), 'success');
                 viewPlaylist(playlistId); // Refresh the view
             } catch (error) {
-                showToast(`Erreur: ${error.message}`, 'error');
+                showToast(`${t('common.error','Erreur')}: ${error.message}`, 'error');
             }
         }
 
@@ -1035,7 +1035,7 @@
                 showToast(t('toast.playlist_created', 'Playlist créée!'), 'success');
                 renderPlaylists(); // Refresh the view
             } catch (error) {
-                showToast(`Erreur: ${error.message}`, 'error');
+                showToast(`${t('common.error','Erreur')}: ${error.message}`, 'error');
             }
         }
 
@@ -1055,12 +1055,12 @@
                 showToast(t('toast.playlist_renamed', 'Playlist renommée!'), 'success');
                 renderPlaylists(); // Refresh the view
             } catch (error) {
-                showToast(`Erreur: ${error.message}`, 'error');
+                showToast(`${t('common.error','Erreur')}: ${error.message}`, 'error');
             }
         }
 
         async function deletePlaylist(playlistId, playlistName) {
-            if (!confirm(`Êtes-vous sûr de vouloir supprimer la playlist "${playlistName}" ?`)) return;
+            if (!confirm(t('confirm.delete_playlist', 'Êtes-vous sûr de vouloir supprimer la playlist "{name}" ?').replace('{name}', playlistName))) return;
 
             const formData = new FormData();
             formData.append('user', app.currentUser);
@@ -1073,7 +1073,7 @@
                 showToast(t('toast.playlist_deleted', 'Playlist supprimée!'), 'success');
                 renderPlaylists(); // Refresh the view
             } catch (error) {
-                showToast(`Erreur: ${error.message}`, 'error');
+                showToast(`${t('common.error','Erreur')}: ${error.message}`, 'error');
             }
         }
 
@@ -1087,7 +1087,7 @@
                 const result = await response.json();
 
                 if (result.error) {
-                    showError(result.message || 'Erreur lors du chargement des statistiques.');
+                    showError(result.message || t('errors.load_stats', 'Erreur lors du chargement des statistiques.'));
                     return;
                 }
 
@@ -1170,14 +1170,14 @@
                         <div class="stats-section-title" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
                             <span><i class="ri-disc-fill"></i> Genres</span>
                             <button id="genre-scan-btn" onclick="startGenreScan()" class="rescan-btn" style="font-size:12px;padding:6px 14px;">
-                                <i class="ri-radar-line" id="genre-scan-icon"></i> Scanner les genres
+                                <i class="ri-radar-line" id="genre-scan-icon"></i> ${t('scan.genres_btn','Scanner les genres')}
                             </button>
                             <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-secondary);cursor:pointer;">
                                 <input type="checkbox" id="genre-scan-force" style="cursor:pointer;">
                                 Forcer (réécrire existants)
                             </label>
                             <button id="orphan-cleanup-btn" onclick="cleanupOrphans()" class="rescan-btn" style="font-size:12px;padding:6px 14px;">
-                                <i class="ri-delete-bin-2-line" id="orphan-cleanup-icon"></i> Nettoyer les orphelins
+                                <i class="ri-delete-bin-2-line" id="orphan-cleanup-icon"></i> ${t('scan.clean_btn','Nettoyer les orphelins')}
                             </button>
                             ${gc.totalArtists > 0 ? `<span style="font-size:13px;color:var(--text-secondary);font-weight:400;">${gc.artistsWithGenre}/${gc.totalArtists} artistes (${gc.percent}%)</span>` : ''}
                         </div>
@@ -1209,8 +1209,7 @@
                         ` : `
                         <div class="glass-card stats-empty-note">
                             <i class="ri-disc-line" style="font-size:32px;margin-bottom:8px;display:block;"></i>
-                            Peu de genres assignés dans la bibliothèque.<br>
-                            Cliquez sur <strong>"Scanner les genres"</strong> pour analyser les tags ID3 de vos fichiers.
+                            ${t('empty.few_genres','Peu de genres assignés dans la bibliothèque.<br>Cliquez sur <strong>"Scanner les genres"</strong> pour analyser les tags ID3 de vos fichiers.')}
                         </div>
                         `}
                     </div>
@@ -1555,7 +1554,7 @@
 
             } catch (error) {
                 console.error('Error rendering statistics:', error);
-                showError('Impossible de charger les statistiques.');
+                showError(t('errors.load_stats', 'Erreur lors du chargement des statistiques.'));
             }
         }
 
@@ -1584,7 +1583,7 @@
                 const result = await response.json();
 
                 if (result.error) {
-                    showError('Erreur lors du chargement des favoris.');
+                    showError(t('errors.load_favorites', 'Erreur lors du chargement des favoris.'));
                     return;
                 }
 
@@ -1592,7 +1591,7 @@
                 const totalFavorites = artists.length + albums.length + songs.length;
 
                 if (totalFavorites === 0) {
-                    showEmpty("Vous n'avez pas encore de favoris. Cliquez sur le <i class='ri-heart-line'></i> pour en ajouter !");
+                    showEmpty(t('favorites.none', "Vous n'avez pas encore de favoris. Cliquez sur le ♡ pour en ajouter !"));
                     return;
                 }
 
@@ -1684,7 +1683,7 @@
                 window.currentFavoriteAlbums = albums;
             } catch (error) {
                 console.error('Error rendering favorites:', error);
-                showError('Impossible de charger les favoris.');
+                showError(t('errors.load_favorites_fail', 'Impossible de charger les favoris.'));
             }
         }
 
@@ -1855,7 +1854,7 @@
                 const activeContainer = document.getElementById('activeDownloads');
                 if (activeContainer) {
                     if (active.length === 0) {
-                        activeContainer.innerHTML = '<p class="empty-downloads">Aucun téléchargement en cours</p>';
+                        activeContainer.innerHTML = `<p class="empty-downloads">${t('empty.no_downloads', 'Aucun téléchargement en cours')}</p>`;
                     } else {
                         activeContainer.innerHTML = active.map(d => renderDownloadItem(d, true)).join('');
                     }
@@ -1865,7 +1864,7 @@
                 const recentContainer = document.getElementById('recentDownloads');
                 if (recentContainer) {
                     if (recent.length === 0) {
-                        recentContainer.innerHTML = '<p class="empty-downloads">Aucun téléchargement récent</p>';
+                        recentContainer.innerHTML = `<p class="empty-downloads">${t('empty.no_recent_downloads', 'Aucun téléchargement récent')}</p>`;
                     } else {
                         recentContainer.innerHTML = recent.map(d => renderDownloadItem(d, false)).join('');
                     }
@@ -1903,8 +1902,8 @@
                         <i class="${icon} ${download.status === 'downloading' ? 'ri-spin' : ''}"></i>
                     </div>
                     <div class="download-item-info">
-                        <div class="download-item-title">${escapeHtml(download.album || 'Album inconnu')}</div>
-                        <div class="download-item-artist">${escapeHtml(download.artist || 'Artiste inconnu')} • ${escapeHtml(download.user)}</div>
+                        <div class="download-item-title">${escapeHtml(download.album || t('common.unknown_album', 'Album inconnu'))}</div>
+                        <div class="download-item-artist">${escapeHtml(download.artist || t('common.unknown_artist', 'Artiste inconnu'))} • ${escapeHtml(download.user)}</div>
                         <div class="download-item-message">${escapeHtml(download.message || '')}</div>
                         ${isActive && download.status === 'downloading' ? `
                             <div class="download-progress-bar">
@@ -1936,11 +1935,11 @@
                 if (result.success) {
                     await refreshDownloadsList();
                 } else {
-                    showToast('Erreur: ' + (result.error || 'Impossible de réessayer'), 'error');
+                    showToast(t('common.error','Erreur') + ': ' + (result.error || t('errors.retry','Impossible de réessayer')), 'error');
                 }
             } catch (error) {
                 console.error('Error retrying download:', error);
-                showToast('Erreur lors du réessai', 'error');
+                showToast(t('toast.retry_error', 'Erreur lors du réessai'), 'error');
             }
         }
 
@@ -1951,16 +1950,16 @@
             const fetchBtn = document.getElementById('fetchMetadataBtn');
 
             if (!url) {
-                alert('Veuillez entrer une URL YouTube Music');
+                alert(t('alert.enter_yt_url', 'Veuillez entrer une URL YouTube Music'));
                 return;
             }
 
             if (!url.includes('youtube.com') && !url.includes('youtu.be')) {
-                alert('URL invalide. Utilisez une URL YouTube ou YouTube Music.');
+                alert(t('alert.invalid_url', 'URL invalide. Utilisez une URL YouTube ou YouTube Music.'));
                 return;
             }
 
-            fetchBtn.innerHTML = '<i class="ri-loader-4-line ri-spin"></i> Analyse...';
+            fetchBtn.innerHTML = `<i class="ri-loader-4-line ri-spin"></i> ${t('editor.analyzing','Analyse...')}`;
             fetchBtn.disabled = true;
 
             try {
@@ -1989,7 +1988,7 @@
                                 <input type="text" id="metaAlbum" value="${escapeHtml(meta.album || meta.title || '')}" placeholder="Nom de l'album">
                             </div>
                             <div class="metadata-info">
-                                ${meta.track_count ? `<span><i class="ri-music-2-line"></i> ${meta.track_count} pistes</span>` : ''}
+                                ${meta.track_count ? `<span><i class="ri-music-2-line"></i> ${t('counts.tracks','{n} pistes').replace('{n}', meta.track_count)}</span>` : ''}
                             </div>
                         </div>
                         <button onclick="startDownload('${jsStr(url)}')" class="download-start-btn">
@@ -2001,10 +2000,10 @@
 
             } catch (error) {
                 console.error('Error fetching metadata:', error);
-                previewDiv.innerHTML = `<p style="color: #e74c3c; margin-top: 15px;"><i class="ri-error-warning-line"></i> Erreur lors de l'analyse</p>`;
+                previewDiv.innerHTML = `<p style="color: #e74c3c; margin-top: 15px;"><i class="ri-error-warning-line"></i> ${t('errors.detect','Erreur lors de l\'analyse')}</p>`;
                 previewDiv.style.display = 'block';
             } finally {
-                fetchBtn.innerHTML = '<i class="ri-search-line"></i> Analyser';
+                fetchBtn.innerHTML = `<i class="ri-search-line"></i> ${t('editor.analyze_btn','Analyser')}`;
                 fetchBtn.disabled = false;
             }
         }
@@ -2015,7 +2014,7 @@
             const album = document.getElementById('metaAlbum')?.value.trim() || '';
 
             if (!artist || !album) {
-                alert('Veuillez remplir le nom de l\'artiste et de l\'album');
+                alert(t('alert.fill_artist_album', "Veuillez remplir le nom de l'artiste et de l'album"));
                 return;
             }
 
@@ -2040,16 +2039,16 @@
                     // Refresh list
                     await refreshDownloadsList();
                 } else {
-                    alert('Erreur: ' + (result.error || 'Impossible de démarrer le téléchargement'));
+                    alert(t('common.error','Erreur') + ': ' + (result.error || t('errors.download_start', 'Impossible de démarrer le téléchargement')));
                 }
             } catch (error) {
                 console.error('Error starting download:', error);
-                alert('Erreur lors du démarrage du téléchargement');
+                alert(t('errors.download_start', 'Erreur lors du démarrage du téléchargement'));
             }
         }
 
         async function cancelDownload(downloadId) {
-            if (!confirm('Annuler ce téléchargement?')) return;
+            if (!confirm(t('confirm.cancel_download', 'Annuler ce téléchargement?'))) return;
 
             try {
                 const formData = new FormData();
@@ -2064,7 +2063,7 @@
                 if (result.success) {
                     await refreshDownloadsList();
                 } else {
-                    alert('Erreur: ' + (result.error || 'Impossible d\'annuler'));
+                    alert(t('common.error','Erreur') + ': ' + (result.error || t('errors.cancel_download', "Impossible d'annuler")));
                 }
             } catch (error) {
                 console.error('Error cancelling download:', error);
@@ -2097,7 +2096,7 @@
                 const result = await response.json();
 
                 if (!result.success) {
-                    showEmpty('Erreur de chargement des stations');
+                    showEmpty(t('empty.no_stations', 'Erreur de chargement des stations'));
                     return;
                 }
 
@@ -2173,7 +2172,7 @@
 
             } catch (error) {
                 console.error('Error loading web radio:', error);
-                showEmpty('Erreur de chargement des stations radio');
+                showEmpty(t('empty.no_stations', 'Erreur de chargement des stations radio'));
             }
         }
 
@@ -2263,7 +2262,7 @@
                     showToast(t('toast.now_playing', 'En lecture: {name}').replace('{name}', station.name), 'success');
                 }).catch(err => {
                     console.error('Fallback audio play failed:', err);
-                    showToast('Erreur de lecture - appuyez pour réessayer', 'error');
+                    showToast(t('toast.play_retry', 'Erreur de lecture - appuyez pour réessayer'), 'error');
                 });
             }
 
@@ -2322,7 +2321,7 @@
             contentTitle.textContent = t('home.title', 'Accueil');
 
             if (!app.library) {
-                showEmpty('Aucune musique disponible');
+                showEmpty(t('empty.no_music', 'Aucune musique disponible'));
                 return;
             }
 
@@ -2601,10 +2600,10 @@
         function renderArtists() {
             hideAlbumBackground();
             artistManageState = null;
-            contentTitle.textContent = `Artistes (${app.library.artists.length}/${app.library.totalArtists})`;
+            contentTitle.textContent = t('counts.artists_total','Artistes ({n}/{total})').replace('{n}', app.library.artists.length).replace('{total}', app.library.totalArtists);
 
             if (!app.library || !app.library.artists || app.library.artists.length === 0) {
-                showEmpty('Aucun artiste trouvé');
+                showEmpty(t('empty.no_artists', 'Aucun artiste trouvé'));
                 return;
             }
 
@@ -2667,7 +2666,7 @@
                                     imageHtml +
                                 '</div>' +
                                 '<div class="artist-name">' + artist.name + '</div>' +
-                                '<div class="artist-info">' + (artist.albumCount || 0) + ' albums • ' + (artist.songCount || 0) + ' chansons</div>' +
+                                '<div class="artist-info">' + t('counts.albums_songs','{a} albums • {s} chansons').replace('{a}', artist.albumCount || 0).replace('{s}', artist.songCount || 0) + '</div>' +
                             '</div>';
                     }).join('')}
                 </div>
@@ -2685,12 +2684,12 @@
                 ${app.hasMoreArtists ? `
                     <div style="text-align: center; padding: 30px;">
                         <button id="loadMoreBtn" onclick="loadMoreArtists()" style="padding: 12px 30px; background: var(--accent); color: white; border: none; border-radius: 25px; cursor: pointer; font-size: 14px; font-weight: 600;">
-                            Charger plus (${app.library.totalArtists - app.library.artists.length} restants)
+                            ${t('common.load_more','Charger plus ({n} restants)').replace('{n}', app.library.totalArtists - app.library.artists.length)}
                         </button>
                     </div>
                 ` : `
                     <div style="text-align: center; padding: 30px; color: var(--text-secondary);">
-                        Tous les artistes chargés ✓
+                        ${t('common.all_artists_loaded', 'Tous les artistes chargés ✓')}
                     </div>
                 `}
             `;
@@ -2802,7 +2801,7 @@
 
                 const articles = result.news?.articles || [];
                 if (articles.length === 0) {
-                    container.innerHTML = `<p style="color: var(--text-secondary);">Aucune actualité récente trouvée pour cet artiste.</p>`;
+                    container.innerHTML = `<p style="color: var(--text-secondary);">${t('empty.no_news', 'Aucune actualité récente trouvée pour cet artiste.')}</p>`;
                     return;
                 }
 
@@ -2817,7 +2816,7 @@
 
             } catch (error) {
                 console.error('Error fetching artist news:', error);
-                container.innerHTML = `<p style="color: var(--text-secondary);">Erreur lors du chargement des actualités.</p>`;
+                container.innerHTML = `<p style="color: var(--text-secondary);">${t('errors.artist_news', 'Erreur lors du chargement des actualités.')}</p>`;
             }
         }
 
@@ -2841,7 +2840,7 @@
                 const result = await response.json();
 
                 if (result.error) {
-                    showError('Erreur lors du chargement de l\'artiste');
+                    showError(t('errors.load_artist', "Erreur lors du chargement de l'artiste"));
                     return;
                 }
 
@@ -2885,7 +2884,7 @@
                             <div>
                                 <h2 style="font-size: 32px; margin-bottom: 10px; color: white; text-shadow: 0 1px 3px rgba(0,0,0,0.8), 0 0 10px rgba(0,0,0,0.5);">${artist.name}</h2>
                                 <p style="color: rgba(255,255,255,0.85); font-size: 14px; text-shadow: 0 1px 2px rgba(0,0,0,0.6);">
-                                    <span id="artist-stats-${artistId}">${albums.length} albums • ${totalSongs} chansons</span>
+                                    <span id="artist-stats-${artistId}">${t('counts.albums_songs','{a} albums • {s} chansons').replace('{a}', albums.length).replace('{s}', totalSongs)}</span>
                                     <span id="artist-scan-status-${artistId}" class="artist-scan-indicator" style="display: none; margin-left: 10px;"></span>
                                 </p>
                                 <div id="artist-genre-display-${artistId}" style="margin-top:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
@@ -2916,7 +2915,7 @@
                                 </div>
                                 <div style="display: flex; gap: 10px; margin-top: 15px; flex-wrap: wrap;">
                                     <button onclick="playArtistSongs(${artistId})" style="padding: 12px 30px; background: rgba(255, 255, 255, 0.1); color: white; border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 25px; cursor: pointer; font-size: 14px; font-weight: 600; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); transition: all 0.2s ease;" onmouseenter="this.style.background='rgba(255, 255, 255, 0.2)'; this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 12px rgba(0, 0, 0, 0.15)'" onmouseleave="this.style.background='rgba(255, 255, 255, 0.1)'; this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 6px rgba(0, 0, 0, 0.1)'">
-                                        ▶ Lire tout
+                                        ${t('common.play_all', '▶ Lire tout')}
                                     </button>
                                     <button id="artist-fav-btn-${artistId}" onclick="toggleArtistFavorite(${artistId})" class="fav-action-btn" title="Ajouter aux favoris">
                                         <i class="ri-heart-line"></i>
@@ -2943,7 +2942,7 @@
                                             <img src="${album.artworkUrl || DEFAULT_ALBUM_IMG}" alt="${album.name}" style="width: 100%; height: 100%; object-fit: cover;">
                                         </div>
                                         <div class="album-name">${album.name}</div>
-                                        <div class="album-info">${album.year || 'N/A'} • ${album.songCount || 0} chansons</div>
+                                        <div class="album-info">${album.year || 'N/A'} • ${t('counts.songs','{n} chansons').replace('{n}', album.songCount || 0)}</div>
                                     </div>
                                 `).join('')}
                             </div>
@@ -2968,9 +2967,9 @@
                                 <p style="font-size: 16px; margin-bottom: 8px;">Aucun album trouvé</p>
                                 ${totalSongs > 0 ? `
                                     <p style="font-size: 14px;">Cet artiste a ${totalSongs} chanson${totalSongs > 1 ? 's' : ''}, mais elles ne sont pas organisées en albums.</p>
-                                    <p style="font-size: 14px; margin-top: 8px;">Cliquez sur "Lire tout" pour écouter toutes les chansons.</p>
+                                    <p style="font-size: 14px; margin-top: 8px;">${t('empty.no_songs_library', "Cet artiste n'a pas encore de chansons dans la bibliothèque.")}</p>
                                 ` : `
-                                    <p style="font-size: 14px;">Cet artiste n'a pas encore de chansons dans la bibliothèque.</p>
+                                    <p style="font-size: 14px;">${t('empty.no_songs_library', "Cet artiste n'a pas encore de chansons dans la bibliothèque.")}</p>
                                 `}
                             </div>
                         `}
@@ -3008,7 +3007,7 @@
 
             } catch (error) {
                 console.error('Error loading artist:', error);
-                showError('Impossible de charger l\'artiste');
+                showError(t('errors.load_artist_fail', "Impossible de charger l'artiste"));
             }
         }
 
@@ -3078,16 +3077,16 @@
 
         async function autoMergeDuplicates() {
             const btn = document.getElementById('auto-merge-btn');
-            if (!confirm('Fusionner tous les doublons et mettre à jour les tags ID3 ?\nCette opération peut prendre quelques instants.')) return;
+            if (!confirm(t('confirm.merge_duplicates','Fusionner tous les doublons et mettre à jour les tags ID3 ?\nCette opération peut prendre quelques instants.'))) return;
 
-            if (btn) { btn.disabled = true; btn.innerHTML = '<i class="ri-loader-4-line scan-spin-icon"></i> Fusion en cours...'; }
+            if (btn) { btn.disabled = true; btn.innerHTML = `<i class="ri-loader-4-line scan-spin-icon"></i> ${t('editor.merging','Fusion en cours...')}`; }
 
             try {
                 const fd = new FormData();
                 fd.append('user', app.currentUser);
                 const res    = await fetch(`${BASE_PATH}/api/library.php?action=auto_merge_duplicates`, { method: 'POST', body: fd });
                 const result = await res.json();
-                if (result.error) { alert('Erreur : ' + result.message); return; }
+                if (result.error) { alert(t('common.error_prefix','Erreur : ') + result.message); return; }
 
                 const d = result.data;
                 let msg = `Fusion terminée : ${d.groups_merged} groupe(s) traité(s).`;
@@ -3099,8 +3098,8 @@
                 renderAlbums(true);
             } catch (e) {
                 console.error('auto merge error:', e);
-                alert('Erreur lors de la fusion.');
-                if (btn) { btn.disabled = false; btn.innerHTML = '<i class="ri-git-merge-line"></i> Tout fusionner + mettre à jour les tags'; }
+                alert(t('errors.merge','Erreur lors de la fusion.'));
+                if (btn) { btn.disabled = false; btn.innerHTML = `<i class="ri-git-merge-line"></i> ${t('editor.merge_btn','Tout fusionner + mettre à jour les tags')}`; }
             }
         }
 
@@ -3119,12 +3118,12 @@
                 const res    = await fetch(`${BASE_PATH}/api/library.php?action=detect_compilations&user=${encodeURIComponent(app.currentUser)}&threshold=3`);
                 const result = await res.json();
 
-                if (result.error) { alert('Erreur : ' + result.message); return; }
+                if (result.error) { alert(t('common.error_prefix','Erreur : ') + result.message); return; }
 
                 const list = result.data.compilations;
                 if (list.length === 0) {
                     panel.style.display = 'block';
-                    panel.innerHTML = `<div class="glass-card" style="padding:14px 18px;color:var(--text-secondary);font-size:13px;">Aucune compilation détectée (seuil : 3 artistes).</div>`;
+                    panel.innerHTML = `<div class="glass-card" style="padding:14px 18px;color:var(--text-secondary);font-size:13px;">${t('empty.no_compilations','Aucune compilation détectée (seuil : 3 artistes).')}</div>`;
                     return;
                 }
 
@@ -3163,7 +3162,7 @@
                 // Store list for use by mergeCompilation()
                 panel._compilationList = list;
             } catch (e) {
-                alert('Erreur : ' + e.message);
+                alert(t('common.error_prefix','Erreur : ') + e.message);
             } finally {
                 if (btn)  btn.disabled = false;
                 if (icon) icon.className = 'ri-group-line';
@@ -3191,7 +3190,7 @@
                     body: JSON.stringify({ album_ids: c.album_ids.map(Number), artist_name: artistName, album_name: c.album_name }),
                 });
                 const result = await res.json();
-                if (result.error) { alert('Erreur : ' + result.message); return; }
+                if (result.error) { alert(t('common.error_prefix','Erreur : ') + result.message); return; }
 
                 const d = result.data;
                 let msg = `"${d.name}" fusionné sous "${d.artist}" (${d.songs} chansons).`;
@@ -3201,7 +3200,7 @@
 
                 renderAlbums(true);
             } catch (e) {
-                alert('Erreur : ' + e.message);
+                alert(t('common.error_prefix','Erreur : ') + e.message);
             }
         }
 
@@ -3280,7 +3279,7 @@
                 });
                 const res    = await fetch(`${BASE_PATH}/api/library.php?${params}`);
                 const result = await res.json();
-                if (result.error) { showError('Erreur lors du chargement des albums.'); return; }
+                if (result.error) { showError(t('errors.load_albums', 'Erreur lors du chargement des albums.')); return; }
 
                 const { albums, total } = result.data;
                 albumsViewState.albums  = reset ? albums : [...albumsViewState.albums, ...albums];
@@ -3290,7 +3289,7 @@
                 const hasMore = albumsViewState.offset < total;
 
                 if (reset) {
-                    contentTitle.textContent = `Albums (${total})`;
+                    contentTitle.textContent = t('counts.albums_total','Albums ({n})').replace('{n}', total);
                     contentBody.innerHTML = `
                         <div style="display:flex;gap:12px;align-items:center;margin-bottom:16px;flex-wrap:wrap;">
                             <select id="albums-sort-select" onchange="albumsViewState.sort=this.value; renderAlbums(true)"
@@ -3342,7 +3341,7 @@
                 }
             } catch (e) {
                 console.error('Error loading albums:', e);
-                showError('Erreur lors du chargement des albums.');
+                showError(t('errors.load_albums', 'Erreur lors du chargement des albums.'));
             } finally {
                 albumsViewState.loading = false;
             }
@@ -3363,7 +3362,7 @@
                 const result = await response.json();
 
                 if (result.error) {
-                    showError('Erreur lors du chargement de l\'album');
+                    showError(t('errors.load_album', "Erreur lors du chargement de l'album"));
                     return;
                 }
 
@@ -3401,7 +3400,7 @@
                             <div class="album-header-info">
                                 <p style="color: rgba(255,255,255,0.7); font-size: 11px; text-transform: uppercase; font-weight: 600; margin-bottom: 5px;">Album</p>
                                 <h2 class="album-title">${albumData.name}</h2>
-                                <p style="color: rgba(255,255,255,0.85); font-size: 13px; margin-bottom: 15px;">${albumData.artist.name || 'Artiste Inconnu'} • ${albumData.year || 'N/A'} • ${songs.length} chansons</p>
+                                <p style="color: rgba(255,255,255,0.85); font-size: 13px; margin-bottom: 15px;">${albumData.artist.name || t('common.unknown_artist','Artiste inconnu')} • ${albumData.year || 'N/A'} • ${t('counts.songs','{n} chansons').replace('{n}', songs.length)}</p>
                                 <div style="display: flex; gap: 10px; flex-wrap: wrap;">
                                     <button onclick="playAlbum(${albumId})" class="album-action-btn album-play-btn">
                                         <i class="ri-play-fill"></i> Lire
@@ -3474,7 +3473,7 @@
                 window.currentAlbumData = albumData;
             } catch (error) {
                 console.error('Error loading album:', error);
-                showError('Impossible de charger l\'album');
+                showError(t('errors.load_album_fail', "Impossible de charger l'album"));
             }
         }
 
@@ -3575,7 +3574,7 @@
 
             if (statusEl) {
                 statusEl.style.display = 'inline-flex';
-                statusEl.innerHTML = '<span class="scan-spinner"></span> Synchronisation...';
+                statusEl.innerHTML = `<span class="scan-spinner"></span> ${t('editor.sync','Synchronisation...')}`;
             }
 
             try {
@@ -3619,7 +3618,7 @@
                 } else {
                     // No changes
                     if (statusEl) {
-                        statusEl.innerHTML = '<span style="color: var(--te-success);">✓</span> À jour';
+                        statusEl.innerHTML = `<span style="color: var(--te-success);">✓</span> ${t('editor.up_to_date','À jour')}`;
                         setTimeout(() => {
                             statusEl.style.display = 'none';
                         }, 2000);
@@ -3629,7 +3628,7 @@
             } catch (error) {
                 console.error('Artist scan error:', error);
                 if (statusEl) {
-                    statusEl.innerHTML = '<span style="color: var(--te-danger);">⚠</span> Erreur sync';
+                    statusEl.innerHTML = `<span style="color: var(--te-danger);">⚠</span> ${t('errors.sync','Erreur sync')}`;
                     setTimeout(() => {
                         statusEl.style.display = 'none';
                     }, 3000);
@@ -3644,7 +3643,7 @@
             const btn = event?.target;
             if (btn) {
                 btn.disabled = true;
-                btn.innerHTML = '🔄 Scan en cours...';
+                btn.innerHTML = t('scan.in_progress','🔄 Scan en cours...');
             }
 
             await scanArtistInBackground(artistId);
@@ -3683,7 +3682,7 @@
             document.getElementById(`artist-genre-edit-${artistId}`).style.display = 'block';
 
             const select = document.getElementById(`genre-select-${artistId}`);
-            select.innerHTML = '<option value="">-- Aucun genre --</option>' +
+            select.innerHTML = `<option value="">${t('empty.no_genre_opt','-- Aucun genre --')}</option>` +
                 GENRE_TAXONOMY.map(g => `<option value="${g}" ${g === currentGenre ? 'selected' : ''}>${g}</option>`).join('');
         }
 
@@ -3708,7 +3707,7 @@
                 });
                 const data = await res.json();
                 if (!data.success) {
-                    alert(data.error || 'Erreur');
+                    alert(data.error || t('common.error','Erreur'));
                     return;
                 }
 
@@ -3720,7 +3719,7 @@
                 cancelEditGenre(artistId);
             } catch (e) {
                 console.error('Error saving genre:', e);
-                alert('Erreur lors de la sauvegarde du genre.');
+                alert(t('errors.genre_save','Erreur lors de la sauvegarde du genre.'));
             }
         }
 
@@ -3743,12 +3742,12 @@
 
         async function renderGenreManager() {
             const container = document.getElementById('genre-manager-container');
-            container.innerHTML = '<div style="color:var(--text-secondary);padding:20px;">Chargement...</div>';
+            container.innerHTML = `<div style="color:var(--text-secondary);padding:20px;">${t('common.loading','Chargement...')}</div>`;
 
             try {
                 const res = await fetch(`${BASE_PATH}/edit_tags.php?action=get_genres`);
                 const data = await res.json();
-                if (!data.success) { container.innerHTML = '<div style="color:red;">Erreur</div>'; return; }
+                if (!data.success) { container.innerHTML = `<div style="color:red;">${t('common.error','Erreur')}</div>`; return; }
 
                 const genres = data.data.genres;
 
@@ -3784,7 +3783,7 @@
                 container.innerHTML = html;
             } catch (e) {
                 console.error('Error loading genre manager:', e);
-                container.innerHTML = '<div style="color:red;">Erreur de chargement.</div>';
+                container.innerHTML = `<div style="color:red;">${t('common.error','Erreur')} de chargement.</div>`;
             }
         }
 
@@ -3801,7 +3800,7 @@
 
                 const res = await fetch(`${BASE_PATH}/edit_tags.php`, { method: 'POST', body: formData });
                 const data = await res.json();
-                if (!data.success) { alert(data.error || 'Erreur'); return; }
+                if (!data.success) { alert(data.error || t('common.error','Erreur')); return; }
 
                 renderGenreManager();
                 loadGenreTaxonomy();
@@ -3809,7 +3808,7 @@
                 if (typeof tagEditor !== 'undefined') tagEditor.genres = [];
             } catch (e) {
                 console.error('Error adding genre:', e);
-                alert('Erreur lors de l\'ajout du genre.');
+                alert(t('errors.genre_add',"Erreur lors de l'ajout du genre."));
             }
         }
 
@@ -3825,19 +3824,19 @@
 
                 const res = await fetch(`${BASE_PATH}/edit_tags.php`, { method: 'POST', body: formData });
                 const data = await res.json();
-                if (!data.success) { alert(data.error || 'Erreur'); return; }
+                if (!data.success) { alert(data.error || t('common.error','Erreur')); return; }
 
                 renderGenreManager();
                 loadGenreTaxonomy();
                 if (typeof tagEditor !== 'undefined') tagEditor.genres = [];
             } catch (e) {
                 console.error('Error renaming genre:', e);
-                alert('Erreur lors du renommage du genre.');
+                alert(t('errors.genre_rename','Erreur lors du renommage du genre.'));
             }
         }
 
         async function deleteGenre(id, name) {
-            if (!confirm(`Supprimer le genre "${name}" ? Les sous-genres seront aussi supprimés.`)) return;
+            if (!confirm(t('confirm.delete_genre','Supprimer le genre "{name}" ? Les sous-genres seront aussi supprimés.').replace('{name}', name))) return;
 
             try {
                 const formData = new FormData();
@@ -3846,14 +3845,14 @@
 
                 const res = await fetch(`${BASE_PATH}/edit_tags.php`, { method: 'POST', body: formData });
                 const data = await res.json();
-                if (!data.success) { alert(data.error || 'Erreur'); return; }
+                if (!data.success) { alert(data.error || t('common.error','Erreur')); return; }
 
                 renderGenreManager();
                 loadGenreTaxonomy();
                 if (typeof tagEditor !== 'undefined') tagEditor.genres = [];
             } catch (e) {
                 console.error('Error deleting genre:', e);
-                alert('Erreur lors de la suppression du genre.');
+                alert(t('errors.genre_delete','Erreur lors de la suppression du genre.'));
             }
         }
 
@@ -3878,7 +3877,7 @@
                 const res = await fetch(`${BASE_PATH}/api/scan.php?action=genre_scan&user=${app.currentUser}${force}`);
                 const data = await res.json();
                 if (!data.success) {
-                    alert(data.error || 'Erreur lors du lancement du scan.');
+                    alert(data.error || t('errors.genre_scan','Erreur lors du lancement du scan.'));
                     if (btn) btn.disabled = false;
                     return;
                 }
@@ -3945,7 +3944,7 @@
                 const res = await fetch(`${BASE_PATH}/api/scan.php?action=cleanup_orphans&user=${app.currentUser}`);
                 const data = await res.json();
                 if (!data.success) {
-                    alert(data.error || 'Erreur lors du nettoyage.');
+                    alert(data.error || t('errors.genre_cleanup','Erreur lors du nettoyage.'));
                 } else {
                     const d = data.data;
                     const msg = d.artists_deleted === 0 && d.albums_deleted === 0
@@ -3956,7 +3955,7 @@
                 }
             } catch (e) {
                 console.error('Cleanup orphans error:', e);
-                alert('Erreur lors du nettoyage.');
+                alert(t('errors.genre_cleanup','Erreur lors du nettoyage.'));
             } finally {
                 if (btn) btn.disabled = false;
                 if (icon) icon.className = 'ri-delete-bin-2-line';
@@ -4393,7 +4392,7 @@
                                         <button class="admin-btn" onclick="adminChangePassword(${u.id}, '${jsStr(u.username)}')" title="Changer le mot de passe"><i class="ri-key-line"></i></button>
                                         <button class="admin-btn" onclick="adminChangeDir(${u.id}, '${jsStr(u.username)}', '${jsStr(u.music_directory || '')}')" title="Changer le répertoire local"><i class="ri-folder-line"></i></button>
                                         <button class="admin-btn ${u.storage_type === 'sftp' ? 'admin-btn-sftp' : ''}" onclick="adminEditSftp(${u.id}, '${jsStr(u.username)}', '${jsStr(u.storage_type || 'local')}', '${jsStr(u.sftp_host || '')}', ${u.sftp_port || 22}, '${jsStr(u.sftp_user || '')}', '${jsStr(u.sftp_path || '')}')" title="Paramètres SFTP"><i class="ri-server-line"></i></button>
-                                        <button class="admin-btn" onclick="adminToggleAdmin(${u.id})" title="${u.is_admin ? 'Retirer admin' : 'Rendre admin'}"><i class="ri-shield-${u.is_admin ? 'fill' : 'line'}"></i></button>
+                                        <button class="admin-btn" onclick="adminToggleAdmin(${u.id})" title="${u.is_admin ? t('admin.remove_admin','Retirer admin') : t('admin.make_admin','Rendre admin')}"><i class="ri-shield-${u.is_admin ? 'fill' : 'line'}"></i></button>
                                         <button class="admin-btn" onclick="adminToggleActive(${u.id})" title="${u.is_active ? 'Désactiver' : 'Activer'}"><i class="ri-toggle-${u.is_active ? 'fill' : 'line'}"></i></button>
                                         <button class="admin-btn admin-btn-danger" onclick="adminDeleteUser(${u.id}, '${escapeHtml(u.username)}')" title="Supprimer"><i class="ri-delete-bin-line"></i></button>
                                     </td>
@@ -4455,7 +4454,7 @@
                 };
 
                 window.adminDeleteUser = async (userId, username) => {
-                    if (!confirm(`Supprimer l'utilisateur "${username}" ? Cette action est irréversible.`)) return;
+                    if (!confirm(t('confirm.delete_user',"Supprimer l'utilisateur \"{name}\" ? Cette action est irréversible.").replace('{name}', username))) return;
                     const result = await adminFetch('delete_user', { user_id: userId });
                     if (result.success) { showToast(t('toast.user_deleted', 'Utilisateur supprimé'), 'success'); loadAdminUsers(); }
                     else showToast(result.error, 'error');
@@ -4474,7 +4473,7 @@
                 };
 
                 window.adminChangePassword = async (userId, username) => {
-                    const password = prompt(`Nouveau mot de passe pour "${username}" (min 6 caractères) :`);
+                    const password = prompt(t('confirm.change_password','Nouveau mot de passe pour "{name}" (min 6 caractères) :').replace('{name}', username));
                     if (!password) return;
                     const result = await adminFetch('update_password', { user_id: userId, password });
                     if (result.success) showToast(t('toast.password_updated', 'Mot de passe mis à jour'), 'success');
@@ -4608,8 +4607,8 @@
                         sftp_path:     document.getElementById('sftpPath')?.value || '',
                     });
                     document.querySelector('div[style*=fixed]')?.remove();
-                    if (r.success) { showToast('Paramètres de stockage enregistrés', 'success'); loadAdminUsers(); }
-                    else showToast(r.error || 'Erreur', 'error');
+                    if (r.success) { showToast(t('toast.storage_saved','Paramètres de stockage enregistrés'), 'success'); loadAdminUsers(); }
+                    else showToast(r.error || t('common.error','Erreur'), 'error');
                 };
 
                 loadAdminUsers();
@@ -4810,23 +4809,23 @@
                                 let percent = 0;
 
                                 switch(progress.status) {
-                                    case 'counting': label = 'Comptage des fichiers...'; break;
+                                    case 'counting': label = t('scan.counting','Comptage des fichiers...'); break;
                                                                         case 'scanning': 
                                                                             if (progress.total > 0) {
-                                                                                label = `Scan des fichiers (${progress.processed}/${progress.total})`;
+                                                                                label = `${t('scan.scanning','Scan des fichiers')} (${progress.processed}/${progress.total})`;
                                                                                 percent = Math.round((progress.processed / progress.total) * 100);
                                                                                 if (scanProgressBar) scanProgressBar.classList.remove('progress-indeterminate');
                                                                             } else {
-                                                                                label = `Scan des fichiers (${progress.processed})`;
+                                                                                label = `${t('scan.scanning','Scan des fichiers')} (${progress.processed})`;
                                                                                 percent = 100; // Bar is full width but with the animation
                                                                                 if (scanProgressBar) scanProgressBar.classList.add('progress-indeterminate');
                                                                             }
                                                                             break;
-                                                                        case 'pruning': label = 'Nettoyage des fichiers supprimés...'; percent = 90; break;
-                                                                        case 'artwork': label = 'Mise en cache des pochettes...'; percent = 95; break;
-                                                                        case 'artist_images': label = 'Images d\'artistes...'; percent = 97; break;
-                                                                        case 'stats': label = 'Mise à jour des statistiques...'; percent = 99; break;
-                                                                        case 'idle': label = 'Terminé !'; percent = 100; break;
+                                                                        case 'pruning': label = t('scan.pruning','Nettoyage des fichiers supprimés...'); percent = 90; break;
+                                                                        case 'artwork': label = t('scan.artwork_caching','Mise en cache des pochettes...'); percent = 95; break;
+                                                                        case 'artist_images': label = t('scan.artist_images',"Images d'artistes..."); percent = 97; break;
+                                                                        case 'stats': label = t('scan.stats_update','Mise à jour des statistiques...'); percent = 99; break;
+                                                                        case 'idle': label = t('scan.complete','Terminé !'); percent = 100; break;
                                                                     }
                                     
                                                                     if (statusText) statusText.textContent = label;
@@ -5016,7 +5015,7 @@
                     app.favorites.push(songId);
                 }
                 updateFavoriteIcons(songId);
-                showToast('Erreur lors de la mise à jour des favoris', 'error');
+                showToast(t('toast.update_favorites_error', 'Erreur lors de la mise à jour des favoris'), 'error');
             }
         }
 
@@ -5062,7 +5061,7 @@
                 showToast(isFavorite ? t('favorites.artist_added', 'Artiste ajouté aux favoris') : t('favorites.artist_removed', 'Artiste retiré des favoris'), 'success');
             } catch (error) {
                 console.error('Error toggling artist favorite:', error);
-                showToast('Erreur lors de la mise à jour', 'error');
+                showToast(t('toast.update_error', 'Erreur lors de la mise à jour'), 'error');
             }
         }
 
@@ -5108,7 +5107,7 @@
                 showToast(isFavorite ? t('favorites.album_added', 'Album ajouté aux favoris') : t('favorites.album_removed', 'Album retiré des favoris'), 'success');
             } catch (error) {
                 console.error('Error toggling album favorite:', error);
-                showToast('Erreur lors de la mise à jour', 'error');
+                showToast(t('toast.update_error', 'Erreur lors de la mise à jour'), 'error');
             }
         }
 
@@ -5272,7 +5271,7 @@
             const currentTrack = app.queue[app.currentTrackIndex];
 
             if (currentTrack) {
-                showToast(`Impossible de lire: ${currentTrack.title}`, 'error', 4000);
+                showToast(t('toast.play_error','Impossible de lire: {title}').replace('{title}', currentTrack.title), 'error', 4000);
 
                 // Try to skip to next track after a short delay
                 setTimeout(() => {
@@ -5281,7 +5280,7 @@
                     }
                 }, 2000);
             } else {
-                showToast('Erreur de lecture audio', 'error');
+                showToast(t('toast.play_audio_error', 'Erreur de lecture audio'), 'error');
             }
 
             window.gullifyPlayer.playBtn.innerHTML = ICON_PLAY;
@@ -5308,7 +5307,7 @@
                 const result = await response.json();
 
                 if (result.error) {
-                    showError('Erreur lors de la recherche', `performSearch('${escapeHtml(query)}')`);
+                    showError(t('errors.search', 'Erreur lors de la recherche'), `performSearch('${escapeHtml(query)}')`);
                     return;
                 }
 
@@ -5327,7 +5326,7 @@
                     return;
                 }
 
-                contentTitle.textContent = `Résultats pour "${query}" (${songs.length})`;
+                contentTitle.textContent = t('counts.search_results','Résultats pour "{q}" ({n})').replace('{q}', query).replace('{n}', songs.length);
 
                 const html = `
                     <div>
@@ -5354,7 +5353,7 @@
                 window.currentSearchResults = songs; // Store for playback
             } catch (error) {
                 console.error('Error searching:', error);
-                showError('Impossible d\'effectuer la recherche');
+                showError(t('errors.search_fail', "Impossible d'effectuer la recherche"));
             }
         }
 
@@ -5680,7 +5679,7 @@
         // Download album in background (auto mode)
         async function downloadAlbumBackground(url, artistName, albumName, artistId) {
             try {
-                showToast('⚡ Lancement du téléchargement...', 'info');
+                showToast(t('toast.download_starting', '⚡ Lancement du téléchargement...'), 'info');
 
                 const formData = new FormData();
                 formData.append('action', 'start');
@@ -5698,18 +5697,18 @@
                 const result = await response.json();
 
                 if (result.success) {
-                    showToast(`📥 Téléchargement démarré: ${albumName}`, 'success', 5000);
+                    showToast(t('toast.download_started','📥 Téléchargement démarré: {name}').replace('{name}', albumName), 'success', 5000);
 
                     // Poll for completion
                     const downloadId = result.download_id;
                     pollDownloadStatus(downloadId, artistName, albumName);
                 } else {
-                    showToast('❌ Erreur: ' + result.error, 'error');
+                    showToast(t('toast.download_error','❌ Erreur: {msg}').replace('{msg}', result.error), 'error');
                 }
 
             } catch (error) {
                 console.error('Error starting download:', error);
-                showToast('❌ Erreur lors du démarrage du téléchargement', 'error');
+                showToast(t('toast.download_start_error', '❌ Erreur lors du démarrage du téléchargement'), 'error');
             }
         }
 
@@ -5724,7 +5723,7 @@
                         const download = result.download;
 
                         if (download.status === 'completed') {
-                            showToast(`✅ ${albumName} téléchargé et scanné!`, 'success', 5000);
+                            showToast(t('toast.download_complete','✅ {name} téléchargé et scanné!').replace('{name}', albumName), 'success', 5000);
                             // Reload library to show the new album
                             await loadLibrary();
                             return true; // Stop polling
@@ -5732,7 +5731,7 @@
                             showToast(`❌ Échec: ${download.message}`, 'error', 5000);
                             return true; // Stop polling
                         } else if (download.status === 'completed_scan_failed') {
-                            showToast(`⚠️ ${albumName} téléchargé mais scan échoué`, 'warning', 5000);
+                            showToast(t('toast.download_scan_fail','⚠️ {name} téléchargé mais scan échoué').replace('{name}', albumName), 'warning', 5000);
                             return true; // Stop polling
                         }
                         // Continue polling for queued, downloading, scanning
@@ -6423,7 +6422,7 @@
                 }
 
                 this.switchTab('edit');
-                this.showEditorToast('Tags YouTube Music appliqués!', 'success');
+                this.showEditorToast(t('editor.yt_tags_applied','Tags YouTube Music appliqués!'), 'success');
             },
 
             // Render files tab (for renaming)
@@ -6519,13 +6518,13 @@
 
                     if (result.success) {
                         this.albumData.genre = genre;
-                        this.showEditorToast(`Genre enregistré: ${genre || '(aucun)'}`, 'success');
+                        this.showEditorToast(t('editor.genre_saved','Genre enregistré: {genre}').replace('{genre}', genre || t('editor.no_genre','(aucun)')), 'success');
                     } else {
-                        this.showEditorToast('Erreur: ' + result.error, 'error');
+                        this.showEditorToast(t('common.error','Erreur') + ': ' + result.error, 'error');
                     }
                 } catch (e) {
                     console.error('Failed to save genre:', e);
-                    this.showEditorToast('Erreur lors de la sauvegarde du genre', 'error');
+                    this.showEditorToast(t('errors.genre_save','Erreur lors de la sauvegarde du genre'), 'error');
                 }
             },
 
@@ -6627,7 +6626,7 @@
                             song.filename = result.data.new_file_path.split('/').pop();
                         }
 
-                        this.showEditorToast('Chanson sauvegardée!', 'success');
+                        this.showEditorToast(t('editor.saved','Chanson sauvegardée!'), 'success');
                         this.setStatus('Prêt', 'ready');
                         this.updateSaveButton();
                     } else {
@@ -6636,7 +6635,7 @@
 
                 } catch (error) {
                     console.error('Save error:', error);
-                    this.showEditorToast('Erreur: ' + error.message, 'error');
+                    this.showEditorToast(t('common.error','Erreur') + ': ' + error.message, 'error');
                     this.setStatus('Erreur', 'error');
                 }
             },
@@ -6648,7 +6647,7 @@
                     : this.songs;
 
                 if (songsToSave.length === 0) {
-                    this.showEditorToast('Aucune modification à sauvegarder', 'info');
+                    this.showEditorToast(t('editor.no_changes','Aucune modification à sauvegarder'), 'info');
                     return;
                 }
 
@@ -6721,9 +6720,9 @@
                         });
 
                         if (failed === 0) {
-                            this.showEditorToast(`✅ ${saved} fichiers sauvegardés!`, 'success');
+                            this.showEditorToast(`✅ ${saved} ${t('editor.all_saved','fichiers sauvegardés!')}`, 'success');
                         } else {
-                            this.showEditorToast(`${saved} sauvegardés, ${failed} erreurs`, 'warning');
+                            this.showEditorToast(t('editor.all_saved_with_errors','{saved} sauvegardés, {failed} erreurs').replace('{saved}',saved).replace('{failed}',failed), 'warning');
                         }
 
                         this.setStatus('Terminé!', 'ready');
@@ -6742,7 +6741,7 @@
 
                 } catch (error) {
                     console.error('Batch save error:', error);
-                    this.showEditorToast('Erreur: ' + error.message, 'error');
+                    this.showEditorToast(t('common.error','Erreur') + ': ' + error.message, 'error');
                     this.setStatus('Erreur', 'error');
                 } finally {
                     document.getElementById('saveAllBtn').disabled = false;
@@ -6756,7 +6755,7 @@
 
                 const newFilename = document.getElementById(`newname_${songId}`)?.value;
                 if (!newFilename || newFilename === song.filename) {
-                    this.showEditorToast('Aucun changement de nom', 'info');
+                    this.showEditorToast(t('editor.no_rename','Aucun changement de nom'), 'info');
                     return;
                 }
 
@@ -6779,7 +6778,7 @@
                     if (result.success) {
                         song.file_path = result.data.new_file_path;
                         song.filename = result.data.new_filename;
-                        this.showEditorToast('Fichier renommé!', 'success');
+                        this.showEditorToast(t('editor.renamed','Fichier renommé!'), 'success');
                         this.renderFilesTab();
                     } else {
                         throw new Error(result.error);
@@ -6787,7 +6786,7 @@
 
                 } catch (error) {
                     console.error('Rename error:', error);
-                    this.showEditorToast('Erreur: ' + error.message, 'error');
+                    this.showEditorToast(t('common.error','Erreur') + ': ' + error.message, 'error');
                 } finally {
                     this.setStatus('Prêt', 'ready');
                 }
@@ -6801,7 +6800,7 @@
                         await this.renameSingle(song.id);
                     }
                 }
-                this.showEditorToast('Tous les fichiers ont été renommés!', 'success');
+                this.showEditorToast(t('editor.all_saved','Tous les fichiers ont été renommés!'), 'success');
             },
 
             // Update status indicator
@@ -6868,7 +6867,7 @@
                     if (ov) ov.remove();
                 });
                 if (bar) bar.style.display = 'none';
-                if (btn) btn.innerHTML = '<i class="ri-edit-box-line"></i> Gérer';
+                if (btn) btn.innerHTML = `<i class="ri-edit-box-line"></i> ${t('editor.manage_btn','Gérer')}`;
                 return;
             }
 
@@ -6891,7 +6890,7 @@
             });
 
             if (bar) bar.style.display = 'flex';
-            if (btn) btn.innerHTML = '<i class="ri-close-line"></i> Terminer';
+            if (btn) btn.innerHTML = `<i class="ri-close-line"></i> ${t('editor.done_btn','Terminer')}`;
             updateArtistManageBar();
         }
 
@@ -6918,7 +6917,7 @@
             const renameBtn = document.getElementById('rename-artist-btn');
             const mergeBtn  = document.getElementById('merge-artists-btn');
             const deleteBtn = document.getElementById('delete-artists-btn');
-            if (countEl)   countEl.textContent = n === 0 ? 'Aucun sélectionné' : `${n} artiste${n > 1 ? 's' : ''} sélectionné${n > 1 ? 's' : ''}`;
+            if (countEl)   countEl.textContent = n === 0 ? t('common.none_selected','Aucun sélectionné') : `${n} artiste${n > 1 ? 's' : ''} sélectionné${n > 1 ? 's' : ''}`;
             if (renameBtn) renameBtn.disabled = (n !== 1);
             if (mergeBtn)  mergeBtn.disabled  = (n < 2);
             if (deleteBtn) deleteBtn.disabled = (n < 1);
@@ -6938,7 +6937,7 @@
             fd.append('name', newName.trim());
             const res    = await fetch(`${BASE_PATH}/api/library.php?action=rename_artist`, { method: 'POST', body: fd });
             const result = await res.json();
-            if (result.error) { alert('Erreur : ' + result.message); return; }
+            if (result.error) { alert(t('common.error_prefix','Erreur : ') + result.message); return; }
 
             const d = result.data;
             showToast(`"${d.name}" renommé. ${d.tags_updated} tag(s) mis à jour.`, 'success');
@@ -6954,7 +6953,7 @@
                 const card = document.querySelector(`.artist-card[data-artist-id="${id}"]`);
                 return card?.querySelector('.artist-name')?.textContent?.trim() || `Artiste ${id}`;
             });
-            const newName = prompt(`Fusionner ${ids.length} artistes en un seul.\nNom de l'artiste résultant :`, names[0]);
+            const newName = prompt(t('confirm.merge_artists',"Fusionner {n} artistes en un seul.\nNom de l'artiste résultant :").replace('{n}', ids.length), names[0]);
             if (!newName) return;
 
             const fd = new FormData();
@@ -6963,7 +6962,7 @@
             ids.forEach(id => fd.append('source_ids[]', id));
             const res    = await fetch(`${BASE_PATH}/api/library.php?action=merge_artists`, { method: 'POST', body: fd });
             const result = await res.json();
-            if (result.error) { alert('Erreur : ' + result.message); return; }
+            if (result.error) { alert(t('common.error_prefix','Erreur : ') + result.message); return; }
 
             const d = result.data;
             let msg = `Fusion terminée : ${d.songs_total} chanson(s) regroupées sous "${d.name}".`;
@@ -7087,7 +7086,7 @@
                     if (ov) ov.remove();
                 });
                 if (bar) bar.style.display = 'none';
-                if (btn) btn.innerHTML = '<i class="ri-edit-box-line"></i> Gérer';
+                if (btn) btn.innerHTML = `<i class="ri-edit-box-line"></i> ${t('editor.manage_btn','Gérer')}`;
                 return;
             }
 
@@ -7111,7 +7110,7 @@
             });
 
             if (bar) bar.style.display = 'flex';
-            if (btn) btn.innerHTML = '<i class="ri-close-line"></i> Terminer';
+            if (btn) btn.innerHTML = `<i class="ri-close-line"></i> ${t('editor.done_btn','Terminer')}`;
         }
 
         function toggleAlbumCardSelection(albumId) {
@@ -7138,7 +7137,7 @@
             const renameBtn = document.getElementById(`rename-album-btn-${artistId}`);
             const mergeBtn  = document.getElementById(`merge-albums-btn-${artistId}`);
             const deleteBtn = document.getElementById(`delete-albums-btn-${artistId}`);
-            if (countEl)   countEl.textContent = n === 0 ? 'Aucun sélectionné' : `${n} album${n > 1 ? 's' : ''} sélectionné${n > 1 ? 's' : ''}`;
+            if (countEl)   countEl.textContent = n === 0 ? t('common.none_selected','Aucun sélectionné') : `${n} album${n > 1 ? 's' : ''} sélectionné${n > 1 ? 's' : ''}`;
             if (renameBtn) renameBtn.disabled = (n !== 1);
             if (mergeBtn)  mergeBtn.disabled  = (n < 2);
             if (deleteBtn) deleteBtn.disabled = (n < 1);
@@ -7158,7 +7157,7 @@
             fd.append('name', newName.trim());
             const res = await fetch(`${BASE_PATH}/api/library.php?action=rename_album`, { method: 'POST', body: fd });
             const result = await res.json();
-            if (result.error) { alert('Erreur : ' + result.message); return; }
+            if (result.error) { alert(t('common.error_prefix','Erreur : ') + result.message); return; }
 
             albumManageState = null;
             viewArtist(artistId);
@@ -7171,7 +7170,7 @@
                 const card = document.querySelector(`.album-card[data-album-id="${id}"]`);
                 return card?.querySelector('.album-name')?.textContent?.trim() || `Album ${id}`;
             });
-            const newName = prompt(`Fusionner ${ids.length} albums en un seul.\nNom de l'album résultant :`, names[0]);
+            const newName = prompt(t('confirm.merge_albums',"Fusionner {n} albums en un seul.\nNom de l'album résultant :").replace('{n}', ids.length), names[0]);
             if (!newName) return;
 
             const fd = new FormData();
@@ -7180,7 +7179,7 @@
             ids.forEach(id => fd.append('source_ids[]', id));
             const res = await fetch(`${BASE_PATH}/api/library.php?action=merge_albums`, { method: 'POST', body: fd });
             const result = await res.json();
-            if (result.error) { alert('Erreur : ' + result.message); return; }
+            if (result.error) { alert(t('common.error_prefix','Erreur : ') + result.message); return; }
 
             const d = result.data;
             let msg = `Fusion terminée : ${d.songs_total} chanson(s) regroupées dans "${d.name}".`;
@@ -7239,7 +7238,7 @@
             });
 
             if (bar) bar.style.display = 'flex';
-            if (btn) btn.innerHTML = '<i class="ri-close-line"></i> Terminer';
+            if (btn) btn.innerHTML = `<i class="ri-close-line"></i> ${t('editor.done_btn','Terminer')}`;
         }
 
         function toggleSongSelection(albumId, songId) {
@@ -7263,7 +7262,7 @@
             const n = songManageState.selections.size;
             const countEl   = document.getElementById(`song-manage-count-${albumId}`);
             const deleteBtn = document.getElementById(`delete-songs-btn-${albumId}`);
-            if (countEl)   countEl.textContent = n === 0 ? 'Aucune sélectionnée' : `${n} chanson${n > 1 ? 's' : ''} sélectionnée${n > 1 ? 's' : ''}`;
+            if (countEl)   countEl.textContent = n === 0 ? t('common.none_selected_f','Aucune sélectionnée') : `${n} chanson${n > 1 ? 's' : ''} sélectionnée${n > 1 ? 's' : ''}`;
             if (deleteBtn) deleteBtn.disabled = (n < 1);
         }
 
@@ -7289,14 +7288,14 @@
                     body: JSON.stringify({ song_ids: ids }),
                 });
                 const result = await res.json();
-                if (result.error) { alert('Erreur : ' + result.message); return; }
+                if (result.error) { alert(t('common.error_prefix','Erreur : ') + result.message); return; }
 
                 const d = result.data;
                 let msg = `${d.deleted} chanson${d.deleted > 1 ? 's' : ''} supprimée${d.deleted > 1 ? 's' : ''}.`;
                 if (d.failed?.length) msg += `\n⚠ ${d.failed.length} chanson(s) non trouvée(s).`;
                 alert(msg);
             } catch (e) {
-                alert('Erreur : ' + e.message);
+                alert(t('common.error_prefix','Erreur : ') + e.message);
                 return;
             }
 
