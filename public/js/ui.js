@@ -628,6 +628,12 @@
                 removeInfiniteScroll();
             }
 
+            // Close settings accordion when navigating away
+            if (view !== 'settings') {
+                document.getElementById('settingsSubmenu')?.classList.remove('open');
+                document.querySelector('[data-view="settings"]')?.classList.remove('open');
+            }
+
             app.currentView = view;
 
             // Save current view to localStorage
@@ -4617,36 +4623,23 @@
         }
 
         function renderSettings(activeSection = 'appearance') {
+            // Open accordion in sidebar
+            document.getElementById('settingsSubmenu')?.classList.add('open');
+            document.querySelector('[data-view="settings"]')?.classList.add('open');
+
+            // Sync main nav active state
+            navItems.forEach(item => item.classList.toggle('active', item.dataset.view === 'settings'));
+            app.currentView = 'settings';
+            localStorage.setItem('musicCurrentView', 'settings');
+
+            // Sync sub-item active state
+            document.querySelectorAll('.nav-subitem[data-settings-section]').forEach(item => {
+                item.classList.toggle('active', item.dataset.settingsSection === activeSection);
+            });
+
             hideAlbumBackground();
             contentTitle.textContent = t('settings.title', 'Paramètres');
-
-            const sections = [
-                { id: 'appearance', icon: 'ri-palette-line',       label: t('settings.appearance', 'Apparence') },
-                { id: 'language',   icon: 'ri-translate-2',        label: t('settings.language', 'Langue') },
-                { id: 'library',    icon: 'ri-music-library-line', label: t('scan.library', 'Bibliothèque') },
-                ...(app.isAdmin ? [{ id: 'admin', icon: 'ri-shield-user-line', label: t('settings.admin_panel', 'Administration') }] : [])
-            ];
-
-            contentBody.innerHTML = `
-                <div class="settings-page">
-                    <div class="settings-layout">
-                        <nav class="settings-sidenav" id="settingsSidenav">
-                            ${sections.map(s => `
-                                <div class="settings-sidenav-item${s.id === activeSection ? ' active' : ''}" data-section="${s.id}" onclick="switchSettingsSection('${s.id}')">
-                                    <i class="${s.icon}"></i>
-                                    <span>${s.label}</span>
-                                </div>
-                            `).join('')}
-                            <div class="settings-sidenav-separator"></div>
-                            <div class="settings-sidenav-item settings-sidenav-danger" onclick="window.location.href='logout.php'">
-                                <i class="ri-logout-box-r-line"></i>
-                                <span>${t('settings.logout', 'Se déconnecter')}</span>
-                            </div>
-                        </nav>
-                        <div class="settings-main" id="settingsMain"></div>
-                    </div>
-                </div>
-            `;
+            contentBody.innerHTML = `<div class="settings-page">${getSettingsSectionHtml(activeSection)}</div>`;
 
             // ── Storage settings modal (for current user) ─────────────────────
             const STORAGE_URL = `${BASE_PATH}/api/storage.php`;
@@ -4792,18 +4785,11 @@
                 renderSettings('language');
             };
 
-            // ── Section switcher ──────────────────────────────────────────────
-            window.switchSettingsSection = (section) => {
-                document.querySelectorAll('.settings-sidenav-item[data-section]').forEach(item => {
-                    item.classList.toggle('active', item.dataset.section === section);
-                });
-                const main = document.getElementById('settingsMain');
-                if (!main) return;
-                main.innerHTML = getSettingsSectionHtml(section);
-                if (section === 'admin') initAdminSection();
-            };
+            // Post-render hook for admin section
+            if (activeSection === 'admin') initAdminSection();
 
-            switchSettingsSection(activeSection);
+            // Expose as global so sidebar onclick="renderSettingsSection(...)" works
+            window.renderSettingsSection = renderSettings;
 
         }
 

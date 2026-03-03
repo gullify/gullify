@@ -48,9 +48,35 @@
             <i class="ri-radio-line"></i>
             <span data-i18n="nav.radio">Radio Web</span>
         </div>
-        <div class="nav-item" data-view="settings" style="margin-top: 20px;">
+        <div class="nav-item nav-item-parent" data-view="settings" style="margin-top: 20px;">
             <i class="ri-settings-3-line"></i>
             <span data-i18n="nav.settings">Paramètres</span>
+            <i class="ri-arrow-down-s-line nav-arrow"></i>
+        </div>
+        <div class="nav-submenu" id="settingsSubmenu">
+            <div class="nav-subitem" data-settings-section="appearance" onclick="renderSettingsSection('appearance')">
+                <i class="ri-palette-line"></i>
+                <span data-i18n="settings.appearance">Apparence</span>
+            </div>
+            <div class="nav-subitem" data-settings-section="language" onclick="renderSettingsSection('language')">
+                <i class="ri-translate-2"></i>
+                <span data-i18n="settings.language">Langue</span>
+            </div>
+            <div class="nav-subitem" data-settings-section="library" onclick="renderSettingsSection('library')">
+                <i class="ri-music-library-line"></i>
+                <span data-i18n="scan.library">Bibliothèque</span>
+            </div>
+            <?php if (!empty($_SESSION['is_admin'])): ?>
+            <div class="nav-subitem" data-settings-section="admin" onclick="renderSettingsSection('admin')">
+                <i class="ri-shield-user-line"></i>
+                <span data-i18n="settings.admin_panel">Administration</span>
+            </div>
+            <?php endif; ?>
+            <div class="nav-submenu-separator"></div>
+            <div class="nav-subitem nav-subitem-danger" onclick="window.location.href='logout.php'">
+                <i class="ri-logout-box-r-line"></i>
+                <span data-i18n="settings.logout">Se déconnecter</span>
+            </div>
         </div>
     </nav>
 </aside>
