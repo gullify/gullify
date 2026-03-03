@@ -63,7 +63,7 @@
                 <span data-i18n="settings.language">Langue</span>
             </div>
             <div class="nav-subitem" data-settings-section="library" onclick="renderSettingsSection('library')">
-                <i class="ri-music-library-line"></i>
+                <i class="ri-folder-music-line"></i>
                 <span data-i18n="scan.library">Bibliothèque</span>
             </div>
             <?php if (!empty($_SESSION['is_admin'])): ?>
