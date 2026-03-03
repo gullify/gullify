@@ -523,6 +523,12 @@ class Scanner {
             $fileHash,
         ]);
 
+        // Write derived tags back to the file so future scans read proper metadata
+        if (!empty($metadata['tagsToWrite']) &&
+            ($this->storage === null || $this->storage->getType() !== 'sftp')) {
+            $this->writeBackDerivedTags($songPath, $metadata['tagsToWrite']);
+        }
+
         $this->songsAdded++;
 
         if ($this->songsAdded % $this->batchSize === 0) {
@@ -907,13 +913,19 @@ class Scanner {
             'album' => null,
             'title' => null,
             'genre' => null,
+            'year' => null,
+            'tagsToWrite' => null,
         ];
 
         // For SFTP, skip ID3 — too expensive without local file access
         if ($this->storage !== null && $this->storage->getType() === 'sftp') {
-            $filename = basename($filePath);
-            if (preg_match('/^(\d{1,2})\s*[-\.]\s*/', $filename, $matches)) {
-                $result['trackNumber'] = intval($matches[1]);
+            $basename = pathinfo($filePath, PATHINFO_FILENAME);
+            if (preg_match('/^(.+?)\s+-\s+(\d{1,2})\s+-\s+(.+)$/', $basename, $m)) {
+                $result['artist']      = trim($m[1]);
+                $result['trackNumber'] = (int)$m[2];
+                $result['title']       = trim($m[3]);
+            } elseif (preg_match('/^(\d{1,2})\s*[-\.]\s*/', $basename, $m)) {
+                $result['trackNumber'] = (int)$m[1];
             }
             return $result;
         }
@@ -955,10 +967,69 @@ class Scanner {
             if (isset($fileInfo['comments']['album'][0]))  $result['album']  = trim($fileInfo['comments']['album'][0]);
             if (isset($fileInfo['comments']['title'][0]))  $result['title']  = trim($fileInfo['comments']['title'][0]);
             if (isset($fileInfo['comments']['genre'][0]))  $result['genre']  = trim($fileInfo['comments']['genre'][0]);
+            if (isset($fileInfo['comments']['year'][0]))   $result['year']   = trim($fileInfo['comments']['year'][0]);
+            elseif (isset($fileInfo['comments']['date'][0])) $result['year'] = substr(trim($fileInfo['comments']['date'][0]), 0, 4);
+
+            // Filename-based artist fallback: "Artist - NN - Title.mp3"
+            // Only triggers when no TPE1 tag was found in the file
+            if ($result['artist'] === null) {
+                $basename = pathinfo($filePath, PATHINFO_FILENAME);
+                if (preg_match('/^(.+?)\s+-\s+(\d{1,2})\s+-\s+(.+)$/', $basename, $m)) {
+                    $result['artist'] = trim($m[1]);
+                    if ($result['trackNumber'] === 0) $result['trackNumber'] = (int)$m[2];
+                    if ($result['title'] === null)    $result['title']       = trim($m[3]);
+                    // Schedule tag write-back so future scans read proper metadata
+                    $result['tagsToWrite'] = [
+                        'artist'       => $result['artist'],
+                        'title'        => $result['title'],
+                        'track_number' => $result['trackNumber'] ?: null,
+                        'album'        => $result['album'],
+                        'album_artist' => $result['albumArtist'],
+                        'genre'        => $result['genre'],
+                        'year'         => $result['year'],
+                    ];
+                }
+            }
 
             return $result;
         } catch (\Exception $e) {
             return $result;
+        }
+    }
+
+    /**
+     * Write derived tags (artist, title, etc.) back to the MP3 file using getID3.
+     * Preserves any existing album/genre/year tags that were already present.
+     * Only called for local files when artist was missing from ID3 but found in filename.
+     */
+    private function writeBackDerivedTags(string $filePath, array $tags): void {
+        require_once AppConfig::getVendorPath() . '/getid3/write.php';
+
+        if (!is_writable($filePath)) {
+            echo "  [tag-write] Not writable: $filePath\n";
+            return;
+        }
+
+        $tagwriter = new \getid3_writetags;
+        $tagwriter->filename     = $filePath;
+        $tagwriter->tagformats   = ['id3v2.3', 'id3v1'];
+        $tagwriter->overwrite_tags = true;
+        $tagwriter->tag_encoding = 'UTF-8';
+
+        $tagData = [];
+        if (!empty($tags['artist']))       $tagData['artist'][]       = $tags['artist'];
+        if (!empty($tags['title']))        $tagData['title'][]        = $tags['title'];
+        if (!empty($tags['album']))        $tagData['album'][]        = $tags['album'];
+        if (!empty($tags['album_artist'])) $tagData['band'][]         = $tags['album_artist'];
+        if (!empty($tags['genre']))        $tagData['genre'][]        = $tags['genre'];
+        if (!empty($tags['year']))         $tagData['year'][]         = $tags['year'];
+        if (!empty($tags['track_number'])) $tagData['track_number'][] = $tags['track_number'];
+
+        $tagwriter->tag_data = $tagData;
+        if (!$tagwriter->WriteTags()) {
+            echo "  [tag-write] Error: " . implode(', ', $tagwriter->errors) . "\n";
+        } else {
+            echo "  [tag-write] " . basename($filePath) . "\n";
         }
     }
 
