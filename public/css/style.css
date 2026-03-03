@@ -3009,7 +3009,6 @@ a.news-item:hover::before {
 
 /* Settings page */
 .settings-page {
-    max-width: 860px;
 }
 
 /* ── Sidebar settings accordion ── */
