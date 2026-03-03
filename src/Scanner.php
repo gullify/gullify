@@ -112,6 +112,9 @@ class Scanner {
         if (!$this->columnExists('albums', 'is_compilation')) {
             $this->db->exec("ALTER TABLE albums ADD COLUMN is_compilation TINYINT(1) NOT NULL DEFAULT 0");
         }
+        if (!$this->columnExists('songs', 'artist_id')) {
+            $this->db->exec("ALTER TABLE songs ADD COLUMN artist_id INT NULL");
+        }
     }
 
     private function columnExists(string $table, string $column): bool {
@@ -323,9 +326,12 @@ class Scanner {
      * Returns the number of songs re-merged.
      */
     public function reapplyCompilations(string $user): int {
+        // Ensure "Various Artists" exists for this user
+        $variousArtistsId = $this->getArtistId('Various Artists', $user);
+
         // Load all compilation albums for this user
         $stmt = $this->db->prepare("
-            SELECT al.id, LOWER(TRIM(al.name)) AS name_lower
+            SELECT al.id, al.artist_id, LOWER(TRIM(al.name)) AS name_lower
             FROM albums al
             JOIN artists ar ON al.artist_id = ar.id
             WHERE ar.user = ? AND al.is_compilation = 1
@@ -337,6 +343,12 @@ class Scanner {
         $totalMerged = 0;
 
         foreach ($compilations as $comp) {
+            // Ensure the compilation album is attributed to "Various Artists"
+            if ((int)$comp['artist_id'] !== $variousArtistsId) {
+                $this->db->prepare("UPDATE albums SET artist_id = ? WHERE id = ?")
+                         ->execute([$variousArtistsId, $comp['id']]);
+            }
+
             // Find sibling albums with same name NOT marked as compilation
             $stmt = $this->db->prepare("
                 SELECT al.id
@@ -355,13 +367,18 @@ class Scanner {
             $ph = implode(',', array_fill(0, count($dupes), '?'));
 
             // Count songs being moved
-            $stmt = $this->db->prepare("SELECT COUNT(*) FROM songs WHERE album_id IN ($ph)");
-            $stmt->execute($dupes);
-            $totalMerged += (int)$stmt->fetchColumn();
+            $countStmt = $this->db->prepare("SELECT COUNT(*) FROM songs WHERE album_id IN ($ph)");
+            $countStmt->execute($dupes);
+            $totalMerged += (int)$countStmt->fetchColumn();
 
-            // Move songs to compilation album
-            $this->db->prepare("UPDATE songs SET album_id = ? WHERE album_id IN ($ph)")
-                     ->execute([$comp['id'], ...$dupes]);
+            // Move songs to compilation album, preserving track artist from source album
+            // COALESCE keeps existing songs.artist_id if set, otherwise fills from source album's artist
+            $this->db->prepare("
+                UPDATE songs s
+                JOIN albums al ON s.album_id = al.id
+                SET s.album_id = ?, s.artist_id = COALESCE(s.artist_id, al.artist_id)
+                WHERE s.album_id IN ($ph)
+            ")->execute([$comp['id'], ...$dupes]);
 
             // Delete now-empty duplicate albums
             $this->db->prepare("DELETE FROM albums WHERE id IN ($ph)")
@@ -427,43 +444,56 @@ class Scanner {
 
         // Extract metadata
         $metadata = $this->extractBasicMetadata($songPath);
-        
-        // Use ID3 tags if available
-        $artistName = $metadata['artist'];
-        $albumName  = $metadata['album'];
-        $title      = $metadata['title'];
 
-        // Fallback to path logic if tags are missing
-        if (!$artistName || !$albumName || !$title) {
+        // Use ID3 tags if available
+        $trackArtistName = $metadata['artist'];    // TPE1: actual performer
+        $albumArtistName = $metadata['albumArtist']; // TPE2: album/band artist
+        $albumName       = $metadata['album'];
+        $title           = $metadata['title'];
+        $isCompilation   = $metadata['isCompilation'];
+
+        // Fallback to path logic if core tags are missing
+        if (!$trackArtistName || !$albumName || !$title) {
             $pathParts = explode('/', $relativePath);
             $numParts = count($pathParts);
 
             if ($numParts >= 3) {
-                // We assume the structure is .../Artist/Album/Song.ext
-                // But we don't know the depth of the user folder in relativePath
-                // So we take from the end.
                 if (!$title) $title = pathinfo($pathParts[$numParts - 1], PATHINFO_FILENAME);
                 if (!$albumName) $albumName = $pathParts[$numParts - 2];
-                if (!$artistName) $artistName = $pathParts[$numParts - 3];
+                if (!$trackArtistName) $trackArtistName = $pathParts[$numParts - 3];
             } else if ($numParts == 2) {
-                // Artist/Song.ext
                 if (!$title) $title = pathinfo($pathParts[1], PATHINFO_FILENAME);
-                if (!$artistName) $artistName = $pathParts[0];
+                if (!$trackArtistName) $trackArtistName = $pathParts[0];
                 if (!$albumName) $albumName = 'Album inconnu';
             } else {
-                // Just Song.ext or weird structure
                 if (!$title) $title = pathinfo($pathParts[0], PATHINFO_FILENAME);
-                if (!$artistName) $artistName = 'Artiste inconnu';
+                if (!$trackArtistName) $trackArtistName = 'Artiste inconnu';
                 if (!$albumName) $albumName = 'Album inconnu';
             }
         }
 
         // Clean up names
-        $artistName = $artistName ?: 'Artiste inconnu';
-        $albumName  = $albumName  ?: 'Album inconnu';
-        $title      = $title      ?: pathinfo($songPath, PATHINFO_FILENAME);
+        $trackArtistName = $trackArtistName ?: 'Artiste inconnu';
+        $albumArtistName = $albumArtistName  ?: $trackArtistName; // TPE2 fallback to TPE1
+        $albumName       = $albumName        ?: 'Album inconnu';
+        $title           = $title            ?: pathinfo($songPath, PATHINFO_FILENAME);
 
-        $artistId = $this->getArtistId($artistName, $user);
+        // Also detect "Various Artists" TPE2 as compilation
+        if (!$isCompilation && strtolower(trim($albumArtistName)) === 'various artists') {
+            $isCompilation = true;
+        }
+
+        // Determine album-level artist and optional per-song artist
+        if ($isCompilation) {
+            // Album belongs to "Various Artists"; song stores its own performer
+            $artistId      = $this->getArtistId('Various Artists', $user);
+            $trackArtistId = $this->getArtistId($trackArtistName, $user);
+        } else {
+            // Normal album: group by album artist (TPE2 preferred over TPE1)
+            $artistId      = $this->getArtistId($albumArtistName, $user);
+            $trackArtistId = null; // inherit from album
+        }
+
         // Propagate ID3 genre to the artist if not already set (manual tags take priority)
         if (!empty($metadata['genre'])) {
             $this->db->prepare(
@@ -472,12 +502,20 @@ class Scanner {
         }
         $albumId = $this->getAlbumId($artistId, $albumName, true, $metadata['genre']);
 
+        // Mark album as compilation if detected during scan
+        if ($isCompilation) {
+            $this->db->prepare(
+                "UPDATE albums SET is_compilation = 1 WHERE id = ? AND is_compilation = 0"
+            )->execute([$albumId]);
+        }
+
         $stmt = $this->db->prepare('
-            INSERT INTO songs (album_id, title, track_number, duration, file_path, file_hash)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO songs (album_id, artist_id, title, track_number, duration, file_path, file_hash)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
         ');
         $stmt->execute([
             $albumId,
+            $trackArtistId,
             $title,
             $metadata['trackNumber'],
             $metadata['duration'],
@@ -864,6 +902,8 @@ class Scanner {
             'duration' => 0,
             'trackNumber' => 0,
             'artist' => null,
+            'albumArtist' => null,
+            'isCompilation' => false,
             'album' => null,
             'title' => null,
             'genre' => null,
@@ -896,9 +936,21 @@ class Scanner {
                 }
             }
 
-            // Artist, Album, Title
+            // Artist (TPE1), Album Artist (TPE2), Album, Title, Genre
             if (isset($fileInfo['comments']['artist'][0])) {
                 $result['artist'] = $this->cleanArtistName($fileInfo['comments']['artist'][0]);
+            }
+            // TPE2 → getID3 maps it to 'band' after CopyTagsToComments
+            if (isset($fileInfo['comments']['band'][0])) {
+                $result['albumArtist'] = trim($fileInfo['comments']['band'][0]);
+            } elseif (isset($fileInfo['comments']['album_artist'][0])) {
+                $result['albumArtist'] = trim($fileInfo['comments']['album_artist'][0]);
+            }
+            // TCMP (iTunes compilation flag)
+            if (isset($fileInfo['comments']['part_of_a_compilation'][0])) {
+                $result['isCompilation'] = (int)$fileInfo['comments']['part_of_a_compilation'][0] === 1;
+            } elseif (isset($fileInfo['id3v2']['TCMP'][0]['data'])) {
+                $result['isCompilation'] = (int)$fileInfo['id3v2']['TCMP'][0]['data'] === 1;
             }
             if (isset($fileInfo['comments']['album'][0]))  $result['album']  = trim($fileInfo['comments']['album'][0]);
             if (isset($fileInfo['comments']['title'][0]))  $result['title']  = trim($fileInfo['comments']['title'][0]);

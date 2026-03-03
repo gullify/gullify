@@ -167,11 +167,13 @@ try {
         } else {
             $stmt = $conn->prepare("
                 SELECT s.id, s.title, s.track_number, s.duration, s.file_path, s.file_hash,
-                       al.name AS album_name, al.year,
-                       ar.name AS artist_name, ar.user
+                       al.name AS album_name, al.year, al.id AS album_id,
+                       ar.name AS artist_name, ar.user,
+                       ta.id AS track_artist_id, ta.name AS track_artist_name
                 FROM songs s
                 JOIN albums al ON s.album_id = al.id
                 JOIN artists ar ON al.artist_id = ar.id
+                LEFT JOIN artists ta ON s.artist_id = ta.id
                 WHERE s.id = ? AND ar.user = ?
             ");
             $stmt->execute([$songId, $user]);
@@ -188,20 +190,23 @@ try {
                 $ext      = strtoupper(pathinfo($song['file_path'], PATHINFO_EXTENSION));
 
                 $response['data'] = [
-                    'id'           => (int)$song['id'],
-                    'title'        => $song['title'],
-                    'artist'       => $song['artist_name'],
-                    'album'        => $song['album_name'],
-                    'year'         => $song['year'],
-                    'track_number' => $song['track_number'],
-                    'duration'     => (int)$song['duration'],
-                    'file_path'    => $song['file_path'],
-                    'abs_path'     => $absPath,
-                    'file_hash'    => $song['file_hash'],
-                    'format'       => $ext ?: '?',
-                    'file_size'    => $stat['size'],
-                    'mtime'        => $stat['mtime'],
-                    'storage_type' => $storage->getType(),
+                    'id'              => (int)$song['id'],
+                    'title'           => $song['title'],
+                    'artist'          => $song['artist_name'],
+                    'artistId'        => $song['track_artist_id'] ? (int)$song['track_artist_id'] : null,
+                    'artistName'      => $song['track_artist_name'] ?: null,
+                    'album'           => $song['album_name'],
+                    'albumId'         => (int)$song['album_id'],
+                    'year'            => $song['year'],
+                    'track_number'    => $song['track_number'],
+                    'duration'        => (int)$song['duration'],
+                    'file_path'       => $song['file_path'],
+                    'abs_path'        => $absPath,
+                    'file_hash'       => $song['file_hash'],
+                    'format'          => $ext ?: '?',
+                    'file_size'       => $stat['size'],
+                    'mtime'           => $stat['mtime'],
+                    'storage_type'    => $storage->getType(),
                 ];
             }
         }
@@ -219,10 +224,11 @@ try {
         $stmt->execute([$albumId]);
         $album = $stmt->fetch();
 
-        // Get songs
+        // Get songs with optional per-track artist (for compilations)
         $stmt = $conn->prepare('
-            SELECT s.*
+            SELECT s.*, ta.id AS track_artist_id, ta.name AS track_artist_name
             FROM songs s
+            LEFT JOIN artists ta ON s.artist_id = ta.id
             WHERE s.album_id = ?
             ORDER BY s.track_number ASC, s.title ASC
         ');
@@ -237,7 +243,9 @@ try {
                 'duration' => (int)$row['duration'],
                 'filePath' => $row['file_path'],
                 'albumId' => $row['album_id'],
-                'artworkUrl' => albumArtworkUrl((int)$row['album_id'])
+                'artworkUrl' => albumArtworkUrl((int)$row['album_id']),
+                'artistId' => $row['track_artist_id'] ? (int)$row['track_artist_id'] : null,
+                'artistName' => $row['track_artist_name'] ?: null,
             ];
         }
 

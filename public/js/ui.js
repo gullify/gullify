@@ -3450,7 +3450,7 @@
                                     </div>
                                     <div class="song-info">
                                         <div class="song-title">${song.title}</div>
-                                        <div class="song-artist">${albumData.artist.name || t('common.unknown_artist', 'Artiste inconnu')}</div>
+                                        <div class="song-artist">${escapeHtml(song.artistName || albumData.artist.name || t('common.unknown_artist', 'Artiste inconnu'))}</div>
                                     </div>
                                     <div class="song-duration">${formatDuration(song.duration)}</div>
                                     <div class="song-actions">
@@ -3994,7 +3994,7 @@
             const tracks = songs.map(song => ({
                 id: song.id,
                 title: song.title,
-                artist: albumData.artist.name,
+                artist: song.artistName || albumData.artist.name,
                 album: albumData.name,
                 filePath: song.filePath,
                 artworkUrl: song.artworkUrl,
@@ -4193,7 +4193,7 @@
             const track = {
                 id: song.id,
                 title: song.title,
-                artist: window.currentAlbumData.artist.name,
+                artist: song.artistName || window.currentAlbumData.artist.name,
                 filePath: song.filePath,
                 artworkUrl: song.artworkUrl,
                 duration: song.duration

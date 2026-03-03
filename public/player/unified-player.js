@@ -1713,7 +1713,7 @@ class UnifiedMusicPlayer {
             let tracks = songs.map(song => ({
                 id: song.id,
                 title: song.title,
-                artist: albumData.artist?.name || song.artistName || 'Unknown',
+                artist: song.artistName || albumData.artist?.name || 'Unknown',
                 album: albumData.name || song.albumName || 'Unknown',
                 filePath: song.filePath || song.file_path,
                 artworkUrl: song.artworkUrl || albumData.artwork || null,
