@@ -4203,420 +4203,450 @@
             }
         }
 
-        function renderSettings() {
+        // ── Settings section HTML helpers ───────────────────────────────────────
+
+        function getSettingsAppearanceHtml() {
+            const currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
+            const isDark = currentTheme === 'dark';
+            return `
+                <div class="settings-section">
+                    <div class="settings-section-title"><i class="ri-palette-line"></i> ${t('settings.appearance', 'Apparence')}</div>
+                    <div class="settings-row">
+                        <div class="settings-row-label">
+                            <span>${t('settings.theme', 'Thème')}</span>
+                            <span>${t('settings.theme_desc', 'Basculer entre le mode clair et sombre')}</span>
+                        </div>
+                        <button class="rescan-btn" id="settingsThemeBtn" onclick="toggleTheme(); updateThemeButton();" style="flex-shrink:0;">
+                            <i class="${isDark ? 'ri-sun-line' : 'ri-moon-line'}" id="themeIcon"></i>
+                            <span id="themeText">${isDark ? t('settings.light_mode', 'Mode Clair') : t('settings.dark_mode', 'Mode Sombre')}</span>
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+
+        function getSettingsLanguageHtml() {
+            return `
+                <div class="settings-section">
+                    <div class="settings-section-title"><i class="ri-translate-2"></i> ${t('settings.language', 'Langue')}</div>
+                    <div class="settings-row">
+                        <div class="settings-row-label">
+                            <span>${t('settings.interface_lang', "Langue de l'interface")}</span>
+                            <span>${t('settings.change_lang', "Changer la langue d'affichage")}</span>
+                        </div>
+                        <div style="display:flex;gap:8px;flex-shrink:0;">
+                            <button class="rescan-btn" onclick="setLang('fr')" id="langFrBtn" style="${app.lang === 'fr' ? 'background:var(--accent);color:#fff;' : ''}">🇫🇷 Français</button>
+                            <button class="rescan-btn" onclick="setLang('en')" id="langEnBtn" style="${app.lang === 'en' ? 'background:var(--accent);color:#fff;' : ''}">🇬🇧 English</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function getSettingsLibraryHtml() {
+            return `
+                <div class="settings-section">
+                    <div class="settings-section-title"><i class="ri-music-library-line"></i> ${t('scan.library', 'Bibliothèque')}</div>
+                    <div class="settings-row">
+                        <div class="settings-row-label">
+                            <span>${t('scan.quick', 'Scan rapide')}</span>
+                            <span>${t('scan.quick_desc', 'Détecte les nouveaux fichiers sans relire les métadonnées ID3 ni les pochettes')}</span>
+                        </div>
+                        <button class="rescan-btn" onclick="window.triggerLibraryScan('fast', this)" style="flex-shrink:0;">
+                            <i class="ri-folder-search-line"></i>
+                            <span>${t('common.run', 'Lancer')}</span>
+                        </button>
+                    </div>
+                    <div class="settings-row">
+                        <div class="settings-row-label">
+                            <span>${t('scan.full', 'Scan complet')}</span>
+                            <span>${t('scan.full_desc', 'Relit toutes les métadonnées ID3 et met à jour les pochettes')}</span>
+                        </div>
+                        <button class="rescan-btn" onclick="window.triggerLibraryScan('force', this)" style="flex-shrink:0;">
+                            <i class="ri-refresh-line"></i>
+                            <span>${t('common.run', 'Lancer')}</span>
+                        </button>
+                    </div>
+                    <div class="settings-row">
+                        <div class="settings-row-label">
+                            <span>${t('scan.artwork', 'Scan artwork')}</span>
+                            <span>${t('scan.artwork_desc', 'Met à jour les pochettes manquantes uniquement (cover.jpg + ID3 embarqué)')}</span>
+                        </div>
+                        <button class="rescan-btn" onclick="window.triggerLibraryScan('artwork', this)" style="flex-shrink:0;">
+                            <i class="ri-image-line"></i>
+                            <span>${t('common.run', 'Lancer')}</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div id="scan-progress-container" style="display:none; margin-top:-10px; margin-bottom:20px;">
+                    <div class="settings-section" style="border:1px solid var(--accent);background:rgba(var(--accent-rgb),0.05);">
+                        <div class="settings-section-title"><i class="ri-loader-4-line"></i> ${t('scan.progress', 'Progression du scan')}</div>
+                        <div style="display:flex;justify-content:space-between;margin-bottom:6px;font-size:13px;">
+                            <span id="scan-status-text" style="font-weight:600;">${t('scan.initializing', 'Initialisation...')}</span>
+                            <span id="scan-percent-text" style="color:var(--accent);font-weight:600;">0%</span>
+                        </div>
+                        <div style="width:100%;height:8px;background:var(--hover-bg);border-radius:4px;overflow:hidden;margin-bottom:6px;">
+                            <div id="scan-progress-bar" style="width:0%;height:100%;background:var(--accent);border-radius:4px;transition:width 0.3s ease;"></div>
+                        </div>
+                        <div id="scan-current-file" style="font-size:11px;color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:monospace;"></div>
+                    </div>
+                </div>
+
+                <div class="settings-section">
+                    <div class="settings-section-title"><i class="ri-hard-drive-line"></i> ${t('settings.storage','Stockage')}</div>
+                    <div class="settings-row">
+                        <div class="settings-row-label">
+                            <span>${t('settings.storage_source','Source de la bibliothèque')}</span>
+                            <span>${app.storageType === 'sftp'
+                                ? `<span style="color:#00b894"><i class="ri-server-line"></i> SFTP — ${escapeHtml(app.sftpHost)}${app.sftpPath ? ':' + escapeHtml(app.sftpPath) : ''}</span>`
+                                : app.musicDir ? `<i class="ri-folder-line"></i> ${escapeHtml(app.musicDir)}` : `<span style="color:var(--text-secondary)">${t('settings.not_configured','Non configuré')}</span>`
+                            }</span>
+                        </div>
+                        <button class="rescan-btn" onclick="openStorageModal()" style="flex-shrink:0;">
+                            <i class="ri-settings-3-line"></i> ${t('settings.configure','Configurer')}
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+
+        function getSettingsAdminHtml() {
+            return `
+                <div class="settings-section" id="adminUsersSection">
+                    <div class="settings-section-title"><i class="ri-shield-user-line"></i> ${t('admin.users_title','Administration — Utilisateurs')}</div>
+
+                    <div id="adminUsersList" style="margin-bottom:20px;">
+                        <div style="color:var(--text-secondary);font-size:13px;padding:8px 0;">${t('common.loading','Chargement...')}</div>
+                    </div>
+
+                    <div style="border-top:1px solid var(--border-color,rgba(128,128,128,0.1));padding-top:16px;">
+                        <div style="font-size:11px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.6px;margin-bottom:12px;">${t('settings.new_user','Nouvel utilisateur')}</div>
+                        <div class="admin-form-grid">
+                            <input type="text" id="newUsername" placeholder="${t('setup.username',"Nom d'utilisateur")}" class="admin-input">
+                            <input type="text" id="newFullName" placeholder="${t('setup.full_name','Nom complet')}" class="admin-input">
+                            <input type="password" id="newPassword" placeholder="${t('settings.password_ph','Mot de passe (min 6 car.)')}" class="admin-input">
+                            <select id="newMusicDir" class="admin-input">
+                                <option value="">${t('settings.music_dir_placeholder','— Répertoire musique —')}</option>
+                            </select>
+                        </div>
+                        <div class="admin-form-footer">
+                            <label>
+                                <input type="checkbox" id="newIsAdmin"> ${t('settings.administrator','Administrateur')}
+                            </label>
+                            <button class="rescan-btn" id="createUserBtn" onclick="adminCreateUser()" style="margin-left:auto;">
+                                <i class="ri-user-add-line"></i> ${t('settings.create_user',"Créer l'utilisateur")}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="settings-section" id="adminDirsSection">
+                    <div class="settings-section-title"><i class="ri-folder-music-line"></i> ${t('admin.dirs_title','Administration — Répertoires')}</div>
+                    <div id="adminDirsList">
+                        <div style="color:var(--text-secondary);font-size:13px;padding:8px 0;">${t('common.loading','Chargement...')}</div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function getSettingsSectionHtml(section) {
+            switch (section) {
+                case 'appearance': return getSettingsAppearanceHtml();
+                case 'language':   return getSettingsLanguageHtml();
+                case 'library':    return getSettingsLibraryHtml();
+                case 'admin':      return getSettingsAdminHtml();
+                default:           return getSettingsAppearanceHtml();
+            }
+        }
+
+        function initAdminSection() {
+            if (!app.isAdmin) return;
+            const ADMIN_URL = `${BASE_PATH}/api/admin.php`;
+
+            const adminFetch = async (action, body = null) => {
+                const opts = { method: body ? 'POST' : 'GET' };
+                if (body) { const fd = new FormData(); Object.entries(body).forEach(([k,v]) => fd.append(k, v)); opts.body = fd; }
+                const r = await fetch(`${ADMIN_URL}?action=${action}`, opts);
+                return r.json();
+            };
+
+            const loadAdminUsers = async () => {
+                const result = await adminFetch('list_users');
+                const container = document.getElementById('adminUsersList');
+                if (!container) return;
+                if (!result.success) { container.innerHTML = `<p style="color:#ff6b6b">${result.error}</p>`; return; }
+
+                container.innerHTML = `
+                    <table class="admin-table">
+                        <thead><tr><th>${t('admin.col_user','Utilisateur')}</th><th>${t('admin.col_name','Nom')}</th><th>${t('admin.col_storage','Stockage')}</th><th>${t('admin.col_role','Rôle')}</th><th>${t('admin.col_status','Statut')}</th><th style="text-align:right">${t('admin.col_actions','Actions')}</th></tr></thead>
+                        <tbody>
+                        ${result.data.map(u => `
+                            <tr class="${!u.is_active ? 'admin-row-inactive' : ''}">
+                                <td data-label="${t('admin.col_user','Utilisateur')}"><strong>${escapeHtml(u.username)}</strong></td>
+                                <td data-label="${t('admin.col_name','Nom')}">${escapeHtml(u.full_name || '—')}</td>
+                                <td data-label="${t('admin.col_storage','Stockage')}">
+                                    ${u.storage_type === 'sftp'
+                                        ? `<span class="admin-dir-badge" style="color:#00b894;border-color:rgba(0,184,148,.4)"><i class="ri-server-line"></i> ${escapeHtml(u.sftp_host || '?')}</span>`
+                                        : `<span class="admin-dir-badge"><i class="ri-folder-line"></i> ${escapeHtml(u.music_directory || '—')}</span>`
+                                    }
+                                </td>
+                                <td data-label="${t('admin.col_role','Rôle')}">${u.is_admin ? '<span class="admin-badge">Admin</span>' : `<span style="font-size:12px;color:var(--text-secondary)">${t('settings.user_role','Utilisateur')}</span>`}</td>
+                                <td data-label="${t('admin.col_status','Statut')}">${u.is_active ? `<span style="color:#00b894;font-size:12px;font-weight:600">${t('settings.active','● Actif')}</span>` : `<span style="color:#ff6b6b;font-size:12px;font-weight:600">${t('settings.inactive','● Inactif')}</span>`}</td>
+                                <td data-label="${t('admin.col_actions','Actions')}" class="admin-actions">
+                                    <button class="admin-btn" onclick="adminChangePassword(${u.id}, '${jsStr(u.username)}')" title="${t('settings.change_password','Changer le mot de passe')}"><i class="ri-key-line"></i></button>
+                                    <button class="admin-btn" onclick="adminChangeDir(${u.id}, '${jsStr(u.username)}', '${jsStr(u.music_directory || '')}')" title="${t('settings.change_dir','Changer le répertoire local')}"><i class="ri-folder-line"></i></button>
+                                    <button class="admin-btn ${u.storage_type === 'sftp' ? 'admin-btn-sftp' : ''}" onclick="adminEditSftp(${u.id}, '${jsStr(u.username)}', '${jsStr(u.storage_type || 'local')}', '${jsStr(u.sftp_host || '')}', ${u.sftp_port || 22}, '${jsStr(u.sftp_user || '')}', '${jsStr(u.sftp_path || '')}')" title="${t('settings.sftp_settings','Paramètres SFTP')}"><i class="ri-server-line"></i></button>
+                                    <button class="admin-btn" onclick="adminToggleAdmin(${u.id})" title="${u.is_admin ? t('admin.remove_admin','Retirer admin') : t('admin.make_admin','Rendre admin')}"><i class="ri-shield-${u.is_admin ? 'fill' : 'line'}"></i></button>
+                                    <button class="admin-btn" onclick="adminToggleActive(${u.id})" title="${u.is_active ? t('settings.deactivate','Désactiver') : t('settings.activate','Activer')}"><i class="ri-toggle-${u.is_active ? 'fill' : 'line'}"></i></button>
+                                    <button class="admin-btn admin-btn-danger" onclick="adminDeleteUser(${u.id}, '${escapeHtml(u.username)}')" title="${t('common.delete','Supprimer')}"><i class="ri-delete-bin-line"></i></button>
+                                </td>
+                            </tr>
+                        `).join('')}
+                        </tbody>
+                    </table>
+                `;
+            };
+
+            const loadAdminDirs = async () => {
+                const result = await adminFetch('list_directories');
+                const container = document.getElementById('adminDirsList');
+                if (!container) return;
+                if (!result.success) { container.innerHTML = `<p style="color:#ff6b6b">${result.error}</p>`; return; }
+
+                const sel = document.getElementById('newMusicDir');
+                if (sel) {
+                    result.data.forEach(d => {
+                        const opt = document.createElement('option');
+                        opt.value = d; opt.textContent = d;
+                        sel.appendChild(opt);
+                    });
+                }
+
+                container.innerHTML = `
+                    <div style="font-size:13px;color:var(--text-secondary);margin-bottom:8px;">${t('settings.dirs_in','Répertoires dans')} <code>${escapeHtml(result.base_path)}</code></div>
+                    <div style="display:flex;flex-wrap:wrap;gap:8px;">
+                        ${result.data.map(d => `<span class="admin-dir-badge"><i class="ri-folder-music-line"></i> ${escapeHtml(d)}</span>`).join('')}
+                        ${result.data.length === 0 ? `<span style="color:var(--text-secondary)">${t('settings.no_dirs','Aucun répertoire trouvé')}</span>` : ''}
+                    </div>
+                `;
+            };
+
+            window.adminCreateUser = async () => {
+                const username = document.getElementById('newUsername')?.value.trim();
+                const password = document.getElementById('newPassword')?.value;
+                const fullName = document.getElementById('newFullName')?.value.trim();
+                const musicDir = document.getElementById('newMusicDir')?.value;
+                const isAdmin  = document.getElementById('newIsAdmin')?.checked ? 1 : 0;
+
+                if (!username || !password) { showToast(t('setup.username_pass_required', "Nom d'utilisateur et mot de passe requis"), 'error'); return; }
+
+                const result = await adminFetch('create_user', { username, password, full_name: fullName, music_directory: musicDir, is_admin: isAdmin });
+                if (result.success) {
+                    showToast(t('toast.user_created', 'Utilisateur créé'), 'success');
+                    document.getElementById('newUsername').value = '';
+                    document.getElementById('newPassword').value = '';
+                    document.getElementById('newFullName').value = '';
+                    document.getElementById('newMusicDir').value = '';
+                    document.getElementById('newIsAdmin').checked = false;
+                    loadAdminUsers();
+                } else {
+                    showToast(result.error, 'error');
+                }
+            };
+
+            window.adminDeleteUser = async (userId, username) => {
+                if (!confirm(t('confirm.delete_user',"Supprimer l'utilisateur \"{name}\" ? Cette action est irréversible.").replace('{name}', username))) return;
+                const result = await adminFetch('delete_user', { user_id: userId });
+                if (result.success) { showToast(t('toast.user_deleted', 'Utilisateur supprimé'), 'success'); loadAdminUsers(); }
+                else showToast(result.error, 'error');
+            };
+
+            window.adminToggleActive = async (userId) => {
+                const result = await adminFetch('toggle_active', { user_id: userId });
+                if (result.success) loadAdminUsers();
+                else showToast(result.error, 'error');
+            };
+
+            window.adminToggleAdmin = async (userId) => {
+                const result = await adminFetch('toggle_admin', { user_id: userId });
+                if (result.success) loadAdminUsers();
+                else showToast(result.error, 'error');
+            };
+
+            window.adminChangePassword = async (userId, username) => {
+                const password = prompt(t('confirm.change_password','Nouveau mot de passe pour "{name}" (min 6 caractères) :').replace('{name}', username));
+                if (!password) return;
+                const result = await adminFetch('update_password', { user_id: userId, password });
+                if (result.success) showToast(t('toast.password_updated', 'Mot de passe mis à jour'), 'success');
+                else showToast(result.error, 'error');
+            };
+
+            window.adminChangeDir = async (userId, username, currentDir) => {
+                const dirs = await adminFetch('list_directories');
+                if (!dirs.success) { showToast(dirs.error, 'error'); return; }
+
+                const options = dirs.data.map(d => `<option value="${escapeHtml(d)}" ${d === currentDir ? 'selected' : ''}>${escapeHtml(d)}</option>`).join('');
+                const modal = document.createElement('div');
+                modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:99999;display:flex;align-items:center;justify-content:center;';
+                modal.innerHTML = `
+                    <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:16px;padding:28px;min-width:320px;max-width:480px;width:90%;">
+                        <h3 style="margin-bottom:16px;">${t('settings.dir_of','Répertoire de {name}').replace('{name}', escapeHtml(username))}</h3>
+                        <select id="dirModalSelect" class="admin-input" style="width:100%;margin-bottom:16px;">
+                            <option value="">${t('settings.none_option','— Aucun —')}</option>
+                            ${options}
+                        </select>
+                        <div style="display:flex;gap:8px;justify-content:flex-end;">
+                            <button class="rescan-btn" onclick="this.closest('div[style]').remove()">${t('common.cancel','Annuler')}</button>
+                            <button class="rescan-btn" id="dirModalSave" style="background:var(--accent);color:#fff;">${t('common.save','Enregistrer')}</button>
+                        </div>
+                    </div>
+                `;
+                document.body.appendChild(modal);
+                document.getElementById('dirModalSave').onclick = async () => {
+                    const dir = document.getElementById('dirModalSelect').value;
+                    const result = await adminFetch('update_directory', { user_id: userId, music_directory: dir });
+                    modal.remove();
+                    if (result.success) { showToast(t('toast.dir_updated', 'Répertoire mis à jour'), 'success'); loadAdminUsers(); }
+                    else showToast(result.error, 'error');
+                };
+            };
+
+            // ── SFTP settings modal ─────────────────────────────────────────────
+            window.adminEditSftp = (userId, username, storageType, sftpHost, sftpPort, sftpUser, sftpPath) => {
+                const modal = document.createElement('div');
+                modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:99999;display:flex;align-items:center;justify-content:center;';
+                modal.innerHTML = `
+                    <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:16px;padding:28px;min-width:360px;max-width:520px;width:92%;">
+                        <h3 style="margin-bottom:18px;"><i class="ri-server-line"></i> ${t('settings.storage_of','Stockage — {name}').replace('{name}', escapeHtml(username))}</h3>
+
+                        <div style="margin-bottom:14px;">
+                            <label style="font-size:13px;display:block;margin-bottom:6px;">${t('admin.storage_type','Type de stockage')}</label>
+                            <select id="sftpModalType" class="admin-input" style="width:100%" onchange="document.getElementById('sftpFields').style.display=this.value==='sftp'?'block':'none'">
+                                <option value="local" ${storageType !== 'sftp' ? 'selected' : ''}>${t('settings.local_storage','Local (répertoire sur le serveur)')}</option>
+                                <option value="sftp" ${storageType === 'sftp' ? 'selected' : ''}>${t('settings.sftp_storage','SFTP (serveur distant)')}</option>
+                            </select>
+                        </div>
+
+                        <div id="sftpFields" style="display:${storageType === 'sftp' ? 'block' : 'none'}">
+                            <div style="display:grid;grid-template-columns:1fr auto;gap:8px;margin-bottom:10px;">
+                                <div>
+                                    <label style="font-size:12px;display:block;margin-bottom:4px;">${t('settings.host','Hôte')}</label>
+                                    <input id="sftpHost" class="admin-input" style="width:100%" placeholder="sftp.example.com" value="${escapeHtml(sftpHost)}">
+                                </div>
+                                <div style="width:80px;">
+                                    <label style="font-size:12px;display:block;margin-bottom:4px;">${t('setup.sftp_port','Port')}</label>
+                                    <input id="sftpPort" class="admin-input" type="number" style="width:100%" value="${sftpPort || 22}">
+                                </div>
+                            </div>
+                            <div style="margin-bottom:10px;">
+                                <label style="font-size:12px;display:block;margin-bottom:4px;">${t('setup.sftp_user','Utilisateur SFTP')}</label>
+                                <input id="sftpUser" class="admin-input" style="width:100%" placeholder="user" value="${escapeHtml(sftpUser)}">
+                            </div>
+                            <div style="margin-bottom:10px;">
+                                <label style="font-size:12px;display:block;margin-bottom:4px;">${t('settings.sftp_pass_label','Mot de passe SFTP')} <span style="color:var(--text-secondary);font-size:11px">${t('settings.sftp_pass_hint',"(laisser vide pour conserver l'actuel)")}</span></label>
+                                <input id="sftpPassword" class="admin-input" type="password" style="width:100%" placeholder="••••••••">
+                            </div>
+                            <div style="margin-bottom:14px;">
+                                <label style="font-size:12px;display:block;margin-bottom:4px;">${t('settings.sftp_path_label','Chemin distant (racine musique)')}</label>
+                                <input id="sftpPath" class="admin-input" style="width:100%" placeholder="/home/user/music" value="${escapeHtml(sftpPath)}">
+                            </div>
+                            <div style="margin-bottom:16px;">
+                                <button id="sftpTestBtn" class="rescan-btn" style="width:100%;justify-content:center;" onclick="adminTestSftp(${userId})">
+                                    <i class="ri-wifi-line"></i> ${t('setup.test_connection','Tester la connexion')}
+                                </button>
+                                <div id="sftpTestResult" style="margin-top:6px;font-size:12px;min-height:16px;"></div>
+                            </div>
+                        </div>
+
+                        <div style="display:flex;gap:8px;justify-content:flex-end;">
+                            <button class="rescan-btn" onclick="this.closest('div[style*=fixed]').remove()">${t('common.cancel','Annuler')}</button>
+                            <button class="rescan-btn" id="sftpSaveBtn" style="background:var(--accent);color:#fff;" onclick="adminSaveSftp(${userId})">
+                                <i class="ri-save-line"></i> ${t('common.save','Enregistrer')}
+                            </button>
+                        </div>
+                    </div>
+                `;
+                document.body.appendChild(modal);
+            };
+
+            window.adminTestSftp = async (userId) => {
+                const btn    = document.getElementById('sftpTestBtn');
+                const result = document.getElementById('sftpTestResult');
+                btn.disabled = true;
+                result.textContent = t('settings.testing', 'Test en cours…');
+                result.style.color = 'var(--text-secondary)';
+
+                const r = await adminFetch('test_sftp_connection', {
+                    user_id:       userId,
+                    sftp_host:     document.getElementById('sftpHost')?.value || '',
+                    sftp_port:     document.getElementById('sftpPort')?.value || '22',
+                    sftp_user:     document.getElementById('sftpUser')?.value || '',
+                    sftp_password: document.getElementById('sftpPassword')?.value || '',
+                    sftp_path:     document.getElementById('sftpPath')?.value || '',
+                });
+
+                btn.disabled = false;
+                if (r.success) {
+                    result.textContent = r.message || t('admin.connection_ok', '✓ Connexion réussie');
+                    result.style.color = '#00b894';
+                } else {
+                    result.textContent = r.error || t('admin.connection_fail', '✗ Erreur inconnue');
+                    result.style.color = '#ff6b6b';
+                }
+            };
+
+            window.adminSaveSftp = async (userId) => {
+                const storageType = document.getElementById('sftpModalType')?.value || 'local';
+                const r = await adminFetch('update_sftp', {
+                    user_id:       userId,
+                    storage_type:  storageType,
+                    sftp_host:     document.getElementById('sftpHost')?.value || '',
+                    sftp_port:     document.getElementById('sftpPort')?.value || '22',
+                    sftp_user:     document.getElementById('sftpUser')?.value || '',
+                    sftp_password: document.getElementById('sftpPassword')?.value || '',
+                    sftp_path:     document.getElementById('sftpPath')?.value || '',
+                });
+                document.querySelector('div[style*=fixed]')?.remove();
+                if (r.success) { showToast(t('toast.storage_saved','Paramètres de stockage enregistrés'), 'success'); loadAdminUsers(); }
+                else showToast(r.error || t('common.error','Erreur'), 'error');
+            };
+
+            loadAdminUsers();
+            loadAdminDirs();
+        }
+
+        function renderSettings(activeSection = 'appearance') {
             hideAlbumBackground();
             contentTitle.textContent = t('settings.title', 'Paramètres');
 
-            const currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
-            const isDark = currentTheme === 'dark';
+            const sections = [
+                { id: 'appearance', icon: 'ri-palette-line',       label: t('settings.appearance', 'Apparence') },
+                { id: 'language',   icon: 'ri-translate-2',        label: t('settings.language', 'Langue') },
+                { id: 'library',    icon: 'ri-music-library-line', label: t('scan.library', 'Bibliothèque') },
+                ...(app.isAdmin ? [{ id: 'admin', icon: 'ri-shield-user-line', label: t('settings.admin_panel', 'Administration') }] : [])
+            ];
 
             contentBody.innerHTML = `
                 <div class="settings-page">
-                    <div class="settings-section">
-                        <div class="settings-section-title"><i class="ri-palette-line"></i> ${t('settings.appearance', 'Apparence')}</div>
-                        <div class="settings-row">
-                            <div class="settings-row-label">
-                                <span>${t('settings.theme', 'Thème')}</span>
-                                <span>${t('settings.theme_desc', 'Basculer entre le mode clair et sombre')}</span>
-                            </div>
-                            <button class="rescan-btn" id="settingsThemeBtn" onclick="toggleTheme(); updateThemeButton();" style="flex-shrink:0;">
-                                <i class="${isDark ? 'ri-sun-line' : 'ri-moon-line'}" id="themeIcon"></i>
-                                <span id="themeText">${isDark ? t('settings.light_mode', 'Mode Clair') : t('settings.dark_mode', 'Mode Sombre')}</span>
-                            </button>
-                        </div>
-                    </div>
-
-                    <div class="settings-section">
-                        <div class="settings-section-title"><i class="ri-translate-2"></i> ${t('settings.language', 'Langue')}</div>
-                        <div class="settings-row">
-                            <div class="settings-row-label">
-                                <span>${t('settings.interface_lang', "Langue de l'interface")}</span>
-                                <span>${t('settings.change_lang', "Changer la langue d'affichage")}</span>
-                            </div>
-                            <div style="display:flex;gap:8px;flex-shrink:0;">
-                                <button class="rescan-btn" onclick="setLang('fr')" id="langFrBtn" style="${app.lang === 'fr' ? 'background:var(--accent);color:#fff;' : ''}">🇫🇷 Français</button>
-                                <button class="rescan-btn" onclick="setLang('en')" id="langEnBtn" style="${app.lang === 'en' ? 'background:var(--accent);color:#fff;' : ''}">🇬🇧 English</button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="settings-section">
-                        <div class="settings-section-title"><i class="ri-music-library-line"></i> ${t('scan.library', 'Bibliothèque')}</div>
-                        <div class="settings-row">
-                            <div class="settings-row-label">
-                                <span>${t('scan.quick', 'Scan rapide')}</span>
-                                <span>${t('scan.quick_desc', 'Détecte les nouveaux fichiers sans relire les métadonnées ID3 ni les pochettes')}</span>
-                            </div>
-                            <button class="rescan-btn" onclick="window.triggerLibraryScan('fast', this)" style="flex-shrink:0;">
-                                <i class="ri-folder-search-line"></i>
-                                <span>${t('common.run', 'Lancer')}</span>
-                            </button>
-                        </div>
-                        <div class="settings-row">
-                            <div class="settings-row-label">
-                                <span>${t('scan.full', 'Scan complet')}</span>
-                                <span>${t('scan.full_desc', 'Relit toutes les métadonnées ID3 et met à jour les pochettes')}</span>
-                            </div>
-                            <button class="rescan-btn" onclick="window.triggerLibraryScan('force', this)" style="flex-shrink:0;">
-                                <i class="ri-refresh-line"></i>
-                                <span>${t('common.run', 'Lancer')}</span>
-                            </button>
-                        </div>
-                        <div class="settings-row">
-                            <div class="settings-row-label">
-                                <span>${t('scan.artwork', 'Scan artwork')}</span>
-                                <span>${t('scan.artwork_desc', 'Met à jour les pochettes manquantes uniquement (cover.jpg + ID3 embarqué)')}</span>
-                            </div>
-                            <button class="rescan-btn" onclick="window.triggerLibraryScan('artwork', this)" style="flex-shrink:0;">
-                                <i class="ri-image-line"></i>
-                                <span>${t('common.run', 'Lancer')}</span>
-                            </button>
-                        </div>
-                    </div>
-
-                    <div id="scan-progress-container" style="display:none; margin-top:-10px; margin-bottom:20px;">
-                        <div class="settings-section" style="border:1px solid var(--accent);background:rgba(var(--accent-rgb),0.05);">
-                            <div class="settings-section-title"><i class="ri-loader-4-line"></i> ${t('scan.progress', 'Progression du scan')}</div>
-                            <div style="display:flex;justify-content:space-between;margin-bottom:6px;font-size:13px;">
-                                <span id="scan-status-text" style="font-weight:600;">${t('scan.initializing', 'Initialisation...')}</span>
-                                <span id="scan-percent-text" style="color:var(--accent);font-weight:600;">0%</span>
-                            </div>
-                            <div style="width:100%;height:8px;background:var(--hover-bg);border-radius:4px;overflow:hidden;margin-bottom:6px;">
-                                <div id="scan-progress-bar" style="width:0%;height:100%;background:var(--accent);border-radius:4px;transition:width 0.3s ease;"></div>
-                            </div>
-                            <div id="scan-current-file" style="font-size:11px;color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:monospace;"></div>
-                        </div>
-                    </div>
-
-                    <div class="settings-section">
-                        <div class="settings-section-title"><i class="ri-hard-drive-line"></i> ${t('settings.storage','Stockage')}</div>
-                        <div class="settings-row">
-                            <div class="settings-row-label">
-                                <span>${t('settings.storage_source','Source de la bibliothèque')}</span>
-                                <span>${app.storageType === 'sftp'
-                                    ? `<span style="color:#00b894"><i class="ri-server-line"></i> SFTP — ${escapeHtml(app.sftpHost)}${app.sftpPath ? ':' + escapeHtml(app.sftpPath) : ''}</span>`
-                                    : app.musicDir ? `<i class="ri-folder-line"></i> ${escapeHtml(app.musicDir)}` : `<span style="color:var(--text-secondary)">${t('settings.not_configured','Non configuré')}</span>`
-                                }</span>
-                            </div>
-                            <button class="rescan-btn" onclick="openStorageModal()" style="flex-shrink:0;">
-                                <i class="ri-settings-3-line"></i> ${t('settings.configure','Configurer')}
-                            </button>
-                        </div>
-                    </div>
-
-                    <div class="settings-section">
-                        <div class="settings-section-title"><i class="ri-user-line"></i> ${t('settings.account','Compte')}</div>
-                        <div class="settings-row">
-                            <div class="settings-row-label">
-                                <span>${t('settings.logged_as','Connecté en tant que')} <strong>${escapeHtml(app.currentUser)}</strong>${app.isAdmin ? ' <span class="admin-badge">Admin</span>' : ''}</span>
-                                <span>${t('settings.logout_desc','Se déconnecter de toutes les sessions Gullify')}</span>
-                            </div>
-                            <button class="rescan-btn" onclick="window.location.href='logout.php'" style="flex-shrink:0;background:rgba(255,107,107,0.12);color:#ff6b6b;border-color:rgba(255,107,107,0.3);">
+                    <div class="settings-layout">
+                        <nav class="settings-sidenav" id="settingsSidenav">
+                            ${sections.map(s => `
+                                <div class="settings-sidenav-item${s.id === activeSection ? ' active' : ''}" data-section="${s.id}" onclick="switchSettingsSection('${s.id}')">
+                                    <i class="${s.icon}"></i>
+                                    <span>${s.label}</span>
+                                </div>
+                            `).join('')}
+                            <div class="settings-sidenav-separator"></div>
+                            <div class="settings-sidenav-item settings-sidenav-danger" onclick="window.location.href='logout.php'">
                                 <i class="ri-logout-box-r-line"></i>
-                                <span>${t('settings.logout','Se déconnecter')}</span>
-                            </button>
-                        </div>
-                    </div>
-
-                    ${app.isAdmin ? `
-                    <div class="settings-section" id="adminUsersSection">
-                        <div class="settings-section-title"><i class="ri-shield-user-line"></i> ${t('admin.users_title','Administration — Utilisateurs')}</div>
-
-                        <div id="adminUsersList" style="margin-bottom:20px;">
-                            <div style="color:var(--text-secondary);font-size:13px;padding:8px 0;">${t('common.loading','Chargement...')}</div>
-                        </div>
-
-                        <div style="border-top:1px solid var(--border-color,rgba(128,128,128,0.1));padding-top:16px;">
-                            <div style="font-size:11px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.6px;margin-bottom:12px;">${t('settings.new_user','Nouvel utilisateur')}</div>
-                            <div class="admin-form-grid">
-                                <input type="text" id="newUsername" placeholder="${t('setup.username',"Nom d'utilisateur")}" class="admin-input">
-                                <input type="text" id="newFullName" placeholder="${t('setup.full_name','Nom complet')}" class="admin-input">
-                                <input type="password" id="newPassword" placeholder="${t('settings.password_ph','Mot de passe (min 6 car.)')}" class="admin-input">
-                                <select id="newMusicDir" class="admin-input">
-                                    <option value="">${t('settings.music_dir_placeholder','— Répertoire musique —')}</option>
-                                </select>
+                                <span>${t('settings.logout', 'Se déconnecter')}</span>
                             </div>
-                            <div class="admin-form-footer">
-                                <label>
-                                    <input type="checkbox" id="newIsAdmin"> ${t('settings.administrator','Administrateur')}
-                                </label>
-                                <button class="rescan-btn" id="createUserBtn" onclick="adminCreateUser()" style="margin-left:auto;">
-                                    <i class="ri-user-add-line"></i> ${t('settings.create_user',"Créer l'utilisateur")}
-                                </button>
-                            </div>
-                        </div>
+                        </nav>
+                        <div class="settings-main" id="settingsMain"></div>
                     </div>
-
-                    <div class="settings-section" id="adminDirsSection">
-                        <div class="settings-section-title"><i class="ri-folder-music-line"></i> ${t('admin.dirs_title','Administration — Répertoires')}</div>
-                        <div id="adminDirsList">
-                            <div style="color:var(--text-secondary);font-size:13px;padding:8px 0;">${t('common.loading','Chargement...')}</div>
-                        </div>
-                    </div>
-                    ` : ''}
                 </div>
             `;
-
-            // ── Admin functions ───────────────────────────────────────
-            if (app.isAdmin) {
-                const ADMIN_URL = `${BASE_PATH}/api/admin.php`;
-
-                const adminFetch = async (action, body = null) => {
-                    const opts = { method: body ? 'POST' : 'GET' };
-                    if (body) { const fd = new FormData(); Object.entries(body).forEach(([k,v]) => fd.append(k, v)); opts.body = fd; }
-                    const r = await fetch(`${ADMIN_URL}?action=${action}`, opts);
-                    return r.json();
-                };
-
-                // Load users list
-                const loadAdminUsers = async () => {
-                    const result = await adminFetch('list_users');
-                    const container = document.getElementById('adminUsersList');
-                    if (!container) return;
-                    if (!result.success) { container.innerHTML = `<p style="color:#ff6b6b">${result.error}</p>`; return; }
-
-                    container.innerHTML = `
-                        <table class="admin-table">
-                            <thead><tr><th>${t('admin.col_user','Utilisateur')}</th><th>${t('admin.col_name','Nom')}</th><th>${t('admin.col_storage','Stockage')}</th><th>${t('admin.col_role','Rôle')}</th><th>${t('admin.col_status','Statut')}</th><th style="text-align:right">${t('admin.col_actions','Actions')}</th></tr></thead>
-                            <tbody>
-                            ${result.data.map(u => `
-                                <tr class="${!u.is_active ? 'admin-row-inactive' : ''}">
-                                    <td data-label="${t('admin.col_user','Utilisateur')}"><strong>${escapeHtml(u.username)}</strong></td>
-                                    <td data-label="${t('admin.col_name','Nom')}">${escapeHtml(u.full_name || '—')}</td>
-                                    <td data-label="${t('admin.col_storage','Stockage')}">
-                                        ${u.storage_type === 'sftp'
-                                            ? `<span class="admin-dir-badge" style="color:#00b894;border-color:rgba(0,184,148,.4)"><i class="ri-server-line"></i> ${escapeHtml(u.sftp_host || '?')}</span>`
-                                            : `<span class="admin-dir-badge"><i class="ri-folder-line"></i> ${escapeHtml(u.music_directory || '—')}</span>`
-                                        }
-                                    </td>
-                                    <td data-label="${t('admin.col_role','Rôle')}">${u.is_admin ? '<span class="admin-badge">Admin</span>' : `<span style="font-size:12px;color:var(--text-secondary)">${t('settings.user_role','Utilisateur')}</span>`}</td>
-                                    <td data-label="${t('admin.col_status','Statut')}">${u.is_active ? `<span style="color:#00b894;font-size:12px;font-weight:600">${t('settings.active','● Actif')}</span>` : `<span style="color:#ff6b6b;font-size:12px;font-weight:600">${t('settings.inactive','● Inactif')}</span>`}</td>
-                                    <td data-label="${t('admin.col_actions','Actions')}" class="admin-actions">
-                                        <button class="admin-btn" onclick="adminChangePassword(${u.id}, '${jsStr(u.username)}')" title="${t('settings.change_password','Changer le mot de passe')}"><i class="ri-key-line"></i></button>
-                                        <button class="admin-btn" onclick="adminChangeDir(${u.id}, '${jsStr(u.username)}', '${jsStr(u.music_directory || '')}')" title="${t('settings.change_dir','Changer le répertoire local')}"><i class="ri-folder-line"></i></button>
-                                        <button class="admin-btn ${u.storage_type === 'sftp' ? 'admin-btn-sftp' : ''}" onclick="adminEditSftp(${u.id}, '${jsStr(u.username)}', '${jsStr(u.storage_type || 'local')}', '${jsStr(u.sftp_host || '')}', ${u.sftp_port || 22}, '${jsStr(u.sftp_user || '')}', '${jsStr(u.sftp_path || '')}')" title="${t('settings.sftp_settings','Paramètres SFTP')}"><i class="ri-server-line"></i></button>
-                                        <button class="admin-btn" onclick="adminToggleAdmin(${u.id})" title="${u.is_admin ? t('admin.remove_admin','Retirer admin') : t('admin.make_admin','Rendre admin')}"><i class="ri-shield-${u.is_admin ? 'fill' : 'line'}"></i></button>
-                                        <button class="admin-btn" onclick="adminToggleActive(${u.id})" title="${u.is_active ? t('settings.deactivate','Désactiver') : t('settings.activate','Activer')}"><i class="ri-toggle-${u.is_active ? 'fill' : 'line'}"></i></button>
-                                        <button class="admin-btn admin-btn-danger" onclick="adminDeleteUser(${u.id}, '${escapeHtml(u.username)}')" title="${t('common.delete','Supprimer')}"><i class="ri-delete-bin-line"></i></button>
-                                    </td>
-                                </tr>
-                            `).join('')}
-                            </tbody>
-                        </table>
-                    `;
-                };
-
-                // Load directories
-                const loadAdminDirs = async () => {
-                    const result = await adminFetch('list_directories');
-                    const container = document.getElementById('adminDirsList');
-                    if (!container) return;
-                    if (!result.success) { container.innerHTML = `<p style="color:#ff6b6b">${result.error}</p>`; return; }
-
-                    // Populate the new user directory select too
-                    const sel = document.getElementById('newMusicDir');
-                    if (sel) {
-                        result.data.forEach(d => {
-                            const opt = document.createElement('option');
-                            opt.value = d; opt.textContent = d;
-                            sel.appendChild(opt);
-                        });
-                    }
-
-                    container.innerHTML = `
-                        <div style="font-size:13px;color:var(--text-secondary);margin-bottom:8px;">${t('settings.dirs_in','Répertoires dans')} <code>${escapeHtml(result.base_path)}</code></div>
-                        <div style="display:flex;flex-wrap:wrap;gap:8px;">
-                            ${result.data.map(d => `<span class="admin-dir-badge"><i class="ri-folder-music-line"></i> ${escapeHtml(d)}</span>`).join('')}
-                            ${result.data.length === 0 ? `<span style="color:var(--text-secondary)">${t('settings.no_dirs','Aucun répertoire trouvé')}</span>` : ''}
-                        </div>
-                    `;
-                };
-
-                // User actions
-                window.adminCreateUser = async () => {
-                    const username = document.getElementById('newUsername')?.value.trim();
-                    const password = document.getElementById('newPassword')?.value;
-                    const fullName = document.getElementById('newFullName')?.value.trim();
-                    const musicDir = document.getElementById('newMusicDir')?.value;
-                    const isAdmin  = document.getElementById('newIsAdmin')?.checked ? 1 : 0;
-
-                    if (!username || !password) { showToast(t('setup.username_pass_required', "Nom d'utilisateur et mot de passe requis"), 'error'); return; }
-
-                    const result = await adminFetch('create_user', { username, password, full_name: fullName, music_directory: musicDir, is_admin: isAdmin });
-                    if (result.success) {
-                        showToast(t('toast.user_created', 'Utilisateur créé'), 'success');
-                        document.getElementById('newUsername').value = '';
-                        document.getElementById('newPassword').value = '';
-                        document.getElementById('newFullName').value = '';
-                        document.getElementById('newMusicDir').value = '';
-                        document.getElementById('newIsAdmin').checked = false;
-                        loadAdminUsers();
-                    } else {
-                        showToast(result.error, 'error');
-                    }
-                };
-
-                window.adminDeleteUser = async (userId, username) => {
-                    if (!confirm(t('confirm.delete_user',"Supprimer l'utilisateur \"{name}\" ? Cette action est irréversible.").replace('{name}', username))) return;
-                    const result = await adminFetch('delete_user', { user_id: userId });
-                    if (result.success) { showToast(t('toast.user_deleted', 'Utilisateur supprimé'), 'success'); loadAdminUsers(); }
-                    else showToast(result.error, 'error');
-                };
-
-                window.adminToggleActive = async (userId) => {
-                    const result = await adminFetch('toggle_active', { user_id: userId });
-                    if (result.success) loadAdminUsers();
-                    else showToast(result.error, 'error');
-                };
-
-                window.adminToggleAdmin = async (userId) => {
-                    const result = await adminFetch('toggle_admin', { user_id: userId });
-                    if (result.success) loadAdminUsers();
-                    else showToast(result.error, 'error');
-                };
-
-                window.adminChangePassword = async (userId, username) => {
-                    const password = prompt(t('confirm.change_password','Nouveau mot de passe pour "{name}" (min 6 caractères) :').replace('{name}', username));
-                    if (!password) return;
-                    const result = await adminFetch('update_password', { user_id: userId, password });
-                    if (result.success) showToast(t('toast.password_updated', 'Mot de passe mis à jour'), 'success');
-                    else showToast(result.error, 'error');
-                };
-
-                window.adminChangeDir = async (userId, username, currentDir) => {
-                    const dirs = await adminFetch('list_directories');
-                    if (!dirs.success) { showToast(dirs.error, 'error'); return; }
-
-                    // Build a simple select dialog
-                    const options = dirs.data.map(d => `<option value="${escapeHtml(d)}" ${d === currentDir ? 'selected' : ''}>${escapeHtml(d)}</option>`).join('');
-                    const modal = document.createElement('div');
-                    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:99999;display:flex;align-items:center;justify-content:center;';
-                    modal.innerHTML = `
-                        <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:16px;padding:28px;min-width:320px;max-width:480px;width:90%;">
-                            <h3 style="margin-bottom:16px;">${t('settings.dir_of','Répertoire de {name}').replace('{name}', escapeHtml(username))}</h3>
-                            <select id="dirModalSelect" class="admin-input" style="width:100%;margin-bottom:16px;">
-                                <option value="">${t('settings.none_option','— Aucun —')}</option>
-                                ${options}
-                            </select>
-                            <div style="display:flex;gap:8px;justify-content:flex-end;">
-                                <button class="rescan-btn" onclick="this.closest('div[style]').remove()">${t('common.cancel','Annuler')}</button>
-                                <button class="rescan-btn" id="dirModalSave" style="background:var(--accent);color:#fff;">${t('common.save','Enregistrer')}</button>
-                            </div>
-                        </div>
-                    `;
-                    document.body.appendChild(modal);
-                    document.getElementById('dirModalSave').onclick = async () => {
-                        const dir = document.getElementById('dirModalSelect').value;
-                        const result = await adminFetch('update_directory', { user_id: userId, music_directory: dir });
-                        modal.remove();
-                        if (result.success) { showToast(t('toast.dir_updated', 'Répertoire mis à jour'), 'success'); loadAdminUsers(); }
-                        else showToast(result.error, 'error');
-                    };
-                };
-
-                // ── SFTP settings modal ─────────────────────────────────────────────
-                window.adminEditSftp = (userId, username, storageType, sftpHost, sftpPort, sftpUser, sftpPath) => {
-                    const modal = document.createElement('div');
-                    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:99999;display:flex;align-items:center;justify-content:center;';
-                    modal.innerHTML = `
-                        <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:16px;padding:28px;min-width:360px;max-width:520px;width:92%;">
-                            <h3 style="margin-bottom:18px;"><i class="ri-server-line"></i> ${t('settings.storage_of','Stockage — {name}').replace('{name}', escapeHtml(username))}</h3>
-
-                            <div style="margin-bottom:14px;">
-                                <label style="font-size:13px;display:block;margin-bottom:6px;">${t('admin.storage_type','Type de stockage')}</label>
-                                <select id="sftpModalType" class="admin-input" style="width:100%" onchange="document.getElementById('sftpFields').style.display=this.value==='sftp'?'block':'none'">
-                                    <option value="local" ${storageType !== 'sftp' ? 'selected' : ''}>${t('settings.local_storage','Local (répertoire sur le serveur)')}</option>
-                                    <option value="sftp" ${storageType === 'sftp' ? 'selected' : ''}>${t('settings.sftp_storage','SFTP (serveur distant)')}</option>
-                                </select>
-                            </div>
-
-                            <div id="sftpFields" style="display:${storageType === 'sftp' ? 'block' : 'none'}">
-                                <div style="display:grid;grid-template-columns:1fr auto;gap:8px;margin-bottom:10px;">
-                                    <div>
-                                        <label style="font-size:12px;display:block;margin-bottom:4px;">${t('settings.host','Hôte')}</label>
-                                        <input id="sftpHost" class="admin-input" style="width:100%" placeholder="sftp.example.com" value="${escapeHtml(sftpHost)}">
-                                    </div>
-                                    <div style="width:80px;">
-                                        <label style="font-size:12px;display:block;margin-bottom:4px;">${t('setup.sftp_port','Port')}</label>
-                                        <input id="sftpPort" class="admin-input" type="number" style="width:100%" value="${sftpPort || 22}">
-                                    </div>
-                                </div>
-                                <div style="margin-bottom:10px;">
-                                    <label style="font-size:12px;display:block;margin-bottom:4px;">${t('setup.sftp_user','Utilisateur SFTP')}</label>
-                                    <input id="sftpUser" class="admin-input" style="width:100%" placeholder="user" value="${escapeHtml(sftpUser)}">
-                                </div>
-                                <div style="margin-bottom:10px;">
-                                    <label style="font-size:12px;display:block;margin-bottom:4px;">${t('settings.sftp_pass_label','Mot de passe SFTP')} <span style="color:var(--text-secondary);font-size:11px">${t('settings.sftp_pass_hint',"(laisser vide pour conserver l'actuel)")}</span></label>
-                                    <input id="sftpPassword" class="admin-input" type="password" style="width:100%" placeholder="••••••••">
-                                </div>
-                                <div style="margin-bottom:14px;">
-                                    <label style="font-size:12px;display:block;margin-bottom:4px;">${t('settings.sftp_path_label','Chemin distant (racine musique)')}</label>
-                                    <input id="sftpPath" class="admin-input" style="width:100%" placeholder="/home/user/music" value="${escapeHtml(sftpPath)}">
-                                </div>
-                                <div style="margin-bottom:16px;">
-                                    <button id="sftpTestBtn" class="rescan-btn" style="width:100%;justify-content:center;" onclick="adminTestSftp(${userId})">
-                                        <i class="ri-wifi-line"></i> ${t('setup.test_connection','Tester la connexion')}
-                                    </button>
-                                    <div id="sftpTestResult" style="margin-top:6px;font-size:12px;min-height:16px;"></div>
-                                </div>
-                            </div>
-
-                            <div style="display:flex;gap:8px;justify-content:flex-end;">
-                                <button class="rescan-btn" onclick="this.closest('div[style*=fixed]').remove()">${t('common.cancel','Annuler')}</button>
-                                <button class="rescan-btn" id="sftpSaveBtn" style="background:var(--accent);color:#fff;" onclick="adminSaveSftp(${userId})">
-                                    <i class="ri-save-line"></i> ${t('common.save','Enregistrer')}
-                                </button>
-                            </div>
-                        </div>
-                    `;
-                    document.body.appendChild(modal);
-                };
-
-                window.adminTestSftp = async (userId) => {
-                    const btn    = document.getElementById('sftpTestBtn');
-                    const result = document.getElementById('sftpTestResult');
-                    btn.disabled = true;
-                    result.textContent = t('settings.testing', 'Test en cours…');
-                    result.style.color = 'var(--text-secondary)';
-
-                    const r = await adminFetch('test_sftp_connection', {
-                        user_id:       userId,
-                        sftp_host:     document.getElementById('sftpHost')?.value || '',
-                        sftp_port:     document.getElementById('sftpPort')?.value || '22',
-                        sftp_user:     document.getElementById('sftpUser')?.value || '',
-                        sftp_password: document.getElementById('sftpPassword')?.value || '',
-                        sftp_path:     document.getElementById('sftpPath')?.value || '',
-                    });
-
-                    btn.disabled = false;
-                    if (r.success) {
-                        result.textContent = r.message || t('admin.connection_ok', '✓ Connexion réussie');
-                        result.style.color = '#00b894';
-                    } else {
-                        result.textContent = r.error || t('admin.connection_fail', '✗ Erreur inconnue');
-                        result.style.color = '#ff6b6b';
-                    }
-                };
-
-                window.adminSaveSftp = async (userId) => {
-                    const storageType = document.getElementById('sftpModalType')?.value || 'local';
-                    const r = await adminFetch('update_sftp', {
-                        user_id:       userId,
-                        storage_type:  storageType,
-                        sftp_host:     document.getElementById('sftpHost')?.value || '',
-                        sftp_port:     document.getElementById('sftpPort')?.value || '22',
-                        sftp_user:     document.getElementById('sftpUser')?.value || '',
-                        sftp_password: document.getElementById('sftpPassword')?.value || '',
-                        sftp_path:     document.getElementById('sftpPath')?.value || '',
-                    });
-                    document.querySelector('div[style*=fixed]')?.remove();
-                    if (r.success) { showToast(t('toast.storage_saved','Paramètres de stockage enregistrés'), 'success'); loadAdminUsers(); }
-                    else showToast(r.error || t('common.error','Erreur'), 'error');
-                };
-
-                loadAdminUsers();
-                loadAdminDirs();
-            }
 
             // ── Storage settings modal (for current user) ─────────────────────
             const STORAGE_URL = `${BASE_PATH}/api/storage.php`;
@@ -4729,7 +4759,6 @@
                 });
                 document.getElementById('storageModal')?.remove();
                 if (r.success) {
-                    // Update local app state
                     app.storageType = storageType;
                     if (storageType === 'local') {
                         app.musicDir = document.getElementById('myMusicDir')?.value || '';
@@ -4741,13 +4770,13 @@
                         app.sftpPath = document.getElementById('mySftpPath')?.value || '';
                     }
                     showToast(t('toast.storage_saved', 'Paramètres de stockage enregistrés'), 'success');
-                    renderSettings(); // refresh to show updated info
+                    renderSettings('library');
                 } else {
                     showToast(r.error || t('common.error', 'Erreur'), 'error');
                 }
             };
 
-            // Lang
+            // ── Lang ──────────────────────────────────────────────────────────
             window.setLang = async (lang) => {
                 app.lang = lang;
                 localStorage.setItem('gullify_lang', lang);
@@ -4760,8 +4789,21 @@
                 }
                 document.documentElement.lang = lang;
                 applyI18n();
-                renderSettings();
+                renderSettings('language');
             };
+
+            // ── Section switcher ──────────────────────────────────────────────
+            window.switchSettingsSection = (section) => {
+                document.querySelectorAll('.settings-sidenav-item[data-section]').forEach(item => {
+                    item.classList.toggle('active', item.dataset.section === section);
+                });
+                const main = document.getElementById('settingsMain');
+                if (!main) return;
+                main.innerHTML = getSettingsSectionHtml(section);
+                if (section === 'admin') initAdminSection();
+            };
+
+            switchSettingsSection(activeSection);
 
         }
 

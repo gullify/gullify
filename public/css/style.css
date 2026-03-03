@@ -3009,7 +3009,76 @@ a.news-item:hover::before {
 
 /* Settings page */
 .settings-page {
-    max-width: 860px;
+    max-width: 960px;
+}
+
+.settings-layout {
+    display: flex;
+    gap: 24px;
+    align-items: flex-start;
+}
+
+.settings-sidenav {
+    width: 200px;
+    flex-shrink: 0;
+    background: var(--bg-secondary);
+    border-radius: 14px;
+    padding: 8px;
+    position: sticky;
+    top: 16px;
+}
+
+.settings-sidenav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 11px 14px;
+    border-radius: 10px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-primary);
+    transition: background 0.15s, color 0.15s;
+}
+
+.settings-sidenav-item:hover { background: var(--hover-bg); }
+.settings-sidenav-item.active { background: var(--accent); color: #fff; }
+.settings-sidenav-item.active i { color: #fff; }
+.settings-sidenav-item i { font-size: 17px; flex-shrink: 0; color: var(--accent); }
+
+.settings-sidenav-separator {
+    height: 1px;
+    background: var(--border-color, rgba(128, 128, 128, 0.1));
+    margin: 6px 4px;
+}
+
+.settings-sidenav-danger { color: #ff6b6b !important; }
+.settings-sidenav-danger i { color: #ff6b6b !important; }
+.settings-sidenav-danger:hover { background: rgba(255, 107, 107, 0.1) !important; }
+
+.settings-main { flex: 1; min-width: 0; }
+
+@media (max-width: 640px) {
+    .settings-layout { flex-direction: column; gap: 16px; }
+    .settings-sidenav {
+        width: 100%;
+        position: static;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+        padding: 6px;
+    }
+    .settings-sidenav-item {
+        flex: 1;
+        min-width: 80px;
+        justify-content: center;
+        flex-direction: column;
+        gap: 4px;
+        font-size: 12px;
+        padding: 8px 4px;
+        text-align: center;
+    }
+    .settings-sidenav-separator { display: none; }
 }
 
 .settings-section {
