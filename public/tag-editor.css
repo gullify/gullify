@@ -1150,3 +1150,23 @@
 .mb-result-badge { font-size: 28px; width: 44px; text-align: center; flex-shrink: 0; }
 .mb-result-info .title { font-weight: 600; font-size: 14px; }
 .mb-result-info .meta { color: var(--te-text-secondary); font-size: 12px; margin-top: 2px; }
+
+/* Interactive track mapping selects */
+.tc-select {
+    width: 100%; max-width: 320px;
+    background: var(--te-bg-secondary, var(--bg-secondary));
+    color: var(--te-text-primary, var(--text-primary));
+    border: 1px solid var(--te-border, rgba(128,128,128,0.2));
+    border-radius: 7px; padding: 5px 8px;
+    font-size: 12.5px; cursor: pointer;
+    transition: border-color .15s;
+}
+.tc-select:focus { outline: none; border-color: var(--te-accent, var(--accent)); }
+.tc-select option[value="-1"] { color: var(--te-text-secondary); font-style: italic; }
+.tc-auto-badge {
+    font-size: 10px; font-weight: 600; letter-spacing: .3px;
+    background: rgba(99,102,241,.12); color: var(--te-accent, var(--accent));
+    border-radius: 4px; padding: 1px 6px; margin-left: 5px; vertical-align: middle;
+}
+.comparison-apply-bar { display: flex; align-items: center; justify-content: space-between; padding: 14px 0 4px; gap: 12px; }
+.tc-assign-count { font-size: 13px; color: var(--te-text-secondary); }

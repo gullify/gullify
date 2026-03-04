@@ -6070,6 +6070,7 @@
             mbTrackList: null,        // full tracklist from MusicBrainz
             pendingTrackList: null,   // { tracks, albumInfo } waiting for applyTrackList()
             _pendingYear: null,       // year to pre-fill after renderEditTab()
+            _manualMapping: {},       // localSongIdx → proposedTrackIdx (-1 = ignore)
             genres: [], // List of all genres from database
 
             // Load genres from database (cached after first load)
@@ -6150,6 +6151,7 @@
                 this.mbTrackList = null;
                 this.pendingTrackList = null;
                 this._pendingYear = null;
+                this._manualMapping = {};
             },
 
             // Load album data from API
@@ -6347,7 +6349,7 @@
                         this.ytTrackList,
                         { title: this.selectedYtAlbum.title, artist: this.selectedYtAlbum.artist,
                           year: this.selectedYtAlbum.year, thumbnail: this.selectedYtAlbum.thumbnail },
-                        'applyYtTags'
+                        'applyYtTags', 'youtube'
                     ) : ''}
                 `;
 
@@ -6403,7 +6405,8 @@
             // Select a YouTube album → fetch its full tracklist
             selectYtAlbum(index) {
                 this.selectedYtAlbum = this.ytMusicResults[index];
-                this.ytTrackList = null; // will be fetched
+                this.ytTrackList = null;
+                this._manualMapping = {};
                 this.renderYouTubeTab();
                 if (this.selectedYtAlbum.browseId) {
                     this.fetchYtTracks(this.selectedYtAlbum.browseId);
@@ -6491,8 +6494,32 @@
                 return result;
             },
 
-            // Shared: render tracklist comparison table (local vs proposed)
-            renderTrackComparison(trackList, albumInfo, applyFnName) {
+            // Called by select onchange — save user's manual assignment
+            setTrackMapping(localIdx, proposedIdx, tab) {
+                const pIdx = parseInt(proposedIdx);
+                const tracks = tab === 'youtube'
+                    ? (this.ytTrackList?.tracks || [])
+                    : (this.mbTrackList?.tracks || []);
+                const sorted = [...this.songs].sort((a,b) => (a.track||999)-(b.track||999));
+                const autoMap = this._matchTracks(sorted, tracks);
+
+                // If another row already claims this proposed track, release it
+                if (pIdx >= 0) {
+                    sorted.forEach((_, otherIdx) => {
+                        if (otherIdx === localIdx) return;
+                        const eff = otherIdx in this._manualMapping
+                            ? this._manualMapping[otherIdx] : autoMap[otherIdx];
+                        if (eff === pIdx) this._manualMapping[otherIdx] = -1;
+                    });
+                }
+
+                this._manualMapping[localIdx] = pIdx;
+                if (tab === 'youtube') this.renderYouTubeTab();
+                else this.renderMusicBrainzTab();
+            },
+
+            // Shared: interactive tracklist comparison — select per row
+            renderTrackComparison(trackList, albumInfo, applyFnName, tabName) {
                 if (!trackList) {
                     return `<div style="text-align:center;padding:28px;color:var(--te-text-secondary)">
                         <div class="loading-spinner" style="margin:0 auto 12px"></div>
@@ -6501,49 +6528,47 @@
 
                 const proposed = trackList.tracks || [];
                 const local = [...this.songs].sort((a, b) => (a.track||999)-(b.track||999));
-                const mapping = this._matchTracks(local, proposed);
-                const matchedSet = new Set(mapping.filter(j => j >= 0));
-                const unmatchedProposed = proposed
-                    .map((t, j) => ({ t, j })).filter(({ j }) => !matchedSet.has(j))
-                    .map(({ t }) => t)
-                    .sort((a,b) => (a.track_number||999)-(b.track_number||999));
-                const matchedCount = mapping.filter(j => j >= 0).length;
-                const allMatched = matchedCount === local.length && unmatchedProposed.length === 0;
+                const autoMap = this._matchTracks(local, proposed);
+
+                // Effective mapping: manual override takes priority over auto
+                const effectiveMap = local.map((_, i) =>
+                    i in this._manualMapping ? this._manualMapping[i] : autoMap[i]
+                );
+                const assignedSet = new Set(effectiveMap.filter(j => j >= 0));
+                const assignedCount = assignedSet.size;
+
                 const thumb = albumInfo.thumbnail
-                    ? `<img src="${albumInfo.thumbnail}" alt="">`
-                    : '🎵';
+                    ? `<img src="${albumInfo.thumbnail}" alt="">` : '🎵';
 
                 let rows = '';
                 local.forEach((L, i) => {
-                    const P = mapping[i] >= 0 ? proposed[mapping[i]] : null;
+                    const curJ = effectiveMap[i];
+                    const isAuto = !(i in this._manualMapping) && curJ >= 0;
+
+                    const options = proposed.map((t, j) => {
+                        const takenByOther = assignedSet.has(j) && j !== curJ;
+                        const label = `${t.track_number ? t.track_number + '. ' : ''}${t.title}`
+                            + (t.artist ? ' — ' + t.artist : '')
+                            + (takenByOther ? ' ✓' : '');
+                        return `<option value="${j}" ${j === curJ ? 'selected' : ''}>${this.escapeHtml(label)}</option>`;
+                    }).join('');
+
                     rows += `<tr>
                         <td class="tc-current">
                             <span class="tc-num">${L.track||'?'}</span>
                             <span class="tc-title">${this.escapeHtml(L.db_title)}</span>
                             ${L.track_artist ? `<br><span class="tc-artist">${this.escapeHtml(L.track_artist)}</span>` : ''}
                         </td>
-                        <td class="tc-sep">${P ? '→' : '✗'}</td>
-                        <td>
-                            ${P ? `<span class="tc-num">${P.track_number}</span>
-                                   <span class="tc-title">${this.escapeHtml(P.title)}</span>
-                                   <br><span class="tc-artist">${this.escapeHtml(P.artist)}</span>`
-                               : '<span class="tc-missing">pas de correspondance</span>'}
+                        <td class="tc-sep">${curJ >= 0 ? '→' : '✗'}</td>
+                        <td style="padding:4px 8px">
+                            <select class="tc-select" onchange="tagEditor.setTrackMapping(${i}, this.value, '${tabName}')">
+                                <option value="-1" ${curJ < 0 ? 'selected' : ''}>— Ignorer —</option>
+                                ${options}
+                            </select>
+                            ${isAuto ? '<span class="tc-auto-badge">auto</span>' : ''}
                         </td>
                     </tr>`;
                 });
-                unmatchedProposed.forEach(P => {
-                    rows += `<tr style="opacity:0.55">
-                        <td class="tc-current"><span class="tc-missing">—</span></td>
-                        <td class="tc-sep">←</td>
-                        <td>
-                            <span class="tc-num">${P.track_number}</span>
-                            <span class="tc-title">${this.escapeHtml(P.title)}</span>
-                            <br><span class="tc-artist">${this.escapeHtml(P.artist)}</span>
-                        </td>
-                    </tr>`;
-                });
-
-                const warnHtml = !allMatched ? `<div class="count-warn">⚠️ ${matchedCount} correspondance(s) sur ${local.length} piste(s) locale(s)${unmatchedProposed.length ? ` · ${unmatchedProposed.length} piste(s) proposée(s) non associée(s)` : ''}</div>` : '';
 
                 return `
                     <div class="tracklist-comparison fade-in" style="margin-top:20px">
@@ -6553,21 +6578,21 @@
                                 <strong>${this.escapeHtml(albumInfo.title || trackList.title || '')}</strong>
                                 <span>${this.escapeHtml(albumInfo.artist || trackList.artist || '')}</span>
                                 ${(albumInfo.year||trackList.year) ? `<span>${albumInfo.year||trackList.year}</span>` : ''}
-                                <span>${proposed.length} piste(s)</span>
+                                <span>${proposed.length} piste(s) disponibles</span>
                             </div>
                         </div>
-                        ${warnHtml}
                         <div class="track-compare-wrap">
                             <table class="track-compare-table">
                                 <thead><tr>
-                                    <th>Actuel</th><th></th><th>Proposé</th>
+                                    <th>Piste locale</th><th></th><th>Assigner →</th>
                                 </tr></thead>
                                 <tbody>${rows}</tbody>
                             </table>
                         </div>
                         <div class="comparison-apply-bar">
+                            <span class="tc-assign-count">${assignedCount} / ${local.length} assignée(s)</span>
                             <button class="btn btn-primary" onclick="tagEditor.${applyFnName}()">
-                                ✨ Appliquer ces tags
+                                ✨ Appliquer ${assignedCount} tag(s)
                             </button>
                         </div>
                     </div>`;
@@ -6580,11 +6605,14 @@
                 this.pendingTrackList = null;
 
                 const sorted = [...this.songs].sort((a, b) => (a.track||999)-(b.track||999));
-                const mapping = this._matchTracks(sorted, tracks);
+                const autoMap = this._matchTracks(sorted, tracks);
 
                 let applied = 0;
                 sorted.forEach((song, i) => {
-                    const t = mapping[i] >= 0 ? tracks[mapping[i]] : null;
+                    // Manual override wins over auto
+                    const pIdx = i in this._manualMapping ? this._manualMapping[i] : autoMap[i];
+                    if (pIdx < 0) return;
+                    const t = tracks[pIdx];
                     if (!t) return;
                     const idx = this.songs.findIndex(s => s.id === song.id);
                     if (idx !== -1) {
@@ -6596,6 +6624,7 @@
                     this.modifiedSongs.add(song.id);
                 });
 
+                this._manualMapping = {};
                 if (albumInfo.title) this.albumData.album_name = albumInfo.title;
                 if (albumInfo.year)  this._pendingYear = albumInfo.year;
 
@@ -6668,7 +6697,7 @@
                         this.mbTrackList,
                         { title: this.selectedMbRelease.title, artist: this.selectedMbRelease.artist,
                           year: this.selectedMbRelease.year },
-                        'applyMbTracks'
+                        'applyMbTracks', 'musicbrainz'
                     ) : ''}
                 `;
             },
@@ -6700,6 +6729,7 @@
             selectMbRelease(index) {
                 this.selectedMbRelease = this.mbResults[index];
                 this.mbTrackList = null;
+                this._manualMapping = {};
                 this.renderMusicBrainzTab();
                 this.fetchMbTracks(this.selectedMbRelease.id);
             },
