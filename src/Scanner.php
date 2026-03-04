@@ -1059,8 +1059,9 @@ class Scanner {
             elseif (isset($fileInfo['comments']['date'][0])) $result['year'] = substr(trim($fileInfo['comments']['date'][0]), 0, 4);
 
             // Filename-based artist fallback: "Artist - NN - Title.mp3"
-            // Only triggers when no TPE1 tag was found in the file
-            if ($result['artist'] === null) {
+            // Triggers when TPE1 is absent, empty, or a generic placeholder
+            $artistNorm = strtolower(trim($result['artist'] ?? ''));
+            if ($result['artist'] === null || $result['artist'] === '' || $artistNorm === 'various artists') {
                 $basename = pathinfo($filePath, PATHINFO_FILENAME);
                 if (preg_match('/^(.+?)\s+-\s+(\d{1,2})\s+-\s+(.+)$/', $basename, $m)) {
                     $result['artist'] = trim($m[1]);

@@ -6264,7 +6264,7 @@
                         <tr id="song-row-${song.id}" class="${rowClass}">
                             <td class="track-num">
                                 <input type="text" class="song-input" id="track_${song.id}"
-                                       value="${this.escapeHtml(tags.track || index + 1)}"
+                                       value="${this.escapeHtml(song.track || tags.track || index + 1)}"
                                        onchange="tagEditor.markModified(${song.id})" style="width: 50px; text-align: center;">
                             </td>
                             <td class="title-cell">
@@ -6274,7 +6274,7 @@
                             </td>
                             <td>
                                 <input type="text" class="song-input" id="artist_${song.id}"
-                                       value="${this.escapeHtml(tags.artist || this.albumData.artist_name)}"
+                                       value="${this.escapeHtml(song.track_artist || tags.artist || this.albumData.artist_name)}"
                                        onchange="tagEditor.markModified(${song.id})">
                             </td>
                             <td class="filename-cell" title="${this.escapeHtml(song.filename)}">

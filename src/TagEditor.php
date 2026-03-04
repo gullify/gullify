@@ -32,12 +32,14 @@ class TagEditor {
         $album = $stmt->fetch();
         if (!$album) return null;
 
-        // 2. Get songs info
+        // 2. Get songs info (including per-track artist for compilations)
         $stmt = $this->db->prepare("
-            SELECT id, title as db_title, track_number as track, file_path
-            FROM songs
-            WHERE album_id = ?
-            ORDER BY track_number ASC, title ASC
+            SELECT s.id, s.title as db_title, s.track_number as track, s.file_path,
+                   ta.name as track_artist
+            FROM songs s
+            LEFT JOIN artists ta ON s.artist_id = ta.id
+            WHERE s.album_id = ?
+            ORDER BY s.track_number ASC, s.title ASC
         ");
         $stmt->execute([$albumId]);
         $songs = $stmt->fetchAll();
