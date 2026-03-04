@@ -6428,6 +6428,49 @@
                 }
             },
 
+            // Shared: match local songs to proposed tracks (track# first, then title similarity)
+            // Returns array of proposed-track indices (length = localSongs.length), -1 = no match
+            _matchTracks(localSongs, proposedTracks) {
+                const result = new Array(localSongs.length).fill(-1);
+                const used = new Set();
+                const norm = s => (s||'').toLowerCase()
+                    .replace(/[\[\]()'"!?,;:.]/g,' ').replace(/\s+/g,' ').trim();
+
+                // Pass 1: track number
+                const propByNum = new Map();
+                proposedTracks.forEach((t, j) => { if (t.track_number) propByNum.set(t.track_number, j); });
+                localSongs.forEach((song, i) => {
+                    if (!song.track) return;
+                    const j = propByNum.get(song.track);
+                    if (j !== undefined && !used.has(j)) { result[i] = j; used.add(j); }
+                });
+
+                // Pass 2: exact normalized title
+                localSongs.forEach((song, i) => {
+                    if (result[i] >= 0) return;
+                    const ln = norm(song.db_title || song.filename || '');
+                    for (let j = 0; j < proposedTracks.length; j++) {
+                        if (used.has(j)) continue;
+                        if (norm(proposedTracks[j].title) === ln) { result[i] = j; used.add(j); break; }
+                    }
+                });
+
+                // Pass 3: contains match
+                localSongs.forEach((song, i) => {
+                    if (result[i] >= 0) return;
+                    const ln = norm(song.db_title || song.filename || '');
+                    for (let j = 0; j < proposedTracks.length; j++) {
+                        if (used.has(j)) continue;
+                        const pn = norm(proposedTracks[j].title);
+                        if (ln && pn && (ln.includes(pn) || pn.includes(ln))) {
+                            result[i] = j; used.add(j); break;
+                        }
+                    }
+                });
+
+                return result;
+            },
+
             // Shared: render tracklist comparison table (local vs proposed)
             renderTrackComparison(trackList, albumInfo, applyFnName) {
                 if (!trackList) {
@@ -6438,32 +6481,49 @@
 
                 const proposed = trackList.tracks || [];
                 const local = [...this.songs].sort((a, b) => (a.track||999)-(b.track||999));
-                const maxRows = Math.max(local.length, proposed.length);
-                const countOk = local.length === proposed.length;
+                const mapping = this._matchTracks(local, proposed);
+                const matchedSet = new Set(mapping.filter(j => j >= 0));
+                const unmatchedProposed = proposed
+                    .map((t, j) => ({ t, j })).filter(({ j }) => !matchedSet.has(j))
+                    .map(({ t }) => t)
+                    .sort((a,b) => (a.track_number||999)-(b.track_number||999));
+                const matchedCount = mapping.filter(j => j >= 0).length;
+                const allMatched = matchedCount === local.length && unmatchedProposed.length === 0;
                 const thumb = albumInfo.thumbnail
                     ? `<img src="${albumInfo.thumbnail}" alt="">`
                     : '🎵';
 
                 let rows = '';
-                for (let i = 0; i < maxRows; i++) {
-                    const L = local[i];
-                    const P = proposed[i];
+                local.forEach((L, i) => {
+                    const P = mapping[i] >= 0 ? proposed[mapping[i]] : null;
                     rows += `<tr>
                         <td class="tc-current">
-                            ${L ? `<span class="tc-num">${L.track||'?'}</span>
-                                   <span class="tc-title">${this.escapeHtml(L.db_title)}</span>
-                                   ${L.track_artist ? `<br><span class="tc-artist">${this.escapeHtml(L.track_artist)}</span>` : ''}`
-                               : '<span class="tc-missing">—</span>'}
+                            <span class="tc-num">${L.track||'?'}</span>
+                            <span class="tc-title">${this.escapeHtml(L.db_title)}</span>
+                            ${L.track_artist ? `<br><span class="tc-artist">${this.escapeHtml(L.track_artist)}</span>` : ''}
                         </td>
-                        <td class="tc-sep">→</td>
+                        <td class="tc-sep">${P ? '→' : '✗'}</td>
                         <td>
                             ${P ? `<span class="tc-num">${P.track_number}</span>
                                    <span class="tc-title">${this.escapeHtml(P.title)}</span>
                                    <br><span class="tc-artist">${this.escapeHtml(P.artist)}</span>`
-                               : '<span class="tc-missing">—</span>'}
+                               : '<span class="tc-missing">pas de correspondance</span>'}
                         </td>
                     </tr>`;
-                }
+                });
+                unmatchedProposed.forEach(P => {
+                    rows += `<tr style="opacity:0.55">
+                        <td class="tc-current"><span class="tc-missing">—</span></td>
+                        <td class="tc-sep">←</td>
+                        <td>
+                            <span class="tc-num">${P.track_number}</span>
+                            <span class="tc-title">${this.escapeHtml(P.title)}</span>
+                            <br><span class="tc-artist">${this.escapeHtml(P.artist)}</span>
+                        </td>
+                    </tr>`;
+                });
+
+                const warnHtml = !allMatched ? `<div class="count-warn">⚠️ ${matchedCount} correspondance(s) sur ${local.length} piste(s) locale(s)${unmatchedProposed.length ? ` · ${unmatchedProposed.length} piste(s) proposée(s) non associée(s)` : ''}</div>` : '';
 
                 return `
                     <div class="tracklist-comparison fade-in" style="margin-top:20px">
@@ -6476,7 +6536,7 @@
                                 <span>${proposed.length} piste(s)</span>
                             </div>
                         </div>
-                        ${!countOk ? `<div class="count-warn">⚠️ ${local.length} piste(s) locale(s) vs ${proposed.length} piste(s) proposée(s) — correspondance par position</div>` : ''}
+                        ${warnHtml}
                         <div class="track-compare-wrap">
                             <table class="track-compare-table">
                                 <thead><tr>
@@ -6499,16 +6559,19 @@
                 const { tracks, albumInfo } = this.pendingTrackList;
                 this.pendingTrackList = null;
 
-                // Sort songs by current track# for position matching
                 const sorted = [...this.songs].sort((a, b) => (a.track||999)-(b.track||999));
+                const mapping = this._matchTracks(sorted, tracks);
+
+                let applied = 0;
                 sorted.forEach((song, i) => {
-                    const t = tracks[i];
+                    const t = mapping[i] >= 0 ? tracks[mapping[i]] : null;
                     if (!t) return;
                     const idx = this.songs.findIndex(s => s.id === song.id);
                     if (idx !== -1) {
                         this.songs[idx].track = t.track_number;
                         this.songs[idx].db_title = t.title;
                         this.songs[idx].track_artist = t.artist;
+                        applied++;
                     }
                     this.modifiedSongs.add(song.id);
                 });
@@ -6517,7 +6580,7 @@
                 if (albumInfo.year)  this._pendingYear = albumInfo.year;
 
                 this.switchTab('edit');
-                this.showEditorToast(`Tags de ${Math.min(tracks.length, sorted.length)} piste(s) appliqués — vérifiez et sauvegardez`, 'success');
+                this.showEditorToast(`Tags de ${applied} piste(s) appliqués — vérifiez et sauvegardez`, 'success');
             },
 
             // YouTube Music: "appliquer" → set pending + apply
