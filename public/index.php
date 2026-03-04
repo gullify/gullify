@@ -237,8 +237,8 @@ try {
             lang: localStorage.getItem('gullify_lang') || 'fr'
         };
     </script>
-    <script src="player/unified-player.js"></script>
-    <script src="js/app.js"></script>
-    <script src="js/ui.js"></script>
+    <script src="player/unified-player.js?v=<?= filemtime(__DIR__ . '/player/unified-player.js') ?>"></script>
+    <script src="js/app.js?v=<?= filemtime(__DIR__ . '/js/app.js') ?>"></script>
+    <script src="js/ui.js?v=<?= filemtime(__DIR__ . '/js/ui.js') ?>"></script>
 </body>
 </html>
