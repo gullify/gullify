@@ -282,7 +282,10 @@ try {
             }
             require_once __DIR__ . '/../src/Scanner.php';
             $scanner = new Scanner();
-            $result  = $scanner->scanAlbum($albumId, $user);
+            ob_start();
+            $result = $scanner->scanAlbum($albumId, $user);
+            $scanLog = ob_get_clean();  // discard echo output (CLI progress lines)
+            $result['log'] = trim($scanLog);
             echo json_encode(['success' => true, 'data' => $result]);
             break;
 
