@@ -107,11 +107,22 @@ class TagEditor {
                 $stmt->execute([intval($tags['track_number']), $songId]);
             }
 
-            // Handle Artist change (complex: might need to create new artist record)
+            // Handle Artist change — compilations store per-track artist in songs.artist_id,
+            // regular albums store artist in albums.artist_id.
             if (isset($tags['artist'])) {
+                $stmtComp = $this->db->prepare("SELECT is_compilation FROM albums WHERE id = ?");
+                $stmtComp->execute([$song['album_id']]);
+                $isCompilation = (bool)$stmtComp->fetchColumn();
+
                 $newArtistId = $this->getOrCreateArtist($tags['artist'], $song['user']);
-                $stmt = $this->db->prepare("UPDATE albums SET artist_id = ? WHERE id = ?");
-                $stmt->execute([$newArtistId, $song['album_id']]);
+                if ($isCompilation) {
+                    // Keep album under "Various Artists" — only update per-track artist
+                    $stmt = $this->db->prepare("UPDATE songs SET artist_id = ? WHERE id = ?");
+                    $stmt->execute([$newArtistId, $songId]);
+                } else {
+                    $stmt = $this->db->prepare("UPDATE albums SET artist_id = ? WHERE id = ?");
+                    $stmt->execute([$newArtistId, $song['album_id']]);
+                }
             }
 
             // Handle Album change
