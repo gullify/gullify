@@ -666,9 +666,9 @@ class Scanner {
      * and writes back derived tags to the files when applicable.
      */
     public function scanAlbum(int $albumId, string $user): array {
-        // Verify album belongs to user
+        // Verify album belongs to user; fetch is_compilation flag
         $stmt = $this->db->prepare('
-            SELECT al.id, al.name, ar.name AS artist_name
+            SELECT al.id, al.name, al.is_compilation, ar.name AS artist_name
             FROM albums al
             JOIN artists ar ON al.artist_id = ar.id
             WHERE al.id = ? AND ar.user = ?
@@ -678,6 +678,9 @@ class Scanner {
         if (!$album) {
             throw new Exception('Album not found');
         }
+
+        $isCompilation = (bool)$album['is_compilation']
+            || strtolower(trim($album['artist_name'])) === 'various artists';
 
         $stmt = $this->db->prepare('SELECT id, file_path, title, track_number FROM songs WHERE album_id = ?');
         $stmt->execute([$albumId]);
@@ -691,9 +694,9 @@ class Scanner {
         $this->storage = StorageFactory::forUser($user);
         $this->scanPathBase = $this->storage->getPathBase();
 
-        $updated    = 0;
+        $updated     = 0;
         $tagsWritten = 0;
-        $errors     = 0;
+        $errors      = 0;
 
         foreach ($songs as $song) {
             $absPath = rtrim($this->scanPathBase, '/') . '/' . ltrim($song['file_path'], '/');
@@ -711,9 +714,18 @@ class Scanner {
 
             $title = $metadata['title'] ?: pathinfo($song['file_path'], PATHINFO_FILENAME);
 
+            // For compilations, resolve per-track artist_id from the derived artist name
+            $trackArtistId = null;
+            if ($isCompilation && !empty($metadata['artist'])) {
+                $trackArtistNorm = strtolower(trim($metadata['artist']));
+                if ($trackArtistNorm !== 'various artists') {
+                    $trackArtistId = $this->getArtistId($metadata['artist'], $user);
+                }
+            }
+
             $this->db->prepare('
-                UPDATE songs SET title = ?, track_number = ?, duration = ?, file_hash = ? WHERE id = ?
-            ')->execute([$title, $metadata['trackNumber'], $metadata['duration'], $fileHash, $song['id']]);
+                UPDATE songs SET title = ?, track_number = ?, duration = ?, file_hash = ?, artist_id = ? WHERE id = ?
+            ')->execute([$title, $metadata['trackNumber'], $metadata['duration'], $fileHash, $trackArtistId, $song['id']]);
 
             if (!empty($metadata['tagsToWrite']) &&
                 ($this->storage === null || $this->storage->getType() !== 'sftp')) {
