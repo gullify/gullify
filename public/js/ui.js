@@ -6433,8 +6433,11 @@
             _matchTracks(localSongs, proposedTracks) {
                 const result = new Array(localSongs.length).fill(-1);
                 const used = new Set();
+                // Normalize: lowercase + strip all punctuation incl. Unicode quotes/apostrophes
                 const norm = s => (s||'').toLowerCase()
-                    .replace(/[\[\]()'"!?,;:.]/g,' ').replace(/\s+/g,' ').trim();
+                    .replace(/[\u2018\u2019\u201c\u201d\u2032\u2033\[\]()'"!?,;:.&\-]/g,' ')
+                    .replace(/\s+/g,' ').trim();
+                const words = s => new Set(norm(s).split(' ').filter(Boolean));
 
                 // Pass 1: track number
                 const propByNum = new Map();
@@ -6455,7 +6458,7 @@
                     }
                 });
 
-                // Pass 3: contains match
+                // Pass 3: one title contains the other (normalized)
                 localSongs.forEach((song, i) => {
                     if (result[i] >= 0) return;
                     const ln = norm(song.db_title || song.filename || '');
@@ -6466,6 +6469,23 @@
                             result[i] = j; used.add(j); break;
                         }
                     }
+                });
+
+                // Pass 4: word-overlap (≥70% of shorter title's words in common, min 2 shared words)
+                localSongs.forEach((song, i) => {
+                    if (result[i] >= 0) return;
+                    const lw = words(song.db_title || song.filename || '');
+                    if (lw.size < 2) return;
+                    let bestJ = -1, bestScore = 0;
+                    for (let j = 0; j < proposedTracks.length; j++) {
+                        if (used.has(j)) continue;
+                        const pw = words(proposedTracks[j].title || '');
+                        const common = [...lw].filter(w => pw.has(w)).length;
+                        const shorter = Math.min(lw.size, pw.size);
+                        const score = (shorter >= 2 && common >= 2) ? common / shorter : 0;
+                        if (score >= 0.7 && score > bestScore) { bestScore = score; bestJ = j; }
+                    }
+                    if (bestJ >= 0) { result[i] = bestJ; used.add(bestJ); }
                 });
 
                 return result;
