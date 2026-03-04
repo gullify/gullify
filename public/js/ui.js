@@ -1777,6 +1777,7 @@
         // ============ DOWNLOADS SECTION ============
 
         let downloadsPollInterval = null;
+        let _dlSearchAlbums = []; // store search results for index-based onclick
 
         async function renderDownloads() {
             hideAlbumBackground();
@@ -1870,6 +1871,7 @@
                     resultsDiv.innerHTML = '<p style="color:var(--text-secondary);padding:12px 0;text-align:center">Aucun résultat</p>';
                     return;
                 }
+                _dlSearchAlbums = albums;
                 resultsDiv.innerHTML = albums.map((album, i) => `
                     <div class="dl-search-result">
                         <div class="dl-search-thumb">
@@ -1879,8 +1881,7 @@
                             <div class="dl-search-title">${album.title.replace(/</g,'&lt;')}</div>
                             <div class="dl-search-meta">${album.artist.replace(/</g,'&lt;')}${album.year ? ' · ' + album.year : ''}</div>
                         </div>
-                        <button class="btn btn-primary dl-search-dl-btn"
-                                onclick="startDownloadFromSearch(${JSON.stringify(album.browseId)}, ${JSON.stringify(album.artist)}, ${JSON.stringify(album.title)})">
+                        <button class="btn btn-primary dl-search-dl-btn" onclick="startDownloadFromSearch(${i})">
                             <i class="ri-download-line"></i> Télécharger
                         </button>
                     </div>
@@ -1892,7 +1893,8 @@
             }
         }
 
-        async function startDownloadFromSearch(browseId, artist, album) {
+        async function startDownloadFromSearch(idx) {
+            const { browseId, artist, title: album } = _dlSearchAlbums[idx] || {};
             if (!browseId) return;
             const user = document.getElementById('downloadUser').value;
             const url = `https://music.youtube.com/browse/${browseId}`;
