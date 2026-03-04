@@ -112,6 +112,32 @@ try {
             ]);
             break;
 
+        case 'search_ytmusic':
+            $query = trim($_GET['query'] ?? '');
+            if (!$query) {
+                echo json_encode(['success' => false, 'error' => 'query required']);
+                break;
+            }
+            $pythonScript = AppConfig::getPythonPath() . '/ytmusic_search.py';
+            $pythonBin    = file_exists('/opt/ytdlp/bin/python3') ? '/opt/ytdlp/bin/python3' : 'python3';
+            $cmd = $pythonBin . ' ' . escapeshellarg($pythonScript)
+                 . ' album ' . escapeshellarg($query) . ' 2>/dev/null';
+            $output = shell_exec($cmd);
+            if (!$output) {
+                echo json_encode(['success' => true, 'data' => ['albums' => []]]);
+                break;
+            }
+            $data = json_decode($output, true);
+            $albums = array_map(fn($r) => [
+                'title'     => $r['title']     ?? '',
+                'artist'    => $r['artist']    ?? '',
+                'year'      => $r['year']      ?? '',
+                'thumbnail' => $r['thumbnail'] ?? '',
+                'browseId'  => $r['browseId']  ?? '',
+            ], $data['results'] ?? []);
+            echo json_encode(['success' => true, 'data' => ['albums' => $albums]]);
+            break;
+
         case 'status':
             $downloadId = $_GET['download_id'] ?? '';
 

@@ -1790,26 +1790,40 @@
 
             const html = `
                 <div class="downloads-page">
-                    <!-- New Download Form -->
+                    <!-- YouTube Music Search -->
                     <div class="download-form-card">
-                        <h3><i class="ri-add-circle-line"></i> ${t('downloads.new_title', 'Nouveau téléchargement')}</h3>
-                        <p style="color: var(--text-secondary); font-size: 13px; margin-bottom: 15px;">
-                            ${t('downloads.url_hint', 'Collez une URL YouTube Music (album, playlist, ou chanson)')}
-                        </p>
+                        <h3><i class="ri-music-2-line"></i> Rechercher sur YouTube Music</h3>
                         <div class="download-form">
-                            <input type="text" id="downloadUrl" placeholder="https://music.youtube.com/playlist?list=..." class="download-url-input">
+                            <input type="text" id="dlSearchQuery" placeholder="Artiste, album…" class="download-url-input"
+                                   onkeypress="if(event.key==='Enter') searchYtMusicForDownload()">
                             <select id="downloadUser" class="download-user-select">
                                 <option value="maxime">Maxime</option>
                                 <option value="frederique">Frédérique</option>
                                 <option value="mylene">Mylène</option>
                             </select>
-                            <button onclick="fetchYoutubeMetadata()" class="download-fetch-btn" id="fetchMetadataBtn">
-                                <i class="ri-search-line"></i> ${t('editor.analyze_btn', 'Analyser')}
+                            <button onclick="searchYtMusicForDownload()" class="download-fetch-btn" id="dlSearchBtn">
+                                <i class="ri-search-line"></i> Rechercher
                             </button>
                         </div>
-                        <!-- Metadata preview (hidden by default) -->
-                        <div id="downloadMetadataPreview" style="display: none;"></div>
+                        <div id="dlSearchResults"></div>
                     </div>
+
+                    <!-- New Download via URL -->
+                    <details class="download-form-card" style="cursor:pointer">
+                        <summary style="font-weight:600;font-size:15px;list-style:none;display:flex;align-items:center;gap:8px">
+                            <i class="ri-links-line"></i> Télécharger via URL
+                            <span style="font-size:12px;font-weight:400;color:var(--text-secondary);margin-left:4px">(YouTube Music, playlist…)</span>
+                        </summary>
+                        <div style="margin-top:14px">
+                            <div class="download-form">
+                                <input type="text" id="downloadUrl" placeholder="https://music.youtube.com/playlist?list=…" class="download-url-input">
+                                <button onclick="fetchYoutubeMetadata()" class="download-fetch-btn" id="fetchMetadataBtn">
+                                    <i class="ri-search-line"></i> ${t('editor.analyze_btn', 'Analyser')}
+                                </button>
+                            </div>
+                            <div id="downloadMetadataPreview" style="display: none;"></div>
+                        </div>
+                    </details>
 
                     <!-- Active Downloads -->
                     <div class="downloads-section">
@@ -1839,6 +1853,80 @@
 
             // Start polling for updates
             downloadsPollInterval = setInterval(refreshDownloadsList, 3000);
+        }
+
+        async function searchYtMusicForDownload() {
+            const query = document.getElementById('dlSearchQuery').value.trim();
+            if (!query) return;
+            const btn = document.getElementById('dlSearchBtn');
+            const resultsDiv = document.getElementById('dlSearchResults');
+            btn.disabled = true;
+            resultsDiv.innerHTML = '<div class="loading-spinner" style="margin:16px auto"></div>';
+            try {
+                const r = await fetch(`${BASE_PATH}/download_album_api.php?action=search_ytmusic&query=${encodeURIComponent(query)}`);
+                const res = await r.json();
+                const albums = res.data?.albums || [];
+                if (!albums.length) {
+                    resultsDiv.innerHTML = '<p style="color:var(--text-secondary);padding:12px 0;text-align:center">Aucun résultat</p>';
+                    return;
+                }
+                resultsDiv.innerHTML = albums.map((album, i) => `
+                    <div class="dl-search-result">
+                        <div class="dl-search-thumb">
+                            ${album.thumbnail ? `<img src="${album.thumbnail}" alt="">` : '<i class="ri-music-2-line"></i>'}
+                        </div>
+                        <div class="dl-search-info">
+                            <div class="dl-search-title">${album.title.replace(/</g,'&lt;')}</div>
+                            <div class="dl-search-meta">${album.artist.replace(/</g,'&lt;')}${album.year ? ' · ' + album.year : ''}</div>
+                        </div>
+                        <button class="btn btn-primary dl-search-dl-btn"
+                                onclick="startDownloadFromSearch(${JSON.stringify(album.browseId)}, ${JSON.stringify(album.artist)}, ${JSON.stringify(album.title)})">
+                            <i class="ri-download-line"></i> Télécharger
+                        </button>
+                    </div>
+                `).join('');
+            } catch(e) {
+                resultsDiv.innerHTML = '<p style="color:var(--text-secondary);padding:12px 0">Erreur de recherche</p>';
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        async function startDownloadFromSearch(browseId, artist, album) {
+            if (!browseId) return;
+            const user = document.getElementById('downloadUser').value;
+            const url = `https://music.youtube.com/browse/${browseId}`;
+            try {
+                const formData = new FormData();
+                formData.append('url', url);
+                formData.append('user', user);
+                formData.append('artist_name', artist);
+                formData.append('album_name', album);
+                formData.append('artist_id', 'new');
+                const response = await fetch(`${BASE_PATH}/download_album_api.php?action=start`, {
+                    method: 'POST', body: formData
+                });
+                const result = await response.json();
+                if (result.success) {
+                    const resultsDiv = document.getElementById('dlSearchResults');
+                    if (resultsDiv) {
+                        // Mark the card as queued
+                        const btns = resultsDiv.querySelectorAll('.dl-search-dl-btn');
+                        btns.forEach(b => {
+                            if (b.closest('.dl-search-result')?.querySelector('.dl-search-title')?.textContent === album) {
+                                b.disabled = true;
+                                b.innerHTML = '<i class="ri-check-line"></i> Ajouté';
+                            }
+                        });
+                    }
+                    showToast(`"${album}" ajouté à la file de téléchargement`, 'success');
+                    await refreshDownloadsList();
+                } else {
+                    showToast('Erreur: ' + (result.error || 'Impossible de démarrer'), 'error');
+                }
+            } catch(e) {
+                showToast('Erreur de connexion', 'error');
+            }
         }
 
         async function refreshDownloadsList() {
@@ -6591,9 +6679,18 @@
                         </div>
                         <div class="comparison-apply-bar">
                             <span class="tc-assign-count">${assignedCount} / ${local.length} assignée(s)</span>
-                            <button class="btn btn-primary" onclick="tagEditor.${applyFnName}()">
-                                ✨ Appliquer ${assignedCount} tag(s)
-                            </button>
+                            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+                                ${tabName === 'musicbrainz' && this.selectedMbRelease?.id ? `
+                                <a href="https://musicbrainz.org/release/${this.selectedMbRelease.id}/edit"
+                                   target="_blank" rel="noopener"
+                                   class="btn btn-secondary tc-mb-edit-link"
+                                   title="Ouvrir la page d'édition MusicBrainz (compte MB requis)">
+                                    🌐 Corriger sur MusicBrainz
+                                </a>` : ''}
+                                <button class="btn btn-primary" onclick="tagEditor.${applyFnName}()">
+                                    ✨ Appliquer ${assignedCount} tag(s)
+                                </button>
+                            </div>
                         </div>
                     </div>`;
             },
