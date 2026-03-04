@@ -6064,6 +6064,12 @@
             currentTab: 'edit',
             ytMusicResults: [],
             selectedYtAlbum: null,
+            ytTrackList: null,        // full tracklist from YT Music (fetched on select)
+            mbResults: [],            // MusicBrainz search results
+            selectedMbRelease: null,  // selected MusicBrainz release
+            mbTrackList: null,        // full tracklist from MusicBrainz
+            pendingTrackList: null,   // { tracks, albumInfo } waiting for applyTrackList()
+            _pendingYear: null,       // year to pre-fill after renderEditTab()
             genres: [], // List of all genres from database
 
             // Load genres from database (cached after first load)
@@ -6136,6 +6142,14 @@
                 this.songs = [];
                 this.originalTags = {};
                 this.modifiedSongs.clear();
+                this.selectedYtAlbum = null;
+                this.ytMusicResults = [];
+                this.ytTrackList = null;
+                this.mbResults = [];
+                this.selectedMbRelease = null;
+                this.mbTrackList = null;
+                this.pendingTrackList = null;
+                this._pendingYear = null;
             },
 
             // Load album data from API
@@ -6186,6 +6200,9 @@
                     case 'youtube':
                         this.renderYouTubeTab();
                         break;
+                    case 'musicbrainz':
+                        this.renderMusicBrainzTab();
+                        break;
                     case 'files':
                         this.renderFilesTab();
                         break;
@@ -6230,7 +6247,7 @@
                             </div>
                             <div class="form-field">
                                 <label>Année</label>
-                                <input type="text" id="common_year" value="${this.escapeHtml(this.songs[0]?.file_tags?.year || '')}"
+                                <input type="text" id="common_year" value="${this.escapeHtml(this._pendingYear || this.songs[0]?.file_tags?.year || '')}"
                                        onchange="tagEditor.applyCommonTag('year', this.value)" placeholder="Ex: 2024">
                             </div>
                             <div class="form-field">
@@ -6296,6 +6313,7 @@
                 `;
 
                 content.innerHTML = html;
+                this._pendingYear = null; // consumed
             },
 
             // Render YouTube Music tab
@@ -6325,7 +6343,12 @@
                         </div>
                     </div>
 
-                    ${this.selectedYtAlbum ? this.renderComparisonView() : ''}
+                    ${this.selectedYtAlbum ? this.renderTrackComparison(
+                        this.ytTrackList,
+                        { title: this.selectedYtAlbum.title, artist: this.selectedYtAlbum.artist,
+                          year: this.selectedYtAlbum.year, thumbnail: this.selectedYtAlbum.thumbnail },
+                        'applyYtTags'
+                    ) : ''}
                 `;
 
                 content.innerHTML = html;
@@ -6377,83 +6400,256 @@
                 `).join('');
             },
 
-            // Select a YouTube album for comparison
+            // Select a YouTube album → fetch its full tracklist
             selectYtAlbum(index) {
                 this.selectedYtAlbum = this.ytMusicResults[index];
+                this.ytTrackList = null; // will be fetched
                 this.renderYouTubeTab();
+                if (this.selectedYtAlbum.browseId) {
+                    this.fetchYtTracks(this.selectedYtAlbum.browseId);
+                }
             },
 
-            // Render comparison view
-            renderComparisonView() {
-                if (!this.selectedYtAlbum) return '';
+            async fetchYtTracks(browseId) {
+                this.setStatus('Chargement tracklist...', 'loading');
+                try {
+                    const r = await fetch(`${BASE_PATH}/tag_editor_api.php?action=get_ytmusic_tracks&browse_id=${encodeURIComponent(browseId)}`);
+                    const res = await r.json();
+                    if (res.success) {
+                        this.ytTrackList = res.data; // { title, artist, year, tracks:[{track_number,title,artist}] }
+                    } else {
+                        this.showEditorToast('Tracklist indisponible', 'error');
+                    }
+                } catch(e) {
+                    this.showEditorToast('Erreur chargement tracklist', 'error');
+                } finally {
+                    this.setStatus('Prêt', 'ready');
+                    this.renderYouTubeTab();
+                }
+            },
+
+            // Shared: render tracklist comparison table (local vs proposed)
+            renderTrackComparison(trackList, albumInfo, applyFnName) {
+                if (!trackList) {
+                    return `<div style="text-align:center;padding:28px;color:var(--te-text-secondary)">
+                        <div class="loading-spinner" style="margin:0 auto 12px"></div>
+                        <p>Chargement de la tracklist…</p></div>`;
+                }
+
+                const proposed = trackList.tracks || [];
+                const local = [...this.songs].sort((a, b) => (a.track||999)-(b.track||999));
+                const maxRows = Math.max(local.length, proposed.length);
+                const countOk = local.length === proposed.length;
+                const thumb = albumInfo.thumbnail
+                    ? `<img src="${albumInfo.thumbnail}" alt="">`
+                    : '🎵';
+
+                let rows = '';
+                for (let i = 0; i < maxRows; i++) {
+                    const L = local[i];
+                    const P = proposed[i];
+                    rows += `<tr>
+                        <td class="tc-current">
+                            ${L ? `<span class="tc-num">${L.track||'?'}</span>
+                                   <span class="tc-title">${this.escapeHtml(L.db_title)}</span>
+                                   ${L.track_artist ? `<br><span class="tc-artist">${this.escapeHtml(L.track_artist)}</span>` : ''}`
+                               : '<span class="tc-missing">—</span>'}
+                        </td>
+                        <td class="tc-sep">→</td>
+                        <td>
+                            ${P ? `<span class="tc-num">${P.track_number}</span>
+                                   <span class="tc-title">${this.escapeHtml(P.title)}</span>
+                                   <br><span class="tc-artist">${this.escapeHtml(P.artist)}</span>`
+                               : '<span class="tc-missing">—</span>'}
+                        </td>
+                    </tr>`;
+                }
 
                 return `
-                    <div class="comparison-grid fade-in" style="margin-top: 24px;">
-                        <div class="comparison-column local">
-                            <h5>📁 Vos fichiers locaux</h5>
-                            <div class="form-field">
-                                <label>Album</label>
-                                <input type="text" value="${this.escapeHtml(this.albumData.album_name)}" readonly>
-                            </div>
-                            <div class="form-field">
-                                <label>Artiste</label>
-                                <input type="text" value="${this.escapeHtml(this.albumData.artist_name)}" readonly>
-                            </div>
-                            <div class="form-field">
-                                <label>Pistes</label>
-                                <input type="text" value="${this.songs.length}" readonly>
+                    <div class="tracklist-comparison fade-in" style="margin-top:20px">
+                        <div class="source-album-header">
+                            <div class="source-album-thumb">${thumb}</div>
+                            <div class="source-album-info">
+                                <strong>${this.escapeHtml(albumInfo.title || trackList.title || '')}</strong>
+                                <span>${this.escapeHtml(albumInfo.artist || trackList.artist || '')}</span>
+                                ${(albumInfo.year||trackList.year) ? `<span>${albumInfo.year||trackList.year}</span>` : ''}
+                                <span>${proposed.length} piste(s)</span>
                             </div>
                         </div>
-
-                        <div class="comparison-arrow">
-                            <button class="arrow-btn" onclick="tagEditor.applyYtTags()" title="Appliquer les tags YouTube">
-                                ←
+                        ${!countOk ? `<div class="count-warn">⚠️ ${local.length} piste(s) locale(s) vs ${proposed.length} piste(s) proposée(s) — correspondance par position</div>` : ''}
+                        <div class="track-compare-wrap">
+                            <table class="track-compare-table">
+                                <thead><tr>
+                                    <th>Actuel</th><th></th><th>Proposé</th>
+                                </tr></thead>
+                                <tbody>${rows}</tbody>
+                            </table>
+                        </div>
+                        <div class="comparison-apply-bar">
+                            <button class="btn btn-primary" onclick="tagEditor.${applyFnName}()">
+                                ✨ Appliquer ces tags
                             </button>
                         </div>
+                    </div>`;
+            },
 
-                        <div class="comparison-column youtube">
-                            <h5>🎵 YouTube Music</h5>
-                            <div class="form-field">
-                                <label>Album</label>
-                                <input type="text" value="${this.escapeHtml(this.selectedYtAlbum.title)}" readonly>
+            // Shared: apply a tracklist to the edit tab
+            applyTrackList() {
+                if (!this.pendingTrackList) return;
+                const { tracks, albumInfo } = this.pendingTrackList;
+                this.pendingTrackList = null;
+
+                // Sort songs by current track# for position matching
+                const sorted = [...this.songs].sort((a, b) => (a.track||999)-(b.track||999));
+                sorted.forEach((song, i) => {
+                    const t = tracks[i];
+                    if (!t) return;
+                    const idx = this.songs.findIndex(s => s.id === song.id);
+                    if (idx !== -1) {
+                        this.songs[idx].track = t.track_number;
+                        this.songs[idx].db_title = t.title;
+                        this.songs[idx].track_artist = t.artist;
+                    }
+                    this.modifiedSongs.add(song.id);
+                });
+
+                if (albumInfo.title) this.albumData.album_name = albumInfo.title;
+                if (albumInfo.year)  this._pendingYear = albumInfo.year;
+
+                this.switchTab('edit');
+                this.showEditorToast(`Tags de ${Math.min(tracks.length, sorted.length)} piste(s) appliqués — vérifiez et sauvegardez`, 'success');
+            },
+
+            // YouTube Music: "appliquer" → set pending + apply
+            applyYtTags() {
+                if (!this.ytTrackList) return;
+                this.pendingTrackList = {
+                    tracks: this.ytTrackList.tracks,
+                    albumInfo: {
+                        title: this.ytTrackList.title || this.selectedYtAlbum?.title,
+                        artist: this.ytTrackList.artist || this.selectedYtAlbum?.artist,
+                        year: this.ytTrackList.year || this.selectedYtAlbum?.year,
+                        thumbnail: this.ytTrackList.thumbnail || this.selectedYtAlbum?.thumbnail,
+                    }
+                };
+                this.applyTrackList();
+            },
+
+            // ── MusicBrainz tab ──────────────────────────────────────────────
+
+            renderMusicBrainzTab() {
+                const content = document.getElementById('tagEditorContent');
+                const defaultQuery = this.albumData.album_name;
+
+                let resultsHtml = '';
+                if (this.mbResults.length > 0) {
+                    resultsHtml = this.mbResults.map((r, i) => `
+                        <div class="mb-result-item ${this.selectedMbRelease?.id === r.id ? 'selected' : ''}"
+                             onclick="tagEditor.selectMbRelease(${i})">
+                            <div class="mb-result-badge">🎼</div>
+                            <div class="mb-result-info">
+                                <div class="title">${this.escapeHtml(r.title)}</div>
+                                <div class="meta">
+                                    ${this.escapeHtml(r.artist)}
+                                    ${r.year ? ` · ${r.year}` : ''}
+                                    ${r.track_count ? ` · ${r.track_count} pistes` : ''}
+                                    ${r.country ? ` · ${r.country}` : ''}
+                                    ${r.status ? ` · ${r.status}` : ''}
+                                </div>
                             </div>
-                            <div class="form-field">
-                                <label>Artiste</label>
-                                <input type="text" value="${this.escapeHtml(this.selectedYtAlbum.artist)}" readonly>
-                            </div>
-                            <div class="form-field">
-                                <label>Année</label>
-                                <input type="text" value="${this.escapeHtml(this.selectedYtAlbum.year || 'N/A')}" readonly>
-                            </div>
+                        </div>`).join('');
+                } else if (this._mbSearched) {
+                    resultsHtml = '<p style="color:var(--te-text-secondary);text-align:center;padding:20px">Aucun résultat</p>';
+                } else {
+                    resultsHtml = '<p style="color:var(--te-text-secondary);text-align:center;padding:20px">Lancez une recherche pour trouver la release</p>';
+                }
+
+                content.innerHTML = `
+                    <div class="ytmusic-panel fade-in">
+                        <h4><span class="icon">🎼</span> Rechercher sur MusicBrainz</h4>
+                        <p style="color:var(--te-text-secondary);margin-bottom:16px;font-size:14px">
+                            Base de données musicale ouverte — tracklists complètes avec artiste par piste.
+                        </p>
+                        <div class="ytmusic-search-box">
+                            <input type="text" id="mbSearchQuery"
+                                   placeholder="Nom de l'album…"
+                                   value="${this.escapeHtml(defaultQuery)}"
+                                   onkeypress="if(event.key==='Enter') tagEditor.searchMusicBrainz()">
+                            <button class="btn btn-primary" onclick="tagEditor.searchMusicBrainz()">
+                                🔍 Rechercher
+                            </button>
                         </div>
+                        <div id="mbResults" class="ytmusic-results">${resultsHtml}</div>
                     </div>
-
-                    <div style="text-align: center; margin-top: 20px;">
-                        <button class="btn btn-primary" onclick="tagEditor.applyYtTags()">
-                            ✨ Appliquer les tags YouTube Music
-                        </button>
-                    </div>
+                    ${this.selectedMbRelease ? this.renderTrackComparison(
+                        this.mbTrackList,
+                        { title: this.selectedMbRelease.title, artist: this.selectedMbRelease.artist,
+                          year: this.selectedMbRelease.year },
+                        'applyMbTracks'
+                    ) : ''}
                 `;
             },
 
-            // Apply YouTube tags to local files
-            applyYtTags() {
-                if (!this.selectedYtAlbum) return;
-
-                document.getElementById('common_artist').value = this.selectedYtAlbum.artist;
-                document.getElementById('common_album').value = this.selectedYtAlbum.title;
-                if (this.selectedYtAlbum.year) {
-                    document.getElementById('common_year').value = this.selectedYtAlbum.year;
+            async searchMusicBrainz() {
+                const query = document.getElementById('mbSearchQuery')?.value?.trim();
+                if (!query) return;
+                this._mbSearched = false;
+                this.mbResults = [];
+                this.selectedMbRelease = null;
+                this.mbTrackList = null;
+                document.getElementById('mbResults').innerHTML = '<div class="loading-spinner" style="margin:20px auto"></div>';
+                this.setStatus('Recherche MusicBrainz…', 'loading');
+                try {
+                    const r = await fetch(`${BASE_PATH}/tag_editor_api.php?action=musicbrainz_search&query=${encodeURIComponent(query)}`);
+                    const res = await r.json();
+                    if (res.success) {
+                        this.mbResults = res.data.releases || [];
+                        this._mbSearched = true;
+                    }
+                } catch(e) {
+                    this.showEditorToast('Erreur recherche MusicBrainz', 'error');
+                } finally {
+                    this.setStatus('Prêt', 'ready');
+                    this.renderMusicBrainzTab();
                 }
+            },
 
-                this.applyCommonTag('artist', this.selectedYtAlbum.artist);
-                this.applyCommonTag('album', this.selectedYtAlbum.title);
-                if (this.selectedYtAlbum.year) {
-                    this.applyCommonTag('year', this.selectedYtAlbum.year);
+            selectMbRelease(index) {
+                this.selectedMbRelease = this.mbResults[index];
+                this.mbTrackList = null;
+                this.renderMusicBrainzTab();
+                this.fetchMbTracks(this.selectedMbRelease.id);
+            },
+
+            async fetchMbTracks(releaseId) {
+                this.setStatus('Chargement tracklist MusicBrainz…', 'loading');
+                try {
+                    const r = await fetch(`${BASE_PATH}/tag_editor_api.php?action=musicbrainz_tracks&release_id=${encodeURIComponent(releaseId)}`);
+                    const res = await r.json();
+                    if (res.success) {
+                        this.mbTrackList = res.data;
+                    } else {
+                        this.showEditorToast('Tracklist indisponible: ' + (res.error || ''), 'error');
+                    }
+                } catch(e) {
+                    this.showEditorToast('Erreur chargement MusicBrainz', 'error');
+                } finally {
+                    this.setStatus('Prêt', 'ready');
+                    this.renderMusicBrainzTab();
                 }
+            },
 
-                this.switchTab('edit');
-                this.showEditorToast(t('editor.yt_tags_applied','Tags YouTube Music appliqués!'), 'success');
+            applyMbTracks() {
+                if (!this.mbTrackList) return;
+                this.pendingTrackList = {
+                    tracks: this.mbTrackList.tracks,
+                    albumInfo: {
+                        title: this.mbTrackList.title || this.selectedMbRelease?.title,
+                        artist: this.mbTrackList.artist || this.selectedMbRelease?.artist,
+                        year: this.mbTrackList.year || this.selectedMbRelease?.year,
+                    }
+                };
+                this.applyTrackList();
             },
 
             // Render files tab (for renaming)

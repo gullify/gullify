@@ -22,6 +22,9 @@
             <button class="tag-editor-tab" data-tab="youtube" onclick="tagEditor.switchTab('youtube')">
                 🎵 YouTube Music
             </button>
+            <button class="tag-editor-tab" data-tab="musicbrainz" onclick="tagEditor.switchTab('musicbrainz')">
+                🎼 MusicBrainz
+            </button>
             <button class="tag-editor-tab" data-tab="files" onclick="tagEditor.switchTab('files')">
                 📁 Fichiers
             </button>

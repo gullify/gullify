@@ -1099,3 +1099,54 @@
 [data-theme="dark"] .genre-select {
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23aaa' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
 }
+
+/* ── Tracklist comparison (YouTube Music + MusicBrainz) ── */
+.source-album-header {
+    display: flex; align-items: center; gap: 12px;
+    margin-bottom: 16px; padding-bottom: 14px;
+    border-bottom: 1px solid var(--te-border);
+}
+.source-album-thumb {
+    width: 52px; height: 52px; border-radius: 8px; overflow: hidden;
+    flex-shrink: 0; background: var(--te-bg-secondary);
+    display: flex; align-items: center; justify-content: center; font-size: 22px;
+}
+.source-album-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.source-album-info strong { display: block; font-size: 15px; color: var(--te-text-primary); }
+.source-album-info span { font-size: 12px; color: var(--te-text-secondary); margin-right: 10px; }
+
+.count-warn {
+    background: rgba(255,180,0,.1); border: 1px solid rgba(255,180,0,.3);
+    border-radius: 8px; padding: 8px 12px; font-size: 13px;
+    color: var(--te-warning, #b07d00); margin-bottom: 12px;
+}
+.track-compare-wrap { max-height: 340px; overflow-y: auto; border-radius: 10px; border: 1px solid var(--te-border); }
+.track-compare-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.track-compare-table thead th {
+    position: sticky; top: 0; z-index: 1;
+    background: var(--te-bg-secondary); padding: 8px 10px;
+    text-align: left; font-size: 11px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: .5px;
+    color: var(--te-text-secondary); border-bottom: 1px solid var(--te-border);
+}
+.track-compare-table tbody tr:hover { background: var(--te-hover-bg); }
+.track-compare-table td { padding: 7px 10px; border-bottom: 1px solid var(--te-border-subtle, rgba(128,128,128,.08)); vertical-align: middle; }
+.tc-sep { width: 20px; text-align: center; color: var(--te-text-secondary); opacity: .5; }
+.tc-current { background: var(--te-bg-secondary,.5); }
+.tc-num { display: inline-block; min-width: 20px; font-size: 11px; color: var(--te-text-secondary); font-weight: 600; }
+.tc-title { font-weight: 500; }
+.tc-artist { color: var(--te-text-secondary); font-size: 12px; }
+.tc-missing { color: var(--te-text-secondary); font-style: italic; }
+.comparison-apply-bar { text-align: center; padding: 16px 0 4px; }
+
+/* MusicBrainz results */
+.mb-result-item {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 14px; border-radius: 10px; cursor: pointer;
+    transition: background .15s; border: 2px solid transparent; margin-bottom: 4px;
+}
+.mb-result-item:hover { background: var(--te-hover-bg); }
+.mb-result-item.selected { border-color: var(--te-accent); }
+.mb-result-badge { font-size: 28px; width: 44px; text-align: center; flex-shrink: 0; }
+.mb-result-info .title { font-weight: 600; font-size: 14px; }
+.mb-result-info .meta { color: var(--te-text-secondary); font-size: 12px; margin-top: 2px; }

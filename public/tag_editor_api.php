@@ -116,6 +116,109 @@ try {
             echo json_encode(['success' => $successCount > 0, 'updated' => $successCount]);
             break;
 
+        case 'get_ytmusic_tracks':
+            // Fetch full tracklist for a YouTube Music album via browseId
+            $browseId = trim($_GET['browse_id'] ?? ($json['browse_id'] ?? ''));
+            if (!$browseId) {
+                echo json_encode(['success' => false, 'error' => 'browse_id required']);
+                break;
+            }
+            $pythonScript = AppConfig::getPythonPath() . '/ytmusic_search.py';
+            $pythonBin    = file_exists('/opt/ytdlp/bin/python3') ? '/opt/ytdlp/bin/python3' : 'python3';
+            $cmd    = $pythonBin . ' ' . escapeshellarg($pythonScript)
+                    . ' album_details ' . escapeshellarg($browseId) . ' 2>/dev/null';
+            $output = shell_exec($cmd);
+            if (!$output) {
+                echo json_encode(['success' => false, 'error' => 'No response from ytmusic']);
+                break;
+            }
+            $data = json_decode($output, true);
+            if (!$data || empty($data['album'])) {
+                echo json_encode(['success' => false, 'error' => 'Album not found']);
+                break;
+            }
+            echo json_encode(['success' => true, 'data' => $data['album']]);
+            break;
+
+        case 'musicbrainz_search':
+            // Search MusicBrainz for releases matching an album name
+            $query = trim($_GET['query'] ?? ($json['query'] ?? ''));
+            if (!$query) {
+                echo json_encode(['success' => false, 'error' => 'query required']);
+                break;
+            }
+            $url  = 'https://musicbrainz.org/ws/2/release/?query='
+                  . urlencode('release:"' . $query . '"')
+                  . '&limit=8&fmt=json';
+            $ctx  = stream_context_create(['http' => [
+                'header'  => "User-Agent: Gullify/1.0 (music-app)\r\n",
+                'timeout' => 8,
+            ]]);
+            $raw  = @file_get_contents($url, false, $ctx);
+            if (!$raw) {
+                echo json_encode(['success' => false, 'error' => 'MusicBrainz unreachable']);
+                break;
+            }
+            $mb = json_decode($raw, true);
+            $releases = [];
+            foreach (($mb['releases'] ?? []) as $r) {
+                $artist = $r['artist-credit'][0]['artist']['name'] ?? ($r['artist-credit'][0]['name'] ?? '');
+                $releases[] = [
+                    'id'          => $r['id'],
+                    'title'       => $r['title'],
+                    'artist'      => $artist,
+                    'year'        => substr($r['date'] ?? '', 0, 4),
+                    'track_count' => $r['track-count'] ?? 0,
+                    'status'      => $r['status'] ?? '',
+                    'country'     => $r['country'] ?? '',
+                ];
+            }
+            echo json_encode(['success' => true, 'data' => ['releases' => $releases]]);
+            break;
+
+        case 'musicbrainz_tracks':
+            // Fetch full tracklist for a MusicBrainz release
+            $releaseId = trim($_GET['release_id'] ?? ($json['release_id'] ?? ''));
+            if (!preg_match('/^[0-9a-f\-]{36}$/', $releaseId)) {
+                echo json_encode(['success' => false, 'error' => 'Invalid release_id']);
+                break;
+            }
+            $url = 'https://musicbrainz.org/ws/2/release/' . urlencode($releaseId)
+                 . '?inc=recordings+artist-credits&fmt=json';
+            $ctx = stream_context_create(['http' => [
+                'header'  => "User-Agent: Gullify/1.0 (music-app)\r\n",
+                'timeout' => 10,
+            ]]);
+            $raw = @file_get_contents($url, false, $ctx);
+            if (!$raw) {
+                echo json_encode(['success' => false, 'error' => 'MusicBrainz unreachable']);
+                break;
+            }
+            $mb     = json_decode($raw, true);
+            $tracks = [];
+            foreach (($mb['media'][0]['tracks'] ?? []) as $t) {
+                $rec    = $t['recording'] ?? [];
+                $artist = $rec['artist-credit'][0]['artist']['name']
+                       ?? ($rec['artist-credit'][0]['name'] ?? '');
+                $tracks[] = [
+                    'track_number' => (int)($t['number'] ?? $t['position'] ?? 0),
+                    'title'        => $t['title'] ?? ($rec['title'] ?? ''),
+                    'artist'       => $artist,
+                    'duration'     => isset($rec['length'])
+                                      ? gmdate('i:s', intval($rec['length'] / 1000)) : '',
+                ];
+            }
+            $albumArtist = $mb['artist-credit'][0]['artist']['name']
+                        ?? ($mb['artist-credit'][0]['name'] ?? '');
+            echo json_encode(['success' => true, 'data' => [
+                'title'       => $mb['title'] ?? '',
+                'artist'      => $albumArtist,
+                'year'        => substr($mb['date'] ?? '', 0, 4),
+                'track_count' => count($tracks),
+                'tracks'      => $tracks,
+            ]]);
+            break;
+
         case 'get_ytmusic_artist':
             $query = trim($_GET['artist'] ?? '');
             if (!$query) {
