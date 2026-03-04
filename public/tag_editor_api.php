@@ -274,6 +274,18 @@ try {
             echo json_encode(['success' => true, 'data' => ['artists' => $artists]]);
             break;
 
+        case 'rescan_album':
+            $albumId = intval($json['album_id'] ?? ($_POST['album_id'] ?? 0));
+            if (!$albumId) {
+                echo json_encode(['success' => false, 'error' => 'album_id required']);
+                break;
+            }
+            require_once __DIR__ . '/../src/Scanner.php';
+            $scanner = new Scanner();
+            $result  = $scanner->scanAlbum($albumId, $user);
+            echo json_encode(['success' => true, 'data' => $result]);
+            break;
+
         default:
             echo json_encode(['success' => false, 'error' => 'Unknown action: ' . $action]);
     }

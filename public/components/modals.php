@@ -40,6 +40,9 @@
             </div>
             <div class="footer-actions">
                 <button class="btn btn-secondary" onclick="tagEditor.close()">Annuler</button>
+                <button class="btn btn-secondary" id="rescanAlbumBtn" onclick="tagEditor.rescanAlbum()" title="Relire les métadonnées depuis les fichiers">
+                    🔄 Rescanner
+                </button>
                 <button class="btn btn-primary btn-apply-all" id="saveAllBtn" onclick="tagEditor.saveAll()">
                     💾 Sauvegarder tout
                 </button>

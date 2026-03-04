@@ -656,6 +656,83 @@ class Scanner {
         return $changes;
     }
 
+    // =========================================================================
+    // Mode 2b: Single Album Rescan
+    // =========================================================================
+
+    /**
+     * Rescan all songs in a single album.
+     * Re-reads ID3 metadata (with filename fallback), updates title/track_number/duration,
+     * and writes back derived tags to the files when applicable.
+     */
+    public function scanAlbum(int $albumId, string $user): array {
+        // Verify album belongs to user
+        $stmt = $this->db->prepare('
+            SELECT al.id, al.name, ar.name AS artist_name
+            FROM albums al
+            JOIN artists ar ON al.artist_id = ar.id
+            WHERE al.id = ? AND ar.user = ?
+        ');
+        $stmt->execute([$albumId, $user]);
+        $album = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$album) {
+            throw new Exception('Album not found');
+        }
+
+        $stmt = $this->db->prepare('SELECT id, file_path, title, track_number FROM songs WHERE album_id = ?');
+        $stmt->execute([$albumId]);
+        $songs = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        if (empty($songs)) {
+            return ['songs_updated' => 0, 'tags_written' => 0, 'errors' => 0,
+                    'album' => $album['name'], 'artist' => $album['artist_name']];
+        }
+
+        $this->storage = StorageFactory::forUser($user);
+        $this->scanPathBase = $this->storage->getPathBase();
+
+        $updated    = 0;
+        $tagsWritten = 0;
+        $errors     = 0;
+
+        foreach ($songs as $song) {
+            $absPath = rtrim($this->scanPathBase, '/') . '/' . ltrim($song['file_path'], '/');
+
+            if (!$this->storage->fileExists($absPath)) {
+                echo "  MISSING: {$song['file_path']}\n";
+                $errors++;
+                continue;
+            }
+
+            $localPath = $this->getLocalPathForAnalysis($absPath);
+            $metadata  = $this->extractBasicMetadata($localPath);
+            $fileHash  = $this->computeFileHash($absPath);
+            $this->cleanupTempFile($localPath, $absPath);
+
+            $title = $metadata['title'] ?: pathinfo($song['file_path'], PATHINFO_FILENAME);
+
+            $this->db->prepare('
+                UPDATE songs SET title = ?, track_number = ?, duration = ?, file_hash = ? WHERE id = ?
+            ')->execute([$title, $metadata['trackNumber'], $metadata['duration'], $fileHash, $song['id']]);
+
+            if (!empty($metadata['tagsToWrite']) &&
+                ($this->storage === null || $this->storage->getType() !== 'sftp')) {
+                $this->writeBackDerivedTags($absPath, $metadata['tagsToWrite']);
+                $tagsWritten++;
+            }
+
+            $updated++;
+        }
+
+        return [
+            'songs_updated' => $updated,
+            'tags_written'  => $tagsWritten,
+            'errors'        => $errors,
+            'album'         => $album['name'],
+            'artist'        => $album['artist_name'],
+        ];
+    }
+
     private function scanArtistFolder(string $artistPath, int $artistId, string $user, array &$foundAlbums, array &$foundSongs): void {
         $items = $this->storage->listDir($artistPath);
 
@@ -700,8 +777,8 @@ class Scanner {
 
     private function addSongWithID3(array $songData, string $fileHash, int $artistId): void {
         $localPath = $this->getLocalPathForAnalysis($songData['path']);
-        $metadata = $this->extractFullMetadata($localPath);
-        $title = $this->extractSongTitle($localPath, pathinfo($songData['file'], PATHINFO_FILENAME));
+        $metadata  = $this->extractBasicMetadata($localPath);
+        $title     = $metadata['title'] ?: pathinfo($songData['file'], PATHINFO_FILENAME);
         $this->cleanupTempFile($localPath, $songData['path']);
 
         // Get or create album (with year from ID3)
@@ -738,16 +815,27 @@ class Scanner {
             $songData['relative_path'],
             $fileHash,
         ]);
+
+        // Write back filename-derived tags if needed
+        if (!empty($metadata['tagsToWrite']) &&
+            ($this->storage === null || $this->storage->getType() !== 'sftp')) {
+            $this->writeBackDerivedTags($songData['path'], $metadata['tagsToWrite']);
+        }
     }
 
     private function updateSongWithID3(int $songId, array $songData, string $fileHash): void {
         $localPath = $this->getLocalPathForAnalysis($songData['path']);
-        $metadata = $this->extractFullMetadata($localPath);
-        $title = $this->extractSongTitle($localPath, pathinfo($songData['file'], PATHINFO_FILENAME));
+        $metadata  = $this->extractBasicMetadata($localPath);
+        $title     = $metadata['title'] ?: pathinfo($songData['file'], PATHINFO_FILENAME);
         $this->cleanupTempFile($localPath, $songData['path']);
 
         $stmt = $this->db->prepare('UPDATE songs SET title = ?, track_number = ?, duration = ?, file_hash = ? WHERE id = ?');
         $stmt->execute([$title, $metadata['trackNumber'], $metadata['duration'], $fileHash, $songId]);
+
+        if (!empty($metadata['tagsToWrite']) &&
+            ($this->storage === null || $this->storage->getType() !== 'sftp')) {
+            $this->writeBackDerivedTags($songData['path'], $metadata['tagsToWrite']);
+        }
     }
 
     private function getExistingAlbumsForArtist(int $artistId): array {

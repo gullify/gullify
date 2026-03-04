@@ -6672,6 +6672,54 @@
             },
 
             // Save all modified songs
+            async rescanAlbum() {
+                if (!this.albumId) return;
+                const albumName = this.albumData?.album_name || 'cet album';
+
+                if (!confirm(`Rescanner "${albumName}" ?\n\nCela va relire les métadonnées depuis les fichiers et corriger les numéros de piste et les artistes manquants.`)) {
+                    return;
+                }
+
+                this.setStatus('Rescan en cours...', 'loading');
+                const rescanBtn = document.getElementById('rescanAlbumBtn');
+                const saveBtn   = document.getElementById('saveAllBtn');
+                if (rescanBtn) rescanBtn.disabled = true;
+                if (saveBtn)   saveBtn.disabled   = true;
+
+                try {
+                    const response = await fetch(`${BASE_PATH}/tag_editor_api.php?action=rescan_album`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ album_id: this.albumId })
+                    });
+                    const result = await response.json();
+
+                    if (!result.success) {
+                        this.showEditorToast('Erreur: ' + (result.error || 'Rescan échoué'), 'error');
+                        return;
+                    }
+
+                    const d = result.data;
+                    let msg = `${d.songs_updated} piste(s) mise(s) à jour`;
+                    if (d.tags_written > 0) msg += `, ${d.tags_written} tag(s) écrits`;
+                    if (d.errors > 0)       msg += `, ${d.errors} erreur(s)`;
+                    this.showEditorToast(msg, 'success');
+
+                    // Reload to reflect updated track numbers / titles
+                    this.modifiedSongs.clear();
+                    await this.loadAlbumData();
+                    this.renderEditTab();
+
+                } catch (err) {
+                    this.showEditorToast('Erreur réseau lors du rescan', 'error');
+                    console.error(err);
+                } finally {
+                    if (rescanBtn) rescanBtn.disabled = false;
+                    if (saveBtn)   saveBtn.disabled   = false;
+                    this.setStatus('Prêt', 'ready');
+                }
+            },
+
             async saveAll() {
                 const songsToSave = this.modifiedSongs.size > 0
                     ? this.songs.filter(s => this.modifiedSongs.has(s.id))
