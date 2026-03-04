@@ -6619,11 +6619,18 @@
                         this.songs[idx].track = t.track_number;
                         this.songs[idx].db_title = t.title;
                         this.songs[idx].track_artist = t.artist;
+                        // Also update file_tags so renderEditTab inputs show updated values
+                        if (!this.songs[idx].file_tags) this.songs[idx].file_tags = {};
+                        this.songs[idx].file_tags.title = t.title;
+                        this.songs[idx].file_tags.track = t.track_number;
+                        if (t.artist) this.songs[idx].file_tags.artist = t.artist;
                         applied++;
                     }
                     this.modifiedSongs.add(song.id);
                 });
 
+                // Re-sort songs by their new track numbers so renderEditTab shows correct order
+                this.songs.sort((a, b) => (a.track || 999) - (b.track || 999));
                 this._manualMapping = {};
                 if (albumInfo.title) this.albumData.album_name = albumInfo.title;
                 if (albumInfo.year)  this._pendingYear = albumInfo.year;
