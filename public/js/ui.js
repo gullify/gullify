@@ -2551,12 +2551,12 @@
                     const result = await response.json();
                     let popularHtml = '';
                     if (!result.error && result.data && result.data.length > 0) {
-                        // Aggregate songs by artist to get top artists
+                        // Aggregate songs by artist to get top artists, keeping best album cover
                         const artistMap = {};
                         result.data.forEach(song => {
                             const aid = song.artistId;
                             if (!artistMap[aid]) {
-                                artistMap[aid] = { id: aid, name: song.artistName, imageUrl: 'serve_image.php?artist_id=' + aid, playCount: 0 };
+                                artistMap[aid] = { id: aid, name: song.artistName, imageUrl: song.artworkUrl || ('serve_image.php?artist_id=' + aid), playCount: 0 };
                             }
                             artistMap[aid].playCount += song.playCount || 0;
                         });
@@ -2568,15 +2568,11 @@
                                     <h3 style="margin-bottom: 12px; font-size: 18px; font-weight: 600;"><i class="ri-fire-line"></i> ${t('home.popular', 'Plus populaires')}</h3>
                                     <div class="artist-grid" style="grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));">
                                         ${topArtists.map(artist => {
-                                            let imageHtml = '👤';
-                                            if (artist.imageUrl) {
-                                                imageHtml = '<img src="' + artist.imageUrl + '" alt="' + artist.name + '" style="width: 100%; height: 100%; object-fit: cover;">';
-                                            }
                                             return `<div class="artist-card" onclick="viewArtist(${artist.id})">
                                                 <div class="artist-image" style="background: var(--placeholder-gradient); display: flex; align-items: center; justify-content: center; font-size: 36px;">
-                                                    ${imageHtml}
+                                                    <img src="${artist.imageUrl}" alt="${escapeHtml(artist.name)}" style="width: 100%; height: 100%; object-fit: cover;">
                                                 </div>
-                                                <div class="artist-name">${artist.name}</div>
+                                                <div class="artist-name">${escapeHtml(artist.name)}</div>
                                                 <div class="artist-info">${t('home.plays', '{n} écoutes').replace('{n}', artist.playCount)}</div>
                                             </div>`;
                                         }).join('')}

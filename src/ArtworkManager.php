@@ -230,7 +230,7 @@ class ArtworkManager {
         return null;
     }
 
-    private function saveThumbnail(string $imageData, string $targetPath, int $size = 500): bool {
+    private function saveThumbnail(string $imageData, string $targetPath, int $size = 800): bool {
         try {
             $src = @imagecreatefromstring($imageData);
             if (!$src) return false;

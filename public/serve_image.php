@@ -84,13 +84,21 @@ try {
             serveLocalFile($cachedFile);
         }
 
-        // 2. Try database
+        // 2. Try database (legacy base64) — cache it as a proper file for future requests
         $conn = AppConfig::getDB();
         $stmt = $conn->prepare('SELECT image FROM artists WHERE id = ?');
         $stmt->execute([$artistId]);
         $imageData = $stmt->fetchColumn();
         if ($imageData && strlen($imageData) > 100) {
-            serveBase64($imageData);
+            // If it's a filename reference (e.g. "artist_123.jpg"), skip — cache file should exist
+            if (!str_starts_with($imageData, 'artist_')) {
+                $bin = base64_decode($imageData);
+                if ($bin) {
+                    if (!is_dir($cachePath)) mkdir($cachePath, 0775, true);
+                    @file_put_contents($cachedFile, $bin);
+                    serveBinary($bin);
+                }
+            }
         }
 
         // 3. Search in artist folder
