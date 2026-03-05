@@ -218,6 +218,26 @@ switch ($method) {
         handleGetMusicDirectory($db, $currentUser, $format);
         break;
 
+    case 'getGenres':
+        handleGetGenres($db, $currentUser, $format);
+        break;
+
+    case 'getBookmarks':
+        subsonicOk(['bookmarks' => new stdClass()], $format);
+        break;
+
+    case 'getScanStatus':
+        subsonicOk(['scanStatus' => ['@scanning' => false, '@count' => 0]], $format);
+        break;
+
+    case 'getInternetRadioStations':
+        subsonicOk(['internetRadioStations' => new stdClass()], $format);
+        break;
+
+    case 'getPodcasts':
+        subsonicOk(['podcasts' => new stdClass()], $format);
+        break;
+
     default:
         subsonicOk([], $format);
         break;
@@ -702,12 +722,40 @@ function handleGetMusicDirectory($db, $user, $format) {
     }
 }
 
+function handleGetGenres($db, $user, $format) {
+    $conn = AppConfig::getDB();
+    $stmt = $conn->prepare("
+        SELECT a.genre, COUNT(DISTINCT al.id) as albumCount, COUNT(DISTINCT s.id) as songCount
+        FROM artists a
+        JOIN albums al ON a.id = al.artist_id
+        JOIN songs s ON al.id = s.album_id
+        WHERE a.user = ? AND a.genre IS NOT NULL AND a.genre != ''
+        GROUP BY a.genre
+        ORDER BY a.genre ASC
+    ");
+    $stmt->execute([$user]);
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $genres = array_map(fn($r) => [
+        '@songCount' => (int)$r['songCount'],
+        '@albumCount' => (int)$r['albumCount'],
+        '_value' => $r['genre'],
+    ], $rows);
+
+    subsonicOk(['genres' => ['genre' => $genres]], $format);
+}
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 function stripAtKeys($data) {
+    if ($data instanceof stdClass) return $data;
     if (!is_array($data)) return $data;
     $out = [];
     foreach ($data as $k => $v) {
+        if ($k === '_value') {
+            $out['value'] = $v;
+            continue;
+        }
         $key = is_string($k) && str_starts_with($k, '@') ? substr($k, 1) : $k;
         $out[$key] = is_array($v) ? stripAtKeys($v) : $v;
     }
@@ -810,20 +858,26 @@ function xmlElement($name, $value, $indent = '  ') {
         // Check if it's an attributes-bearing element
         $attrs = [];
         $children = [];
+        $textValue = null;
         foreach ($value as $k => $v) {
-            if (str_starts_with($k, '@')) {
+            if ($k === '_value') {
+                $textValue = $v;
+            } elseif (str_starts_with($k, '@')) {
                 $attrs[substr($k, 1)] = $v;
             } else {
                 $children[$k] = $v;
             }
         }
 
-        if (!empty($attrs) || !empty($children)) {
+        if (!empty($attrs) || !empty($children) || $textValue !== null) {
             echo $indent . '<' . $name;
             foreach ($attrs as $ak => $av) {
-                echo ' ' . $ak . '="' . htmlspecialchars((string)$av) . '"';
+                $xmlVal = is_bool($av) ? ($av ? 'true' : 'false') : htmlspecialchars((string)$av);
+                echo ' ' . $ak . '="' . $xmlVal . '"';
             }
-            if (empty($children)) {
+            if ($textValue !== null) {
+                echo '>' . htmlspecialchars((string)$textValue) . '</' . $name . '>' . "\n";
+            } elseif (empty($children)) {
                 echo '/>' . "\n";
             } else {
                 echo '>' . "\n";
