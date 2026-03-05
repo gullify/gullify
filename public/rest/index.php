@@ -431,44 +431,83 @@ function handleGetAlbumList($db, $user, $format) {
 }
 
 function handleSearch($db, $user, $format) {
-    $query = $_GET['query'] ?? '';
-    $artistCount = min((int)($_GET['artistCount'] ?? 20), 100);
-    $albumCount = min((int)($_GET['albumCount'] ?? 20), 100);
-    $songCount = min((int)($_GET['songCount'] ?? 20), 100);
+    $query = trim($_GET['query'] ?? '', ' "');
+    $artistCount = min((int)($_GET['artistCount'] ?? 20), 500);
+    $artistOffset = (int)($_GET['artistOffset'] ?? 0);
+    $albumCount = min((int)($_GET['albumCount'] ?? 20), 500);
+    $albumOffset = (int)($_GET['albumOffset'] ?? 0);
+    $songCount = min((int)($_GET['songCount'] ?? 20), 500);
+    $songOffset = (int)($_GET['songOffset'] ?? 0);
 
     $conn = AppConfig::getDB();
+    $isListAll = ($query === '');
     $like = "%{$query}%";
 
     // Artists
-    $stmt = $conn->prepare("SELECT id, name FROM artists WHERE user = ? AND name LIKE ? LIMIT ?");
-    $stmt->execute([$user, $like, $artistCount]);
-    $artists = array_map(fn($a) => [
-        '@id' => 'ar-' . $a['id'],
-        '@name' => $a['name'],
-        '@coverArt' => 'ar-' . $a['id'],
-    ], $stmt->fetchAll(PDO::FETCH_ASSOC));
+    $artists = [];
+    if ($artistCount > 0) {
+        if ($isListAll) {
+            $stmt = $conn->prepare("SELECT id, name FROM artists WHERE user = ? ORDER BY name LIMIT ? OFFSET ?");
+            $stmt->execute([$user, $artistCount, $artistOffset]);
+        } else {
+            $stmt = $conn->prepare("SELECT id, name FROM artists WHERE user = ? AND name LIKE ? ORDER BY name LIMIT ? OFFSET ?");
+            $stmt->execute([$user, $like, $artistCount, $artistOffset]);
+        }
+        $artists = array_map(fn($a) => [
+            '@id' => 'ar-' . $a['id'],
+            '@name' => $a['name'],
+            '@coverArt' => 'ar-' . $a['id'],
+        ], $stmt->fetchAll(PDO::FETCH_ASSOC));
+    }
 
     // Albums
-    $stmt = $conn->prepare("
-        SELECT al.*, a.name as artist_name, a.id as artist_id
-        FROM albums al
-        JOIN artists a ON al.artist_id = a.id
-        WHERE a.user = ? AND (al.name LIKE ? OR a.name LIKE ?)
-        LIMIT ?
-    ");
-    $stmt->execute([$user, $like, $like, $albumCount]);
-    $albums = array_map(fn($al) => [
-        '@id' => 'al-' . $al['id'],
-        '@name' => $al['name'],
-        '@artist' => $al['artist_name'],
-        '@artistId' => 'ar-' . $al['artist_id'],
-        '@coverArt' => 'al-' . $al['id'],
-        '@year' => (int)($al['year'] ?? 0),
-    ], $stmt->fetchAll(PDO::FETCH_ASSOC));
+    $albums = [];
+    if ($albumCount > 0) {
+        if ($isListAll) {
+            $stmt = $conn->prepare("
+                SELECT al.*, a.name as artist_name, a.id as artist_id
+                FROM albums al JOIN artists a ON al.artist_id = a.id
+                WHERE a.user = ? ORDER BY al.name LIMIT ? OFFSET ?
+            ");
+            $stmt->execute([$user, $albumCount, $albumOffset]);
+        } else {
+            $stmt = $conn->prepare("
+                SELECT al.*, a.name as artist_name, a.id as artist_id
+                FROM albums al JOIN artists a ON al.artist_id = a.id
+                WHERE a.user = ? AND (al.name LIKE ? OR a.name LIKE ?)
+                ORDER BY al.name LIMIT ? OFFSET ?
+            ");
+            $stmt->execute([$user, $like, $like, $albumCount, $albumOffset]);
+        }
+        $albums = array_map(fn($al) => [
+            '@id' => 'al-' . $al['id'],
+            '@name' => $al['name'],
+            '@artist' => $al['artist_name'],
+            '@artistId' => 'ar-' . $al['artist_id'],
+            '@coverArt' => 'al-' . $al['id'],
+            '@year' => (int)($al['year'] ?? 0),
+        ], $stmt->fetchAll(PDO::FETCH_ASSOC));
+    }
 
     // Songs
-    $songs = $db->searchSongs($query, $user);
-    $songList = array_map(fn($s) => buildSongChild($s), array_slice($songs, 0, $songCount));
+    $songList = [];
+    if ($songCount > 0) {
+        if ($isListAll) {
+            $stmt = $conn->prepare("
+                SELECT s.*, al.name as album_name, al.year, a.name as artist_name, a.id as artist_id
+                FROM songs s
+                JOIN albums al ON s.album_id = al.id
+                JOIN artists a ON al.artist_id = a.id
+                WHERE a.user = ?
+                ORDER BY s.title LIMIT ? OFFSET ?
+            ");
+            $stmt->execute([$user, $songCount, $songOffset]);
+            $songList = array_map(fn($s) => buildSongChild($s), $stmt->fetchAll(PDO::FETCH_ASSOC));
+        } else {
+            $songs = $db->searchSongs($query, $user);
+            $songList = array_map(fn($s) => buildSongChild($s), array_slice($songs, $songOffset, $songCount));
+        }
+    }
 
     subsonicOk(['searchResult3' => [
         'artist' => $artists,
