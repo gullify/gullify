@@ -51,6 +51,7 @@ Self-hosted music streaming server with a YouTube Music-style interface.
 - Music suggestions by genre
 - PWA — installable on mobile
 - Dark mode
+- **Subsonic API compatible** — use your favorite mobile app (Symfonium, DSub, Ultrasonic, Substreamer, etc.) to stream your library on the go
 
 ## Music Organization
 
@@ -326,6 +327,33 @@ GET /get_lyrics.php?path=Artist/Album/Track.mp3
 ```
 
 HTTP status codes: `200` OK · `206` Partial (streaming) · `400` Bad request · `401` Unauthorized · `403` Forbidden · `404` Not found · `500` Server error
+
+## Subsonic / OpenSubsonic API
+
+Gullify acts as a Subsonic-compatible server, so you can connect any app that supports the Subsonic or OpenSubsonic protocol and stream your music from your phone, car, or anywhere.
+
+### Connecting a mobile app
+
+In your Subsonic client of choice, add a new server with:
+
+- **Server URL**: `https://your-domain.com`
+- **Username / Password**: your Gullify credentials
+
+That's it. The app will sync your library, playlists, favorites, and genres automatically.
+
+### Tested clients
+
+| App | Platform | Status |
+|-----|----------|--------|
+| [Symfonium](https://symfonium.app) | Android | Supported |
+| [DSub](https://play.google.com/store/apps/details?id=github.daneren2005.dsub) | Android | Should work |
+| [Ultrasonic](https://ultrasonic.github.io) | Android | Should work |
+| [Substreamer](https://substreamerapp.com) | iOS / Android | Should work |
+| [play:Sub](https://michaelsapps.dk/playsubapp/) | iOS | Should work |
+
+### Supported endpoints
+
+`ping` · `getLicense` · `getMusicFolders` · `getArtists` · `getArtist` · `getAlbum` · `getSong` · `getAlbumList2` · `getIndexes` · `getMusicDirectory` · `search3` · `stream` · `getCoverArt` · `getGenres` · `getRandomSongs` · `getStarred2` · `star` · `unstar` · `scrobble` · `getPlaylists` · `getPlaylist` · `createPlaylist` · `getUser` · `getBookmarks` · `getScanStatus` · `getOpenSubsonicExtensions`
 
 ## License
 
