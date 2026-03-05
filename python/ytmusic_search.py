@@ -99,6 +99,7 @@ def get_album_details(browse_id):
             "track_count": album.get("trackCount", 0),
             "tracks": tracks,
             "type": album.get("type", "Album"),
+            "audioPlaylistId": album.get("audioPlaylistId", ""),
         }
     except Exception as e:
         return None

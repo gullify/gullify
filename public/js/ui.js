@@ -1894,40 +1894,70 @@
         }
 
         async function startDownloadFromSearch(idx) {
-            const { browseId, artist, title: album } = _dlSearchAlbums[idx] || {};
-            if (!browseId) return;
-            const user = document.getElementById('downloadUser').value;
-            const url = `https://music.youtube.com/browse/${browseId}`;
+            const album = _dlSearchAlbums[idx];
+            if (!album?.browseId) return;
+
+            // Show loading on the button
+            const btns = document.querySelectorAll('.dl-search-dl-btn');
+            const btn = btns[idx];
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<i class="ri-loader-4-line ri-spin"></i>';
+            }
+
             try {
-                const formData = new FormData();
-                formData.append('url', url);
-                formData.append('user', user);
-                formData.append('artist_name', artist);
-                formData.append('album_name', album);
-                formData.append('artist_id', 'new');
-                const response = await fetch(`${BASE_PATH}/download_album_api.php?action=start`, {
-                    method: 'POST', body: formData
-                });
-                const result = await response.json();
-                if (result.success) {
-                    const resultsDiv = document.getElementById('dlSearchResults');
-                    if (resultsDiv) {
-                        // Mark the card as queued
-                        const btns = resultsDiv.querySelectorAll('.dl-search-dl-btn');
-                        btns.forEach(b => {
-                            if (b.closest('.dl-search-result')?.querySelector('.dl-search-title')?.textContent === album) {
-                                b.disabled = true;
-                                b.innerHTML = '<i class="ri-check-line"></i> Ajouté';
-                            }
-                        });
-                    }
-                    showToast(`"${album}" ajouté à la file de téléchargement`, 'success');
-                    await refreshDownloadsList();
-                } else {
-                    showToast('Erreur: ' + (result.error || 'Impossible de démarrer'), 'error');
+                // Resolve browseId to playlist URL
+                const r = await fetch(`${BASE_PATH}/download_album_api.php?action=resolve_album&browse_id=${encodeURIComponent(album.browseId)}`);
+                const res = await r.json();
+                if (!res.success) {
+                    showToast(res.error || 'Impossible de résoudre l\'album', 'error');
+                    return;
+                }
+
+                const data = res.data;
+
+                // Open URL details section and populate
+                const details = document.querySelector('.downloads-page details.download-form-card');
+                if (details) details.open = true;
+
+                const urlInput = document.getElementById('downloadUrl');
+                if (urlInput) urlInput.value = data.playlistUrl;
+
+                const previewDiv = document.getElementById('downloadMetadataPreview');
+                if (previewDiv) {
+                    previewDiv.innerHTML = `
+                        <div class="download-metadata-preview">
+                            <div class="metadata-thumbnail">
+                                ${data.thumbnail ? `<img src="${data.thumbnail}" alt="Thumbnail">` : '<i class="ri-album-line"></i>'}
+                            </div>
+                            <div class="metadata-fields">
+                                <div class="metadata-field">
+                                    <label>${t('props.artist', 'Artiste')}</label>
+                                    <input type="text" id="metaArtist" value="${escapeHtml(data.artist || '')}" placeholder="${t('downloads.artist_ph', "Nom de l'artiste")}">
+                                </div>
+                                <div class="metadata-field">
+                                    <label>${t('props.album', 'Album')}</label>
+                                    <input type="text" id="metaAlbum" value="${escapeHtml(data.title || '')}" placeholder="${t('downloads.album_ph', "Nom de l'album")}">
+                                </div>
+                                <div class="metadata-info">
+                                    ${data.track_count ? `<span><i class="ri-music-2-line"></i> ${data.track_count} pistes</span>` : ''}
+                                </div>
+                            </div>
+                            <button onclick="startDownload('${jsStr(data.playlistUrl)}')" class="download-start-btn">
+                                <i class="ri-download-line"></i> ${t('downloads.download_btn', 'Télécharger')}
+                            </button>
+                        </div>
+                    `;
+                    previewDiv.style.display = 'block';
+                    previewDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
                 }
             } catch(e) {
                 showToast('Erreur de connexion', 'error');
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="ri-download-line"></i> Télécharger';
+                }
             }
         }
 

@@ -138,6 +138,40 @@ try {
             echo json_encode(['success' => true, 'data' => ['albums' => $albums]]);
             break;
 
+        case 'resolve_album':
+            $browseId = trim($_GET['browse_id'] ?? '');
+            if (!$browseId) {
+                echo json_encode(['success' => false, 'error' => 'browse_id required']);
+                break;
+            }
+            $pythonScript = AppConfig::getPythonPath() . '/ytmusic_search.py';
+            $pythonBin = file_exists('/opt/ytdlp/bin/python3') ? '/opt/ytdlp/bin/python3' : 'python3';
+            $cmd = $pythonBin . ' ' . escapeshellarg($pythonScript)
+                 . ' album_details ' . escapeshellarg($browseId) . ' 2>/dev/null';
+            $output = shell_exec($cmd);
+            if (!$output) {
+                echo json_encode(['success' => false, 'error' => 'Failed to resolve album']);
+                break;
+            }
+            $data = json_decode($output, true);
+            $album = $data['album'] ?? null;
+            if (!$album || empty($album['audioPlaylistId'])) {
+                echo json_encode(['success' => false, 'error' => 'No playlist found for this album']);
+                break;
+            }
+            echo json_encode([
+                'success' => true,
+                'data' => [
+                    'playlistUrl' => 'https://music.youtube.com/playlist?list=' . $album['audioPlaylistId'],
+                    'artist' => $album['artist'] ?? '',
+                    'title' => $album['title'] ?? '',
+                    'year' => $album['year'] ?? '',
+                    'track_count' => $album['track_count'] ?? 0,
+                    'thumbnail' => $album['thumbnail'] ?? '',
+                ]
+            ]);
+            break;
+
         case 'status':
             $downloadId = $_GET['download_id'] ?? '';
 
