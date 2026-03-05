@@ -749,7 +749,7 @@ function subsonicOk($data, $format) {
         '@version' => '1.16.1',
         '@type' => 'gullify',
         '@serverVersion' => '1.0.0',
-        '@openSubsonic' => 'true',
+        '@openSubsonic' => true,
     ], $data);
 
     if ($format === 'json') {
@@ -761,7 +761,8 @@ function subsonicOk($data, $format) {
         echo '<subsonic-response xmlns="http://subsonic.org/restapi"';
         foreach ($response as $k => $v) {
             if (str_starts_with($k, '@')) {
-                echo ' ' . substr($k, 1) . '="' . htmlspecialchars($v) . '"';
+                $xmlVal = is_bool($v) ? ($v ? 'true' : 'false') : htmlspecialchars((string)$v);
+                echo ' ' . substr($k, 1) . '="' . $xmlVal . '"';
             }
         }
         echo '>' . "\n";
@@ -781,7 +782,7 @@ function subsonicError($code, $message, $format) {
         '@version' => '1.16.1',
         '@type' => 'gullify',
         '@serverVersion' => '1.0.0',
-        '@openSubsonic' => 'true',
+        '@openSubsonic' => true,
         'error' => ['@code' => $code, '@message' => $message],
     ];
 
