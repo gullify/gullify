@@ -1797,11 +1797,7 @@
                         <div class="download-form">
                             <input type="text" id="dlSearchQuery" placeholder="Artiste, album…" class="download-url-input"
                                    onkeypress="if(event.key==='Enter') searchYtMusicForDownload()">
-                            <select id="downloadUser" class="download-user-select">
-                                <option value="maxime">Maxime</option>
-                                <option value="frederique">Frédérique</option>
-                                <option value="mylene">Mylène</option>
-                            </select>
+                            <input type="hidden" id="downloadUser" value="${app.currentUser}">
                             <button onclick="searchYtMusicForDownload()" class="download-fetch-btn" id="dlSearchBtn">
                                 <i class="ri-search-line"></i> Rechercher
                             </button>
@@ -1845,9 +1841,6 @@
             `;
 
             contentBody.innerHTML = html;
-
-            // Set current user as default
-            document.getElementById('downloadUser').value = app.currentUser;
 
             // Load downloads
             await refreshDownloadsList();
