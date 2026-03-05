@@ -23,6 +23,7 @@ RUN python3 -m venv /opt/ytdlp \
 RUN a2enmod rewrite
 
 WORKDIR /app
+ARG CACHEBUST=1
 COPY . /app/
 
 # Fix CRLF and permissions

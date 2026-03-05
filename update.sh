@@ -51,7 +51,8 @@ case "$choice" in
     *)
         echo "[3/3] Quick rebuild..."
         $COMPOSE_CMD down
-        $COMPOSE_CMD up -d --build
+        $COMPOSE_CMD build --build-arg CACHEBUST="$(date +%s)"
+        $COMPOSE_CMD up -d
         ;;
 esac
 

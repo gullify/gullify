@@ -170,7 +170,7 @@ try {
                 </label>
                 <div style="display:flex;gap:8px;margin-bottom:10px;">
                     <input type="text" id="artworkYtQuery" placeholder="Artiste + Album…" style="flex:1;padding:7px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-tertiary);color:var(--text-primary);font-size:13px;" onkeydown="if(event.key==='Enter') searchArtworkYt()">
-                    <button onclick="searchArtworkYt()" class="rescan-btn" style="font-size:12px;padding:7px 14px;flex-shrink:0;">
+                    <button onclick="searchArtworkYt()" class="btn btn-secondary btn-sm" style="flex-shrink:0;">
                         <i class="ri-search-line"></i> Chercher
                     </button>
                 </div>
@@ -178,8 +178,8 @@ try {
             </div>
 
             <div style="display:flex;gap:10px;justify-content:flex-end;">
-                <button onclick="closeArtworkEditor()" class="rescan-btn" style="font-size:13px;padding:8px 18px;">Annuler</button>
-                <button id="artworkSaveBtn" onclick="saveArtwork()" class="rescan-btn" style="font-size:13px;padding:8px 18px;background:var(--accent);color:white;">
+                <button onclick="closeArtworkEditor()" class="btn btn-secondary">Annuler</button>
+                <button id="artworkSaveBtn" onclick="saveArtwork()" class="btn btn-primary">
                     <i class="ri-save-line"></i> Enregistrer
                 </button>
             </div>

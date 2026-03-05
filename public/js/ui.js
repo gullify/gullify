@@ -167,7 +167,7 @@
             try {
                 const res = await fetch(`${BASE_PATH}/api/library.php?action=song_properties&user=${encodeURIComponent(app.currentUser)}&song_id=${songId}`);
                 const result = await res.json();
-                if (result.error) { content.innerHTML = `<p style="color:#e74c3c;">${result.message}</p>`; return; }
+                if (result.error) { content.innerHTML = `<p style="color:var(--color-danger);">${result.message}</p>`; return; }
                 const p = result.data;
 
                 const fmtSize = (bytes) => {
@@ -206,7 +206,7 @@
                     ${row(t('props.hash','Hash'),          p.file_hash, true)}
                 `;
             } catch (e) {
-                content.innerHTML = `<p style="color:#e74c3c;">${t('common.error_prefix','Erreur : ')}${e.message}</p>`;
+                content.innerHTML = `<p style="color:var(--color-danger);">${t('common.error_prefix','Erreur : ')}${e.message}</p>`;
             }
         }
 
@@ -281,7 +281,7 @@
             const hasFile = fileInput.files.length > 0;
             const hasUrl  = urlInput.value.trim().length > 0;
             if (!hasFile && !hasUrl) {
-                statusEl.style.color = '#e74c3c';
+                statusEl.style.color = 'var(--color-danger)';
                 statusEl.textContent = 'Choisir un fichier ou coller une URL.';
                 return;
             }
@@ -302,7 +302,7 @@
                 const res = await fetch(`${BASE_PATH}/tag_editor_api.php?action=${action}`, { method: 'POST', body: fd });
                 const result = await res.json();
                 if (!result.success) {
-                    statusEl.style.color = '#e74c3c';
+                    statusEl.style.color = 'var(--color-danger)';
                     statusEl.textContent = 'Erreur : ' + (result.error || 'Inconnue');
                     saveBtn.disabled = false;
                     return;
@@ -331,7 +331,7 @@
 
                 closeArtworkEditor();
             } catch (e) {
-                statusEl.style.color = '#e74c3c';
+                statusEl.style.color = 'var(--color-danger)';
                 statusEl.textContent = 'Erreur : ' + e.message;
                 saveBtn.disabled = false;
             }
@@ -383,7 +383,7 @@
                     }).join('');
                 }
             } catch (e) {
-                resultsEl.innerHTML = `<div style="grid-column:1/-1;text-align:center;color:#e74c3c;font-size:12px;padding:10px;">Erreur : ${e.message}</div>`;
+                resultsEl.innerHTML = `<div style="grid-column:1/-1;text-align:center;color:var(--color-danger);font-size:12px;padding:10px;">Erreur : ${e.message}</div>`;
             }
         }
 
@@ -454,26 +454,37 @@
             initThemeSync();
         }
 
-        function setTheme(theme) {
-            document.documentElement.setAttribute('data-theme', theme);
-            const themeIcon = document.getElementById('themeIcon');
-            const themeText = document.getElementById('themeText');
+        const THEMES = {
+            light:    { label: 'Clair',      icon: 'ri-sun-line',         statusBar: '#f0f2f5' },
+            dark:     { label: 'Sombre',     icon: 'ri-moon-line',        statusBar: '#1a252f' },
+            midnight: { label: 'Midnight',   icon: 'ri-moon-clear-line',  statusBar: '#0f1923' },
+            sunset:   { label: 'Sunset',     icon: 'ri-sun-foggy-line',   statusBar: '#1c1017' },
+            forest:   { label: 'Forest',     icon: 'ri-leaf-line',        statusBar: '#0e1a14' },
+            aurora:   { label: 'Aurora',     icon: 'ri-sparkling-line',   statusBar: '#100e1a' },
+            sand:     { label: 'Sand',       icon: 'ri-landscape-line',   statusBar: '#f5f0e8' },
+            nord:     { label: 'Nord',       icon: 'ri-snowy-line',       statusBar: '#2e3440' }
+        };
 
-            if (themeIcon && themeText) {
-                if (theme === 'dark') {
-                    themeIcon.className = 'ri-sun-line';
-                    themeText.textContent = t('settings.light_mode', 'Mode Clair');
-                } else {
-                    themeIcon.className = 'ri-moon-line';
-                    themeText.textContent = t('settings.dark_mode', 'Mode Sombre');
-                }
-            }
+        function isLightTheme(t) { return t === 'light' || t === 'sand'; }
+
+        function setTheme(theme) {
+            if (!THEMES[theme]) theme = 'light';
+            if (theme === 'light') document.documentElement.removeAttribute('data-theme');
+            else document.documentElement.setAttribute('data-theme', theme);
+
+            // Ensure player CSS dark-mode class works for all dark themes
+            document.body.classList.toggle('dark-mode', !isLightTheme(theme));
 
             localStorage.setItem('musicTheme', theme);
 
             // Update Android status bar color
             const meta = document.getElementById('themeColor');
-            if (meta) meta.setAttribute('content', theme === 'dark' ? '#1a252f' : '#f0f2f5');
+            if (meta) meta.setAttribute('content', THEMES[theme].statusBar);
+
+            // Update theme picker active state if visible
+            document.querySelectorAll('.theme-picker-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.theme === theme);
+            });
         }
 
         // Detect if in iframe and sync dark mode with parent
@@ -513,8 +524,10 @@
         }
 
         function toggleTheme() {
-            const currentTheme = document.documentElement.getAttribute('data-theme');
-            setTheme(currentTheme === 'dark' ? 'light' : 'dark');
+            const keys = Object.keys(THEMES);
+            const current = localStorage.getItem('musicTheme') || 'light';
+            const idx = keys.indexOf(current);
+            setTheme(keys[(idx + 1) % keys.length]);
         }
 
         // Gestion utilisateur (set by server-side session)
@@ -779,7 +792,7 @@
                             <button onclick="renderGenres()" style="padding: 8px 16px; background: var(--hover-bg); border: none; border-radius: 8px; color: var(--text-primary); cursor: pointer; font-size: 14px;">
                                 ${t('genres.back', '← Retour aux genres')}
                             </button>
-                            <button onclick="startGenreRadio('${escapeHtml(selectedGenre).replace(/'/g, "\\'")}')" class="rescan-btn" style="font-size:13px;">
+                            <button onclick="startGenreRadio('${escapeHtml(selectedGenre).replace(/'/g, "\\'")}')" class="btn btn-secondary">
                                 <i class="ri-radio-line"></i> Radio ${escapeHtml(selectedGenre)}
                             </button>
                         </div>
@@ -791,7 +804,7 @@
                                 }
                                 return `
                                     <div class="artist-card" onclick="viewArtist(${artist.id})">
-                                        <div class="artist-image" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display: flex; align-items: center; justify-content: center; font-size: 48px;">
+                                        <div class="artist-image" style="background: var(--placeholder-gradient); display: flex; align-items: center; justify-content: center; font-size: 48px;">
                                             ${imageHtml}
                                         </div>
                                         <div class="artist-name">${escapeHtml(artist.name)}</div>
@@ -828,7 +841,7 @@
 
                     const html = `
                         <div style="margin-bottom: 12px; display:flex; align-items:center; gap:10px;">
-                            <button onclick="toggleGenreManager()" class="rescan-btn" style="font-size:13px;padding:6px 14px;">
+                            <button onclick="toggleGenreManager()" class="btn btn-secondary btn-sm">
                                 <i class="ri-settings-3-line"></i> ${t('genres.manage_btn', 'Gérer les genres')}
                             </button>
                         </div>
@@ -896,7 +909,7 @@
                         <div class="album-grid">
                             ${playlists.map(p => `
                                 <div class="album-card">
-                                    <div class="album-cover" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); cursor: pointer;" onclick="viewPlaylist(${p.id})">
+                                    <div class="album-cover" style="background: var(--placeholder-gradient); cursor: pointer;" onclick="viewPlaylist(${p.id})">
                                         <div style="color: white; font-size: 48px; font-weight: 700;">🎶</div>
                                     </div>
                                     <div class="album-name">${escapeHtml(p.name)}</div>
@@ -950,7 +963,7 @@
                             </button>
                         </div>
                         <div class="album-header-container">
-                            <div class="album-cover-large" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                            <div class="album-cover-large" style="background: var(--placeholder-gradient);">
                                 <div style="color: white; font-size: 80px; font-weight: 700;">🎶</div>
                             </div>
                             <div class="album-header-info">
@@ -1179,14 +1192,14 @@
                     <div class="stats-section">
                         <div class="stats-section-title" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
                             <span><i class="ri-disc-fill"></i> Genres</span>
-                            <button id="genre-scan-btn" onclick="startGenreScan()" class="rescan-btn" style="font-size:12px;padding:6px 14px;">
+                            <button id="genre-scan-btn" onclick="startGenreScan()" class="btn btn-secondary btn-sm">
                                 <i class="ri-radar-line" id="genre-scan-icon"></i> ${t('scan.genres_btn','Scanner les genres')}
                             </button>
                             <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-secondary);cursor:pointer;">
                                 <input type="checkbox" id="genre-scan-force" style="cursor:pointer;">
                                 ${t('stats.genre_force', 'Forcer (réécrire existants)')}
                             </label>
-                            <button id="orphan-cleanup-btn" onclick="cleanupOrphans()" class="rescan-btn" style="font-size:12px;padding:6px 14px;">
+                            <button id="orphan-cleanup-btn" onclick="cleanupOrphans()" class="btn btn-secondary btn-sm">
                                 <i class="ri-delete-bin-2-line" id="orphan-cleanup-icon"></i> ${t('scan.clean_btn','Nettoyer les orphelins')}
                             </button>
                             ${gc.totalArtists > 0 ? `<span style="font-size:13px;color:var(--text-secondary);font-weight:400;">${gc.artistsWithGenre}/${gc.totalArtists} artistes (${gc.percent}%)</span>` : ''}
@@ -1351,7 +1364,7 @@
                 `;
 
                 // Chart.js defaults
-                const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+                const isDark = !['', 'light', 'sand', null].includes(document.documentElement.getAttribute('data-theme'));
                 const gridColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)';
                 const tickColor = isDark ? '#95a5a6' : '#5f6368';
 
@@ -1618,7 +1631,7 @@
                             <div class="artist-grid" style="grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));">
                                 ${artists.map(artist => `
                                     <div class="artist-card" onclick="viewArtist(${artist.id})">
-                                        <div class="artist-image" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                                        <div class="artist-image" style="background: var(--placeholder-gradient);">
                                             ${artist.imageUrl ? `<img src="${artist.imageUrl}" alt="${escapeHtml(artist.name)}" style="width: 100%; height: 100%; object-fit: cover;">` : artist.name.charAt(0).toUpperCase()}
                                         </div>
                                         <div class="artist-name">${escapeHtml(artist.name)}</div>
@@ -2007,12 +2020,12 @@
                 'cancelled': 'ri-close-circle-line'
             };
             const statusColors = {
-                'queued': '#f39c12',
-                'downloading': '#3498db',
+                'queued': 'var(--color-warning)',
+                'downloading': 'var(--color-info)',
                 'scanning': '#9b59b6',
-                'completed': '#27ae60',
-                'error': '#e74c3c',
-                'cancelled': '#95a5a6'
+                'completed': 'var(--color-success)',
+                'error': 'var(--color-danger)',
+                'cancelled': 'var(--text-tertiary)'
             };
 
             const icon = statusIcons[download.status] || 'ri-question-line';
@@ -2112,7 +2125,7 @@
                 const result = await response.json();
 
                 if (result.error) {
-                    previewDiv.innerHTML = `<p style="color: #e74c3c; margin-top: 15px;"><i class="ri-error-warning-line"></i> ${escapeHtml(result.error)}</p>`;
+                    previewDiv.innerHTML = `<p style="color: var(--color-danger); margin-top: 15px;"><i class="ri-error-warning-line"></i> ${escapeHtml(result.error)}</p>`;
                     previewDiv.style.display = 'block';
                     return;
                 }
@@ -2145,7 +2158,7 @@
 
             } catch (error) {
                 console.error('Error fetching metadata:', error);
-                previewDiv.innerHTML = `<p style="color: #e74c3c; margin-top: 15px;"><i class="ri-error-warning-line"></i> ${t('errors.detect','Erreur lors de l\'analyse')}</p>`;
+                previewDiv.innerHTML = `<p style="color: var(--color-danger); margin-top: 15px;"><i class="ri-error-warning-line"></i> ${t('errors.detect','Erreur lors de l\'analyse')}</p>`;
                 previewDiv.style.display = 'block';
             } finally {
                 fetchBtn.innerHTML = `<i class="ri-search-line"></i> ${t('editor.analyze_btn','Analyser')}`;
@@ -2475,10 +2488,10 @@
                 <div style="margin-bottom: 20px;">
                     <h3 style="margin-bottom: 12px; font-size: 18px; font-weight: 600;"><i class="ri-play-circle-line"></i> ${t('home.quick_actions', 'Actions Rapides')}</h3>
                     <div style="display: flex; gap: 12px; flex-wrap: wrap;">
-                        <button onclick="window.startRadio()" style="padding: 12px 30px; background: rgba(255, 255, 255, 0.1); color: var(--text-primary); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 25px; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); cursor: pointer; font-size: 14px; font-weight: 600; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); transition: all 0.2s ease;" onmouseenter="this.style.background='rgba(255, 255, 255, 0.2)'; this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 12px rgba(0, 0, 0, 0.15)'" onmouseleave="this.style.background='rgba(255, 255, 255, 0.1)'; this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 6px rgba(0, 0, 0, 0.1)'">
+                        <button onclick="window.startRadio()" class="glass-action-btn">
                             <i class="ri-radio-line"></i> Radio
                         </button>
-                        <button onclick="playRandomArtist()" style="padding: 12px 30px; background: rgba(255, 255, 255, 0.1); color: var(--text-primary); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 25px; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); cursor: pointer; font-size: 14px; font-weight: 600; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); transition: all 0.2s ease;" onmouseenter="this.style.background='rgba(255, 255, 255, 0.2)'; this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 12px rgba(0, 0, 0, 0.15)'" onmouseleave="this.style.background='rgba(255, 255, 255, 0.1)'; this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 6px rgba(0, 0, 0, 0.1)'">
+                        <button onclick="playRandomArtist()" class="glass-action-btn">
                             <i class="ri-user-star-line"></i> ${t('home.random_artist', 'Artiste Aléatoire')}
                         </button>
                     </div>
@@ -2500,7 +2513,7 @@
                             imageHtml = '<img src="' + artist.imageUrl + '" alt="' + artist.name + '" style="width: 100%; height: 100%; object-fit: cover;">';
                         }
                         return '<div class="artist-card" onclick="viewArtist(' + artist.id + ')">' +
-                            '<div class="artist-image" id="artist-img-' + artist.id + '" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display: flex; align-items: center; justify-content: center; font-size: 48px;">' +
+                            '<div class="artist-image" id="artist-img-' + artist.id + '" style="background: var(--placeholder-gradient); display: flex; align-items: center; justify-content: center; font-size: 48px;">' +
                                 imageHtml +
                             '</div>' +
                             '<div class="artist-name">' + artist.name + '</div>' +
@@ -2560,7 +2573,7 @@
                                                 imageHtml = '<img src="' + artist.imageUrl + '" alt="' + artist.name + '" style="width: 100%; height: 100%; object-fit: cover;">';
                                             }
                                             return `<div class="artist-card" onclick="viewArtist(${artist.id})">
-                                                <div class="artist-image" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display: flex; align-items: center; justify-content: center; font-size: 36px;">
+                                                <div class="artist-image" style="background: var(--placeholder-gradient); display: flex; align-items: center; justify-content: center; font-size: 36px;">
                                                     ${imageHtml}
                                                 </div>
                                                 <div class="artist-name">${artist.name}</div>
@@ -2768,26 +2781,26 @@
 
             const html = `
                 <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px;">
-                    <button id="manage-artists-btn" onclick="toggleArtistManageMode()" class="rescan-btn" style="font-size:12px;padding:6px 14px;">
+                    <button id="manage-artists-btn" onclick="toggleArtistManageMode()" class="btn btn-secondary btn-sm">
                         <i class="ri-edit-box-line"></i> ${t('editor.manage_btn', 'Gérer')}
                     </button>
-                    <button id="detect-artist-dupes-btn" onclick="detectArtistDuplicates()" class="rescan-btn" style="font-size:12px;padding:6px 14px;">
+                    <button id="detect-artist-dupes-btn" onclick="detectArtistDuplicates()" class="btn btn-secondary btn-sm">
                         <i id="detect-artist-dupes-icon" class="ri-search-line"></i> ${t('home.probable_dupes', 'Doublons probables')}
                     </button>
                 </div>
 
                 <div id="artist-manage-bar" style="display:none;position:sticky;top:0;z-index:50;background:var(--bg-secondary);border:1px solid var(--border);border-radius:12px;padding:12px 16px;margin-bottom:12px;align-items:center;gap:10px;flex-wrap:wrap;backdrop-filter:blur(10px);">
                     <span id="artist-manage-count" style="color:var(--text-primary);font-size:14px;font-weight:600;flex:1;">${t('common.none_selected', 'Aucun sélectionné')}</span>
-                    <button id="rename-artist-btn" onclick="openRenameArtistDialog()" class="rescan-btn" style="font-size:12px;padding:6px 14px;" disabled>
+                    <button id="rename-artist-btn" onclick="openRenameArtistDialog()" class="btn btn-secondary btn-sm" disabled>
                         <i class="ri-pencil-line"></i> ${t('home.rename', 'Renommer')}
                     </button>
-                    <button id="merge-artists-btn" onclick="openMergeArtistsDialog()" class="rescan-btn" style="font-size:12px;padding:6px 14px;background:var(--accent);color:white;" disabled>
+                    <button id="merge-artists-btn" onclick="openMergeArtistsDialog()" class="btn btn-primary btn-sm" disabled>
                         <i class="ri-git-merge-line"></i> ${t('home.merge', 'Fusionner')}
                     </button>
-                    <button id="delete-artists-btn" onclick="deleteSelectedArtists()" class="rescan-btn" style="font-size:12px;padding:6px 14px;background:#c0392b;color:white;" disabled>
+                    <button id="delete-artists-btn" onclick="deleteSelectedArtists()" class="btn btn-danger btn-sm" disabled>
                         <i class="ri-delete-bin-line"></i> ${t('common.delete', 'Supprimer')}
                     </button>
-                    <button onclick="toggleArtistManageMode()" class="rescan-btn" style="font-size:12px;padding:6px 14px;">
+                    <button onclick="toggleArtistManageMode()" class="btn btn-secondary btn-sm">
                         <i class="ri-close-line"></i> ${t('editor.done_btn', 'Terminer')}
                     </button>
                 </div>
@@ -2807,7 +2820,7 @@
                         }
 
                         return '<div class="artist-card" data-letter="' + firstLetter + '" data-artist-id="' + artist.id + '" onclick="viewArtist(' + artist.id + ')">' +
-                                '<div class="artist-image" id="artist-grid-' + artist.id + '" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">' +
+                                '<div class="artist-image" id="artist-grid-' + artist.id + '" style="background: var(--placeholder-gradient);">' +
                                     imageHtml +
                                 '</div>' +
                                 '<div class="artist-name">' + artist.name + '</div>' +
@@ -3036,7 +3049,7 @@
                                     ${artist.genre ? `
                                         <span class="genre-badge">${artist.genre}</span>
                                     ` : `
-                                        <span style="color:rgba(255,255,255,0.5);font-size:13px;">${t('empty.no_genre', 'Aucun genre')}</span>
+                                        <span style="color:var(--text-tertiary);font-size:13px;">${t('empty.no_genre', 'Aucun genre')}</span>
                                     `}
                                     <button onclick="editArtistGenre(${artistId}, '${(artist.genre || '').replace(/'/g, "\\'")}')" class="genre-edit-btn" title="Modifier le genre">
                                         <i class="ri-pencil-line"></i>
@@ -3050,22 +3063,22 @@
                                         </label>
                                     </div>
                                     <div style="display:flex;gap:8px;margin-top:8px;">
-                                        <button onclick="saveArtistGenre(${artistId})" class="rescan-btn" style="font-size:12px;padding:5px 14px;">
+                                        <button onclick="saveArtistGenre(${artistId})" class="btn btn-secondary btn-sm">
                                             <i class="ri-check-line"></i> ${t('common.save', 'Enregistrer')}
                                         </button>
-                                        <button onclick="cancelEditGenre(${artistId})" class="rescan-btn" style="font-size:12px;padding:5px 14px;">
+                                        <button onclick="cancelEditGenre(${artistId})" class="btn btn-secondary btn-sm">
                                             <i class="ri-close-line"></i> ${t('common.cancel', 'Annuler')}
                                         </button>
                                     </div>
                                 </div>
                                 <div style="display: flex; gap: 10px; margin-top: 15px; flex-wrap: wrap;">
-                                    <button onclick="playArtistSongs(${artistId})" style="padding: 12px 30px; background: rgba(255, 255, 255, 0.1); color: white; border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 25px; cursor: pointer; font-size: 14px; font-weight: 600; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); transition: all 0.2s ease;" onmouseenter="this.style.background='rgba(255, 255, 255, 0.2)'; this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 12px rgba(0, 0, 0, 0.15)'" onmouseleave="this.style.background='rgba(255, 255, 255, 0.1)'; this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 6px rgba(0, 0, 0, 0.1)'">
+                                    <button onclick="playArtistSongs(${artistId})" class="glass-action-btn">
                                         ${t('common.play_all', '▶ Lire tout')}
                                     </button>
                                     <button id="artist-fav-btn-${artistId}" onclick="toggleArtistFavorite(${artistId})" class="fav-action-btn" title="Ajouter aux favoris">
                                         <i class="ri-heart-line"></i>
                                     </button>
-                                    <button onclick="rescanArtist(${artistId})" class="rescan-btn" title="Rechercher nouveaux albums/chansons">
+                                    <button onclick="rescanArtist(${artistId})" class="btn btn-secondary" title="Rechercher nouveaux albums/chansons">
                                         <i class="ri-refresh-line"></i> ${t('artist.rescan', 'Rescan')}
                                     </button>
                                 </div>
@@ -3075,7 +3088,7 @@
                         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:15px;">
                             <h3 style="font-size: 20px; color: white; text-shadow: 0 1px 3px rgba(0,0,0,0.8), 0 0 10px rgba(0,0,0,0.5);">${t('nav.albums', 'Albums')}</h3>
                             ${albums.length > 1 ? `
-                            <button id="manage-albums-btn-${artistId}" onclick="toggleAlbumManageMode(${artistId})" class="rescan-btn" style="font-size:12px;padding:5px 14px;">
+                            <button id="manage-albums-btn-${artistId}" onclick="toggleAlbumManageMode(${artistId})" class="btn btn-secondary btn-sm">
                                 <i class="ri-edit-box-line"></i> ${t('editor.manage_btn', 'Gérer')}
                             </button>` : ''}
                         </div>
@@ -3093,16 +3106,16 @@
                             </div>
                             <div id="album-manage-bar-${artistId}" style="display:none;position:sticky;bottom:80px;z-index:50;background:var(--bg-secondary);border:1px solid var(--border);border-radius:12px;padding:12px 16px;margin-top:12px;align-items:center;gap:10px;flex-wrap:wrap;backdrop-filter:blur(10px);">
                                 <span id="album-manage-count-${artistId}" style="color:var(--text-primary);font-size:14px;font-weight:600;flex:1;">${t('common.none_selected', 'Aucun sélectionné')}</span>
-                                <button id="rename-album-btn-${artistId}" onclick="openRenameAlbumDialog(${artistId})" class="rescan-btn" style="font-size:12px;padding:6px 14px;" disabled>
+                                <button id="rename-album-btn-${artistId}" onclick="openRenameAlbumDialog(${artistId})" class="btn btn-secondary btn-sm" disabled>
                                     <i class="ri-pencil-line"></i> ${t('home.rename', 'Renommer')}
                                 </button>
-                                <button id="merge-albums-btn-${artistId}" onclick="openMergeAlbumsDialog(${artistId})" class="rescan-btn" style="font-size:12px;padding:6px 14px;background:var(--accent);color:white;" disabled>
+                                <button id="merge-albums-btn-${artistId}" onclick="openMergeAlbumsDialog(${artistId})" class="btn btn-primary btn-sm" disabled>
                                     <i class="ri-git-merge-line"></i> ${t('home.merge', 'Fusionner')}
                                 </button>
-                                <button id="delete-albums-btn-${artistId}" onclick="deleteSelectedAlbums(${artistId})" class="rescan-btn" style="font-size:12px;padding:6px 14px;background:#c0392b;color:white;" disabled>
+                                <button id="delete-albums-btn-${artistId}" onclick="deleteSelectedAlbums(${artistId})" class="btn btn-danger btn-sm" disabled>
                                     <i class="ri-delete-bin-line"></i> ${t('common.delete', 'Supprimer')}
                                 </button>
-                                <button onclick="toggleAlbumManageMode(${artistId})" class="rescan-btn" style="font-size:12px;padding:6px 14px;">
+                                <button onclick="toggleAlbumManageMode(${artistId})" class="btn btn-secondary btn-sm">
                                     <i class="ri-close-line"></i> ${t('editor.done_btn', 'Terminer')}
                                 </button>
                             </div>
@@ -3171,14 +3184,14 @@
             try {
                 const res    = await fetch(`${BASE_PATH}/api/library.php?action=detect_duplicates&user=${app.currentUser}`);
                 const result = await res.json();
-                if (result.error) { panel.innerHTML = `<div style="color:var(--error,#e74c3c);padding:14px;">${result.message}</div>`; return; }
+                if (result.error) { panel.innerHTML = `<div style="color:var(--color-danger);padding:14px;">${result.message}</div>`; return; }
 
                 const { groups, total_groups, total_redundant } = result.data;
 
                 if (total_groups === 0) {
                     panel.innerHTML = `
                         <div class="glass-card" style="padding:14px 18px;display:flex;align-items:center;gap:10px;color:var(--text-secondary);font-size:13px;">
-                            <i class="ri-checkbox-circle-line" style="color:#2ecc71;font-size:18px;"></i>
+                            <i class="ri-checkbox-circle-line" style="color:var(--color-success);font-size:18px;"></i>
                             ${t('dupes.none_clean', 'Aucun doublon détecté — bibliothèque propre !')}
                         </div>`;
                     return;
@@ -3200,7 +3213,7 @@
                                 <span style="color:var(--text-secondary);font-size:12px;margin-left:8px;">${t('dupes.redundant', '({n} album(s) redondant(s) à supprimer)').replace('{n}', total_redundant)}</span>
                             </div>
                             <button onclick="autoMergeDuplicates()" id="auto-merge-btn"
-                                style="background:var(--accent);color:white;border:none;border-radius:8px;padding:8px 18px;cursor:pointer;font-size:13px;font-weight:600;white-space:nowrap;">
+                                class="btn btn-primary">
                                 <i class="ri-git-merge-line"></i> Tout fusionner + mettre à jour les tags
                             </button>
                         </div>
@@ -3213,7 +3226,7 @@
                     </div>`;
             } catch (e) {
                 console.error('detect duplicates error:', e);
-                panel.innerHTML = '<div style="color:var(--error,#e74c3c);padding:14px;">' + t('errors.detect', 'Erreur lors de la détection.') + '</div>';
+                panel.innerHTML = '<div style="color:var(--color-danger);padding:14px;">' + t('errors.detect', 'Erreur lors de la détection.') + '</div>';
             } finally {
                 if (btn)  btn.disabled = false;
                 if (icon) icon.className = 'ri-scan-line';
@@ -3280,7 +3293,7 @@
                                 <i class="ri-group-line" style="color:var(--accent);"></i>
                                 ${t('compilations.detected', '{n} compilation(s) détectée(s)').replace('{n}', list.length)}
                             </span>
-                            <button onclick="mergeAllCompilations()" class="rescan-btn" style="font-size:12px;padding:6px 14px;background:var(--accent);color:white;">
+                            <button onclick="mergeAllCompilations()" class="btn btn-primary btn-sm">
                                 <i class="ri-git-merge-line"></i> ${t('compilations.merge_all_btn', 'Tout fusionner sous "Various Artists"')}
                             </button>
                         </div>
@@ -3296,7 +3309,7 @@
                                 <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
                                     <input type="text" id="comp-artist-${i}" value="Various Artists"
                                         style="width:140px;padding:5px 8px;border-radius:6px;border:1px solid var(--border);background:var(--bg-tertiary);color:var(--text-primary);font-size:12px;">
-                                    <button onclick="mergeCompilation(${i})" class="rescan-btn" style="font-size:12px;padding:5px 12px;">
+                                    <button onclick="mergeCompilation(${i})" class="btn btn-secondary btn-sm">
                                         <i class="ri-git-merge-line"></i> Fusionner
                                     </button>
                                 </div>
@@ -3452,10 +3465,10 @@
                                 oninput="albumsSearchDebounce(this.value)"
                                 style="background:var(--surface);color:var(--text-primary);border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-size:13px;flex:1;min-width:180px;outline:none;">
                             <span style="color:var(--text-secondary);font-size:13px;white-space:nowrap;">${total} albums</span>
-                            <button id="detect-dupes-btn" onclick="detectAlbumDuplicates()" class="rescan-btn" style="font-size:12px;padding:6px 14px;white-space:nowrap;">
+                            <button id="detect-dupes-btn" onclick="detectAlbumDuplicates()" class="btn btn-secondary btn-sm">
                                 <i class="ri-scan-line" id="detect-dupes-icon"></i> ${t('album.detect_dupes', 'Détecter les doublons')}
                             </button>
-                            <button id="detect-compilations-btn" onclick="detectCompilations()" class="rescan-btn" style="font-size:12px;padding:6px 14px;white-space:nowrap;">
+                            <button id="detect-compilations-btn" onclick="detectCompilations()" class="btn btn-secondary btn-sm">
                                 <i class="ri-group-line" id="detect-comp-icon"></i> ${t('album.compilations_btn', 'Compilations')}
                             </button>
                         </div>
@@ -3466,7 +3479,7 @@
                         </div>
                         <div id="albums-load-more" style="text-align:center;padding:24px;display:${hasMore ? 'block' : 'none'};">
                             <button onclick="renderAlbums(false)"
-                                style="padding:10px 28px;background:var(--accent);color:white;border:none;border-radius:25px;cursor:pointer;font-size:14px;font-weight:600;">
+                                class="btn btn-primary btn-xl">
                                 ${t('common.load_more', 'Charger plus ({n} restants)').replace('{n}', total - albumsViewState.offset)}
                             </button>
                         </div>
@@ -3481,7 +3494,7 @@
                             loadMore.style.display = 'none';
                         } else {
                             loadMore.innerHTML = `<button onclick="renderAlbums(false)"
-                                style="padding:10px 28px;background:var(--accent);color:white;border:none;border-radius:25px;cursor:pointer;font-size:14px;font-weight:600;">
+                                class="btn btn-primary btn-xl">
                                 ${t('common.load_more', 'Charger plus ({n} restants)').replace('{n}', total - albumsViewState.offset)}
                             </button>`;
                         }
@@ -3571,10 +3584,10 @@
 
                         <div id="song-manage-bar-${albumId}" style="display:none;position:sticky;top:0;z-index:50;background:var(--bg-secondary);border:1px solid var(--border);border-radius:12px;padding:10px 16px;margin-bottom:10px;align-items:center;gap:10px;flex-wrap:wrap;backdrop-filter:blur(10px);">
                             <span id="song-manage-count-${albumId}" style="color:var(--text-primary);font-size:14px;font-weight:600;flex:1;">${t('common.none_selected_f', 'Aucune sélectionnée')}</span>
-                            <button id="delete-songs-btn-${albumId}" onclick="deleteSelectedSongs(${albumId})" class="rescan-btn" style="font-size:12px;padding:6px 14px;background:#c0392b;color:white;" disabled>
+                            <button id="delete-songs-btn-${albumId}" onclick="deleteSelectedSongs(${albumId})" class="btn btn-danger btn-sm" disabled>
                                 <i class="ri-delete-bin-line"></i> ${t('common.delete', 'Supprimer')}
                             </button>
-                            <button onclick="toggleSongManageMode(${albumId})" class="rescan-btn" style="font-size:12px;padding:6px 14px;">
+                            <button onclick="toggleSongManageMode(${albumId})" class="btn btn-secondary btn-sm">
                                 <i class="ri-close-line"></i> ${t('editor.done_btn', 'Terminer')}
                             </button>
                         </div>
@@ -3637,10 +3650,10 @@
                         ${t('songs.browse_hint', 'Pour écouter vos chansons, naviguez dans les Artistes puis sélectionnez un album.')}
                     </p>
                     <div style="display: flex; gap: 15px; justify-content: center; flex-wrap: wrap;">
-                        <button onclick="window.startRadio()" style="padding: 12px 30px; background: rgba(255, 255, 255, 0.1); color: var(--text-primary); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 25px; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); cursor: pointer; font-size: 14px; font-weight: 600; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); transition: all 0.2s ease;" onmouseenter="this.style.background='rgba(255, 255, 255, 0.2)'; this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 12px rgba(0, 0, 0, 0.15)'" onmouseleave="this.style.background='rgba(255, 255, 255, 0.1)'; this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 6px rgba(0, 0, 0, 0.1)'">
+                        <button onclick="window.startRadio()" class="glass-action-btn">
                             📻 Radio
                         </button>
-                        <button onclick="renderView('artists')" style="padding: 12px 30px; background: rgba(255, 255, 255, 0.1); color: var(--text-primary); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 25px; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); cursor: pointer; font-size: 14px; font-weight: 600; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); transition: all 0.2s ease;" onmouseenter="this.style.background='rgba(255, 255, 255, 0.2)'; this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 12px rgba(0, 0, 0, 0.15)'" onmouseleave="this.style.background='rgba(255, 255, 255, 0.1)'; this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 6px rgba(0, 0, 0, 0.1)'">
+                        <button onclick="renderView('artists')" class="glass-action-btn">
                             👤 ${t('songs.see_artists', 'Voir les Artistes')}
                         </button>
                     </div>
@@ -3861,7 +3874,7 @@
 
                 // Update display
                 const displayEl = document.getElementById(`artist-genre-display-${artistId}`);
-                displayEl.innerHTML = (genre ? `<span class="genre-badge">${genre}</span>` : `<span style="color:rgba(255,255,255,0.5);font-size:13px;">Aucun genre</span>`) +
+                displayEl.innerHTML = (genre ? `<span class="genre-badge">${genre}</span>` : `<span style="color:var(--text-tertiary);font-size:13px;">Aucun genre</span>`) +
                     `<button onclick="editArtistGenre(${artistId}, '${genre.replace(/'/g, "\\'")}')" class="genre-edit-btn" title="Modifier le genre"><i class="ri-pencil-line"></i></button>`;
 
                 cancelEditGenre(artistId);
@@ -4351,20 +4364,23 @@
         // ── Settings section HTML helpers ───────────────────────────────────────
 
         function getSettingsAppearanceHtml() {
-            const currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
-            const isDark = currentTheme === 'dark';
+            const currentTheme = localStorage.getItem('musicTheme') || 'light';
+            const themeButtons = Object.entries(THEMES).map(([key, cfg]) =>
+                `<button class="theme-picker-btn ${key === currentTheme ? 'active' : ''}"
+                         data-theme="${key}" onclick="setTheme('${key}')">
+                    <i class="${cfg.icon}"></i>
+                    <span>${cfg.label}</span>
+                </button>`
+            ).join('');
             return `
                 <div class="settings-section">
                     <div class="settings-section-title"><i class="ri-palette-line"></i> ${t('settings.appearance', 'Apparence')}</div>
-                    <div class="settings-row">
-                        <div class="settings-row-label">
+                    <div class="settings-row" style="flex-direction:column;align-items:stretch;">
+                        <div class="settings-row-label" style="margin-bottom:12px;">
                             <span>${t('settings.theme', 'Thème')}</span>
-                            <span>${t('settings.theme_desc', 'Basculer entre le mode clair et sombre')}</span>
+                            <span>${t('settings.theme_desc', 'Choisir un thème visuel')}</span>
                         </div>
-                        <button class="rescan-btn" id="settingsThemeBtn" onclick="toggleTheme(); updateThemeButton();" style="flex-shrink:0;">
-                            <i class="${isDark ? 'ri-sun-line' : 'ri-moon-line'}" id="themeIcon"></i>
-                            <span id="themeText">${isDark ? t('settings.light_mode', 'Mode Clair') : t('settings.dark_mode', 'Mode Sombre')}</span>
-                        </button>
+                        <div class="theme-picker-grid">${themeButtons}</div>
                     </div>
                 </div>
             `;
@@ -4380,8 +4396,8 @@
                             <span>${t('settings.change_lang', "Changer la langue d'affichage")}</span>
                         </div>
                         <div style="display:flex;gap:8px;flex-shrink:0;">
-                            <button class="rescan-btn" onclick="setLang('fr')" id="langFrBtn" style="${app.lang === 'fr' ? 'background:var(--accent);color:#fff;' : ''}">🇫🇷 Français</button>
-                            <button class="rescan-btn" onclick="setLang('en')" id="langEnBtn" style="${app.lang === 'en' ? 'background:var(--accent);color:#fff;' : ''}">🇬🇧 English</button>
+                            <button class="${app.lang === 'fr' ? 'btn btn-primary' : 'btn btn-secondary'}" onclick="setLang('fr')" id="langFrBtn">🇫🇷 Français</button>
+                            <button class="${app.lang === 'en' ? 'btn btn-primary' : 'btn btn-secondary'}" onclick="setLang('en')" id="langEnBtn">🇬🇧 English</button>
                         </div>
                     </div>
                 </div>
@@ -4397,7 +4413,7 @@
                             <span>${t('scan.quick', 'Scan rapide')}</span>
                             <span>${t('scan.quick_desc', 'Détecte les nouveaux fichiers sans relire les métadonnées ID3 ni les pochettes')}</span>
                         </div>
-                        <button class="rescan-btn" onclick="window.triggerLibraryScan('fast', this)" style="flex-shrink:0;">
+                        <button class="btn btn-secondary" onclick="window.triggerLibraryScan('fast', this)" style="flex-shrink:0;">
                             <i class="ri-folder-search-line"></i>
                             <span>${t('common.run', 'Lancer')}</span>
                         </button>
@@ -4407,7 +4423,7 @@
                             <span>${t('scan.full', 'Scan complet')}</span>
                             <span>${t('scan.full_desc', 'Relit toutes les métadonnées ID3 et met à jour les pochettes')}</span>
                         </div>
-                        <button class="rescan-btn" onclick="window.triggerLibraryScan('force', this)" style="flex-shrink:0;">
+                        <button class="btn btn-secondary" onclick="window.triggerLibraryScan('force', this)" style="flex-shrink:0;">
                             <i class="ri-refresh-line"></i>
                             <span>${t('common.run', 'Lancer')}</span>
                         </button>
@@ -4417,7 +4433,7 @@
                             <span>${t('scan.artwork', 'Scan artwork')}</span>
                             <span>${t('scan.artwork_desc', 'Met à jour les pochettes manquantes uniquement (cover.jpg + ID3 embarqué)')}</span>
                         </div>
-                        <button class="rescan-btn" onclick="window.triggerLibraryScan('artwork', this)" style="flex-shrink:0;">
+                        <button class="btn btn-secondary" onclick="window.triggerLibraryScan('artwork', this)" style="flex-shrink:0;">
                             <i class="ri-image-line"></i>
                             <span>${t('common.run', 'Lancer')}</span>
                         </button>
@@ -4444,11 +4460,11 @@
                         <div class="settings-row-label">
                             <span>${t('settings.storage_source','Source de la bibliothèque')}</span>
                             <span>${app.storageType === 'sftp'
-                                ? `<span style="color:#00b894"><i class="ri-server-line"></i> SFTP — ${escapeHtml(app.sftpHost)}${app.sftpPath ? ':' + escapeHtml(app.sftpPath) : ''}</span>`
+                                ? `<span style="color:var(--color-success)"><i class="ri-server-line"></i> SFTP — ${escapeHtml(app.sftpHost)}${app.sftpPath ? ':' + escapeHtml(app.sftpPath) : ''}</span>`
                                 : app.musicDir ? `<i class="ri-folder-line"></i> ${escapeHtml(app.musicDir)}` : `<span style="color:var(--text-secondary)">${t('settings.not_configured','Non configuré')}</span>`
                             }</span>
                         </div>
-                        <button class="rescan-btn" onclick="openStorageModal()" style="flex-shrink:0;">
+                        <button class="btn btn-secondary" onclick="openStorageModal()" style="flex-shrink:0;">
                             <i class="ri-settings-3-line"></i> ${t('settings.configure','Configurer')}
                         </button>
                     </div>
@@ -4479,7 +4495,7 @@
                             <label>
                                 <input type="checkbox" id="newIsAdmin"> ${t('settings.administrator','Administrateur')}
                             </label>
-                            <button class="rescan-btn" id="createUserBtn" onclick="adminCreateUser()" style="margin-left:auto;">
+                            <button class="btn btn-secondary" id="createUserBtn" onclick="adminCreateUser()" style="margin-left:auto;">
                                 <i class="ri-user-add-line"></i> ${t('settings.create_user',"Créer l'utilisateur")}
                             </button>
                         </div>
@@ -4520,7 +4536,7 @@
                 const result = await adminFetch('list_users');
                 const container = document.getElementById('adminUsersList');
                 if (!container) return;
-                if (!result.success) { container.innerHTML = `<p style="color:#ff6b6b">${result.error}</p>`; return; }
+                if (!result.success) { container.innerHTML = `<p style="color:var(--color-danger)">${result.error}</p>`; return; }
 
                 container.innerHTML = `
                     <table class="admin-table">
@@ -4532,12 +4548,12 @@
                                 <td data-label="${t('admin.col_name','Nom')}">${escapeHtml(u.full_name || '—')}</td>
                                 <td data-label="${t('admin.col_storage','Stockage')}">
                                     ${u.storage_type === 'sftp'
-                                        ? `<span class="admin-dir-badge" style="color:#00b894;border-color:rgba(0,184,148,.4)"><i class="ri-server-line"></i> ${escapeHtml(u.sftp_host || '?')}</span>`
+                                        ? `<span class="admin-dir-badge" style="color:var(--color-success);border-color:var(--color-success-soft)"><i class="ri-server-line"></i> ${escapeHtml(u.sftp_host || '?')}</span>`
                                         : `<span class="admin-dir-badge"><i class="ri-folder-line"></i> ${escapeHtml(u.music_directory || '—')}</span>`
                                     }
                                 </td>
                                 <td data-label="${t('admin.col_role','Rôle')}">${u.is_admin ? '<span class="admin-badge">Admin</span>' : `<span style="font-size:12px;color:var(--text-secondary)">${t('settings.user_role','Utilisateur')}</span>`}</td>
-                                <td data-label="${t('admin.col_status','Statut')}">${u.is_active ? `<span style="color:#00b894;font-size:12px;font-weight:600">${t('settings.active','● Actif')}</span>` : `<span style="color:#ff6b6b;font-size:12px;font-weight:600">${t('settings.inactive','● Inactif')}</span>`}</td>
+                                <td data-label="${t('admin.col_status','Statut')}">${u.is_active ? `<span style="color:var(--color-success);font-size:12px;font-weight:600">${t('settings.active','● Actif')}</span>` : `<span style="color:var(--color-danger);font-size:12px;font-weight:600">${t('settings.inactive','● Inactif')}</span>`}</td>
                                 <td data-label="${t('admin.col_actions','Actions')}" class="admin-actions">
                                     <button class="admin-btn" onclick="adminChangePassword(${u.id}, '${jsStr(u.username)}')" title="${t('settings.change_password','Changer le mot de passe')}"><i class="ri-key-line"></i></button>
                                     <button class="admin-btn" onclick="adminChangeDir(${u.id}, '${jsStr(u.username)}', '${jsStr(u.music_directory || '')}')" title="${t('settings.change_dir','Changer le répertoire local')}"><i class="ri-folder-line"></i></button>
@@ -4557,7 +4573,7 @@
                 const result = await adminFetch('list_directories');
                 const container = document.getElementById('adminDirsList');
                 if (!container) return;
-                if (!result.success) { container.innerHTML = `<p style="color:#ff6b6b">${result.error}</p>`; return; }
+                if (!result.success) { container.innerHTML = `<p style="color:var(--color-danger)">${result.error}</p>`; return; }
 
                 const sel = document.getElementById('newMusicDir');
                 if (sel) {
@@ -4642,8 +4658,8 @@
                             ${options}
                         </select>
                         <div style="display:flex;gap:8px;justify-content:flex-end;">
-                            <button class="rescan-btn" onclick="this.closest('div[style]').remove()">${t('common.cancel','Annuler')}</button>
-                            <button class="rescan-btn" id="dirModalSave" style="background:var(--accent);color:#fff;">${t('common.save','Enregistrer')}</button>
+                            <button class="btn btn-secondary" onclick="this.closest('div[style]').remove()">${t('common.cancel','Annuler')}</button>
+                            <button class="btn btn-primary" id="dirModalSave">${t('common.save','Enregistrer')}</button>
                         </div>
                     </div>
                 `;
@@ -4697,7 +4713,7 @@
                                 <input id="sftpPath" class="admin-input" style="width:100%" placeholder="/home/user/music" value="${escapeHtml(sftpPath)}">
                             </div>
                             <div style="margin-bottom:16px;">
-                                <button id="sftpTestBtn" class="rescan-btn" style="width:100%;justify-content:center;" onclick="adminTestSftp(${userId})">
+                                <button id="sftpTestBtn" class="btn btn-secondary" style="width:100%;justify-content:center;" onclick="adminTestSftp(${userId})">
                                     <i class="ri-wifi-line"></i> ${t('setup.test_connection','Tester la connexion')}
                                 </button>
                                 <div id="sftpTestResult" style="margin-top:6px;font-size:12px;min-height:16px;"></div>
@@ -4705,8 +4721,8 @@
                         </div>
 
                         <div style="display:flex;gap:8px;justify-content:flex-end;">
-                            <button class="rescan-btn" onclick="this.closest('div[style*=fixed]').remove()">${t('common.cancel','Annuler')}</button>
-                            <button class="rescan-btn" id="sftpSaveBtn" style="background:var(--accent);color:#fff;" onclick="adminSaveSftp(${userId})">
+                            <button class="btn btn-secondary" onclick="this.closest('div[style*=fixed]').remove()">${t('common.cancel','Annuler')}</button>
+                            <button class="btn btn-primary" id="sftpSaveBtn" onclick="adminSaveSftp(${userId})">
                                 <i class="ri-save-line"></i> ${t('common.save','Enregistrer')}
                             </button>
                         </div>
@@ -4734,10 +4750,10 @@
                 btn.disabled = false;
                 if (r.success) {
                     result.textContent = r.message || t('admin.connection_ok', '✓ Connexion réussie');
-                    result.style.color = '#00b894';
+                    result.style.color = 'var(--color-success)';
                 } else {
                     result.textContent = r.error || t('admin.connection_fail', '✗ Erreur inconnue');
-                    result.style.color = '#ff6b6b';
+                    result.style.color = 'var(--color-danger)';
                 }
             };
 
@@ -4835,7 +4851,7 @@
                                 <input id="mySftpPath" class="admin-input" style="width:100%" placeholder="/home/user/music" value="${escapeHtml(app.sftpPath || '')}">
                             </div>
                             <div style="margin-bottom:16px;">
-                                <button id="myStorageTestBtn" class="rescan-btn" style="width:100%;justify-content:center;" onclick="testMyStorage()">
+                                <button id="myStorageTestBtn" class="btn btn-secondary" style="width:100%;justify-content:center;" onclick="testMyStorage()">
                                     <i class="ri-wifi-line"></i> ${t('setup.test_connection','Tester la connexion')}
                                 </button>
                                 <div id="myStorageTestResult" style="margin-top:6px;font-size:12px;min-height:16px;"></div>
@@ -4843,8 +4859,8 @@
                         </div>
 
                         <div style="display:flex;gap:8px;justify-content:flex-end;">
-                            <button class="rescan-btn" onclick="document.getElementById('storageModal')?.remove()">${t('common.cancel','Annuler')}</button>
-                            <button class="rescan-btn" style="background:var(--accent);color:#fff;" onclick="saveMyStorage()">
+                            <button class="btn btn-secondary" onclick="document.getElementById('storageModal')?.remove()">${t('common.cancel','Annuler')}</button>
+                            <button class="btn btn-primary" onclick="saveMyStorage()">
                                 <i class="ri-save-line"></i> ${t('common.save','Enregistrer')}
                             </button>
                         </div>
@@ -4871,10 +4887,10 @@
                 btn.disabled = false;
                 if (r.success) {
                     result.textContent = r.message || t('admin.connection_ok', '✓ Connexion réussie');
-                    result.style.color = '#00b894';
+                    result.style.color = 'var(--color-success)';
                 } else {
                     result.textContent = r.error || t('admin.connection_fail', '✗ Erreur inconnue');
-                    result.style.color = '#ff6b6b';
+                    result.style.color = 'var(--color-danger)';
                 }
             };
 
@@ -5037,15 +5053,9 @@
             }
         };
 
-        window.updateThemeButton = function() {
-            const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-            const icon = document.getElementById('themeIcon');
-            const text = document.getElementById('themeText');
-            if (icon && text) {
-                icon.className = isDark ? 'ri-sun-line' : 'ri-moon-line';
-                text.textContent = isDark ? 'Mode Clair' : 'Mode Sombre';
-            }
-        };
+        // Expose theme functions for onclick handlers
+        window.setTheme = setTheme;
+        window.toggleTheme = toggleTheme;
 
         // Expose functions to window for global player overrides
         window.playAlbum = playAlbum;
@@ -6002,24 +6012,22 @@
                                     <div class="album-cover" style="position: relative; overflow: hidden;">
                                         ${ytAlbum.thumbnail ?
                                             `<img src="${ytAlbum.thumbnail}" alt="${ytAlbum.title}" style="width: 100%; height: 100%; object-fit: cover; filter: brightness(0.8);">` :
-                                            `<div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;">
+                                            `<div style="background: var(--placeholder-gradient); width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;">
                                                 <div style="color: white; font-size: 32px; font-weight: 700;">${ytAlbum.title.charAt(0).toUpperCase()}</div>
                                             </div>`
                                         }
                                         <div style="position: absolute; top: 8px; right: 8px; display: flex; gap: 8px;">
                                             <button onclick="event.stopPropagation(); downloadAlbumBackground('${encodeURIComponent(ytAlbum.url)}', '${escapeHtml(artistName)}', '${escapeHtml(ytAlbum.title)}', ${artistId})"
-                                               style="background: rgba(76,175,80,0.95); color: white; width: 40px; height: 40px; border: none; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 20px; cursor: pointer; transition: transform 0.2s; box-shadow: 0 2px 8px rgba(0,0,0,0.3);"
-                                               onmouseenter="this.style.transform='scale(1.15)'; this.style.background='rgba(76,175,80,1)'"
-                                               onmouseleave="this.style.transform='scale(1)'; this.style.background='rgba(76,175,80,0.95)'"
+                                               class="btn btn-icon btn-lg btn-success"
+                                               style="box-shadow: 0 2px 8px rgba(0,0,0,0.3); font-size: 20px;"
                                                title="Télécharger automatiquement en arrière-plan">
                                                 ⚡
                                             </button>
                                             <a href="/modules/yt_plex_download.php?yturl=${encodeURIComponent(ytAlbum.url)}&user=${encodeURIComponent(app.currentUser)}"
                                                target="_blank"
                                                onclick="event.stopPropagation()"
-                                               style="background: rgba(0,0,0,0.85); color: white; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; text-decoration: none; font-size: 20px; cursor: pointer; transition: transform 0.2s; box-shadow: 0 2px 8px rgba(0,0,0,0.3);"
-                                               onmouseenter="this.style.transform='scale(1.15)'; this.style.background='rgba(0,0,0,0.95)'"
-                                               onmouseleave="this.style.transform='scale(1)'; this.style.background='rgba(0,0,0,0.85)'"
+                                               class="btn btn-icon btn-lg btn-secondary"
+                                               style="box-shadow: 0 2px 8px rgba(0,0,0,0.3); font-size: 20px; text-decoration: none;"
                                                title="Télécharger manuellement (suivi en direct)">
                                                 📥
                                             </a>
@@ -7596,7 +7604,7 @@
                                 ${g.artists.map(a => `<span style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:6px;padding:3px 10px;font-size:12px;color:var(--text-primary);">${a.name}</span>`).join('<span style="color:var(--text-secondary);font-size:11px;">≈</span>')}
                                 <span style="margin-left:auto;font-size:11px;color:var(--text-secondary);">${g.total_songs} chanson${g.total_songs > 1 ? 's' : ''}</span>
                             </div>
-                            <button onclick="preselectArtistGroup(${i})" class="rescan-btn" style="font-size:11px;padding:4px 12px;">
+                            <button onclick="preselectArtistGroup(${i})" class="btn btn-secondary btn-sm">
                                 <i class="ri-cursor-line"></i> Sélectionner
                             </button>
                         </div>
@@ -7604,7 +7612,7 @@
                 `;
                 panel._groups = groups;
             } catch (e) {
-                panel.innerHTML = `<div style="color:var(--error,#e74c3c);padding:14px;font-size:13px;">Erreur : ${e.message}</div>`;
+                panel.innerHTML = `<div style="color:var(--color-danger);padding:14px;font-size:13px;">Erreur : ${e.message}</div>`;
             } finally {
                 if (btn)  btn.disabled = false;
                 if (icon) icon.className = 'ri-search-line';
