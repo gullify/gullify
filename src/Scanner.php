@@ -984,6 +984,9 @@ class Scanner {
             if (($i + 1) % 50 === 0 || $i === 0) {
                 echo "  [{$i}/{$total}] Checking: {$album['artist_name']} / {$album['name']}\n";
             }
+            $this->saveProgress('artwork', "{$album['artist_name']} / {$album['name']}");
+            $this->songsProcessed = $i + 1;
+            $this->totalFilesFound = $total;
 
             if ($this->artworkManager->updateAlbumArtwork((int)$album['id'])) {
                 $updated++;
@@ -991,6 +994,78 @@ class Scanner {
         }
 
         echo "  Updated artwork for $updated albums\n";
+        return $updated;
+    }
+
+    /**
+     * Regenerate all artwork thumbnails (albums + artists) for a user.
+     * Deletes existing cache files so they get recreated at current quality.
+     */
+    public function regenerateAllArtwork(string $user): int {
+        $cachePath = AppConfig::getDataPath() . '/cache/artwork';
+
+        // --- Albums ---
+        $stmt = $this->db->prepare('
+            SELECT al.id, al.name, ar.name as artist_name
+            FROM albums al
+            JOIN artists ar ON al.artist_id = ar.id
+            WHERE ar.user = ?
+        ');
+        $stmt->execute([$user]);
+        $albums = $stmt->fetchAll();
+
+        // --- Artists ---
+        $stmt = $this->db->prepare('SELECT id, name FROM artists WHERE user = ?');
+        $stmt->execute([$user]);
+        $artists = $stmt->fetchAll();
+
+        $total = count($albums) + count($artists);
+        $this->totalFilesFound = $total;
+        $this->songsProcessed = 0;
+        echo "  Regenerating artwork for " . count($albums) . " albums + " . count($artists) . " artists\n";
+
+        $updated = 0;
+
+        foreach ($albums as $i => $album) {
+            $this->songsProcessed = $i + 1;
+            $this->saveProgress('artwork', "{$album['artist_name']} / {$album['name']}");
+
+            // Delete existing cache so it gets regenerated
+            $cached = $cachePath . '/album_' . $album['id'] . '.jpg';
+            if (file_exists($cached)) @unlink($cached);
+
+            // Reset DB field to force re-fetch
+            $this->db->prepare("UPDATE albums SET artwork = NULL WHERE id = ?")->execute([$album['id']]);
+
+            if ($this->artworkManager->updateAlbumArtwork((int)$album['id'])) {
+                $updated++;
+            }
+
+            if (($i + 1) % 20 === 0) {
+                echo "  Albums [{$this->songsProcessed}/{$total}] {$album['artist_name']} / {$album['name']}\n";
+            }
+        }
+
+        foreach ($artists as $j => $artist) {
+            $this->songsProcessed = count($albums) + $j + 1;
+            $this->saveProgress('artist_images', $artist['name']);
+
+            $cached = $cachePath . '/artist_' . $artist['id'] . '.jpg';
+            if (file_exists($cached)) @unlink($cached);
+
+            $this->db->prepare("UPDATE artists SET image = NULL WHERE id = ?")->execute([$artist['id']]);
+
+            if ($this->artworkManager->updateArtistImage((int)$artist['id'])) {
+                $updated++;
+            }
+
+            if (($j + 1) % 20 === 0) {
+                echo "  Artists [{$this->songsProcessed}/{$total}] {$artist['name']}\n";
+            }
+        }
+
+        $this->saveProgress('idle', 'Artwork regeneration completed!');
+        echo "  Regenerated $updated items\n";
         return $updated;
     }
 

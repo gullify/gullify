@@ -2,7 +2,7 @@
 <?php
 /**
  * Gullify - Artwork Scanner CLI
- * Updates missing artwork for albums (cover files + embedded ID3).
+ * Regenerates all artwork thumbnails (albums + artists) at current quality settings.
  *
  * Usage:
  *   php scan-artwork.php username
@@ -11,7 +11,7 @@
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 ini_set('memory_limit', '1024M');
-ini_set('max_execution_time', 1800);
+ini_set('max_execution_time', 3600);
 
 require_once __DIR__ . '/../src/Scanner.php';
 
@@ -30,10 +30,10 @@ echo "========================================\n\n";
 
 try {
     $scanner = new Scanner(false);
-    $updated = $scanner->updateMissingArtwork($targetUser);
+    $updated = $scanner->regenerateAllArtwork($targetUser);
 
     echo "\n========================================\n";
-    echo "Artwork scan completed: $updated albums updated\n";
+    echo "Artwork scan completed: $updated items updated\n";
     echo "Finished: " . date('Y-m-d H:i:s') . "\n";
     echo "========================================\n";
 
