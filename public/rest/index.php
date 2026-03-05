@@ -39,9 +39,8 @@ $salt     = $_GET['s'] ?? $_POST['s'] ?? '';
 
 $authenticatedUser = null;
 
-// Always authenticate when credentials are provided (clients use ping to verify login)
-$hasCredentials = $username && ($password || ($token && $salt));
-if ($hasCredentials || ($method !== 'ping' && $method !== 'getLicense')) {
+// ping and getLicense never require auth (Subsonic spec + client compatibility)
+if ($method !== 'ping' && $method !== 'getLicense') {
     $auth = new Auth();
 
     if ($token && $salt) {
