@@ -4,8 +4,8 @@
     "description": "Self-hosted music streaming server",
     "start_url": "/",
     "display": "standalone",
-    "background_color": "#0a0a1a",
-    "theme_color": "#6c5ce7",
+    "background_color": "#1a252f",
+    "theme_color": "#1a252f",
     "orientation": "portrait-primary",
     "icons": [
         {

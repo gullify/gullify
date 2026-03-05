@@ -470,6 +470,10 @@
             }
 
             localStorage.setItem('musicTheme', theme);
+
+            // Update Android status bar color
+            const meta = document.getElementById('themeColor');
+            if (meta) meta.setAttribute('content', theme === 'dark' ? '#1a252f' : '#ffffff');
         }
 
         // Detect if in iframe and sync dark mode with parent

@@ -51,7 +51,7 @@ try {
     <title>Gullify - Musique</title>
 
     <!-- PWA & Meta -->
-    <meta name="theme-color" content="#2c3e50">
+    <meta name="theme-color" content="#1a252f" id="themeColor">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <link rel="icon" type="image/x-icon" href="favicon.ico">
