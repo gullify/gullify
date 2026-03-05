@@ -473,7 +473,7 @@
 
             // Update Android status bar color
             const meta = document.getElementById('themeColor');
-            if (meta) meta.setAttribute('content', theme === 'dark' ? '#1a252f' : '#ffffff');
+            if (meta) meta.setAttribute('content', theme === 'dark' ? '#1a252f' : '#f0f2f5');
         }
 
         // Detect if in iframe and sync dark mode with parent

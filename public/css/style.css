@@ -18,21 +18,21 @@
 
         :root {
             /* Light Mode */
-            --bg-primary: #ffffff;
-            --bg-secondary: #f8f9fa;
-            --bg-tertiary: #e9ecef;
-            --text-primary: #000000;
+            --bg-primary: #f0f2f5;
+            --bg-secondary: #ffffff;
+            --bg-tertiary: #e4e6ea;
+            --text-primary: #1a1a2e;
             --text-secondary: #5f6368;
             --text-tertiary: #80868b;
             --accent: #ff0000;
             --accent-hover: #cc0000;
-            --border: #e0e0e0;
-            --shadow: rgba(0, 0, 0, 0.1);
-            --glass-bg: rgba(255, 255, 255, 0.7);
-            --glass-border: rgba(255, 255, 255, 0.18);
-            --hover-bg: rgba(0, 0, 0, 0.04);
+            --border: rgba(0, 0, 0, 0.08);
+            --shadow: rgba(0, 0, 0, 0.08);
+            --glass-bg: rgba(255, 255, 255, 0.65);
+            --glass-border: rgba(0, 0, 0, 0.06);
+            --hover-bg: rgba(0, 0, 0, 0.05);
             --player-bg: #ffffff;
-            --player-bg-translucent: rgba(255, 255, 255, 0.7);
+            --player-bg-translucent: rgba(255, 255, 255, 0.8);
         }
 
         [data-theme="dark"] {
