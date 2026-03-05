@@ -39,7 +39,9 @@ $salt     = $_GET['s'] ?? $_POST['s'] ?? '';
 
 $authenticatedUser = null;
 
-if ($method !== 'ping' && $method !== 'getLicense') {
+// Always authenticate when credentials are provided (clients use ping to verify login)
+$hasCredentials = $username && ($password || ($token && $salt));
+if ($hasCredentials || ($method !== 'ping' && $method !== 'getLicense')) {
     $auth = new Auth();
 
     if ($token && $salt) {
