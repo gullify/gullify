@@ -705,6 +705,16 @@ function handleGetMusicDirectory($db, $user, $format) {
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
+function stripAtKeys($data) {
+    if (!is_array($data)) return $data;
+    $out = [];
+    foreach ($data as $k => $v) {
+        $key = is_string($k) && str_starts_with($k, '@') ? substr($k, 1) : $k;
+        $out[$key] = is_array($v) ? stripAtKeys($v) : $v;
+    }
+    return $out;
+}
+
 function buildSongChild($s) {
     $ext = pathinfo($s['file_path'] ?? '', PATHINFO_EXTENSION) ?: 'mp3';
     $mimeTypes = [
@@ -745,7 +755,7 @@ function subsonicOk($data, $format) {
 
     if ($format === 'json') {
         header('Content-Type: application/json; charset=utf-8');
-        echo json_encode(['subsonic-response' => $response], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+        echo json_encode(['subsonic-response' => stripAtKeys($response)], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
     } else {
         header('Content-Type: application/xml; charset=utf-8');
         echo '<?xml version="1.0" encoding="UTF-8"?>' . "\n";
@@ -778,7 +788,7 @@ function subsonicError($code, $message, $format) {
 
     if ($format === 'json') {
         header('Content-Type: application/json; charset=utf-8');
-        echo json_encode(['subsonic-response' => $response], JSON_UNESCAPED_UNICODE);
+        echo json_encode(['subsonic-response' => stripAtKeys($response)], JSON_UNESCAPED_UNICODE);
     } else {
         header('Content-Type: application/xml; charset=utf-8');
         echo '<?xml version="1.0" encoding="UTF-8"?>' . "\n";
