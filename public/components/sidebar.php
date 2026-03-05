@@ -54,20 +54,20 @@
             <i class="ri-arrow-down-s-line nav-arrow"></i>
         </div>
         <div class="nav-submenu" id="settingsSubmenu">
-            <div class="nav-subitem" data-settings-section="appearance" onclick="renderSettingsSection('appearance')">
+            <div class="nav-subitem" data-settings-section="appearance">
                 <i class="ri-palette-line"></i>
                 <span data-i18n="settings.appearance">Apparence</span>
             </div>
-            <div class="nav-subitem" data-settings-section="language" onclick="renderSettingsSection('language')">
+            <div class="nav-subitem" data-settings-section="language">
                 <i class="ri-translate-2"></i>
                 <span data-i18n="settings.language">Langue</span>
             </div>
-            <div class="nav-subitem" data-settings-section="library" onclick="renderSettingsSection('library')">
+            <div class="nav-subitem" data-settings-section="library">
                 <i class="ri-folder-music-line"></i>
                 <span data-i18n="scan.library">Bibliothèque</span>
             </div>
             <?php if (!empty($_SESSION['is_admin'])): ?>
-            <div class="nav-subitem" data-settings-section="admin" onclick="renderSettingsSection('admin')">
+            <div class="nav-subitem" data-settings-section="admin">
                 <i class="ri-shield-user-line"></i>
                 <span data-i18n="settings.admin_panel">Administration</span>
             </div>

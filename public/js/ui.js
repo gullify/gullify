@@ -5016,7 +5016,22 @@
             // Navigation
             navItems.forEach(item => {
                 item.addEventListener('click', () => {
+                    if (item.classList.contains('nav-item-parent')) {
+                        item.classList.toggle('open');
+                        document.getElementById('settingsSubmenu')?.classList.toggle('open');
+                        return;
+                    }
                     renderView(item.dataset.view);
+                    closeMenu();
+                });
+            });
+
+            // Settings submenu items
+            document.querySelectorAll('.nav-subitem[data-settings-section]').forEach(item => {
+                item.addEventListener('click', () => {
+                    app.currentView = 'settings';
+                    navItems.forEach(n => n.classList.toggle('active', n.dataset.view === 'settings'));
+                    renderSettingsSection(item.dataset.settingsSection);
                     closeMenu();
                 });
             });
