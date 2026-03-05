@@ -2805,6 +2805,22 @@ a.news-item:hover::before {
     color: white;
 }
 
+.download-delete-btn {
+    background: rgba(231, 76, 60, 0.15);
+    color: #e74c3c;
+    border: none;
+    border-radius: 8px;
+    padding: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    flex-shrink: 0;
+}
+
+.download-delete-btn:hover {
+    background: #e74c3c;
+    color: white;
+}
+
 @media (max-width: 600px) {
     .download-form {
         flex-direction: column;

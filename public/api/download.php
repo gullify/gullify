@@ -276,6 +276,29 @@ try {
             ]);
             break;
 
+        case 'delete':
+            $downloadId = $_POST['download_id'] ?? '';
+
+            if (empty($downloadId)) {
+                throw new Exception('Missing download_id parameter');
+            }
+
+            $statusFile = $downloadDir . "{$downloadId}.json";
+            $logFile = $downloadDir . "{$downloadId}.log";
+
+            if (!file_exists($statusFile)) {
+                throw new Exception('Download not found');
+            }
+
+            @unlink($statusFile);
+            @unlink($logFile);
+
+            echo json_encode([
+                'success' => true,
+                'message' => 'Download deleted'
+            ]);
+            break;
+
         default:
             throw new Exception('Unknown action');
     }

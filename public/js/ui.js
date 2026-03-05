@@ -2048,6 +2048,11 @@
                             <i class="ri-refresh-line"></i>
                         </button>
                     ` : ''}
+                    ${!isActive ? `
+                        <button onclick="deleteDownload('${download.id}')" class="download-delete-btn" title="${t('common.delete', 'Supprimer')}">
+                            <i class="ri-delete-bin-line"></i>
+                        </button>
+                    ` : ''}
                 </div>
             `;
         }
@@ -2066,6 +2071,23 @@
             } catch (error) {
                 console.error('Error retrying download:', error);
                 showToast(t('toast.retry_error', 'Erreur lors du réessai'), 'error');
+            }
+        }
+
+        async function deleteDownload(downloadId) {
+            if (!confirm(t('confirm.delete_download', 'Supprimer ce téléchargement de la liste?'))) return;
+            try {
+                const formData = new FormData();
+                formData.append('download_id', downloadId);
+                const response = await fetch(`${BASE_PATH}/download_album_api.php?action=delete`, { method: 'POST', body: formData });
+                const result = await response.json();
+                if (result.success) {
+                    await refreshDownloadsList();
+                } else {
+                    showToast(t('common.error','Erreur') + ': ' + (result.error || ''), 'error');
+                }
+            } catch (error) {
+                showToast(t('toast.delete_error', 'Erreur lors de la suppression'), 'error');
             }
         }
 
