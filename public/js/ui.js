@@ -5031,7 +5031,7 @@
                 item.addEventListener('click', () => {
                     app.currentView = 'settings';
                     navItems.forEach(n => n.classList.toggle('active', n.dataset.view === 'settings'));
-                    renderSettingsSection(item.dataset.settingsSection);
+                    renderSettings(item.dataset.settingsSection);
                     closeMenu();
                 });
             });
