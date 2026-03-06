@@ -2678,9 +2678,10 @@
                         placeholder.innerHTML = recentAlbumsHtml;
                         // Initialize Swiper after inserting HTML
                         if (recentAlbumsHtml) {
+                            const isVinyl = document.documentElement.getAttribute('data-card-style') === 'vinyl';
                             new Swiper('.nouveautes-swiper', {
                                 slidesPerView: 'auto',
-                                spaceBetween: 16,
+                                spaceBetween: isVinyl ? 40 : 16,
                                 navigation: {
                                     nextEl: '.nouveautes-next',
                                     prevEl: '.nouveautes-prev',
