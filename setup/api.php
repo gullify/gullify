@@ -79,6 +79,19 @@ function getPostData(): array {
     return $data;
 }
 
+/**
+ * Build a PDO connection from request data with AppConfig fallbacks.
+ */
+function getDBFromRequest(array $data): PDO {
+    return getDBConnection([
+        'host' => $data['host'] ?? AppConfig::get('mysql.host'),
+        'port' => $data['port'] ?? AppConfig::get('mysql.port'),
+        'database' => $data['database'] ?? AppConfig::get('mysql.database'),
+        'user' => $data['user'] ?? $data['db_user'] ?? AppConfig::get('mysql.user'),
+        'password' => $data['password'] ?? $data['db_password'] ?? AppConfig::get('mysql.password'),
+    ]);
+}
+
 function getDBConnection(array $params): PDO {
     $dsn = sprintf(
         'mysql:host=%s;port=%s;dbname=%s;charset=utf8mb4',
@@ -355,13 +368,7 @@ function handleCreateAdmin(): void {
     }
 
     try {
-        $db = getDBConnection([
-            'host' => $data['host'] ?? AppConfig::get('mysql.host'),
-            'port' => $data['port'] ?? AppConfig::get('mysql.port'),
-            'database' => $data['database'] ?? AppConfig::get('mysql.database'),
-            'user' => $data['db_user'] ?? AppConfig::get('mysql.user'),
-            'password' => $data['db_password'] ?? AppConfig::get('mysql.password'),
-        ]);
+        $db = getDBFromRequest($data);
 
         // Check if admin already exists
         $stmt = $db->query('SELECT id FROM users WHERE is_admin = 1 LIMIT 1');
@@ -417,13 +424,7 @@ function handleAddUser(): void {
     }
 
     try {
-        $db = getDBConnection([
-            'host' => $data['host'] ?? AppConfig::get('mysql.host'),
-            'port' => $data['port'] ?? AppConfig::get('mysql.port'),
-            'database' => $data['database'] ?? AppConfig::get('mysql.database'),
-            'user' => $data['db_user'] ?? AppConfig::get('mysql.user'),
-            'password' => $data['db_password'] ?? AppConfig::get('mysql.password'),
-        ]);
+        $db = getDBFromRequest($data);
         $hash = password_hash($password, PASSWORD_BCRYPT, ['cost' => 12]);
 
         $stmt = $db->prepare('
@@ -648,6 +649,8 @@ function handleSaveStorage(): void {
     $userId = (int) ($data['user_id'] ?? 0);
     $storageType = trim($data['storage_type'] ?? 'local');
 
+    $db = getDBFromRequest($data);
+
     if (!$userId) {
         // Fallback: use the first admin user
         $stmt = $db->query('SELECT id FROM users WHERE is_admin = 1 LIMIT 1');
@@ -658,8 +661,6 @@ function handleSaveStorage(): void {
             jsonResponse(false, 'Aucun utilisateur trouve. Creez un compte a l\'etape precedente.');
         }
     }
-
-    $db = AppConfig::getDB();
 
     if ($storageType === 'sftp') {
         $host = trim($data['sftp_host'] ?? '');

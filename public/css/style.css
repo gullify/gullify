@@ -3868,6 +3868,7 @@ a.news-item:hover::before {
     gap: 16px 40px;
 }
 [data-card-style="vinyl"] .nouveaute-cover { border-radius: 4px; }
+[data-card-style="vinyl"] .nouveautes-swiper .swiper-slide { margin-right: 24px !important; }
 [data-card-style="vinyl"] .nouveaute-card {
     position: relative;
     overflow: visible !important;

@@ -553,19 +553,23 @@ async function checkRequirements() {
     }
 }
 
+function getDbCredentials() {
+    return {
+        host: document.getElementById('dbHost').value,
+        port: document.getElementById('dbPort').value,
+        database: document.getElementById('dbName').value,
+        user: document.getElementById('dbUser').value,
+        password: document.getElementById('dbPass').value,
+    };
+}
+
 // Step 2
 async function testDatabase() {
     const btn = document.getElementById('dbTestBtn');
     btn.innerHTML = '<span class="spinner"></span>';
     btn.disabled = true;
 
-    const r = await api('test_database', {
-        host: document.getElementById('dbHost').value,
-        port: document.getElementById('dbPort').value,
-        database: document.getElementById('dbName').value,
-        user: document.getElementById('dbUser').value,
-        password: document.getElementById('dbPass').value,
-    });
+    const r = await api('test_database', getDbCredentials());
 
     btn.innerHTML = t('setup.test', 'Tester');
     btn.disabled = false;
@@ -573,13 +577,7 @@ async function testDatabase() {
     if (r.success) {
         showStatus('dbStatus', r.message, 'success');
         // Auto-create tables
-        const r2 = await api('create_tables', {
-            host: document.getElementById('dbHost').value,
-            port: document.getElementById('dbPort').value,
-            database: document.getElementById('dbName').value,
-            user: document.getElementById('dbUser').value,
-            password: document.getElementById('dbPass').value,
-        });
+        const r2 = await api('create_tables', getDbCredentials());
         if (r2.success) {
             showStatus('dbStatus', r.message + '<br>Tables: ' + r2.message, 'success');
         }
@@ -604,14 +602,7 @@ async function createAdmin() {
 
     const isFirst = users.length === 0;
     const action = isFirst ? 'create_admin' : 'add_user';
-    const r = await api(action, {
-        username, password, full_name: fullName,
-        host: document.getElementById('dbHost').value,
-        port: document.getElementById('dbPort').value,
-        database: document.getElementById('dbName').value,
-        db_user: document.getElementById('dbUser').value,
-        db_password: document.getElementById('dbPass').value,
-    });
+    const r = await api(action, { username, password, full_name: fullName, ...getDbCredentials() });
 
     if (r.success) {
         adminUserId = r.user_id;
