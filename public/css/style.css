@@ -3789,7 +3789,7 @@ a.news-item:hover::before {
 }
 [data-card-style="round"] .nouveaute-cover { border-radius: 50%; }
 
-/* Style: vinyl — disc visible behind cover, cover slides left on hover */
+/* Style: vinyl — disc peeking from the right, more on hover */
 [data-card-style="vinyl"] .artist-card,
 [data-card-style="vinyl"] .album-card {
     background: none;
@@ -3797,6 +3797,7 @@ a.news-item:hover::before {
     box-shadow: none;
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
+    overflow: visible !important;
 }
 [data-card-style="vinyl"] .artist-card:hover,
 [data-card-style="vinyl"] .album-card:hover {
@@ -3816,21 +3817,19 @@ a.news-item:hover::before {
 [data-card-style="vinyl"] .album-info {
     background: none; backdrop-filter: none;
 }
-/* The vinyl disc — sits inside the card, behind the cover image */
+/* The vinyl disc — placed as ::before on the card, behind the cover */
 [data-card-style="vinyl"] .album-cover {
     position: relative;
     z-index: 2;
-    box-shadow: -1px 0 8px rgba(0,0,0,0.5);
-    transition: transform 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    box-shadow: 2px 0 10px rgba(0,0,0,0.5);
 }
 [data-card-style="vinyl"] .album-card::before {
     content: '';
     position: absolute;
-    width: 80%;
-    padding-bottom: 80%;
-    height: 0;
-    top: 10%;
-    right: 10%;
+    top: 5%;
+    right: -15%;
+    width: 85%;
+    aspect-ratio: 1;
     border-radius: 50%;
     background:
         radial-gradient(circle at center,
@@ -3853,12 +3852,17 @@ a.news-item:hover::before {
             #292929 96%, #1a1a1a 97%,
             #111 100%
         );
-    box-shadow: 0 1px 8px rgba(0,0,0,0.5);
-    z-index: 1;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+    z-index: 0;
+    transition: right 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94);
 }
-/* On hover: slide cover left to reveal disc edge */
-[data-card-style="vinyl"] .album-card:hover .album-cover {
-    transform: translateX(-15%);
+[data-card-style="vinyl"] .album-card:hover::before {
+    right: -20%;
+}
+/* Extra gap so discs don't overlap adjacent cards */
+[data-card-style="vinyl"] .artist-grid,
+[data-card-style="vinyl"] .album-grid {
+    gap: 16px 40px;
 }
 [data-card-style="vinyl"] .nouveaute-cover { border-radius: 4px; }
 
