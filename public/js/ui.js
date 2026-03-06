@@ -462,7 +462,8 @@
             forest:   { label: 'Forest',     icon: 'ri-leaf-line',        statusBar: '#0e1a14' },
             aurora:   { label: 'Aurora',     icon: 'ri-sparkling-line',   statusBar: '#100e1a' },
             sand:     { label: 'Sand',       icon: 'ri-landscape-line',   statusBar: '#f5f0e8' },
-            nord:     { label: 'Nord',       icon: 'ri-snowy-line',       statusBar: '#2e3440' }
+            nord:     { label: 'Nord',       icon: 'ri-snowy-line',       statusBar: '#2e3440' },
+            lime:     { label: 'Lime',       icon: 'ri-flashlight-line',  statusBar: '#0a0a0a' }
         };
 
         const CARD_STYLES = {

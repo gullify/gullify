@@ -356,6 +356,64 @@
             --placeholder-gradient: linear-gradient(135deg, #88c0d0 0%, #5e81ac 100%);
         }
 
+        /* ═══════════════ Lime (Dribbble dark aesthetic) ═══════════════ */
+        [data-theme="lime"] {
+            --bg-primary: #0a0a0a;
+            --bg-secondary: #141414;
+            --bg-tertiary: #1e1e1e;
+            --player-bg: #111111;
+            --player-bg-translucent: rgba(10, 10, 10, 0.92);
+            --glass-bg: rgba(10, 10, 10, 0.85);
+            --glass-border: rgba(200, 230, 50, 0.06);
+            --text-primary: #f0f0f0;
+            --text-secondary: #888888;
+            --text-tertiary: #555555;
+            --accent: #c8e632;
+            --accent-hover: #b5d020;
+            --color-success: #c8e632;
+            --color-success-hover: #b5d020;
+            --color-success-soft: rgba(200, 230, 50, 0.15);
+            --color-danger: #f87171;
+            --color-danger-hover: #ef4444;
+            --color-danger-soft: rgba(248, 113, 113, 0.15);
+            --color-info: #c8e632;
+            --color-info-hover: #b5d020;
+            --color-info-soft: rgba(200, 230, 50, 0.12);
+            --color-warning: #fbbf24;
+            --border: rgba(255, 255, 255, 0.06);
+            --shadow: rgba(0, 0, 0, 0.8);
+            --hover-bg: rgba(200, 230, 50, 0.06);
+            --card-bg: rgba(255, 255, 255, 0.04);
+            --card-bg-hover: rgba(255, 255, 255, 0.07);
+            --card-border: rgba(255, 255, 255, 0.06);
+            --card-bg-strong: rgba(200, 230, 50, 0.08);
+            --focus-ring: rgba(200, 230, 50, 0.4);
+            --btn-secondary-bg: rgba(255, 255, 255, 0.06);
+            --btn-secondary-bg-hover: rgba(255, 255, 255, 0.10);
+            --btn-secondary-border: rgba(255, 255, 255, 0.08);
+            --btn-secondary-text: #f0f0f0;
+            --placeholder-gradient: linear-gradient(135deg, #c8e632 0%, #88a820 100%);
+        }
+
+        /* Lime theme: enable album background gradient fade to black */
+        [data-theme="lime"] .album-background-image {
+            filter: blur(40px) brightness(0.4) saturate(1.2);
+        }
+        [data-theme="lime"] .album-background-gradient {
+            display: block;
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(to bottom,
+                rgba(10,10,10,0) 0%,
+                rgba(10,10,10,0.6) 50%,
+                rgba(10,10,10,0.95) 100%
+            );
+        }
+        /* Lime: stronger album bg presence */
+        [data-theme="lime"] .album-background.active {
+            opacity: 0.8;
+        }
+
         body {
             font-family: 'Roboto', 'Arial', sans-serif;
             background: var(--bg-primary);
