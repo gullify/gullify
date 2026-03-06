@@ -1,3 +1,7 @@
-{$APP_DOMAIN} {
+{$APP_DOMAIN:localhost} {
+	reverse_proxy app:80
+}
+
+:80 {
 	reverse_proxy app:80
 }

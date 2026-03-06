@@ -476,6 +476,8 @@
             polaroid: { label: 'Polaroid',   icon: 'ri-polaroid-line' }
         };
 
+        let _nouveautesSwiper = null;
+
         function setCardStyle(style) {
             if (!CARD_STYLES[style]) style = 'default';
             if (style === 'default') document.documentElement.removeAttribute('data-card-style');
@@ -769,19 +771,9 @@
                         </button>
                     </div>
                     <div class="album-grid" style="grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));">
-                        ${albums.map(album => {
-                            const imgSrc = album.artworkUrl || DEFAULT_ALBUM_IMG;
-                            return `
-                                <div class="album-card" onclick="viewAlbum(${album.id})" style="cursor: pointer;">
-                                    <div class="vinyl-disc"></div>
-                                    <div class="album-cover">
-                                        <img src="${imgSrc}" alt="${escapeHtml(album.name)}" style="width: 100%; height: 100%; object-fit: cover;">
-                                    </div>
-                                    <div class="album-name" style="font-size: 13px; margin-top: 8px;">${escapeHtml(album.name)}</div>
-                                    <div class="album-info" style="font-size: 11px;">${escapeHtml(album.artistName)}${album.year ? ' • ' + album.year : ''}</div>
-                                </div>
-                            `;
-                        }).join('')}
+                        ${albums.map(album => albumCardHtml(album,
+                            `${escapeHtml(album.artistName)}${album.year ? ' • ' + album.year : ''}`
+                        )).join('')}
                     </div>
                 `;
                 contentBody.innerHTML = html;
@@ -1322,16 +1314,9 @@
                     <div class="stats-section">
                         <div class="stats-section-title"><i class="ri-album-fill"></i> ${t('stats.top_albums', 'Top Albums')}</div>
                         <div class="artist-grid">
-                            ${stats.topAlbums.map(album => `
-                                <div class="album-card" onclick="viewAlbum(${album.id})">
-                                    <div class="vinyl-disc"></div>
-                                    <div class="album-cover">
-                                        <img src="${album.artworkUrl}" alt="${album.name}" loading="lazy" style="width:100%;height:100%;object-fit:cover;">
-                                    </div>
-                                    <div class="album-name">${album.name}</div>
-                                    <div class="album-info">${escapeHtml(album.artist_name)} · ${t('home.plays', '{n} écoutes').replace('{n}', album.play_count)}</div>
-                                </div>
-                            `).join('')}
+                            ${stats.topAlbums.map(album => albumCardHtml(album,
+                                `${escapeHtml(album.artist_name)} · ${t('home.plays', '{n} écoutes').replace('{n}', album.play_count)}`
+                            )).join('')}
                         </div>
                     </div>
                 `;
@@ -1683,16 +1668,9 @@
                                 <button onclick="playFavoriteAlbums()" class="favorites-play-btn"><i class="ri-play-fill"></i> ${t('favorites.play_all', 'Tout lire')}</button>
                             </div>
                             <div class="album-grid" style="grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));">
-                                ${albums.map(album => `
-                                    <div class="album-card" onclick="viewAlbum(${album.id})">
-                                        <div class="vinyl-disc"></div>
-                                        <div class="album-cover">
-                                            <img src="${album.artworkUrl || DEFAULT_ALBUM_IMG}" alt="${escapeHtml(album.name)}" style="width: 100%; height: 100%; object-fit: cover;">
-                                        </div>
-                                        <div class="album-name">${escapeHtml(album.name)}</div>
-                                        <div class="album-info">${escapeHtml(album.artist_name)}${album.year ? ' • ' + album.year : ''}</div>
-                                    </div>
-                                `).join('')}
+                                ${albums.map(album => albumCardHtml(album,
+                                    `${escapeHtml(album.artist_name)}${album.year ? ' • ' + album.year : ''}`
+                                )).join('')}
                             </div>
                         </div>
                     `;
@@ -2678,7 +2656,8 @@
                         placeholder.innerHTML = recentAlbumsHtml;
                         // Initialize Swiper after inserting HTML
                         if (recentAlbumsHtml) {
-                            new Swiper('.nouveautes-swiper', {
+                            if (_nouveautesSwiper) _nouveautesSwiper.destroy(true, true);
+                            _nouveautesSwiper = new Swiper('.nouveautes-swiper', {
                                 slidesPerView: 'auto',
                                 spaceBetween: 16,
                                 navigation: {
@@ -3130,16 +3109,10 @@
                         </div>
                         ${albums.length > 0 ? `
                             <div class="album-grid" id="album-grid-${artistId}">
-                                ${albums.map(album => `
-                                    <div class="album-card" data-album-id="${album.id}" onclick="viewAlbum(${album.id})">
-                                        <div class="vinyl-disc"></div>
-                                        <div class="album-cover" id="album-cover-${album.id}">
-                                            <img src="${album.artworkUrl || DEFAULT_ALBUM_IMG}" alt="${album.name}" style="width: 100%; height: 100%; object-fit: cover;">
-                                        </div>
-                                        <div class="album-name">${album.name}</div>
-                                        <div class="album-info">${album.year || 'N/A'} • ${t('counts.songs','{n} chansons').replace('{n}', album.songCount || 0)}</div>
-                                    </div>
-                                `).join('')}
+                                ${albums.map(album => albumCardHtml(album,
+                                    `${album.year || 'N/A'} • ${t('counts.songs','{n} chansons').replace('{n}', album.songCount || 0)}`,
+                                    { attrs: ` data-album-id="${album.id}"`, coverId: `album-cover-${album.id}` }
+                                )).join('')}
                             </div>
                             <div id="album-manage-bar-${artistId}" style="display:none;position:sticky;bottom:80px;z-index:50;background:var(--bg-secondary);border:1px solid var(--border);border-radius:12px;padding:12px 16px;margin-top:12px;align-items:center;gap:10px;flex-wrap:wrap;backdrop-filter:blur(10px);">
                                 <span id="album-manage-count-${artistId}" style="color:var(--text-primary);font-size:14px;font-weight:600;flex:1;">${t('common.none_selected', 'Aucun sélectionné')}</span>
@@ -3440,17 +3413,23 @@
             }, 400);
         }
 
+        function albumCardHtml(album, info, opts = {}) {
+            const attrs = opts.attrs || '';
+            const coverId = opts.coverId ? ` id="${opts.coverId}"` : '';
+            return `<div class="album-card" onclick="viewAlbum(${album.id})"${attrs}>` +
+                '<div class="vinyl-disc"></div>' +
+                `<div class="album-cover"${coverId}>` +
+                    `<img src="${album.artworkUrl || DEFAULT_ALBUM_IMG}" alt="${escapeHtml(album.name)}" style="width:100%;height:100%;object-fit:cover;" loading="lazy">` +
+                '</div>' +
+                `<div class="album-name">${escapeHtml(album.name)}</div>` +
+                `<div class="album-info">${info}</div>` +
+            '</div>';
+        }
+
         function renderAlbumCards(albums) {
-            return albums.map(album => `
-                <div class="album-card" onclick="viewAlbum(${album.id})" style="cursor:pointer;" title="${escapeHtml(album.name)}">
-                    <div class="vinyl-disc"></div>
-                    <div class="album-cover">
-                        <img src="${album.artworkUrl || DEFAULT_ALBUM_IMG}" alt="${escapeHtml(album.name)}" style="width:100%;height:100%;object-fit:cover;" loading="lazy">
-                    </div>
-                    <div class="album-name" style="font-size:13px;margin-top:8px;">${escapeHtml(album.name)}</div>
-                    <div class="album-info" style="font-size:11px;">${escapeHtml(album.artistName)}${album.year ? ' • ' + album.year : ''}</div>
-                </div>
-            `).join('');
+            return albums.map(album => albumCardHtml(album,
+                `${escapeHtml(album.artistName)}${album.year ? ' • ' + album.year : ''}`
+            )).join('');
         }
 
         async function renderAlbums(reset = true) {
