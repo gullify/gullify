@@ -3792,10 +3792,12 @@ a.news-item:hover::before {
 /* Style: vinyl — record sliding out to the right on hover */
 [data-card-style="vinyl"] .artist-card,
 [data-card-style="vinyl"] .album-card {
-    overflow: visible;
+    overflow: visible !important;
     background: none;
     border: none;
     box-shadow: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
 }
 [data-card-style="vinyl"] .artist-card:hover,
 [data-card-style="vinyl"] .album-card:hover {
