@@ -2527,10 +2527,17 @@
             `;
 
             // Fetch random artists for the home page
+            // Calculate how many items fit per row based on content width
+            const contentWidth = contentBody.clientWidth - 30; // minus padding
+            const cardMinWidth = 122; // minmax(110px, 1fr) + gap
+            const itemsPerRow = Math.max(2, Math.floor(contentWidth / cardMinWidth));
+            const suggestionsLimit = itemsPerRow * 2;
+            const popularLimit = itemsPerRow;
+
             let randomArtistsHtml = '<div class="artist-grid-placeholder"></div>'; // Placeholder
             const fetchRandomArtists = async () => {
                 try {
-                    const response = await fetch(`${BASE_PATH}/api/library.php?user=${app.currentUser}&action=get_random_artists&limit=12`);
+                    const response = await fetch(`${BASE_PATH}/api/library.php?user=${app.currentUser}&action=get_random_artists&limit=${suggestionsLimit}`);
                     const result = await response.json();
                     if (result.error || !result.data.artists) return;
 
@@ -2575,7 +2582,7 @@
 
             const fetchPopular = async () => {
                 try {
-                    const response = await fetch(`${BASE_PATH}/get_popular.php?user=${app.currentUser}&limit=6`);
+                    const response = await fetch(`${BASE_PATH}/get_popular.php?user=${app.currentUser}&limit=${popularLimit * 3}`);
                     const result = await response.json();
                     let popularHtml = '';
                     if (!result.error && result.data && result.data.length > 0) {
@@ -2588,7 +2595,7 @@
                             }
                             artistMap[aid].playCount += song.playCount || 0;
                         });
-                        const topArtists = Object.values(artistMap).sort((a, b) => b.playCount - a.playCount).slice(0, 6);
+                        const topArtists = Object.values(artistMap).sort((a, b) => b.playCount - a.playCount).slice(0, popularLimit);
 
                         if (topArtists.length > 0) {
                             popularHtml = `

@@ -3789,10 +3789,9 @@ a.news-item:hover::before {
 }
 [data-card-style="round"] .nouveaute-cover { border-radius: 50%; }
 
-/* Style: vinyl — record sliding out to the right on hover */
+/* Style: vinyl — disc visible behind cover, cover slides left on hover */
 [data-card-style="vinyl"] .artist-card,
 [data-card-style="vinyl"] .album-card {
-    overflow: visible !important;
     background: none;
     border: none;
     box-shadow: none;
@@ -3807,10 +3806,7 @@ a.news-item:hover::before {
 }
 [data-card-style="vinyl"] .artist-image,
 [data-card-style="vinyl"] .album-cover {
-    position: relative;
-    z-index: 2;
     border-radius: 4px;
-    box-shadow: -1px 0 6px rgba(0,0,0,0.4);
 }
 [data-card-style="vinyl"] .artist-name,
 [data-card-style="vinyl"] .album-name {
@@ -3820,22 +3816,25 @@ a.news-item:hover::before {
 [data-card-style="vinyl"] .album-info {
     background: none; backdrop-filter: none;
 }
-/* The vinyl disc — only behind album covers, not artists */
+/* The vinyl disc — sits inside the card, behind the cover image */
+[data-card-style="vinyl"] .album-cover {
+    position: relative;
+    z-index: 2;
+    box-shadow: -1px 0 8px rgba(0,0,0,0.5);
+    transition: transform 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
 [data-card-style="vinyl"] .album-card::before {
     content: '';
     position: absolute;
-    /* Size: 85% of card width, centered vertically in the image area */
-    width: 85%;
-    padding-bottom: 85%; /* force 1:1 aspect ratio */
+    width: 80%;
+    padding-bottom: 80%;
     height: 0;
-    top: 7.5%;
-    right: -5%;
+    top: 10%;
+    right: 10%;
     border-radius: 50%;
     background:
-        /* center label */
         radial-gradient(circle at center,
             #444 0%, #555 8%, #444 9%,
-            /* grooves */
             #1c1c1c 10%,
             #292929 12%, #1c1c1c 13%,
             #292929 18%, #1c1c1c 19%,
@@ -3856,35 +3855,10 @@ a.news-item:hover::before {
         );
     box-shadow: 0 1px 8px rgba(0,0,0,0.5);
     z-index: 1;
-    transition: right 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94);
 }
-/* Vinyl highlight sheen */
-[data-card-style="vinyl"] .album-card::after {
-    content: '';
-    position: absolute;
-    width: 85%;
-    padding-bottom: 85%;
-    height: 0;
-    top: 7.5%;
-    right: -5%;
-    border-radius: 50%;
-    background: linear-gradient(135deg,
-        rgba(255,255,255,0.08) 0%,
-        rgba(255,255,255,0) 40%,
-        rgba(255,255,255,0.04) 60%,
-        rgba(255,255,255,0) 100%
-    );
-    z-index: 1;
-    pointer-events: none;
-    transition: right 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94);
-}
-[data-card-style="vinyl"] .album-card:hover::before,
-[data-card-style="vinyl"] .album-card:hover::after {
-    right: -12%;
-}
-[data-card-style="vinyl"] .artist-grid,
-[data-card-style="vinyl"] .album-grid {
-    gap: 16px 36px;
+/* On hover: slide cover left to reveal disc edge */
+[data-card-style="vinyl"] .album-card:hover .album-cover {
+    transform: translateX(-15%);
 }
 [data-card-style="vinyl"] .nouveaute-cover { border-radius: 4px; }
 
