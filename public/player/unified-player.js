@@ -708,9 +708,9 @@ class UnifiedMusicPlayer {
                     if (this.currentTrack === track && this.playerSpecs && !specs.error) {
                         const parts = [];
                         if (specs.format) parts.push(specs.format);
-                        if (specs.bitrate) parts.push(specs.bitrate + ' kb/s');
-                        if (specs.sampleRate) parts.push(specs.sampleRate + ' kHz');
-                        this.playerSpecs.textContent = parts.join(' · ');
+                        if (specs.bitrate) parts.push(specs.bitrate + 'kb/s');
+                        if (specs.sampleRate) parts.push(specs.sampleRate + 'kHz');
+                        this.playerSpecs.textContent = parts.join('·');
                     }
                 })
                 .catch(() => {});
