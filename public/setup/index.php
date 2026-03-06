@@ -275,29 +275,29 @@ $_langData = file_exists($_langFile) ? file_get_contents($_langFile) : '{}';
     <!-- Step 2: Database -->
     <div class="card step-card hidden" id="step-2">
         <h2 id="s2-title">Base de données</h2>
-        <p class="subtitle" id="s2-sub">Les paramètres MySQL sont préconfigurés via Docker. Vérifiez la connexion.</p>
+        <p class="subtitle" id="s2-sub">Configurez la connexion MySQL et testez-la.</p>
         <div class="form-row">
             <div class="form-group">
                 <label id="s2-host">Hôte</label>
-                <input type="text" id="dbHost" value="db" readonly>
+                <input type="text" id="dbHost" value="db">
             </div>
             <div class="form-group" style="max-width: 100px;">
                 <label id="s2-port">Port</label>
-                <input type="text" id="dbPort" value="3306" readonly>
+                <input type="text" id="dbPort" value="3306">
             </div>
         </div>
         <div class="form-group">
             <label id="s2-dbname">Base de données</label>
-            <input type="text" id="dbName" value="gullify" readonly>
+            <input type="text" id="dbName" value="gullify">
         </div>
         <div class="form-row">
             <div class="form-group">
                 <label id="s2-user">Utilisateur</label>
-                <input type="text" id="dbUser" value="gullify" readonly>
+                <input type="text" id="dbUser" value="gullify">
             </div>
             <div class="form-group">
                 <label id="s2-pass">Mot de passe</label>
-                <input type="password" id="dbPass" value="gullify_secret" readonly>
+                <input type="password" id="dbPass" value="gullify_secret">
             </div>
         </div>
         <div id="dbStatus"></div>
@@ -450,7 +450,7 @@ function applySetupI18n() {
         's1-sub':        t('setup.sys_check_subtitle', 'Vérification des prérequis nécessaires au fonctionnement de Gullify.'),
         's1-checking':   t('setup.check_in_progress', 'Vérification en cours...'),
         's2-title':      t('setup.database', 'Base de données'),
-        's2-sub':        t('setup.database_subtitle', 'Les paramètres MySQL sont préconfigurés via Docker. Vérifiez la connexion.'),
+        's2-sub':        t('setup.database_subtitle', 'Configurez la connexion MySQL et testez-la.'),
         's2-host':       t('setup.db_host', 'Hôte'),
         's2-port':       t('setup.db_port', 'Port'),
         's2-dbname':     t('setup.db_name', 'Base de données'),
