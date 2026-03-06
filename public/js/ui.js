@@ -772,12 +772,13 @@
                         ${albums.map(album => {
                             const imgSrc = album.artworkUrl || DEFAULT_ALBUM_IMG;
                             return `
-                                <div class="artist-card" onclick="viewAlbum(${album.id})" style="cursor: pointer;">
-                                    <div class="artist-image" style="border-radius: 8px; overflow: hidden;">
+                                <div class="album-card" onclick="viewAlbum(${album.id})" style="cursor: pointer;">
+                                    <div class="vinyl-disc"></div>
+                                    <div class="album-cover">
                                         <img src="${imgSrc}" alt="${escapeHtml(album.name)}" style="width: 100%; height: 100%; object-fit: cover;">
                                     </div>
-                                    <div class="artist-name" style="font-size: 13px; margin-top: 8px;">${escapeHtml(album.name)}</div>
-                                    <div class="artist-info" style="font-size: 11px;">${escapeHtml(album.artistName)}${album.year ? ' • ' + album.year : ''}</div>
+                                    <div class="album-name" style="font-size: 13px; margin-top: 8px;">${escapeHtml(album.name)}</div>
+                                    <div class="album-info" style="font-size: 11px;">${escapeHtml(album.artistName)}${album.year ? ' • ' + album.year : ''}</div>
                                 </div>
                             `;
                         }).join('')}
@@ -2646,6 +2647,7 @@
                                             ${recentAlbums.map(album => `
                                                     <div class="swiper-slide">
                                                         <div class="nouveaute-card" onclick="viewAlbum(${album.id})">
+                                                            <div class="vinyl-disc"></div>
                                                             <div class="nouveaute-cover">
                                                                 <img src="${album.artworkUrl || DEFAULT_ALBUM_IMG}" alt="${escapeHtml(album.name)}">
                                                             </div>

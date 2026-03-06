@@ -3858,7 +3858,8 @@ a.news-item:hover::before {
     pointer-events: none;
     transition: right 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94);
 }
-[data-card-style="vinyl"] .album-card:hover .vinyl-disc {
+[data-card-style="vinyl"] .album-card:hover .vinyl-disc,
+[data-card-style="vinyl"] .nouveaute-card:hover .vinyl-disc {
     right: -18%;
 }
 /* Extra gap so discs don't overlap adjacent cards */
@@ -3867,6 +3868,19 @@ a.news-item:hover::before {
     gap: 16px 40px;
 }
 [data-card-style="vinyl"] .nouveaute-cover { border-radius: 4px; }
+[data-card-style="vinyl"] .nouveaute-card {
+    position: relative;
+    overflow: visible !important;
+}
+[data-card-style="vinyl"] .nouveaute-card:hover {
+    transform: none;
+}
+[data-card-style="vinyl"] .nouveaute-cover {
+    position: relative;
+    z-index: 2;
+    box-shadow: 2px 0 10px rgba(0,0,0,0.5);
+}
+[data-card-style="vinyl"] .nouveaute-more .vinyl-disc { display: none !important; }
 
 /* Style: jewel — CD jewel case with transparent plastic spine on left */
 [data-card-style="jewel"] .artist-card,
