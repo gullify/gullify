@@ -937,6 +937,7 @@
                         <div class="album-grid">
                             ${playlists.map(p => `
                                 <div class="album-card">
+                                    <div class="vinyl-disc"></div>
                                     <div class="album-cover" style="background: var(--placeholder-gradient); cursor: pointer;" onclick="viewPlaylist(${p.id})">
                                         <div style="color: white; font-size: 48px; font-weight: 700;">🎶</div>
                                     </div>
@@ -1322,6 +1323,7 @@
                         <div class="artist-grid">
                             ${stats.topAlbums.map(album => `
                                 <div class="album-card" onclick="viewAlbum(${album.id})">
+                                    <div class="vinyl-disc"></div>
                                     <div class="album-cover">
                                         <img src="${album.artworkUrl}" alt="${album.name}" loading="lazy" style="width:100%;height:100%;object-fit:cover;">
                                     </div>
@@ -1682,6 +1684,7 @@
                             <div class="album-grid" style="grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));">
                                 ${albums.map(album => `
                                     <div class="album-card" onclick="viewAlbum(${album.id})">
+                                        <div class="vinyl-disc"></div>
                                         <div class="album-cover">
                                             <img src="${album.artworkUrl || DEFAULT_ALBUM_IMG}" alt="${escapeHtml(album.name)}" style="width: 100%; height: 100%; object-fit: cover;">
                                         </div>
@@ -3127,6 +3130,7 @@
                             <div class="album-grid" id="album-grid-${artistId}">
                                 ${albums.map(album => `
                                     <div class="album-card" data-album-id="${album.id}" onclick="viewAlbum(${album.id})">
+                                        <div class="vinyl-disc"></div>
                                         <div class="album-cover" id="album-cover-${album.id}">
                                             <img src="${album.artworkUrl || DEFAULT_ALBUM_IMG}" alt="${album.name}" style="width: 100%; height: 100%; object-fit: cover;">
                                         </div>

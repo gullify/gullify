@@ -3817,18 +3817,19 @@ a.news-item:hover::before {
 [data-card-style="vinyl"] .album-info {
     background: none; backdrop-filter: none;
 }
-/* The vinyl disc — placed as ::before on the card, behind the cover */
+/* Vinyl disc — hidden by default, shown only in vinyl card style */
+.vinyl-disc { display: none; }
+[data-card-style="vinyl"] .vinyl-disc { display: block; }
 [data-card-style="vinyl"] .album-cover {
     position: relative;
     z-index: 2;
     box-shadow: 2px 0 10px rgba(0,0,0,0.5);
 }
-[data-card-style="vinyl"] .album-card::before {
-    content: '';
+[data-card-style="vinyl"] .vinyl-disc {
     position: absolute;
     top: 5%;
-    right: -15%;
-    width: 85%;
+    right: -12%;
+    width: 82%;
     aspect-ratio: 1;
     border-radius: 50%;
     background:
@@ -3853,11 +3854,12 @@ a.news-item:hover::before {
             #111 100%
         );
     box-shadow: 0 2px 8px rgba(0,0,0,0.5);
-    z-index: 0;
+    z-index: 1;
+    pointer-events: none;
     transition: right 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94);
 }
-[data-card-style="vinyl"] .album-card:hover::before {
-    right: -20%;
+[data-card-style="vinyl"] .album-card:hover .vinyl-disc {
+    right: -18%;
 }
 /* Extra gap so discs don't overlap adjacent cards */
 [data-card-style="vinyl"] .artist-grid,
