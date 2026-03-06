@@ -183,6 +183,19 @@ body:not([data-theme="dark"]) .unified-player .player {
     color: var(--text-secondary);
 }
 
+#unified-player-container .player-audio-specs,
+.unified-player .player-audio-specs {
+    font-size: 10px;
+    color: var(--text-secondary);
+    opacity: 0.6;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    letter-spacing: 0.3px;
+    font-family: monospace;
+    line-height: 1.2;
+}
+
 /* Controls */
 #unified-player-container .player-controls,
 .unified-player .player-controls {

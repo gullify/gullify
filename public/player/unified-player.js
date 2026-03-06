@@ -97,6 +97,7 @@ class UnifiedMusicPlayer {
         this.playerBar = document.getElementById('unifiedPlayer');
         this.playerTitle = document.getElementById('unifiedPlayerTitle');
         this.playerArtist = document.getElementById('unifiedPlayerArtist');
+        this.playerSpecs = document.getElementById('unifiedPlayerSpecs');
         this.playerCover = document.getElementById('unifiedPlayerCover');
         this.playerSongInfo = document.getElementById('unifiedPlayerSongInfo');
 
@@ -697,6 +698,23 @@ class UnifiedMusicPlayer {
         // Update UI
         if (this.playerTitle) this.playerTitle.textContent = track.title || 'Unknown';
         if (this.playerArtist) this.playerArtist.textContent = track.artist || 'Unknown';
+        if (this.playerSpecs) this.playerSpecs.textContent = '';
+
+        // Fetch audio specs asynchronously
+        if (track.filePath) {
+            fetch(`${this.config.apiBaseUrl}/get_audio_specs.php?path=${encodeURIComponent(track.filePath)}`)
+                .then(r => r.json())
+                .then(specs => {
+                    if (this.currentTrack === track && this.playerSpecs && !specs.error) {
+                        const parts = [];
+                        if (specs.format) parts.push(specs.format);
+                        if (specs.bitrate) parts.push(specs.bitrate + ' kb/s');
+                        if (specs.sampleRate) parts.push(specs.sampleRate + ' kHz');
+                        this.playerSpecs.textContent = parts.join(' · ');
+                    }
+                })
+                .catch(() => {});
+        }
 
         // Update cover - fix path for images
         const artworkSrc = track.artworkUrl || track.artwork;

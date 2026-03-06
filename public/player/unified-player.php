@@ -163,6 +163,7 @@
         <div class="player-details">
             <div class="player-song-title" id="unifiedPlayerTitle">Aucune chanson</div>
             <div class="player-song-artist" id="unifiedPlayerArtist">Selectionnez une chanson</div>
+            <div class="player-audio-specs" id="unifiedPlayerSpecs"></div>
         </div>
     </div>
 
