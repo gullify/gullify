@@ -702,7 +702,7 @@ class UnifiedMusicPlayer {
 
         // Fetch audio specs asynchronously
         if (track.filePath) {
-            fetch(`${this.config.apiBaseUrl}/get_audio_specs.php?path=${encodeURIComponent(track.filePath)}`)
+            fetch(`${BASE_PATH}/get_audio_specs.php?path=${encodeURIComponent(track.filePath)}`)
                 .then(r => r.json())
                 .then(specs => {
                     if (this.currentTrack === track && this.playerSpecs && !specs.error) {
