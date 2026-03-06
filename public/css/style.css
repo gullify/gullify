@@ -3731,79 +3731,176 @@ a.news-item:hover::before {
 }
 [data-card-style="round"] .nouveaute-cover { border-radius: 50%; }
 
-/* Style: vinyl — disc peeking out behind the cover */
+/* Style: vinyl — record sliding out to the right on hover */
 [data-card-style="vinyl"] .artist-card,
 [data-card-style="vinyl"] .album-card {
     overflow: visible;
+    background: none;
+    border: none;
+    box-shadow: none;
+}
+[data-card-style="vinyl"] .artist-card:hover,
+[data-card-style="vinyl"] .album-card:hover {
+    background: none;
+    box-shadow: none;
+    transform: none;
 }
 [data-card-style="vinyl"] .artist-image,
 [data-card-style="vinyl"] .album-cover {
-    position: relative; z-index: 1;
-    border-radius: 6px 6px 0 0;
-    box-shadow: 2px 0 8px rgba(0,0,0,0.3);
+    position: relative;
+    z-index: 2;
+    border-radius: 4px;
+    box-shadow: -1px 0 6px rgba(0,0,0,0.4);
 }
+[data-card-style="vinyl"] .artist-name,
+[data-card-style="vinyl"] .album-name {
+    background: none; backdrop-filter: none;
+}
+[data-card-style="vinyl"] .artist-info,
+[data-card-style="vinyl"] .album-info {
+    background: none; backdrop-filter: none;
+}
+/* The vinyl disc — perfectly round using padding-bottom trick */
 [data-card-style="vinyl"] .artist-card::before,
 [data-card-style="vinyl"] .album-card::before {
     content: '';
     position: absolute;
-    top: 8%;
-    right: -12%;
-    width: 70%;
-    height: 70%;
+    /* Size: 85% of card width, centered vertically in the image area */
+    width: 85%;
+    padding-bottom: 85%; /* force 1:1 aspect ratio */
+    height: 0;
+    top: 7.5%;
+    right: -5%;
     border-radius: 50%;
-    background: radial-gradient(circle at center,
-        #1a1a1a 18%,
-        #333 19%,
-        #1a1a1a 20%,
-        #222 30%,
-        #1a1a1a 31%,
-        #333 40%,
-        #1a1a1a 41%,
-        #222 55%,
-        #1a1a1a 56%,
-        #333 70%,
-        #1a1a1a 71%,
-        #222 85%,
-        #1a1a1a 86%,
-        #111 100%
+    background:
+        /* center label */
+        radial-gradient(circle at center,
+            #444 0%, #555 8%, #444 9%,
+            /* grooves */
+            #1c1c1c 10%,
+            #292929 12%, #1c1c1c 13%,
+            #292929 18%, #1c1c1c 19%,
+            #292929 24%, #1c1c1c 25%,
+            #292929 30%, #1c1c1c 31%,
+            #292929 36%, #1c1c1c 37%,
+            #292929 42%, #1c1c1c 43%,
+            #292929 48%, #1c1c1c 49%,
+            #292929 54%, #1c1c1c 55%,
+            #292929 60%, #1c1c1c 61%,
+            #292929 66%, #1c1c1c 67%,
+            #292929 72%, #1c1c1c 73%,
+            #292929 78%, #1c1c1c 79%,
+            #292929 84%, #1c1c1c 85%,
+            #292929 90%, #1c1c1c 91%,
+            #292929 96%, #1a1a1a 97%,
+            #111 100%
+        );
+    box-shadow: 0 1px 8px rgba(0,0,0,0.5);
+    z-index: 1;
+    transition: right 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+/* Vinyl highlight sheen */
+[data-card-style="vinyl"] .artist-card::after,
+[data-card-style="vinyl"] .album-card::after {
+    content: '';
+    position: absolute;
+    width: 85%;
+    padding-bottom: 85%;
+    height: 0;
+    top: 7.5%;
+    right: -5%;
+    border-radius: 50%;
+    background: linear-gradient(135deg,
+        rgba(255,255,255,0.08) 0%,
+        rgba(255,255,255,0) 40%,
+        rgba(255,255,255,0.04) 60%,
+        rgba(255,255,255,0) 100%
     );
-    box-shadow: 0 2px 12px rgba(0,0,0,0.4);
-    z-index: 0;
-    transition: right 0.3s ease;
+    z-index: 1;
+    pointer-events: none;
+    transition: right 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94);
 }
 [data-card-style="vinyl"] .artist-card:hover::before,
-[data-card-style="vinyl"] .album-card:hover::before {
-    right: -20%;
+[data-card-style="vinyl"] .album-card:hover::before,
+[data-card-style="vinyl"] .artist-card:hover::after,
+[data-card-style="vinyl"] .album-card:hover::after {
+    right: -30%;
 }
 [data-card-style="vinyl"] .artist-grid,
 [data-card-style="vinyl"] .album-grid {
-    gap: 24px 32px;
+    gap: 16px 36px;
 }
-[data-card-style="vinyl"] .nouveaute-cover { border-radius: 6px; }
+[data-card-style="vinyl"] .nouveaute-cover { border-radius: 4px; }
 
-/* Style: jewel — CD jewel case with subtle plastic sheen */
+/* Style: jewel — CD jewel case with transparent plastic spine on left */
 [data-card-style="jewel"] .artist-card,
 [data-card-style="jewel"] .album-card {
     border-radius: 2px;
-    border: 1px solid rgba(128,128,128,0.3);
-    box-shadow: 2px 2px 0 rgba(0,0,0,0.15), inset 0 0 0 1px rgba(255,255,255,0.05);
+    border: 1px solid rgba(180,180,180,0.3);
+    box-shadow: 1px 1px 4px rgba(0,0,0,0.2);
+    position: relative;
+    padding-left: 12px;
+    background: linear-gradient(
+        to right,
+        rgba(200,200,200,0.08) 0px,
+        rgba(255,255,255,0.12) 4px,
+        rgba(200,200,200,0.06) 8px,
+        var(--card-bg) 12px
+    );
+}
+/* Spine — the translucent plastic strip on the left */
+[data-card-style="jewel"] .artist-card::before,
+[data-card-style="jewel"] .album-card::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 12px;
+    background: linear-gradient(to right,
+        rgba(255,255,255,0.06),
+        rgba(255,255,255,0.14) 30%,
+        rgba(255,255,255,0.04) 50%,
+        rgba(255,255,255,0.10) 70%,
+        rgba(200,200,200,0.08)
+    );
+    border-right: 1px solid rgba(128,128,128,0.15);
+    border-radius: 2px 0 0 2px;
+}
+/* Plastic sheen over the whole case */
+[data-card-style="jewel"] .artist-card::after,
+[data-card-style="jewel"] .album-card::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 2px;
+    background: linear-gradient(
+        160deg,
+        rgba(255,255,255,0.10) 0%,
+        transparent 30%,
+        transparent 70%,
+        rgba(255,255,255,0.05) 100%
+    );
+    pointer-events: none;
+    z-index: 3;
 }
 [data-card-style="jewel"] .artist-image,
 [data-card-style="jewel"] .album-cover {
     border-radius: 0;
     position: relative;
 }
-[data-card-style="jewel"] .artist-image::after,
-[data-card-style="jewel"] .album-cover::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(135deg, rgba(255,255,255,0.12) 0%, transparent 50%, rgba(255,255,255,0.06) 100%);
-    pointer-events: none;
-}
 [data-card-style="jewel"] .artist-card:hover,
 [data-card-style="jewel"] .album-card:hover {
-    box-shadow: 3px 3px 0 rgba(0,0,0,0.2), inset 0 0 0 1px rgba(255,255,255,0.08);
+    box-shadow: 2px 3px 10px rgba(0,0,0,0.25);
+    border-color: rgba(180,180,180,0.4);
+    transform: translateY(-3px);
+    background: linear-gradient(
+        to right,
+        rgba(200,200,200,0.10) 0px,
+        rgba(255,255,255,0.15) 4px,
+        rgba(200,200,200,0.08) 8px,
+        var(--card-bg) 12px
+    );
 }
 [data-card-style="jewel"] .nouveaute-cover { border-radius: 2px; }
 
