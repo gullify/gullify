@@ -3894,23 +3894,25 @@ a.news-item:hover::before {
 [data-card-style="jewel"] .album-cover {
     border-radius: 0;
     position: relative;
+    overflow: visible !important;
 }
-/* Spine — translucent plastic strip, only on the image area */
+/* Spine — translucent plastic strip on the right side of the cover */
 [data-card-style="jewel"] .artist-image::before,
 [data-card-style="jewel"] .album-cover::before {
     content: '';
     position: absolute;
-    left: 0; top: 0; bottom: 0;
+    right: -11px; top: 0; bottom: 0;
     width: 10px;
     z-index: 2;
     background: linear-gradient(to right,
-        rgba(255,255,255,0.04),
-        rgba(255,255,255,0.13) 25%,
-        rgba(255,255,255,0.03) 50%,
-        rgba(255,255,255,0.09) 75%,
+        rgba(200,200,200,0.08),
+        rgba(255,255,255,0.18) 30%,
+        rgba(255,255,255,0.05) 50%,
+        rgba(255,255,255,0.12) 75%,
         rgba(200,200,200,0.06)
     );
-    border-right: 1px solid rgba(128,128,128,0.12);
+    border-left: 1px solid rgba(128,128,128,0.15);
+    border-right: 1px solid rgba(128,128,128,0.08);
 }
 /* Plastic sheen reflection across image */
 [data-card-style="jewel"] .artist-image::after,
