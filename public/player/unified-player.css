@@ -859,6 +859,69 @@ body:not([data-theme="dark"]) .unified-player .mobile-close-btn {
     object-fit: cover;
 }
 
+/* ── Vinyl mode: mobile player spinning record ── */
+@keyframes vinyl-spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+[data-card-style="vinyl"] .mobile-player-cover-large {
+    border-radius: 50% !important;
+    position: relative;
+    background: radial-gradient(circle at center,
+        #444 0%, #555 4%, #444 5%,
+        #1c1c1c 6%,
+        #292929 8%, #1c1c1c 9%,
+        #292929 12%, #1c1c1c 13%,
+        #292929 16%, #1c1c1c 17%,
+        #292929 20%, #1c1c1c 21%,
+        #292929 24%, #1c1c1c 25%,
+        #292929 28%, #1c1c1c 29%,
+        #292929 32%, #1c1c1c 33%,
+        #1a1a1a 34%,
+        transparent 35%
+    ) !important;
+    box-shadow:
+        0 0 0 4px #111,
+        0 0 0 6px #333,
+        0 8px 30px rgba(0,0,0,0.5);
+    max-width: 320px;
+}
+
+[data-card-style="vinyl"] .mobile-player-cover-large img {
+    border-radius: 50%;
+    width: 62% !important;
+    height: 62% !important;
+    position: absolute;
+    top: 19%;
+    left: 19%;
+    object-fit: cover;
+    box-shadow: 0 0 0 3px rgba(0,0,0,0.4);
+    animation: vinyl-spin 3s linear infinite;
+    animation-play-state: paused;
+}
+
+/* Spin when playing */
+[data-card-style="vinyl"] .mobile-now-playing.playing .mobile-player-cover-large img {
+    animation-play-state: running;
+}
+
+/* Vinyl sheen overlay */
+[data-card-style="vinyl"] .mobile-player-cover-large::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: linear-gradient(
+        135deg,
+        rgba(255,255,255,0.06) 0%,
+        transparent 40%,
+        rgba(255,255,255,0.03) 60%,
+        transparent 100%
+    );
+    pointer-events: none;
+}
+
 #unified-player-container .mobile-player-info,
 .unified-player .mobile-player-info {
     padding: 0 30px;

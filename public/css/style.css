@@ -3824,7 +3824,7 @@ a.news-item:hover::before {
 [data-card-style="vinyl"] .album-card:hover::before,
 [data-card-style="vinyl"] .artist-card:hover::after,
 [data-card-style="vinyl"] .album-card:hover::after {
-    right: -30%;
+    right: -12%;
 }
 [data-card-style="vinyl"] .artist-grid,
 [data-card-style="vinyl"] .album-grid {
@@ -3835,45 +3835,39 @@ a.news-item:hover::before {
 /* Style: jewel — CD jewel case with transparent plastic spine on left */
 [data-card-style="jewel"] .artist-card,
 [data-card-style="jewel"] .album-card {
-    border-radius: 2px;
+    border-radius: 0;
     border: 1px solid rgba(180,180,180,0.3);
     box-shadow: 1px 1px 4px rgba(0,0,0,0.2);
-    position: relative;
-    padding-left: 12px;
-    background: linear-gradient(
-        to right,
-        rgba(200,200,200,0.08) 0px,
-        rgba(255,255,255,0.12) 4px,
-        rgba(200,200,200,0.06) 8px,
-        var(--card-bg) 12px
-    );
+    overflow: visible;
 }
-/* Spine — the translucent plastic strip on the left */
-[data-card-style="jewel"] .artist-card::before,
-[data-card-style="jewel"] .album-card::before {
+[data-card-style="jewel"] .artist-image,
+[data-card-style="jewel"] .album-cover {
+    border-radius: 0;
+    position: relative;
+}
+/* Spine — translucent plastic strip, only on the image area */
+[data-card-style="jewel"] .artist-image::before,
+[data-card-style="jewel"] .album-cover::before {
     content: '';
     position: absolute;
-    left: 0;
-    top: 0;
-    bottom: 0;
-    width: 12px;
+    left: 0; top: 0; bottom: 0;
+    width: 10px;
+    z-index: 2;
     background: linear-gradient(to right,
-        rgba(255,255,255,0.06),
-        rgba(255,255,255,0.14) 30%,
-        rgba(255,255,255,0.04) 50%,
-        rgba(255,255,255,0.10) 70%,
-        rgba(200,200,200,0.08)
+        rgba(255,255,255,0.04),
+        rgba(255,255,255,0.13) 25%,
+        rgba(255,255,255,0.03) 50%,
+        rgba(255,255,255,0.09) 75%,
+        rgba(200,200,200,0.06)
     );
-    border-right: 1px solid rgba(128,128,128,0.15);
-    border-radius: 2px 0 0 2px;
+    border-right: 1px solid rgba(128,128,128,0.12);
 }
-/* Plastic sheen over the whole case */
-[data-card-style="jewel"] .artist-card::after,
-[data-card-style="jewel"] .album-card::after {
+/* Plastic sheen reflection across image */
+[data-card-style="jewel"] .artist-image::after,
+[data-card-style="jewel"] .album-cover::after {
     content: '';
     position: absolute;
     inset: 0;
-    border-radius: 2px;
     background: linear-gradient(
         160deg,
         rgba(255,255,255,0.10) 0%,
@@ -3882,27 +3876,15 @@ a.news-item:hover::before {
         rgba(255,255,255,0.05) 100%
     );
     pointer-events: none;
-    z-index: 3;
-}
-[data-card-style="jewel"] .artist-image,
-[data-card-style="jewel"] .album-cover {
-    border-radius: 0;
-    position: relative;
+    z-index: 2;
 }
 [data-card-style="jewel"] .artist-card:hover,
 [data-card-style="jewel"] .album-card:hover {
     box-shadow: 2px 3px 10px rgba(0,0,0,0.25);
     border-color: rgba(180,180,180,0.4);
     transform: translateY(-3px);
-    background: linear-gradient(
-        to right,
-        rgba(200,200,200,0.10) 0px,
-        rgba(255,255,255,0.15) 4px,
-        rgba(200,200,200,0.08) 8px,
-        var(--card-bg) 12px
-    );
 }
-[data-card-style="jewel"] .nouveaute-cover { border-radius: 2px; }
+[data-card-style="jewel"] .nouveaute-cover { border-radius: 0; }
 
 /* Style: minimal — no card chrome, just image + text */
 [data-card-style="minimal"] .artist-card,
