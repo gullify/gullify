@@ -604,7 +604,14 @@ async function createAdmin() {
 
     const isFirst = users.length === 0;
     const action = isFirst ? 'create_admin' : 'add_user';
-    const r = await api(action, { username, password, full_name: fullName });
+    const r = await api(action, {
+        username, password, full_name: fullName,
+        host: document.getElementById('dbHost').value,
+        port: document.getElementById('dbPort').value,
+        database: document.getElementById('dbName').value,
+        db_user: document.getElementById('dbUser').value,
+        db_password: document.getElementById('dbPass').value,
+    });
 
     if (r.success) {
         adminUserId = r.user_id;

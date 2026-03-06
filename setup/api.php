@@ -355,7 +355,13 @@ function handleCreateAdmin(): void {
     }
 
     try {
-        $db = AppConfig::getDB();
+        $db = getDBConnection([
+            'host' => $data['host'] ?? AppConfig::get('mysql.host'),
+            'port' => $data['port'] ?? AppConfig::get('mysql.port'),
+            'database' => $data['database'] ?? AppConfig::get('mysql.database'),
+            'user' => $data['db_user'] ?? AppConfig::get('mysql.user'),
+            'password' => $data['db_password'] ?? AppConfig::get('mysql.password'),
+        ]);
 
         // Check if admin already exists
         $stmt = $db->query('SELECT id FROM users WHERE is_admin = 1 LIMIT 1');
@@ -411,7 +417,13 @@ function handleAddUser(): void {
     }
 
     try {
-        $db = AppConfig::getDB();
+        $db = getDBConnection([
+            'host' => $data['host'] ?? AppConfig::get('mysql.host'),
+            'port' => $data['port'] ?? AppConfig::get('mysql.port'),
+            'database' => $data['database'] ?? AppConfig::get('mysql.database'),
+            'user' => $data['db_user'] ?? AppConfig::get('mysql.user'),
+            'password' => $data['db_password'] ?? AppConfig::get('mysql.password'),
+        ]);
         $hash = password_hash($password, PASSWORD_BCRYPT, ['cost' => 12]);
 
         $stmt = $db->prepare('
