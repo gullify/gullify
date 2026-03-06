@@ -515,9 +515,6 @@ class UnifiedMusicPlayer {
             this.mobilePlayBtn.innerHTML = icon;
             this.mobilePlayBtn.classList.toggle('playing', playing);
         }
-        if (this.mobileNowPlaying) {
-            this.mobileNowPlaying.classList.toggle('playing', playing);
-        }
     }
 
     playNext() {

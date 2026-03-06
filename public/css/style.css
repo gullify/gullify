@@ -3760,8 +3760,7 @@ a.news-item:hover::before {
 [data-card-style="vinyl"] .album-info {
     background: none; backdrop-filter: none;
 }
-/* The vinyl disc — perfectly round using padding-bottom trick */
-[data-card-style="vinyl"] .artist-card::before,
+/* The vinyl disc — only behind album covers, not artists */
 [data-card-style="vinyl"] .album-card::before {
     content: '';
     position: absolute;
@@ -3800,7 +3799,6 @@ a.news-item:hover::before {
     transition: right 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94);
 }
 /* Vinyl highlight sheen */
-[data-card-style="vinyl"] .artist-card::after,
 [data-card-style="vinyl"] .album-card::after {
     content: '';
     position: absolute;
@@ -3820,9 +3818,7 @@ a.news-item:hover::before {
     pointer-events: none;
     transition: right 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94);
 }
-[data-card-style="vinyl"] .artist-card:hover::before,
 [data-card-style="vinyl"] .album-card:hover::before,
-[data-card-style="vinyl"] .artist-card:hover::after,
 [data-card-style="vinyl"] .album-card:hover::after {
     right: -12%;
 }
