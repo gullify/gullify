@@ -3696,6 +3696,172 @@ a.news-item:hover::before {
     }
 }
 
+/* ── Card Styles ── */
+
+/* Style: sharp — square, no border-radius */
+[data-card-style="sharp"] .artist-card,
+[data-card-style="sharp"] .album-card { border-radius: 0; }
+[data-card-style="sharp"] .artist-image,
+[data-card-style="sharp"] .album-cover { border-radius: 0; }
+[data-card-style="sharp"] .nouveaute-cover { border-radius: 0; }
+
+/* Style: round — circular image */
+[data-card-style="round"] .artist-card,
+[data-card-style="round"] .album-card {
+    background: none; border: none; box-shadow: none;
+    text-align: center;
+}
+[data-card-style="round"] .artist-card:hover,
+[data-card-style="round"] .album-card:hover {
+    background: none; box-shadow: none;
+}
+[data-card-style="round"] .artist-image,
+[data-card-style="round"] .album-cover {
+    border-radius: 50%;
+    margin: 8px auto 0;
+    width: calc(100% - 16px);
+}
+[data-card-style="round"] .artist-name,
+[data-card-style="round"] .album-name {
+    text-align: center; background: none; backdrop-filter: none;
+}
+[data-card-style="round"] .artist-info,
+[data-card-style="round"] .album-info {
+    text-align: center; background: none; backdrop-filter: none;
+}
+[data-card-style="round"] .nouveaute-cover { border-radius: 50%; }
+
+/* Style: vinyl — disc peeking out behind the cover */
+[data-card-style="vinyl"] .artist-card,
+[data-card-style="vinyl"] .album-card {
+    overflow: visible;
+}
+[data-card-style="vinyl"] .artist-image,
+[data-card-style="vinyl"] .album-cover {
+    position: relative; z-index: 1;
+    border-radius: 6px 6px 0 0;
+    box-shadow: 2px 0 8px rgba(0,0,0,0.3);
+}
+[data-card-style="vinyl"] .artist-card::before,
+[data-card-style="vinyl"] .album-card::before {
+    content: '';
+    position: absolute;
+    top: 8%;
+    right: -12%;
+    width: 70%;
+    height: 70%;
+    border-radius: 50%;
+    background: radial-gradient(circle at center,
+        #1a1a1a 18%,
+        #333 19%,
+        #1a1a1a 20%,
+        #222 30%,
+        #1a1a1a 31%,
+        #333 40%,
+        #1a1a1a 41%,
+        #222 55%,
+        #1a1a1a 56%,
+        #333 70%,
+        #1a1a1a 71%,
+        #222 85%,
+        #1a1a1a 86%,
+        #111 100%
+    );
+    box-shadow: 0 2px 12px rgba(0,0,0,0.4);
+    z-index: 0;
+    transition: right 0.3s ease;
+}
+[data-card-style="vinyl"] .artist-card:hover::before,
+[data-card-style="vinyl"] .album-card:hover::before {
+    right: -20%;
+}
+[data-card-style="vinyl"] .artist-grid,
+[data-card-style="vinyl"] .album-grid {
+    gap: 24px 32px;
+}
+[data-card-style="vinyl"] .nouveaute-cover { border-radius: 6px; }
+
+/* Style: jewel — CD jewel case with subtle plastic sheen */
+[data-card-style="jewel"] .artist-card,
+[data-card-style="jewel"] .album-card {
+    border-radius: 2px;
+    border: 1px solid rgba(128,128,128,0.3);
+    box-shadow: 2px 2px 0 rgba(0,0,0,0.15), inset 0 0 0 1px rgba(255,255,255,0.05);
+}
+[data-card-style="jewel"] .artist-image,
+[data-card-style="jewel"] .album-cover {
+    border-radius: 0;
+    position: relative;
+}
+[data-card-style="jewel"] .artist-image::after,
+[data-card-style="jewel"] .album-cover::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(255,255,255,0.12) 0%, transparent 50%, rgba(255,255,255,0.06) 100%);
+    pointer-events: none;
+}
+[data-card-style="jewel"] .artist-card:hover,
+[data-card-style="jewel"] .album-card:hover {
+    box-shadow: 3px 3px 0 rgba(0,0,0,0.2), inset 0 0 0 1px rgba(255,255,255,0.08);
+}
+[data-card-style="jewel"] .nouveaute-cover { border-radius: 2px; }
+
+/* Style: minimal — no card chrome, just image + text */
+[data-card-style="minimal"] .artist-card,
+[data-card-style="minimal"] .album-card {
+    background: none; border: none; box-shadow: none; border-radius: 0;
+}
+[data-card-style="minimal"] .artist-card:hover,
+[data-card-style="minimal"] .album-card:hover {
+    background: none; box-shadow: none; transform: scale(1.03);
+}
+[data-card-style="minimal"] .artist-image,
+[data-card-style="minimal"] .album-cover {
+    border-radius: 6px;
+}
+[data-card-style="minimal"] .artist-name,
+[data-card-style="minimal"] .album-name {
+    background: none; backdrop-filter: none; padding: 8px 2px 2px;
+}
+[data-card-style="minimal"] .artist-info,
+[data-card-style="minimal"] .album-info {
+    background: none; backdrop-filter: none; padding: 0 2px 8px;
+}
+[data-card-style="minimal"] .nouveaute-cover { border-radius: 6px; }
+
+/* Style: polaroid — photo frame effect */
+[data-card-style="polaroid"] .artist-card,
+[data-card-style="polaroid"] .album-card {
+    border-radius: 2px;
+    background: #f5f5f0;
+    border: none;
+    padding: 8px 8px 0 8px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.15);
+}
+[data-card-style="polaroid"] .artist-image,
+[data-card-style="polaroid"] .album-cover {
+    border-radius: 0;
+}
+[data-card-style="polaroid"] .artist-name,
+[data-card-style="polaroid"] .album-name {
+    background: #f5f5f0; color: #222; backdrop-filter: none;
+    font-family: 'Shadows Into Light', cursive;
+    font-size: 14px; padding: 10px 4px 2px;
+}
+[data-card-style="polaroid"] .artist-info,
+[data-card-style="polaroid"] .album-info {
+    background: #f5f5f0; color: #666; backdrop-filter: none;
+    padding: 0 4px 10px;
+}
+[data-card-style="polaroid"] .artist-card:hover,
+[data-card-style="polaroid"] .album-card:hover {
+    background: #f5f5f0;
+    transform: translateY(-5px) rotate(-1deg);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+}
+[data-card-style="polaroid"] .nouveaute-cover { border-radius: 0; }
+
 /* ── Admin table ── */
 .admin-table {
     width: 100%;

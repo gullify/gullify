@@ -465,6 +465,33 @@
             nord:     { label: 'Nord',       icon: 'ri-snowy-line',       statusBar: '#2e3440' }
         };
 
+        const CARD_STYLES = {
+            default:  { label: 'Standard',  icon: 'ri-layout-grid-line' },
+            sharp:    { label: 'Carré',      icon: 'ri-checkbox-blank-line' },
+            round:    { label: 'Rond',       icon: 'ri-checkbox-blank-circle-line' },
+            vinyl:    { label: 'Vinyle',     icon: 'ri-disc-line' },
+            jewel:    { label: 'CD',         icon: 'ri-album-line' },
+            minimal:  { label: 'Minimal',    icon: 'ri-subtract-line' },
+            polaroid: { label: 'Polaroid',   icon: 'ri-polaroid-line' }
+        };
+
+        function setCardStyle(style) {
+            if (!CARD_STYLES[style]) style = 'default';
+            if (style === 'default') document.documentElement.removeAttribute('data-card-style');
+            else document.documentElement.setAttribute('data-card-style', style);
+            localStorage.setItem('gullifyCardStyle', style);
+            document.querySelectorAll('.style-picker-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.style === style);
+            });
+        }
+        window.setCardStyle = setCardStyle;
+
+        // Apply saved card style on load
+        const savedCardStyle = localStorage.getItem('gullifyCardStyle') || 'default';
+        if (savedCardStyle !== 'default') {
+            document.documentElement.setAttribute('data-card-style', savedCardStyle);
+        }
+
         function isLightTheme(t) { return t === 'light' || t === 'sand'; }
 
         function setTheme(theme) {
@@ -4368,6 +4395,16 @@
                     <span>${cfg.label}</span>
                 </button>`
             ).join('');
+
+            const currentCardStyle = localStorage.getItem('gullifyCardStyle') || 'default';
+            const styleButtons = Object.entries(CARD_STYLES).map(([key, cfg]) =>
+                `<button class="theme-picker-btn style-picker-btn ${key === currentCardStyle ? 'active' : ''}"
+                         data-style="${key}" onclick="setCardStyle('${key}')">
+                    <i class="${cfg.icon}"></i>
+                    <span>${cfg.label}</span>
+                </button>`
+            ).join('');
+
             return `
                 <div class="settings-section">
                     <div class="settings-section-title"><i class="ri-palette-line"></i> ${t('settings.appearance', 'Apparence')}</div>
@@ -4377,6 +4414,13 @@
                             <span>${t('settings.theme_desc', 'Choisir un thème visuel')}</span>
                         </div>
                         <div class="theme-picker-grid">${themeButtons}</div>
+                    </div>
+                    <div class="settings-row" style="flex-direction:column;align-items:stretch;margin-top:20px;">
+                        <div class="settings-row-label" style="margin-bottom:12px;">
+                            <span>${t('settings.card_style', 'Style des cartes')}</span>
+                            <span>${t('settings.card_style_desc', "Apparence des pochettes et artistes")}</span>
+                        </div>
+                        <div class="theme-picker-grid">${styleButtons}</div>
                     </div>
                 </div>
             `;
