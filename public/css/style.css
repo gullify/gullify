@@ -5868,61 +5868,70 @@ html[data-theme="audiophile"] .queue-sidebar-panel .empty-state p {
 /* ═══════════════════════════════════════════════════════════════════════════
    PLAYER BAR BUTTONS — audiophile theme
    Match the design: ghost icons, white-circle play, accent on active.
+   The existing rules in unified-player.css use #unified-player-container with
+   !important on key properties, so we mirror !important here to be safe.
    ═══════════════════════════════════════════════════════════════════════════ */
 html[data-theme="audiophile"] #unified-player-container .player-buttons,
 html[data-theme="audiophile"] .unified-player .player-buttons {
-    gap: 14px;
-    align-items: center;
+    gap: 14px !important;
+    align-items: center !important;
 }
 
 html[data-theme="audiophile"] #unified-player-container .player-btn,
 html[data-theme="audiophile"] .unified-player .player-btn {
-    width: 32px;
-    height: 32px;
-    border-radius: 6px;
-    background: transparent;
-    color: var(--text-secondary);
-    opacity: 1;
-    transition: background 0.15s, color 0.15s, transform 0.12s;
-    padding: 0;
+    width: 32px !important;
+    height: 32px !important;
+    border-radius: 6px !important;
+    background: transparent !important;
+    color: var(--text-secondary) !important;
+    opacity: 1 !important;
+    transition: background 0.15s, color 0.15s, transform 0.12s !important;
+    padding: 0 !important;
 }
 html[data-theme="audiophile"] #unified-player-container .player-btn svg,
 html[data-theme="audiophile"] .unified-player .player-btn svg {
-    width: 18px;
-    height: 18px;
+    width: 18px !important;
+    height: 18px !important;
+    stroke: currentColor !important;
 }
 html[data-theme="audiophile"] #unified-player-container .player-btn:hover,
 html[data-theme="audiophile"] .unified-player .player-btn:hover {
-    color: var(--text-primary);
-    background: var(--bg-hover);
-    opacity: 1;
+    color: var(--text-primary) !important;
+    background: var(--bg-hover) !important;
 }
 html[data-theme="audiophile"] #unified-player-container .player-btn.active,
 html[data-theme="audiophile"] .unified-player .player-btn.active {
-    color: var(--accent);
-    opacity: 1;
+    color: var(--accent) !important;
+    background: transparent !important;
 }
 
 /* Play button — white circle with dark icon */
 html[data-theme="audiophile"] #unified-player-container .player-btn.play-btn,
 html[data-theme="audiophile"] .unified-player .player-btn.play-btn {
-    width: 38px;
-    height: 38px;
+    width: 40px !important;
+    height: 40px !important;
     background: var(--text-primary) !important;
-    color: var(--bg-primary);
-    border-radius: 50%;
-    box-shadow: 0 2px 8px oklch(0 0 0 / 0.3);
+    color: var(--bg-primary) !important;
+    border-radius: 50% !important;
+    box-shadow: 0 2px 8px oklch(0 0 0 / 0.3) !important;
 }
 html[data-theme="audiophile"] #unified-player-container .player-btn.play-btn:hover,
 html[data-theme="audiophile"] .unified-player .player-btn.play-btn:hover {
-    transform: scale(1.06);
+    transform: scale(1.06) !important;
     background: var(--text-primary) !important;
-    color: var(--bg-primary);
+    color: var(--bg-primary) !important;
+}
+html[data-theme="audiophile"] #unified-player-container .player-btn.play-btn.playing,
+html[data-theme="audiophile"] .unified-player .player-btn.play-btn.playing {
+    background: var(--text-primary) !important;
+    color: var(--bg-primary) !important;
 }
 html[data-theme="audiophile"] #unified-player-container .player-btn.play-btn svg,
 html[data-theme="audiophile"] .unified-player .player-btn.play-btn svg {
-    width: 16px;
-    height: 16px;
+    width: 16px !important;
+    height: 16px !important;
+    fill: var(--bg-primary) !important;
+    stroke: var(--bg-primary) !important;
 }
 
 /* Favorite — accent when active (replaces the hard-red svg) */
