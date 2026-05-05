@@ -148,6 +148,35 @@ try {
                 'totalDuration' => (int)$row['total_duration']
             ];
         }
+
+        // Top 5 tracks for the artist (by play count, falls back to first 5)
+        $topStmt = $conn->prepare('
+            SELECT s.id, s.title, s.duration, s.file_path, s.album_id,
+                   al.name AS album_name, al.year,
+                   COALESCE(ss.play_count, 0) AS play_count
+            FROM songs s
+            JOIN albums al ON s.album_id = al.id
+            LEFT JOIN song_stats ss ON ss.song_id = s.id
+            WHERE al.artist_id = ?
+            ORDER BY play_count DESC, s.title ASC
+            LIMIT 5
+        ');
+        $topStmt->execute([$artistId]);
+        $topTracks = [];
+        while ($row = $topStmt->fetch()) {
+            $topTracks[] = [
+                'id'         => (int)$row['id'],
+                'title'      => $row['title'],
+                'duration'   => (int)$row['duration'],
+                'filePath'   => $row['file_path'],
+                'albumId'    => (int)$row['album_id'],
+                'albumName'  => $row['album_name'],
+                'albumYear'  => $row['year'],
+                'playCount'  => (int)$row['play_count'],
+                'artworkUrl' => albumArtworkUrl((int)$row['album_id']),
+            ];
+        }
+
         $response['data'] = [
             'artist' => [
                 'id' => $artist['id'],
@@ -156,6 +185,7 @@ try {
                 'genre' => $artist['genre'] ?? null
             ],
             'albums' => $albums,
+            'topTracks' => $topTracks,
             'totalSongs' => $totalSongs
         ];
 
@@ -226,9 +256,11 @@ try {
 
         // Get songs with optional per-track artist (for compilations)
         $stmt = $conn->prepare('
-            SELECT s.*, ta.id AS track_artist_id, ta.name AS track_artist_name
+            SELECT s.*, ta.id AS track_artist_id, ta.name AS track_artist_name,
+                   COALESCE(ss.play_count, 0) AS play_count
             FROM songs s
-            LEFT JOIN artists ta ON s.artist_id = ta.id
+            LEFT JOIN artists ta   ON s.artist_id = ta.id
+            LEFT JOIN song_stats ss ON ss.song_id = s.id
             WHERE s.album_id = ?
             ORDER BY s.track_number ASC, s.title ASC
         ');
@@ -246,6 +278,7 @@ try {
                 'artworkUrl' => albumArtworkUrl((int)$row['album_id']),
                 'artistId' => $row['track_artist_id'] ? (int)$row['track_artist_id'] : null,
                 'artistName' => $row['track_artist_name'] ?: null,
+                'playCount' => (int)$row['play_count'],
             ];
         }
 

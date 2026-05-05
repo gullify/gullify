@@ -6725,3 +6725,50 @@ html[data-theme="audiophile"] .back-btn:hover {
     box-shadow: none !important;
     border: none !important;
 }
+
+/* ───── Track table head row + plays column (audiophile) ───── */
+.song-table-head {
+    display: none;
+}
+html[data-theme="audiophile"] .song-table-head {
+    display: grid;
+    grid-template-columns: 36px 32px 1fr 70px 32px 50px;
+    gap: 12px;
+    align-items: center;
+    padding: 0 12px 8px;
+    border-bottom: 1px solid var(--divider, var(--border));
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.10em;
+    text-transform: uppercase;
+    color: var(--text-quaternary, var(--text-tertiary));
+    margin-bottom: 4px;
+}
+html[data-theme="audiophile"] .song-table-head > div:nth-child(1) { text-align: right; }
+html[data-theme="audiophile"] .song-table-head > div:nth-child(2) {} /* art column, no header */
+html[data-theme="audiophile"] .song-table-head > div:nth-child(4),
+html[data-theme="audiophile"] .song-table-head > div:nth-child(5),
+html[data-theme="audiophile"] .song-table-head > div:nth-child(6) { text-align: right; }
+
+/* Re-grid song-item to include the plays column (matches head columns) */
+html[data-theme="audiophile"] .song-item {
+    grid-template-columns: 36px 32px 1fr 70px 32px 50px !important;
+}
+html[data-theme="audiophile"] .song-plays {
+    grid-column: 4;
+    text-align: right;
+    font-size: 11.5px;
+    color: var(--text-tertiary);
+    font-variant-numeric: tabular-nums;
+}
+html[data-theme="audiophile"] .song-item .song-actions {
+    grid-column: 5 !important;
+}
+html[data-theme="audiophile"] .song-item .song-duration {
+    grid-column: 6 !important;
+}
+
+/* Artist "Popular" section uses the same head; show album line under title */
+html[data-theme="audiophile"] .song-album-cell {
+    color: var(--text-tertiary) !important;
+}

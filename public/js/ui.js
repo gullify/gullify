@@ -3049,6 +3049,7 @@
                 // Filter out albums with no songs
                 const albums = (result.data.albums || []).filter(album => album.songCount > 0);
                 const totalSongs = result.data.totalSongs || 0;
+                const topTracks = (result.data.topTracks || []).filter(t => t.playCount > 0);
 
                 // Store for navigation
                 window.currentArtist = { id: artistId, name: artist.name };
@@ -3120,8 +3121,37 @@
                             </div>
                         </div>
 
-                        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:15px;">
-                            <h3 style="font-size: 20px; color: white; text-shadow: 0 1px 3px rgba(0,0,0,0.8), 0 0 10px rgba(0,0,0,0.5);">${t('nav.albums', 'Albums')}</h3>
+                        ${topTracks.length > 0 ? `
+                        <div style="display:flex;align-items:center;justify-content:space-between;margin:24px 0 12px;">
+                            <h3 style="font-size: 18px; color: white; text-shadow: 0 1px 3px rgba(0,0,0,0.8), 0 0 10px rgba(0,0,0,0.5);">${t('artist.popular', 'Populaires')}</h3>
+                        </div>
+                        <div class="song-list">
+                            <div class="song-table-head">
+                                <div>#</div>
+                                <div>${t('table.title', 'Titre')}</div>
+                                <div>${t('table.album', 'Album')}</div>
+                                <div>${t('table.plays', 'Écoutes')}</div>
+                                <div></div>
+                                <div><i class="ri-time-line"></i></div>
+                            </div>
+                            ${topTracks.map((track, i) => `
+                                <div class="song-item" data-song-id="${track.id}" onclick="playArtistTopTrack(${artistId}, ${i})">
+                                    <div class="song-number">${i + 1}</div>
+                                    <div class="song-play-icon"><i class="ri-play-fill"></i></div>
+                                    <div class="song-thumbnail"><img src="${track.artworkUrl}" alt="" style="width:100%;height:100%;object-fit:cover;"></div>
+                                    <div class="song-info">
+                                        <div class="song-title">${escapeHtml(track.title)}</div>
+                                        <div class="song-artist song-album-cell">${escapeHtml(track.albumName)}${track.albumYear ? ' • ' + track.albumYear : ''}</div>
+                                    </div>
+                                    <div class="song-plays mono">${track.playCount.toLocaleString('fr-FR')}</div>
+                                    <div class="song-duration">${formatDuration(track.duration)}</div>
+                                </div>
+                            `).join('')}
+                        </div>
+                        ` : ''}
+
+                        <div style="display:flex;align-items:center;justify-content:space-between;margin:32px 0 12px;">
+                            <h3 style="font-size: 18px; color: white; text-shadow: 0 1px 3px rgba(0,0,0,0.8), 0 0 10px rgba(0,0,0,0.5);">${t('artist.discography', 'Discographie')}</h3>
                             ${albums.length > 1 ? `
                             <button id="manage-albums-btn-${artistId}" onclick="toggleAlbumManageMode(${artistId})" class="btn btn-secondary btn-sm">
                                 <i class="ri-edit-box-line"></i> ${t('editor.manage_btn', 'Gérer')}
@@ -3698,6 +3728,14 @@
                         </div>
 
                         <div class="song-list" id="song-list-${albumId}">
+                            <div class="song-table-head">
+                                <div>#</div>
+                                <div></div>
+                                <div>${t('table.title', 'Titre')}</div>
+                                <div>${t('table.plays', 'Écoutes')}</div>
+                                <div></div>
+                                <div><i class="ri-time-line"></i></div>
+                            </div>
                             ${songs.map((song, index) => `
                                 <div class="song-item" data-song-id="${song.id}" onclick="playSongFromAlbum(${albumId}, ${index})" oncontextmenu="showContextMenu(event, ${song.id})">
                                     <div class="song-number">${song.trackNumber || index + 1}</div>
@@ -3709,6 +3747,7 @@
                                         <div class="song-title">${song.title}</div>
                                         <div class="song-artist">${escapeHtml(song.artistName || albumData.artist.name || t('common.unknown_artist', 'Artiste inconnu'))}</div>
                                     </div>
+                                    <div class="song-plays mono">${(song.playCount || 0).toLocaleString('fr-FR')}</div>
                                     <div class="song-duration">${formatDuration(song.duration)}</div>
                                     <div class="song-actions">
                                         <button class="song-action-btn favorite-btn ${app.favorites.includes(song.id) ? 'active' : ''}" data-song-id="${song.id}" onclick="event.stopPropagation(); toggleFavorite(${song.id})" title="Favoris">
@@ -4365,6 +4404,32 @@
         async function playArtistSongs(artistId) {
             if (window.gullifyPlayer) {
                 window.gullifyPlayer.playArtist(artistId, app.currentUser);
+            }
+        }
+
+        // Click on a row in the artist's "Popular" section: queue the top
+        // tracks (already returned by /api/library.php?action=artist) and jump
+        // to the clicked one. Uses the same playSong path as the rest of the
+        // app via window.gullifyPlayer.
+        async function playArtistTopTrack(artistId, idx) {
+            try {
+                const r = await fetch(`${BASE_PATH}/api/library.php?user=${app.currentUser}&action=artist&id=${artistId}`);
+                const result = await r.json();
+                const tracks = (result?.data?.topTracks) || [];
+                if (!tracks.length || !window.gullifyPlayer) return;
+
+                const queue = tracks.map(t => ({
+                    id: t.id, title: t.title, duration: t.duration,
+                    filePath: t.filePath, albumId: t.albumId,
+                    album: t.albumName, year: t.albumYear,
+                    artist: result?.data?.artist?.name || '',
+                    artistId: artistId,
+                    artworkUrl: t.artworkUrl,
+                }));
+                window.gullifyPlayer.queue = queue;
+                window.gullifyPlayer.loadTrack(queue[idx], idx, true);
+            } catch (e) {
+                console.error('playArtistTopTrack failed', e);
             }
         }
 
@@ -5191,6 +5256,7 @@
         window.playAlbum = playAlbum;
         window.shuffleAlbum = shuffleAlbum;
         window.playArtistSongs = playArtistSongs;
+        window.playArtistTopTrack = playArtistTopTrack;
         window.playRandomSongs = playRandomSongs;
         window.playRandomArtist = playRandomArtist;
         window.playSongFromAlbum = playSongFromAlbum;
