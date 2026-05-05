@@ -120,6 +120,51 @@ try {
     <!-- Menu overlay for mobile sidebar -->
     <div class="menu-overlay" id="menuOverlay"></div>
 
+    <!-- Now Playing fullscreen (audiophile theme, desktop) -->
+    <div id="nowPlayingFS" class="now-playing-fs" hidden aria-modal="true" role="dialog">
+        <div id="npfsBg" class="npfs-bg"></div>
+        <button id="npfsClose" class="npfs-close icon-btn" aria-label="Close">
+            <i class="ri-close-line"></i>
+        </button>
+        <div class="npfs-left">
+            <div id="npfsArtWrap" class="npfs-art-wrap">
+                <img id="npfsArt" class="npfs-art" alt="">
+            </div>
+        </div>
+        <div class="npfs-right">
+            <div class="npfs-meta">
+                <div class="npfs-eyebrow mono">Now Playing</div>
+                <h2 id="npfsTitle" class="npfs-title">—</h2>
+                <div id="npfsArtist" class="npfs-artist"></div>
+                <div id="npfsAlbum" class="npfs-album mono"></div>
+                <div id="npfsVisualizer" class="visualizer lg"></div>
+            </div>
+
+            <div id="npfsLyrics" class="npfs-lyrics">
+                <div class="npfs-lyrics-status mono">—</div>
+            </div>
+
+            <div class="npfs-progress">
+                <div class="progress-row">
+                    <span id="npfsCurrentTime" class="progress-time mono">0:00</span>
+                    <div id="npfsProgressBar" class="progress-bar">
+                        <div id="npfsProgressFill" class="progress-fill"></div>
+                        <div class="progress-thumb"></div>
+                    </div>
+                    <span id="npfsTotalTime" class="progress-time mono">0:00</span>
+                </div>
+            </div>
+
+            <div class="npfs-controls">
+                <button id="npfsShuffle" class="player-btn" title="Shuffle"><i class="ri-shuffle-line"></i></button>
+                <button id="npfsPrev" class="player-btn" title="Previous"><i class="ri-skip-back-fill"></i></button>
+                <button id="npfsPlay" class="player-btn player-play" title="Play / Pause"><i class="ri-play-fill"></i></button>
+                <button id="npfsNext" class="player-btn" title="Next"><i class="ri-skip-forward-fill"></i></button>
+                <button id="npfsRepeat" class="player-btn" title="Repeat"><i class="ri-repeat-line"></i></button>
+            </div>
+        </div>
+    </div>
+
     <!-- Context menu for song right-click -->
     <div class="context-menu" id="contextMenu">
         <div class="context-menu-item" onclick="addSongToQueueById(window._contextMenuSongId)">
@@ -245,5 +290,6 @@ try {
     <script src="player/unified-player.js?v=<?= filemtime(__DIR__ . '/player/unified-player.js') ?>"></script>
     <script src="js/app.js?v=<?= filemtime(__DIR__ . '/js/app.js') ?>"></script>
     <script src="js/ui.js?v=<?= filemtime(__DIR__ . '/js/ui.js') ?>"></script>
+    <script src="js/now-playing-fs.js?v=<?= filemtime(__DIR__ . '/js/now-playing-fs.js') ?>"></script>
 </body>
 </html>
