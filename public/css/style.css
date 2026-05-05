@@ -5714,6 +5714,15 @@ body.npfs-open { overflow: hidden; }
    QUEUE PANEL — permanent right rail in audiophile theme (desktop only)
    ═══════════════════════════════════════════════════════════════════════════ */
 @media (min-width: 1025px) {
+    /* Tighten the content-body padding-right and stabilise the scrollbar
+       gutter so there's no visible gap between the main content and the
+       queue panel. Without this, content-body's 15px padding + ~10px
+       webkit scrollbar add up to a ~25px empty band on the right. */
+    html[data-theme="audiophile"] .content-body {
+        padding: 24px 6px 100px 24px;
+        scrollbar-gutter: stable;
+    }
+
     /* Use the ID selector to outrank the existing
        `#unifiedQueueSidebar { right: -320px !important; }` rule.
        top:0 so the panel's tabs row sits at the same Y as the topbar's
