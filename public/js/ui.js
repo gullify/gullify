@@ -3430,7 +3430,7 @@
         }
 
         // ── Albums view state ────────────────────────────────────────────────────
-        let albumsViewState = { albums: [], total: 0, offset: 0, limit: 48, sort: 'name', search: '', loading: false };
+        let albumsViewState = { albums: [], total: 0, offset: 0, limit: 48, sort: 'name', search: '', genre: '', genres: null, loading: false };
         let albumsSearchTimer = null;
 
         function albumsSearchDebounce(val) {
@@ -3460,6 +3460,46 @@
             )).join('');
         }
 
+        // Sort + Genre chip row (rendered into #albums-chips-row).
+        // The host CSS hides the legacy <select> in audiophile-desktop and
+        // shows this row; on other themes the row stays empty (CSS hides it).
+        function renderAlbumsChips() {
+            const host = document.getElementById('albums-chips-row');
+            if (!host) return;
+            const sortKey = albumsViewState.sort;
+            const genre   = albumsViewState.genre;
+            const sortOpts = [
+                ['recent',  t('album.sort_recent',  'Récents')],
+                ['name',    t('album.sort_alpha',   'A–Z')],
+                ['artist',  t('album.sort_artist',  'Artiste')],
+                ['year',    t('album.sort_year',    'Année')],
+                ['popular', t('album.sort_popular', 'Populaires')],
+            ];
+            const genres = albumsViewState.genres || [];
+
+            const sortChips = sortOpts.map(([k, label]) => `
+                <button class="chip ${sortKey === k ? 'active' : ''}"
+                        onclick="albumsViewState.sort='${k}'; renderAlbums(true)">${escapeHtml(label)}</button>
+            `).join('');
+
+            const genreChips = `
+                <button class="chip ${!genre ? 'active' : ''}"
+                        onclick="albumsViewState.genre=''; renderAlbums(true)">${t('common.all','Tous')}</button>
+                ${genres.map(g => `
+                    <button class="chip ${genre === g.name ? 'active' : ''}"
+                            onclick="albumsViewState.genre=${JSON.stringify(g.name)}; renderAlbums(true)">${escapeHtml(g.name)}</button>
+                `).join('')}
+            `;
+
+            host.innerHTML = `
+                <span class="uppercase-mini">${t('album.sort_label', 'Tri')}</span>
+                ${sortChips}
+                <span class="chip-divider"></span>
+                <span class="uppercase-mini">${t('album.genre_label', 'Genre')}</span>
+                ${genreChips}
+            `;
+        }
+
         async function renderAlbums(reset = true) {
             hideAlbumBackground();
 
@@ -3482,7 +3522,18 @@
                     offset: albumsViewState.offset,
                     sort:   albumsViewState.sort,
                     search: albumsViewState.search,
+                    genre:  albumsViewState.genre || '',
                 });
+
+                // Lazy-fetch the genre list once per session (cheap query)
+                if (reset && !albumsViewState.genres) {
+                    fetch(`${BASE_PATH}/api/library.php?action=get_album_genres&user=${app.currentUser}`)
+                        .then(r => r.json())
+                        .then(g => {
+                            albumsViewState.genres = (g?.data?.genres) || [];
+                            renderAlbumsChips();
+                        }).catch(() => { albumsViewState.genres = []; });
+                }
                 const res    = await fetch(`${BASE_PATH}/api/library.php?${params}`);
                 const result = await res.json();
                 if (result.error) { showError(t('errors.load_albums', 'Erreur lors du chargement des albums.')); return; }
@@ -3497,6 +3548,7 @@
                 if (reset) {
                     contentTitle.textContent = t('counts.albums_total','Albums ({n})').replace('{n}', total);
                     contentBody.innerHTML = `
+                        <div class="albums-chips-row" id="albums-chips-row"></div>
                         <div style="display:flex;gap:12px;align-items:center;margin-bottom:16px;flex-wrap:wrap;">
                             <select id="albums-sort-select" onchange="albumsViewState.sort=this.value; renderAlbums(true)"
                                 style="background:var(--surface);color:var(--text-primary);border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer;">
@@ -3504,6 +3556,7 @@
                                 <option value="artist">${t('album.sort_artist', 'Par artiste')}</option>
                                 <option value="year">${t('album.sort_year', 'Par année')}</option>
                                 <option value="recent">${t('album.sort_recent', 'Récemment ajoutés')}</option>
+                                <option value="popular">${t('album.sort_popular', 'Populaires')}</option>
                             </select>
                             <input id="albums-search" type="text" placeholder="${t('album.search_placeholder', 'Rechercher un album ou artiste...')}"
                                 value="${escapeHtml(albumsViewState.search)}"
@@ -3530,6 +3583,7 @@
                         </div>
                     `;
                     document.getElementById('albums-sort-select').value = albumsViewState.sort;
+                    renderAlbumsChips();
                 } else {
                     const grid = document.getElementById('albums-grid');
                     if (grid) grid.insertAdjacentHTML('beforeend', renderAlbumCards(albums));

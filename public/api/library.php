@@ -808,29 +808,36 @@ try {
     } elseif ($action === 'get_all_albums') {
         $limit  = max(1, min(200, (int)($_GET['limit'] ?? 48)));
         $offset = max(0, (int)($_GET['offset'] ?? 0));
-        $sort   = in_array($_GET['sort'] ?? '', ['name', 'artist', 'year', 'recent']) ? $_GET['sort'] : 'name';
+        $sort   = in_array($_GET['sort'] ?? '', ['name', 'artist', 'year', 'recent', 'popular']) ? $_GET['sort'] : 'name';
         $search = trim($_GET['search'] ?? '');
+        $genre  = trim($_GET['genre'] ?? '');
 
         $sortClause = match($sort) {
-            'artist' => 'a.name ASC, al.name ASC',
-            'year'   => 'al.year DESC, al.name ASC',
-            'recent' => 'al.created_at DESC, al.name ASC',
-            default  => 'al.name ASC',
+            'artist'  => 'a.name ASC, al.name ASC',
+            'year'    => 'al.year DESC, al.name ASC',
+            'recent'  => 'al.created_at DESC, al.name ASC',
+            'popular' => 'play_count DESC, al.name ASC',
+            default   => 'al.name ASC',
         };
 
         $params    = [$user];
-        $searchSql = '';
+        $extraSql  = '';
         if ($search !== '') {
-            $searchSql  = ' AND (al.name LIKE ? OR a.name LIKE ?)';
-            $params[]   = "%$search%";
-            $params[]   = "%$search%";
+            $extraSql .= ' AND (al.name LIKE ? OR a.name LIKE ?)';
+            $params[]  = "%$search%";
+            $params[]  = "%$search%";
+        }
+        if ($genre !== '') {
+            $extraSql .= ' AND (al.genre = ? OR a.genre = ?)';
+            $params[]  = $genre;
+            $params[]  = $genre;
         }
 
         $countStmt = $conn->prepare("
             SELECT COUNT(*)
             FROM albums al
             JOIN artists a ON al.artist_id = a.id
-            WHERE a.user = ? $searchSql
+            WHERE a.user = ? $extraSql
         ");
         $countStmt->execute($params);
         $total = (int)$countStmt->fetchColumn();
@@ -840,11 +847,13 @@ try {
         $stmt = $conn->prepare("
             SELECT al.id, al.name, al.year,
                    a.id AS artist_id, a.name AS artist_name,
-                   COUNT(s.id) AS song_count
+                   COUNT(DISTINCT s.id) AS song_count,
+                   COALESCE(SUM(ss.play_count), 0) AS play_count
             FROM albums al
             JOIN artists a ON al.artist_id = a.id
             LEFT JOIN songs s ON s.album_id = al.id
-            WHERE a.user = ? $searchSql
+            LEFT JOIN song_stats ss ON ss.song_id = s.id
+            WHERE a.user = ? $extraSql
             GROUP BY al.id, al.name, al.year, a.id, a.name
             ORDER BY $sortClause
             LIMIT ? OFFSET ?
@@ -861,6 +870,7 @@ try {
                 'year'       => $row['year'],
                 'artworkUrl' => albumArtworkUrl((int)$row['id']),
                 'songCount'  => (int)$row['song_count'],
+                'playCount'  => (int)$row['play_count'],
             ];
         }
 
@@ -870,6 +880,29 @@ try {
             'offset' => $offset,
             'limit'  => $limit,
         ];
+
+    } elseif ($action === 'get_album_genres') {
+        // Distinct list of genres across the user's albums + artists
+        $stmt = $conn->prepare("
+            SELECT genre, COUNT(*) AS n FROM (
+                SELECT al.genre AS genre
+                FROM albums al
+                JOIN artists a ON al.artist_id = a.id
+                WHERE a.user = ? AND al.genre IS NOT NULL AND al.genre <> ''
+                UNION ALL
+                SELECT a.genre AS genre
+                FROM artists a
+                WHERE a.user = ? AND a.genre IS NOT NULL AND a.genre <> ''
+            ) g
+            GROUP BY genre
+            ORDER BY n DESC, genre ASC
+        ");
+        $stmt->execute([$user, $user]);
+        $genres = [];
+        while ($row = $stmt->fetch()) {
+            $genres[] = ['name' => $row['genre'], 'count' => (int)$row['n']];
+        }
+        $response['data'] = ['genres' => $genres];
 
     } elseif ($action === 'detect_duplicates') {
         // Albums with the same artist + same normalized name (case-insensitive)

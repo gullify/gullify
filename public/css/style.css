@@ -6234,3 +6234,50 @@ html[data-theme="audiophile"] .badge-dot {
     color: var(--text-tertiary);
     margin-top: 1px;
 }
+
+/* ───── Album chip row (audiophile sort + genre filter) ───── */
+.albums-chips-row {
+    display: none;
+    gap: 6px;
+    margin-bottom: 18px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+.albums-chips-row .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    background: var(--bg-elevated);
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+    font-family: inherit;
+    line-height: 1.4;
+}
+.albums-chips-row .chip:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+}
+.albums-chips-row .chip.active {
+    background: var(--accent-soft, rgba(255,180,80,0.18));
+    color: var(--accent);
+    border-color: oklch(0.78 0.14 65 / 0.4);
+}
+.albums-chips-row .chip-divider {
+    display: inline-block;
+    width: 1px;
+    height: 16px;
+    background: var(--border);
+    margin: 0 6px;
+}
+.albums-chips-row .uppercase-mini {
+    margin-right: 4px;
+}
+
+/* In audiophile, show the chip row and hide the legacy controls */
+html[data-theme="audiophile"] .albums-chips-row { display: flex; }
+html[data-theme="audiophile"] #albums-sort-select { display: none; }
