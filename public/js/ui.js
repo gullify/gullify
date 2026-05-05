@@ -3482,12 +3482,11 @@
                         onclick="albumsViewState.sort='${k}'; renderAlbums(true)">${escapeHtml(label)}</button>
             `).join('');
 
-            const genreChips = `
-                <button class="chip ${!genre ? 'active' : ''}"
-                        onclick="albumsViewState.genre=''; renderAlbums(true)">${t('common.all','Tous')}</button>
+            const totalCount = genres.reduce((acc, g) => acc + g.count, 0);
+            const genreOptions = `
+                <option value="">${t('common.all_genres','Tous les genres')} (${totalCount})</option>
                 ${genres.map(g => `
-                    <button class="chip ${genre === g.name ? 'active' : ''}"
-                            onclick="albumsViewState.genre=${JSON.stringify(g.name)}; renderAlbums(true)">${escapeHtml(g.name)}</button>
+                    <option value="${escapeHtml(g.name)}" ${genre === g.name ? 'selected' : ''}>${escapeHtml(g.name)} (${g.count})</option>
                 `).join('')}
             `;
 
@@ -3496,7 +3495,14 @@
                 ${sortChips}
                 <span class="chip-divider"></span>
                 <span class="uppercase-mini">${t('album.genre_label', 'Genre')}</span>
-                ${genreChips}
+                <div class="chip-select ${genre ? 'active' : ''}">
+                    <i class="ri-filter-2-line"></i>
+                    <select id="albums-genre-select"
+                            onchange="albumsViewState.genre=this.value; renderAlbums(true)">
+                        ${genreOptions}
+                    </select>
+                    <i class="ri-arrow-down-s-line chip-select-caret"></i>
+                </div>
             `;
         }
 

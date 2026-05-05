@@ -6282,6 +6282,64 @@ html[data-theme="audiophile"] .badge-dot {
 html[data-theme="audiophile"] .albums-chips-row { display: flex; }
 html[data-theme="audiophile"] #albums-sort-select { display: none; }
 
+/* Chip-styled <select> for genre filter — pill on the surface, native menu */
+.chip-select {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 24px 5px 12px;
+    border-radius: 20px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+    font-size: 12px;
+    line-height: 1.4;
+}
+.chip-select:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+    border-color: var(--border-strong, var(--border));
+}
+.chip-select.active {
+    background: var(--accent-soft, rgba(255,180,80,0.18));
+    color: var(--accent);
+    border-color: oklch(0.78 0.14 65 / 0.4);
+}
+.chip-select > i {
+    font-size: 14px;
+    line-height: 1;
+    flex-shrink: 0;
+}
+.chip-select select {
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    background: transparent;
+    border: none;
+    color: inherit;
+    font-family: inherit;
+    font-size: 12px;
+    cursor: pointer;
+    padding: 0;
+    outline: none;
+    background-image: none;
+    max-width: 200px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.chip-select .chip-select-caret {
+    position: absolute;
+    right: 8px;
+    pointer-events: none;
+    font-size: 14px;
+    opacity: 0.7;
+}
+/* Force a dark-scheme native menu in audiophile so options aren't blinding */
+html[data-theme="audiophile"] .chip-select select { color-scheme: dark; }
+
 /* ═══════════════════════════════════════════════════════════════════════════
    EQUALIZER MODAL — audiophile theme
    ═══════════════════════════════════════════════════════════════════════════ */
