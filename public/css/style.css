@@ -5272,13 +5272,20 @@ html[data-theme="audiophile"] .album-header-container::before,
 html[data-theme="audiophile"] .artist-header-container::before {
     content: "";
     position: absolute;
-    inset: -32px -32px 0 -32px;
+    /* Extend up past the breadcrumb (back-btn + 20px margin) and the
+       content-body 15px padding so the gradient reaches the topbar edge. */
+    inset: -120px -32px 0 -32px;
     background: linear-gradient(180deg,
         var(--hero-color, oklch(0.30 0.06 250 / 0.4)) 0%,
         transparent 100%);
     z-index: -1;
     pointer-events: none;
-    border-radius: 0 0 var(--radius-lg, 14px) var(--radius-lg, 14px);
+}
+
+/* Pull the breadcrumb into the gradient zone so the back-btn sits over it */
+html[data-theme="audiophile"] .album-header-container,
+html[data-theme="audiophile"] .artist-header-container {
+    margin-top: -8px;
 }
 
 /* Cover & avatar — large hero size */
