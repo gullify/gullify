@@ -325,22 +325,23 @@ try {
 
         // Gullify Player Configuration
         window.gullifyPlayerConfig = {
-            user: '<?= $currentUsername ?>',
+            user: <?= json_encode($currentUsername) ?>,
             apiBaseUrl: BASE_PATH,
             isGlobal: false,
             container: '#unifiedPlayer'
         };
 
-        // Transmit PHP state to JS
+        // Transmit PHP state to JS — use json_encode so any apostrophes,
+        // backslashes or unicode in user/path strings can't break JS parsing
         window.app = {
-            currentUser: '<?= $currentUsername ?>',
-            userId: <?= $currentUserId ?>,
-            musicDir: '<?= $currentMusicDirName ?>',
-            storageType: '<?= $currentStorageType ?>',
-            sftpHost: '<?= $currentSftpHost ?>',
-            sftpPort: <?= $currentSftpPort ?>,
-            sftpUser: '<?= $currentSftpUser ?>',
-            sftpPath: '<?= $currentSftpPath ?>',
+            currentUser: <?= json_encode($currentUsername) ?>,
+            userId: <?= (int)$currentUserId ?>,
+            musicDir: <?= json_encode($currentMusicDirName) ?>,
+            storageType: <?= json_encode($currentStorageType) ?>,
+            sftpHost: <?= json_encode($currentSftpHost) ?>,
+            sftpPort: <?= (int)$currentSftpPort ?>,
+            sftpUser: <?= json_encode($currentSftpUser) ?>,
+            sftpPath: <?= json_encode($currentSftpPath) ?>,
             isAdmin: <?= !empty($_SESSION['is_admin']) ? 'true' : 'false' ?>,
             currentView: 'home',
             library: null,
