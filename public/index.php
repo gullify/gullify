@@ -103,8 +103,26 @@ try {
                         </button>
                     </div>
                     <div class="topbar-actions" id="topbarActions">
+                        <div class="nav-arrows" id="topbarNavArrows">
+                            <button class="topbar-icon-btn nav-arrow" id="topbarBackBtn" title="Précédent" aria-label="Back">
+                                <i class="ri-arrow-left-s-line"></i>
+                            </button>
+                            <button class="topbar-icon-btn nav-arrow" id="topbarForwardBtn" title="Suivant" aria-label="Forward">
+                                <i class="ri-arrow-right-s-line"></i>
+                            </button>
+                        </div>
+                        <button class="topbar-icon-btn" id="topbarCastBtn" title="Diffuser" aria-label="Cast">
+                            <i class="ri-cast-line"></i>
+                        </button>
+                        <button class="topbar-icon-btn" id="topbarNotifBtn" title="Notifications" aria-label="Notifications">
+                            <i class="ri-notification-3-line"></i>
+                            <span class="badge-dot" id="topbarNotifDot" hidden></span>
+                        </button>
                         <button class="topbar-icon-btn" id="topbarQueueToggle" title="File d'attente" aria-label="Toggle queue panel">
                             <i class="ri-play-list-2-line"></i>
+                        </button>
+                        <button class="topbar-icon-btn" id="topbarSettingsBtn" title="Paramètres" aria-label="Settings">
+                            <i class="ri-settings-3-line"></i>
                         </button>
                     </div>
                 </div>
@@ -124,6 +142,32 @@ try {
 
     <!-- Menu overlay for mobile sidebar -->
     <div class="menu-overlay" id="menuOverlay"></div>
+
+    <!-- Cast popover (audiophile, desktop) -->
+    <div id="castPopover" class="cast-popover" hidden role="dialog" aria-label="Cast options">
+        <div class="cast-header">
+            <span>Diffuser sur</span>
+            <button class="cast-close" id="castClose" aria-label="Close">
+                <i class="ri-close-line"></i>
+            </button>
+        </div>
+        <div class="cast-body" id="castDevices">
+            <div class="cast-empty mono">Aucun appareil détecté</div>
+        </div>
+    </div>
+
+    <!-- Notifications popover (audiophile, desktop) -->
+    <div id="notifPopover" class="cast-popover" hidden role="dialog" aria-label="Notifications">
+        <div class="cast-header">
+            <span>Notifications</span>
+            <button class="cast-close" id="notifClose" aria-label="Close">
+                <i class="ri-close-line"></i>
+            </button>
+        </div>
+        <div class="cast-body" id="notifList">
+            <div class="cast-empty mono">Aucune notification</div>
+        </div>
+    </div>
 
     <!-- Now Playing fullscreen (audiophile theme, desktop) -->
     <div id="nowPlayingFS" class="now-playing-fs" hidden aria-modal="true" role="dialog">

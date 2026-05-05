@@ -180,6 +180,97 @@ window.applyHeroColor = function(el, imgUrl) {
 })();
 
 /**
+ * Audiophile-only: topbar action bindings (nav arrows, cast, notifications,
+ * settings). The buttons are rendered for all themes by default but the CSS
+ * only reveals them in audiophile-desktop. Wire them up unconditionally;
+ * activation is gated by visibility.
+ */
+(function () {
+    function isAudiophileDesktop() {
+        return document.documentElement.getAttribute('data-theme') === 'audiophile'
+            && window.innerWidth >= 1025;
+    }
+    function $(id) { return document.getElementById(id); }
+
+    function closePopover(id) {
+        const el = $(id);
+        if (el) el.setAttribute('hidden', '');
+    }
+    function openPopover(id, anchorBtn) {
+        // Close any other popover first
+        ['castPopover', 'notifPopover'].forEach(p => { if (p !== id) closePopover(p); });
+        const el = $(id);
+        if (!el) return;
+        el.removeAttribute('hidden');
+        // Position under the anchor button
+        if (anchorBtn) {
+            const r = anchorBtn.getBoundingClientRect();
+            el.style.right = (window.innerWidth - r.right) + 'px';
+            el.style.top = (r.bottom + 8) + 'px';
+        }
+    }
+
+    function bindTopbarActions() {
+        const back     = $('topbarBackBtn');
+        const fwd      = $('topbarForwardBtn');
+        const cast     = $('topbarCastBtn');
+        const notif    = $('topbarNotifBtn');
+        const settings = $('topbarSettingsBtn');
+        const castPop  = $('castPopover');
+        const notifPop = $('notifPopover');
+        const castClose  = $('castClose');
+        const notifClose = $('notifClose');
+
+        if (back)     back.addEventListener('click',     () => history.back());
+        if (fwd)      fwd.addEventListener('click',      () => history.forward());
+        if (cast)     cast.addEventListener('click',     () => openPopover('castPopover',  cast));
+        if (notif)    notif.addEventListener('click',    () => openPopover('notifPopover', notif));
+        if (castClose)  castClose.addEventListener('click',  () => closePopover('castPopover'));
+        if (notifClose) notifClose.addEventListener('click', () => closePopover('notifPopover'));
+
+        if (settings) settings.addEventListener('click', () => {
+            // Open the settings submenu and render the first section.
+            // The nav-item[data-view="settings"] is a parent that toggles the
+            // submenu; clicking it alone doesn't render content. We click the
+            // first sub-item which calls renderSettings() internally.
+            const parent = document.querySelector('.nav-item[data-view="settings"]');
+            const submenu = document.getElementById('settingsSubmenu');
+            if (parent && !parent.classList.contains('open')) {
+                parent.classList.add('open');
+                if (submenu) submenu.classList.add('open');
+            }
+            const firstSection = document.querySelector('.nav-subitem[data-settings-section]');
+            if (firstSection) firstSection.click();
+        });
+
+        // Close popovers on outside click or Esc
+        document.addEventListener('click', (e) => {
+            if (castPop && !castPop.hasAttribute('hidden')) {
+                if (!castPop.contains(e.target) && e.target !== cast && !(cast && cast.contains(e.target))) {
+                    closePopover('castPopover');
+                }
+            }
+            if (notifPop && !notifPop.hasAttribute('hidden')) {
+                if (!notifPop.contains(e.target) && e.target !== notif && !(notif && notif.contains(e.target))) {
+                    closePopover('notifPopover');
+                }
+            }
+        });
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closePopover('castPopover');
+                closePopover('notifPopover');
+            }
+        });
+    }
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', bindTopbarActions);
+    } else {
+        bindTopbarActions();
+    }
+})();
+
+/**
  * UI State Helpers
  */
 function showLoading() {
