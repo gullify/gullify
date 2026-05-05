@@ -96,18 +96,21 @@ try {
 
         if ($status === 200 && $body) {
             $data = json_decode($body, true);
-            // Prefer plain text; fall back to synced LRC (strip timestamps)
-            $plain = $data['plainLyrics'] ?? '';
+            $plain  = $data['plainLyrics']  ?? '';
             $synced = $data['syncedLyrics'] ?? '';
 
-            if ($plain) {
-                echo json_encode(['success' => true, 'lyrics' => trim($plain), 'source' => 'lrclib']);
-                exit;
-            }
-            if ($synced) {
-                // Strip [mm:ss.xx] timestamps from synced lyrics
-                $clean = preg_replace('/^\[\d+:\d+\.\d+\]\s?/m', '', $synced);
-                echo json_encode(['success' => true, 'lyrics' => trim($clean), 'source' => 'lrclib']);
+            // Return plain text + raw synced LRC (when available) so clients
+            // that support timestamp-sync can highlight the current line.
+            if ($synced || $plain) {
+                $cleanFromSynced = $synced
+                    ? preg_replace('/^\[\d+:\d+\.\d+\]\s?/m', '', $synced)
+                    : '';
+                echo json_encode([
+                    'success'       => true,
+                    'lyrics'        => trim($plain ?: $cleanFromSynced),
+                    'syncedLyrics'  => $synced ?: null,
+                    'source'        => 'lrclib',
+                ]);
                 exit;
             }
         }

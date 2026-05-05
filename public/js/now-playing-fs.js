@@ -37,6 +37,10 @@
     let audioCtx = null;
     let audioSrc = null;
     let lyricsLoadedFor = null;
+    let syncedLines = null;        // [{time, text, el}] when synced lyrics available
+    let lastActiveSyncedIdx = -1;
+    let userScrolledLyrics = false;
+    let userScrollResetTimer = null;
 
     function $(s) { return document.querySelector(s); }
 
@@ -152,29 +156,139 @@
         }
     }
 
+    function escapeHtml(s) {
+        return String(s)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    /**
+     * Parse LRC-format lyrics. Each line may carry one or more [mm:ss.xx]
+     * timestamps. Returns an ascending array of {time, text} entries.
+     */
+    function parseLRC(synced) {
+        const out = [];
+        const lines = String(synced).split(/\r?\n/);
+        const re = /\[(\d+):(\d{1,2}(?:\.\d+)?)\]/g;
+        for (const line of lines) {
+            re.lastIndex = 0;
+            const stamps = [];
+            let m;
+            while ((m = re.exec(line)) !== null) {
+                const min = parseInt(m[1], 10);
+                const sec = parseFloat(m[2]);
+                stamps.push(min * 60 + sec);
+            }
+            if (!stamps.length) continue;
+            const text = line.replace(re, '').trim();
+            for (const t of stamps) out.push({ time: t, text });
+        }
+        out.sort((a, b) => a.time - b.time);
+        return out;
+    }
+
+    function clearSyncedState() {
+        syncedLines = null;
+        lastActiveSyncedIdx = -1;
+        userScrolledLyrics = false;
+    }
+
     async function loadLyrics(filePath) {
         const host = $(SELECTORS.lyrics);
         if (!host) return;
         lyricsLoadedFor = filePath;
+        clearSyncedState();
+        host.classList.remove('unsynced');
 
         host.innerHTML = '<div class="npfs-lyrics-status mono">Chargement…</div>';
         try {
             const r = await fetch((window.BASE_PATH || '') + '/get_lyrics.php?path=' + encodeURIComponent(filePath));
             const data = await r.json();
             if (lyricsLoadedFor !== filePath) return; // race: track changed mid-fetch
-            if (data.success && data.lyrics) {
-                const lines = String(data.lyrics).split(/\r?\n/);
-                host.innerHTML = lines.map(line => {
-                    const safe = line
-                        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-                    return '<div class="lyric-line">' + (safe || '&nbsp;') + '</div>';
-                }).join('');
+
+            if (data.success && (data.syncedLyrics || data.lyrics)) {
+                if (data.syncedLyrics) {
+                    const parsed = parseLRC(data.syncedLyrics);
+                    if (parsed.length) {
+                        syncedLines = parsed;
+                        host.innerHTML = parsed.map(l =>
+                            '<div class="lyric-line">' + (escapeHtml(l.text) || '&nbsp;') + '</div>'
+                        ).join('');
+                        // Cache the DOM nodes for fast lookup
+                        const nodes = host.querySelectorAll('.lyric-line');
+                        for (let i = 0; i < parsed.length; i++) parsed[i].el = nodes[i];
+                        // Initial alignment for paused / mid-track openings
+                        lastActiveSyncedIdx = -1;
+                        syncLyrics();
+                        return;
+                    }
+                }
+                // Plain text fallback (no timestamps)
+                host.classList.add('unsynced');
+                const lines = String(data.lyrics || '').split(/\r?\n/);
+                host.innerHTML = lines.map(line =>
+                    '<div class="lyric-line past">' + (escapeHtml(line) || '&nbsp;') + '</div>'
+                ).join('');
             } else {
+                host.classList.add('unsynced');
                 host.innerHTML = '<div class="npfs-lyrics-status mono">Aucune parole disponible</div>';
             }
         } catch (e) {
+            host.classList.add('unsynced');
             host.innerHTML = '<div class="npfs-lyrics-status mono">Erreur de chargement</div>';
         }
+    }
+
+    /**
+     * On each timeupdate, find the active synced lyric and highlight + scroll.
+     * Skipped when the user has scrolled manually within the last 6 seconds.
+     */
+    function syncLyrics() {
+        if (!syncedLines || !syncedLines.length) return;
+        const player = getPlayer();
+        if (!player || !player.audio) return;
+        const t = player.audio.currentTime || 0;
+
+        // Binary search for the latest line with time <= t
+        let lo = 0, hi = syncedLines.length - 1, idx = -1;
+        while (lo <= hi) {
+            const mid = (lo + hi) >> 1;
+            if (syncedLines[mid].time <= t) { idx = mid; lo = mid + 1; }
+            else hi = mid - 1;
+        }
+        if (idx === lastActiveSyncedIdx) return;
+        lastActiveSyncedIdx = idx;
+
+        for (let i = 0; i < syncedLines.length; i++) {
+            const el = syncedLines[i].el;
+            if (!el) continue;
+            el.classList.remove('past', 'current', 'next');
+            if (i < idx) el.classList.add('past');
+            else if (i === idx) el.classList.add('current');
+            else el.classList.add('next');
+        }
+        // Auto-center current line, unless user is actively scrolling
+        if (!userScrolledLyrics && idx >= 0) {
+            const el = syncedLines[idx].el;
+            if (el && typeof el.scrollIntoView === 'function') {
+                el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        }
+    }
+
+    function bindLyricsScrollGuard() {
+        const host = $(SELECTORS.lyrics);
+        if (!host || host.dataset.scrollGuard === '1') return;
+        host.dataset.scrollGuard = '1';
+        host.addEventListener('wheel', () => {
+            userScrolledLyrics = true;
+            clearTimeout(userScrollResetTimer);
+            userScrollResetTimer = setTimeout(() => { userScrolledLyrics = false; }, 6000);
+        }, { passive: true });
+        host.addEventListener('touchmove', () => {
+            userScrolledLyrics = true;
+            clearTimeout(userScrollResetTimer);
+            userScrollResetTimer = setTimeout(() => { userScrolledLyrics = false; }, 6000);
+        }, { passive: true });
     }
 
     function syncProgress() {
@@ -306,12 +420,18 @@
         const tryHook = () => {
             const p = getPlayer();
             if (!p || !p.audio) { setTimeout(tryHook, 200); return; }
-            p.audio.addEventListener('timeupdate', () => { if (isOpen()) syncProgress(); });
+            p.audio.addEventListener('timeupdate', () => {
+                if (!isOpen()) return;
+                syncProgress();
+                syncLyrics();
+            });
             p.audio.addEventListener('play',  () => { if (isOpen()) syncPlayPause(); });
             p.audio.addEventListener('pause', () => { if (isOpen()) syncPlayPause(); });
             p.audio.addEventListener('loadedmetadata', () => { if (isOpen()) { syncMeta(); syncProgress(); } });
         };
         tryHook();
+
+        bindLyricsScrollGuard();
 
         // Click on the desktop player cover opens the FS (audiophile + desktop only)
         const desktopCover = document.getElementById('unifiedPlayerCover');
