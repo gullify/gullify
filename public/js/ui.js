@@ -455,16 +455,19 @@
         }
 
         const THEMES = {
-            light:    { label: 'Clair',      icon: 'ri-sun-line',         statusBar: '#f0f2f5' },
-            dark:     { label: 'Sombre',     icon: 'ri-moon-line',        statusBar: '#1a252f' },
-            midnight: { label: 'Midnight',   icon: 'ri-moon-clear-line',  statusBar: '#0f1923' },
-            sunset:   { label: 'Sunset',     icon: 'ri-sun-foggy-line',   statusBar: '#1c1017' },
-            forest:   { label: 'Forest',     icon: 'ri-leaf-line',        statusBar: '#0e1a14' },
-            aurora:   { label: 'Aurora',     icon: 'ri-sparkling-line',   statusBar: '#100e1a' },
-            sand:     { label: 'Sand',       icon: 'ri-landscape-line',   statusBar: '#f5f0e8' },
-            nord:     { label: 'Nord',       icon: 'ri-snowy-line',       statusBar: '#2e3440' },
-            lime:     { label: 'Lime',       icon: 'ri-flashlight-line',  statusBar: '#0a0a0a' }
+            audiophile: { label: 'Audiophile', icon: 'ri-vinyl-line',       statusBar: '#1a1a1d' },
+            light:      { label: 'Clair',      icon: 'ri-sun-line',         statusBar: '#f0f2f5' },
+            dark:       { label: 'Sombre',     icon: 'ri-moon-line',        statusBar: '#1a252f' },
+            midnight:   { label: 'Midnight',   icon: 'ri-moon-clear-line',  statusBar: '#0f1923' },
+            sunset:     { label: 'Sunset',     icon: 'ri-sun-foggy-line',   statusBar: '#1c1017' },
+            forest:     { label: 'Forest',     icon: 'ri-leaf-line',        statusBar: '#0e1a14' },
+            aurora:     { label: 'Aurora',     icon: 'ri-sparkling-line',   statusBar: '#100e1a' },
+            sand:       { label: 'Sand',       icon: 'ri-landscape-line',   statusBar: '#f5f0e8' },
+            nord:       { label: 'Nord',       icon: 'ri-snowy-line',       statusBar: '#2e3440' },
+            lime:       { label: 'Lime',       icon: 'ri-flashlight-line',  statusBar: '#0a0a0a' }
         };
+
+        const DEFAULT_THEME = 'audiophile';
 
         const CARD_STYLES = {
             default:  { label: 'Standard',  icon: 'ri-layout-grid-line' },
@@ -498,7 +501,7 @@
         function isLightTheme(t) { return t === 'light' || t === 'sand'; }
 
         function setTheme(theme) {
-            if (!THEMES[theme]) theme = 'light';
+            if (!THEMES[theme]) theme = DEFAULT_THEME;
             if (theme === 'light') document.documentElement.removeAttribute('data-theme');
             else document.documentElement.setAttribute('data-theme', theme);
 
@@ -506,6 +509,8 @@
             document.body.classList.toggle('dark-mode', !isLightTheme(theme));
 
             localStorage.setItem('musicTheme', theme);
+            // Persist to cookie so server-side index.php picks the correct theme on first paint
+            document.cookie = 'gullify_theme=' + theme + ';path=/;max-age=' + (60 * 60 * 24 * 365) + ';SameSite=Lax';
 
             // Update Android status bar color
             const meta = document.getElementById('themeColor');
@@ -536,7 +541,7 @@
                     }
                 } catch (e) {
                     // Cross-origin restrictions, fall back to own localStorage
-                    const savedTheme = localStorage.getItem('musicTheme') || 'light';
+                    const savedTheme = localStorage.getItem('musicTheme') || DEFAULT_THEME;
                     setTheme(savedTheme);
                 }
 
@@ -548,14 +553,14 @@
                 });
             } else {
                 // Not in iframe, use own theme preference
-                const savedTheme = localStorage.getItem('musicTheme') || 'light';
+                const savedTheme = localStorage.getItem('musicTheme') || DEFAULT_THEME;
                 setTheme(savedTheme);
             }
         }
 
         function toggleTheme() {
             const keys = Object.keys(THEMES);
-            const current = localStorage.getItem('musicTheme') || 'light';
+            const current = localStorage.getItem('musicTheme') || DEFAULT_THEME;
             const idx = keys.indexOf(current);
             setTheme(keys[(idx + 1) % keys.length]);
         }
@@ -4381,7 +4386,7 @@
         // ── Settings section HTML helpers ───────────────────────────────────────
 
         function getSettingsAppearanceHtml() {
-            const currentTheme = localStorage.getItem('musicTheme') || 'light';
+            const currentTheme = localStorage.getItem('musicTheme') || DEFAULT_THEME;
             const themeButtons = Object.entries(THEMES).map(([key, cfg]) =>
                 `<button class="theme-picker-btn ${key === currentTheme ? 'active' : ''}"
                          data-theme="${key}" onclick="setTheme('${key}')">

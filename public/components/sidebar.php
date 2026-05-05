@@ -1,6 +1,10 @@
 <aside class="sidebar" id="sidebar">
     <div class="sidebar-header">
-        <span class="sidebar-app-name">Gullify</span>
+        <span class="brand-mark" aria-hidden="true"></span>
+        <span class="brand-text">
+            <span class="sidebar-app-name">Gullify</span>
+            <span class="brand-tagline mono">local · subsonic</span>
+        </span>
     </div>
 
     <div class="user-selector">

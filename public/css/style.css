@@ -17,6 +17,10 @@
         }
 
         :root {
+            /* Typography (theme-agnostic) */
+            --font-sans: "Inter Tight", "Inter", "Roboto", "Arial", system-ui, -apple-system, sans-serif;
+            --font-mono: "JetBrains Mono", "SF Mono", ui-monospace, "Courier New", monospace;
+
             /* Light Mode — Surfaces */
             --bg-primary: #f0f2f5;
             --bg-secondary: #ffffff;
@@ -414,14 +418,106 @@
             opacity: 0.8;
         }
 
+        /* ═══════════════ Audiophile (oklch dark + warm amber accent) ═══════════════ */
+        [data-theme="audiophile"] {
+            --bg-primary: oklch(0.16 0.005 270);
+            --bg-secondary: oklch(0.20 0.006 270);
+            --bg-tertiary: oklch(0.235 0.007 270);
+            --player-bg: oklch(0.20 0.006 270);
+            --player-bg-translucent: oklch(0.20 0.006 270 / 0.92);
+            --glass-bg: oklch(0.20 0.006 270 / 0.7);
+            --glass-border: oklch(1 0 0 / 0.06);
+
+            --text-primary: oklch(0.96 0.003 270);
+            --text-secondary: oklch(0.74 0.005 270);
+            --text-tertiary: oklch(0.56 0.006 270);
+
+            /* Warm amber accent — vinyl/tube reference */
+            --accent: oklch(0.78 0.14 65);
+            --accent-hover: oklch(0.84 0.16 65);
+
+            --color-success: oklch(0.74 0.13 155);
+            --color-success-hover: oklch(0.78 0.14 155);
+            --color-success-soft: oklch(0.74 0.13 155 / 0.15);
+            --color-danger: oklch(0.66 0.20 25);
+            --color-danger-hover: oklch(0.70 0.21 25);
+            --color-danger-soft: oklch(0.66 0.20 25 / 0.15);
+            --color-info: oklch(0.72 0.10 230);
+            --color-info-hover: oklch(0.76 0.11 230);
+            --color-info-soft: oklch(0.72 0.10 230 / 0.15);
+            --color-warning: oklch(0.80 0.14 80);
+
+            --border: oklch(1 0 0 / 0.07);
+            --shadow: oklch(0 0 0 / 0.6);
+            --hover-bg: oklch(1 0 0 / 0.05);
+            --card-bg: oklch(1 0 0 / 0.04);
+            --card-bg-hover: oklch(1 0 0 / 0.07);
+            --card-border: oklch(1 0 0 / 0.08);
+            --card-bg-strong: oklch(0.78 0.14 65 / 0.10);
+
+            --focus-ring: oklch(0.78 0.14 65 / 0.4);
+
+            --btn-secondary-bg: oklch(1 0 0 / 0.05);
+            --btn-secondary-bg-hover: oklch(1 0 0 / 0.09);
+            --btn-secondary-border: oklch(1 0 0 / 0.10);
+            --btn-secondary-text: oklch(0.96 0.003 270);
+
+            --placeholder-gradient: linear-gradient(135deg,
+                oklch(0.42 0.10 65) 0%,
+                oklch(0.32 0.06 280) 100%);
+
+            /* Audiophile-specific design tokens (used by new components) */
+            --bg-elevated: oklch(0.20 0.006 270);
+            --bg-elevated-2: oklch(0.235 0.007 270);
+            --bg-hover: oklch(0.26 0.008 270);
+            --surface: oklch(0.22 0.006 270);
+            --border-strong: oklch(0.38 0.010 270);
+            --divider: oklch(0.26 0.006 270);
+            --text-quaternary: oklch(0.42 0.006 270);
+            --accent-soft: oklch(0.78 0.14 65 / 0.18);
+            --accent-strong: oklch(0.84 0.16 65);
+            --accent-text: oklch(0.18 0.01 65);
+        }
+
+        /* Audiophile: amber-tinted album backdrop */
+        [data-theme="audiophile"] .album-background-image {
+            filter: blur(60px) brightness(0.45) saturate(1.3);
+        }
+        [data-theme="audiophile"] .album-background-gradient {
+            display: block;
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(to bottom,
+                oklch(0.16 0.005 270 / 0) 0%,
+                oklch(0.16 0.005 270 / 0.6) 50%,
+                oklch(0.16 0.005 270 / 0.95) 100%);
+        }
+        [data-theme="audiophile"] .album-background.active {
+            opacity: 0.55;
+        }
+
         body {
-            font-family: 'Roboto', 'Arial', sans-serif;
+            font-family: var(--font-sans);
             background: var(--bg-primary);
             color: var(--text-primary);
             overflow: hidden;
             overflow-x: hidden;
             transition: background 0.3s ease, color 0.3s ease;
             max-width: 100vw;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            font-feature-settings: "ss01", "cv11";
+        }
+
+        /* Typography utilities */
+        .mono { font-family: var(--font-mono); font-feature-settings: "ss02"; }
+        .tabular { font-variant-numeric: tabular-nums; }
+        .uppercase-mini {
+            font-family: var(--font-mono);
+            font-size: 10px;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: var(--text-tertiary);
         }
 
         /* ═══════════════════════════════════════════
@@ -594,12 +690,14 @@
         }
 
         .sidebar-header {
-            padding: 50px 20px;
+            height: 60px;
+            padding: 0 20px;
             border-bottom: 1px solid var(--border);
             display: flex;
             align-items: center;
             justify-content: center;
             gap: 10px;
+            flex-shrink: 0;
         }
 
 
@@ -617,6 +715,77 @@
         html[data-theme="dark"] .sidebar-app-name {
             color: #ffffff;
             text-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+        }
+
+        /* Brand area (sidebar header) — multi-theme */
+        .brand-mark {
+            display: none;
+            width: 28px;
+            height: 28px;
+            border-radius: 6px;
+            position: relative;
+            overflow: hidden;
+            flex-shrink: 0;
+        }
+        .brand-text {
+            display: flex;
+            flex-direction: column;
+            line-height: 1;
+            min-width: 0;
+        }
+        .brand-tagline {
+            display: none;
+            font-size: 9px;
+            color: var(--text-tertiary);
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            margin-top: 4px;
+        }
+
+        /* Audiophile: vinyl-like brand mark + tagline visible */
+        html[data-theme="audiophile"] .brand-mark {
+            display: block;
+            background:
+                radial-gradient(circle at 30% 30%,
+                    var(--accent) 0%,
+                    oklch(0.42 0.10 65) 60%,
+                    oklch(0.22 0.04 65) 100%);
+        }
+        html[data-theme="audiophile"] .brand-mark::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background: repeating-radial-gradient(
+                circle at center,
+                transparent 0 2px,
+                oklch(0 0 0 / 0.18) 2px 3px
+            );
+        }
+        html[data-theme="audiophile"] .brand-mark::before {
+            content: "";
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: 6px; height: 6px;
+            background: var(--bg-primary);
+            border-radius: 50%;
+            z-index: 2;
+        }
+        html[data-theme="audiophile"] .brand-tagline { display: block; }
+
+        /* Audiophile: tighter Inter Tight brand wordmark instead of Rockybilly */
+        html[data-theme="audiophile"] .sidebar-app-name {
+            font-family: var(--font-sans);
+            font-weight: 600;
+            font-size: 16px;
+            color: var(--text-primary);
+            letter-spacing: -0.01em;
+            text-shadow: none;
+        }
+        html[data-theme="audiophile"] .sidebar-header {
+            justify-content: flex-start;
+            padding: 0 16px;
+            gap: 10px;
         }
 
         .nav-menu {
@@ -737,14 +906,16 @@
         }
 
         .content-header {
-            padding: 8px 12px;
-            /* background: linear-gradient(180deg, #2c3e50 0%, transparent 100%); */
-            border-bottom: none;
+            height: 60px;
+            padding: 0 16px;
+            border-bottom: 1px solid var(--border);
             display: flex;
             flex-direction: column;
+            justify-content: center;
             gap: 6px;
             position: relative;
             z-index: 10;
+            flex-shrink: 0;
         }
 
         /* Simplified header when in iframe */

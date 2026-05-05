@@ -8,6 +8,11 @@ if (!in_array($appLang, $_allowedLangs, true)) $appLang = 'fr';
 $_langFile = __DIR__ . '/lang/' . $appLang . '.json';
 $_langData = file_exists($_langFile) ? file_get_contents($_langFile) : '{}';
 
+// Theme detection (cookie → default audiophile)
+$_allowedThemes = ['audiophile', 'dark', 'midnight', 'sunset', 'forest', 'aurora', 'sand', 'nord', 'lime', 'light'];
+$appTheme = $_COOKIE['gullify_theme'] ?? 'audiophile';
+if (!in_array($appTheme, $_allowedThemes, true)) $appTheme = 'audiophile';
+
 // Redirect to setup wizard if not configured
 if (!AppConfig::isSetupDone()) {
     header('Location: /setup/');
@@ -44,14 +49,14 @@ try {
 }
 ?>
 <!DOCTYPE html>
-<html lang="<?= htmlspecialchars($appLang) ?>">
+<html lang="<?= htmlspecialchars($appLang) ?>" data-theme="<?= htmlspecialchars($appTheme) ?>">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gullify - Musique</title>
 
     <!-- PWA & Meta -->
-    <meta name="theme-color" content="#1a252f" id="themeColor">
+    <meta name="theme-color" content="#1a1a1d" id="themeColor">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <link rel="icon" type="image/x-icon" href="favicon.ico">
@@ -61,7 +66,7 @@ try {
     <!-- Fonts & Icons -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Shadows+Into+Light&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Shadows+Into+Light&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
 
     <!-- Libraries -->
