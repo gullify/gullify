@@ -523,7 +523,22 @@
         }
 
         // Detect if in iframe and sync dark mode with parent
+        // One-time migration: existing users on the previous default ('light')
+        // are upgraded to the new audiophile theme. Users who explicitly chose
+        // any other theme (dark, nord, etc.) keep their choice.
+        function migrateThemeOnce() {
+            try {
+                if (localStorage.getItem('gullifyThemeMigratedV2')) return;
+                const current = localStorage.getItem('musicTheme');
+                if (current === null || current === 'light') {
+                    localStorage.setItem('musicTheme', DEFAULT_THEME);
+                }
+                localStorage.setItem('gullifyThemeMigratedV2', '1');
+            } catch (e) { /* localStorage unavailable */ }
+        }
+
         function initThemeSync() {
+            migrateThemeOnce();
             const isInIframe = window.self !== window.top;
 
             if (isInIframe) {
