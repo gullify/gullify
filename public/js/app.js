@@ -121,36 +121,56 @@ window.applyHeroColor = function(el, imgUrl) {
 };
 
 /**
- * Audiophile-only: queue panel collapse toggle.
- * The right-rail queue is permanent in audiophile-desktop, but the existing
- * queue-toggle button still wires up to slide via the legacy .open class.
- * Here we add a complementary handler that flips .collapsed on the sidebar
- * and .queue-collapsed on .main-content, so users can hide the panel for a
- * full-width main view. State persists across sessions.
+ * Audiophile-only: queue panel toggle (desktop ≥1025px).
+ * The right-rail queue is permanent. Both the player-bar queue button
+ * (#unifiedQueueToggle) and the new topbar button (#topbarQueueToggle) toggle
+ * `.collapsed` on the sidebar and `.queue-collapsed` on .main-content, giving
+ * the user a way to hide the panel for a full-width main view. State persists
+ * across sessions. Outside audiophile-desktop the legacy slide-in drawer
+ * behavior is left untouched.
  */
 (function () {
     function isAudiophileDesktop() {
         return document.documentElement.getAttribute('data-theme') === 'audiophile'
             && window.innerWidth >= 1025;
     }
+    function applyState(collapsed, sidebar, main, topBtn) {
+        sidebar.classList.toggle('collapsed', collapsed);
+        main.classList.toggle('queue-collapsed', collapsed);
+        if (topBtn) topBtn.classList.toggle('active', !collapsed);
+    }
     function bindQueueCollapse() {
-        const btn = document.getElementById('unifiedQueueToggle');
-        const sidebar = document.getElementById('unifiedQueueSidebar');
-        const main = document.querySelector('.main-content');
-        if (!btn || !sidebar || !main) { setTimeout(bindQueueCollapse, 250); return; }
+        const playerBtn = document.getElementById('unifiedQueueToggle');
+        const topBtn    = document.getElementById('topbarQueueToggle');
+        const sidebar   = document.getElementById('unifiedQueueSidebar');
+        const main      = document.querySelector('.main-content');
+        if (!sidebar || !main) { setTimeout(bindQueueCollapse, 250); return; }
 
         const stored = localStorage.getItem('gullifyQueueCollapsed') === '1';
-        if (isAudiophileDesktop() && stored) {
-            sidebar.classList.add('collapsed');
-            main.classList.add('queue-collapsed');
+        if (isAudiophileDesktop()) {
+            applyState(stored, sidebar, main, topBtn);
         }
 
-        btn.addEventListener('click', () => {
+        function onClick() {
             if (!isAudiophileDesktop()) return;
-            const collapsed = sidebar.classList.toggle('collapsed');
-            main.classList.toggle('queue-collapsed', collapsed);
-            localStorage.setItem('gullifyQueueCollapsed', collapsed ? '1' : '0');
+            const willCollapse = !sidebar.classList.contains('collapsed');
+            applyState(willCollapse, sidebar, main, topBtn);
+            localStorage.setItem('gullifyQueueCollapsed', willCollapse ? '1' : '0');
+        }
+        if (playerBtn) playerBtn.addEventListener('click', onClick);
+        if (topBtn)    topBtn.addEventListener('click', onClick);
+
+        // If the theme switches at runtime, reset margins / state cleanly
+        const observer = new MutationObserver(() => {
+            if (isAudiophileDesktop()) {
+                applyState(localStorage.getItem('gullifyQueueCollapsed') === '1', sidebar, main, topBtn);
+            } else {
+                sidebar.classList.remove('collapsed');
+                main.classList.remove('queue-collapsed');
+                if (topBtn) topBtn.classList.remove('active');
+            }
         });
+        observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
     }
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', bindQueueCollapse);

@@ -5714,7 +5714,9 @@ body.npfs-open { overflow: hidden; }
    QUEUE PANEL — permanent right rail in audiophile theme (desktop only)
    ═══════════════════════════════════════════════════════════════════════════ */
 @media (min-width: 1025px) {
-    html[data-theme="audiophile"] .queue-sidebar {
+    /* Use the ID selector to outrank the existing
+       `#unifiedQueueSidebar { right: -320px !important; }` rule. */
+    html[data-theme="audiophile"] #unifiedQueueSidebar {
         position: fixed !important;
         top: 60px !important;
         bottom: 70px !important;
@@ -5725,9 +5727,9 @@ body.npfs-open { overflow: hidden; }
         -webkit-backdrop-filter: none;
         border-left: 1px solid var(--border);
         z-index: 50;
-        transition: transform 0.25s ease;
+        transition: transform 0.25s ease, right 0s !important;
     }
-    html[data-theme="audiophile"] .queue-sidebar.collapsed {
+    html[data-theme="audiophile"] #unifiedQueueSidebar.collapsed {
         transform: translateX(100%);
     }
     /* Push the main content left so it doesn't slide under the queue panel */
@@ -6024,4 +6026,83 @@ html[data-theme="audiophile"] .unified-player .player-progress {
 html[data-theme="audiophile"] #unified-player-container .player-progress:hover,
 html[data-theme="audiophile"] .unified-player .player-progress:hover {
     height: 5px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   TOPBAR ACTIONS (audiophile) — queue toggle button on the right
+   ═══════════════════════════════════════════════════════════════════════════ */
+/* Hidden by default — only audiophile + desktop shows it */
+.topbar-actions { display: none; }
+
+.topbar-icon-btn {
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    background: var(--bg-elevated, transparent);
+    border: 1px solid var(--border, transparent);
+    color: var(--text-tertiary, currentColor);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+    padding: 0;
+}
+.topbar-icon-btn:hover {
+    background: var(--bg-hover, transparent);
+    color: var(--text-primary, currentColor);
+}
+.topbar-icon-btn.active {
+    color: var(--accent);
+    border-color: var(--accent);
+    background: var(--accent-soft, transparent);
+}
+
+@media (min-width: 1025px) {
+    html[data-theme="audiophile"] .topbar-actions {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+        margin-left: 8px;
+        flex-shrink: 0;
+    }
+}
+
+/* Make the search bar always-visible in audiophile-desktop (no expand)
+   and give it a permanent home width */
+@media (min-width: 1025px) {
+    html[data-theme="audiophile"] .header-search-wrap {
+        flex: 1 1 auto !important;
+        max-width: 480px;
+        margin-left: auto;
+        margin-right: 0;
+        height: 36px;
+        background: var(--bg-elevated);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        box-shadow: none;
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
+        overflow: hidden;
+    }
+    html[data-theme="audiophile"] .header-search-input {
+        width: 100% !important;
+        opacity: 1 !important;
+        pointer-events: auto !important;
+        padding: 9px 4px 9px 14px !important;
+        font-size: 13.5px;
+    }
+    html[data-theme="audiophile"] #contentTitle {
+        font-size: 15px;
+        max-width: 240px;
+        margin-right: 12px;
+    }
+    /* When search is active, hide the title cleanly to give the search room */
+    html[data-theme="audiophile"] .header-top.search-active #contentTitle {
+        display: none;
+    }
+    html[data-theme="audiophile"] .menu-btn {
+        display: none; /* No mobile burger on desktop */
+    }
 }

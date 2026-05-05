@@ -102,6 +102,11 @@ try {
                             <i class="ri-search-line" id="searchBtnIcon"></i>
                         </button>
                     </div>
+                    <div class="topbar-actions" id="topbarActions">
+                        <button class="topbar-icon-btn" id="topbarQueueToggle" title="File d'attente" aria-label="Toggle queue panel">
+                            <i class="ri-play-list-2-line"></i>
+                        </button>
+                    </div>
                 </div>
             </div>
 
