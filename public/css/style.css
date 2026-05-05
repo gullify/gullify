@@ -6538,3 +6538,190 @@ html[data-theme="audiophile"] .chip-select select { color-scheme: dark; }
     color: var(--accent);
     border-color: oklch(0.78 0.14 65 / 0.4);
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ALBUM / ARTIST DETAIL — audiophile refinements
+   Pure CSS overrides; no DOM changes, all features preserved.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* H3 section headers in album/artist views — defeat inline white+shadow */
+html[data-theme="audiophile"] .album-info-header h3,
+html[data-theme="audiophile"] .artist-news-section h3,
+html[data-theme="audiophile"] .album-info-header h2,
+html[data-theme="audiophile"] .album-info-header > div > h3,
+html[data-theme="audiophile"] [id^="song-list-"] ~ * h3,
+html[data-theme="audiophile"] [class*="album-grid"] ~ * h3,
+html[data-theme="audiophile"] .content-body > div > div > h3 {
+    color: var(--text-primary) !important;
+    text-shadow: none !important;
+    font-size: 18px !important;
+    font-weight: 600 !important;
+    letter-spacing: -0.01em !important;
+    margin: 32px 0 14px !important;
+}
+html[data-theme="audiophile"] .album-info-header h3:first-child,
+html[data-theme="audiophile"] .content-body > div > div > h3:first-child {
+    margin-top: 0 !important;
+}
+
+/* "Albums" header in artist view (with manage button) — h3 inline-styled */
+html[data-theme="audiophile"] .artist-header-container ~ div > h3 {
+    color: var(--text-primary) !important;
+    text-shadow: none !important;
+}
+
+/* Empty state inside artist view (no albums) — flatten the bg */
+html[data-theme="audiophile"] .content-body > div > div[style*="padding: 40px"][style*="text-align: center"] {
+    background: var(--bg-elevated) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 14px !important;
+}
+
+/* Album hero: badges/genres line readable in dark */
+html[data-theme="audiophile"] .album-meta-item {
+    color: var(--text-secondary) !important;
+    text-shadow: none !important;
+}
+
+/* Song list: convert to grid table layout (audiophile only) */
+html[data-theme="audiophile"] .song-list {
+    margin-top: 8px;
+}
+html[data-theme="audiophile"] .song-item {
+    display: grid !important;
+    grid-template-columns: 36px 32px 1fr 60px 32px 50px;
+    gap: 12px;
+    align-items: center;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 13px;
+    transition: background 0.1s;
+}
+/* Number column right-aligned, mono */
+html[data-theme="audiophile"] .song-item .song-number {
+    text-align: right !important;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--text-quaternary, var(--text-tertiary));
+    width: auto !important;
+}
+html[data-theme="audiophile"] .song-item .song-play-icon {
+    color: var(--accent);
+    font-size: 14px !important;
+    text-align: center !important;
+    margin: 0 !important;
+}
+html[data-theme="audiophile"] .song-item .song-thumbnail {
+    width: 32px !important;
+    height: 32px !important;
+    grid-column: 2;
+}
+html[data-theme="audiophile"] .song-item .song-info {
+    grid-column: 3;
+    min-width: 0;
+}
+html[data-theme="audiophile"] .song-item .song-duration {
+    grid-column: 4;
+    text-align: right !important;
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 11.5px;
+    color: var(--text-tertiary);
+}
+html[data-theme="audiophile"] .song-item .song-actions {
+    grid-column: 5 / span 2;
+    justify-content: flex-end;
+    display: flex;
+    gap: 4px;
+}
+html[data-theme="audiophile"] .song-item .song-action-btn {
+    background: transparent !important;
+    border: none !important;
+    color: var(--text-quaternary, var(--text-tertiary));
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 4px;
+    transition: color 0.12s, background 0.12s;
+}
+html[data-theme="audiophile"] .song-item .song-action-btn:hover {
+    color: var(--text-primary);
+    background: var(--bg-hover);
+}
+html[data-theme="audiophile"] .song-item .song-action-btn.active {
+    color: var(--accent);
+}
+html[data-theme="audiophile"] .song-item .favorite-btn.active {
+    color: var(--accent) !important;
+}
+
+/* Hover swap: number → play icon, hide number on hover */
+html[data-theme="audiophile"] .song-item .song-play-icon { display: none !important; }
+html[data-theme="audiophile"] .song-item:hover .song-number { display: none !important; }
+html[data-theme="audiophile"] .song-item:hover .song-play-icon { display: flex !important; align-items: center; justify-content: center; }
+html[data-theme="audiophile"] .song-item.playing .song-number { display: none !important; }
+html[data-theme="audiophile"] .song-item.playing .song-play-icon { display: flex !important; align-items: center; justify-content: center; }
+html[data-theme="audiophile"] .song-item.playing .song-title { color: var(--accent); }
+
+/* Action buttons row in album hero — group them tighter */
+html[data-theme="audiophile"] .album-header-info > div[style*="display: flex"] {
+    gap: 8px !important;
+}
+
+/* Genre badge in artist view (when present) */
+html[data-theme="audiophile"] .genre-badge {
+    background: var(--bg-elevated) !important;
+    border: 1px solid var(--border) !important;
+    color: var(--text-secondary) !important;
+    font-family: var(--font-mono) !important;
+    font-size: 11px !important;
+    letter-spacing: 0.05em !important;
+    text-shadow: none !important;
+    padding: 3px 10px !important;
+    border-radius: 20px !important;
+}
+
+/* Artist news items — keep readable on flat bg */
+html[data-theme="audiophile"] .news-item {
+    background: var(--bg-elevated) !important;
+    border-color: var(--border) !important;
+}
+
+/* "Manage" sticky bars: subtle audiophile look */
+html[data-theme="audiophile"] [id^="album-manage-bar-"],
+html[data-theme="audiophile"] [id^="song-manage-bar-"] {
+    background: var(--bg-elevated) !important;
+    border-color: var(--border) !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+}
+
+/* The "Edit" / "Manage" buttons that have inline backgrounds — flatten */
+html[data-theme="audiophile"] button[style*="background:var(--bg-tertiary)"] {
+    background: var(--bg-elevated) !important;
+    border: 1px solid var(--border) !important;
+}
+
+/* Back button — mono caps audiophile style instead of glass pill */
+html[data-theme="audiophile"] .back-btn {
+    background: transparent !important;
+    border: none !important;
+    color: var(--text-tertiary) !important;
+    text-shadow: none !important;
+    padding: 6px 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    transition: color 0.12s;
+}
+html[data-theme="audiophile"] .back-btn:hover {
+    background: transparent !important;
+    color: var(--accent) !important;
+    transform: none !important;
+    box-shadow: none !important;
+    border: none !important;
+}
