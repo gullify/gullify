@@ -5715,10 +5715,12 @@ body.npfs-open { overflow: hidden; }
    ═══════════════════════════════════════════════════════════════════════════ */
 @media (min-width: 1025px) {
     /* Use the ID selector to outrank the existing
-       `#unifiedQueueSidebar { right: -320px !important; }` rule. */
+       `#unifiedQueueSidebar { right: -320px !important; }` rule.
+       top:0 so the panel's tabs row sits at the same Y as the topbar's
+       search bar and the sidebar's brand header — three aligned 60px tops. */
     html[data-theme="audiophile"] #unifiedQueueSidebar {
         position: fixed !important;
-        top: 60px !important;
+        top: 0 !important;
         bottom: 70px !important;
         right: 0 !important;
         width: 340px;
