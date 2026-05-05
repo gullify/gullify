@@ -228,6 +228,11 @@ window.applyHeroColor = function(el, imgUrl) {
         if (castClose)  castClose.addEventListener('click',  () => closePopover('castPopover'));
         if (notifClose) notifClose.addEventListener('click', () => closePopover('notifPopover'));
 
+        const eqBtn = $('topbarEqBtn');
+        if (eqBtn) eqBtn.addEventListener('click', () => {
+            if (typeof window.openEqualizer === 'function') window.openEqualizer();
+        });
+
         if (settings) settings.addEventListener('click', () => {
             // Open the settings submenu and render the first section.
             // The nav-item[data-view="settings"] is a parent that toggles the

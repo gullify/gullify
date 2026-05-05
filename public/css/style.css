@@ -6281,3 +6281,193 @@ html[data-theme="audiophile"] .badge-dot {
 /* In audiophile, show the chip row and hide the legacy controls */
 html[data-theme="audiophile"] .albums-chips-row { display: flex; }
 html[data-theme="audiophile"] #albums-sort-select { display: none; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   EQUALIZER MODAL — audiophile theme
+   ═══════════════════════════════════════════════════════════════════════════ */
+.eq-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 10800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.eq-modal[hidden] { display: none; }
+.eq-backdrop {
+    position: absolute;
+    inset: 0;
+    background: oklch(0 0 0 / 0.55);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+}
+.eq-card {
+    position: relative;
+    z-index: 1;
+    width: 90%;
+    max-width: 540px;
+    background: var(--bg-elevated, #2a2a2e);
+    border: 1px solid var(--border, rgba(255,255,255,0.08));
+    border-radius: 14px;
+    padding: 22px 22px 18px;
+    box-shadow: 0 24px 60px -16px oklch(0 0 0 / 0.6);
+    color: var(--text-primary);
+}
+.eq-card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 18px;
+}
+.eq-card-head h3 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+}
+.eq-preset-label {
+    display: inline-block;
+    font-size: 10px;
+    letter-spacing: 0.10em;
+    text-transform: uppercase;
+    color: var(--text-tertiary);
+    margin-top: 4px;
+}
+.eq-card-actions {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+}
+.eq-enable {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+.eq-enable input[type="checkbox"] {
+    accent-color: var(--accent);
+    cursor: pointer;
+}
+
+/* Bands row */
+.eq-bands {
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+    gap: 4px;
+    height: 220px;
+    padding: 12px 8px;
+    background: var(--bg-primary, #1a1a1d);
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    margin-bottom: 14px;
+    position: relative;
+}
+.eq-bands::before {
+    /* 0 dB midline */
+    content: '';
+    position: absolute;
+    left: 12px; right: 12px;
+    top: 50%;
+    height: 1px;
+    background: var(--border-strong, var(--border));
+    opacity: 0.5;
+}
+.eq-band {
+    flex: 1 1 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+}
+.eq-band-value {
+    font-size: 10px;
+    color: var(--text-tertiary);
+    font-variant-numeric: tabular-nums;
+    height: 14px;
+    line-height: 14px;
+}
+.eq-band-label {
+    font-size: 10px;
+    color: var(--text-tertiary);
+    letter-spacing: 0.05em;
+    height: 12px;
+}
+
+/* Vertical slider */
+.eq-slider {
+    appearance: slider-vertical;
+    -webkit-appearance: slider-vertical;
+    writing-mode: vertical-lr; /* Firefox */
+    width: 6px;
+    height: 150px;
+    background: var(--border);
+    border-radius: 4px;
+    cursor: ns-resize;
+    accent-color: var(--accent);
+    margin: 0;
+}
+/* Webkit thumb */
+.eq-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 14px;
+    height: 6px;
+    background: var(--text-primary);
+    border-radius: 3px;
+    border: none;
+    cursor: ns-resize;
+    transition: background 0.15s, transform 0.15s;
+}
+.eq-slider:hover::-webkit-slider-thumb,
+.eq-slider:focus-visible::-webkit-slider-thumb {
+    background: var(--accent);
+    transform: scale(1.1);
+}
+.eq-slider::-moz-range-thumb {
+    width: 14px;
+    height: 6px;
+    background: var(--text-primary);
+    border-radius: 3px;
+    border: none;
+    cursor: ns-resize;
+}
+.eq-slider:hover::-moz-range-thumb,
+.eq-slider:focus-visible::-moz-range-thumb {
+    background: var(--accent);
+}
+.eq-slider:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: 4px;
+}
+
+/* Presets row — reuse the .chip styling already set in album chips */
+.eq-presets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+.eq-presets .chip {
+    background: var(--bg-primary, transparent);
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 5px 12px;
+    font-size: 11.5px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.eq-presets .chip:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+}
+.eq-presets .chip.active {
+    background: var(--accent-soft, rgba(255,180,80,0.18));
+    color: var(--accent);
+    border-color: oklch(0.78 0.14 65 / 0.4);
+}

@@ -111,6 +111,9 @@ try {
                                 <i class="ri-arrow-right-s-line"></i>
                             </button>
                         </div>
+                        <button class="topbar-icon-btn" id="topbarEqBtn" title="Égaliseur" aria-label="Equalizer">
+                            <i class="ri-equalizer-line"></i>
+                        </button>
                         <button class="topbar-icon-btn" id="topbarCastBtn" title="Diffuser" aria-label="Cast">
                             <i class="ri-cast-line"></i>
                         </button>
@@ -142,6 +145,30 @@ try {
 
     <!-- Menu overlay for mobile sidebar -->
     <div class="menu-overlay" id="menuOverlay"></div>
+
+    <!-- Equalizer modal (audiophile) -->
+    <div id="eqModal" class="eq-modal" hidden role="dialog" aria-label="Equalizer">
+        <div class="eq-backdrop" id="eqBackdrop"></div>
+        <div class="eq-card">
+            <div class="eq-card-head">
+                <div>
+                    <h3>Égaliseur</h3>
+                    <span class="mono eq-preset-label" id="eqPresetLabel">flat</span>
+                </div>
+                <div class="eq-card-actions">
+                    <label class="eq-enable">
+                        <input type="checkbox" id="eqEnabled" checked>
+                        <span>Activé</span>
+                    </label>
+                    <button class="topbar-icon-btn" id="eqClose" aria-label="Close">
+                        <i class="ri-close-line"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="eq-bands" id="eqBands"></div>
+            <div class="eq-presets" id="eqPresets"></div>
+        </div>
+    </div>
 
     <!-- Cast popover (audiophile, desktop) -->
     <div id="castPopover" class="cast-popover" hidden role="dialog" aria-label="Cast options">
@@ -339,6 +366,8 @@ try {
     <script src="player/unified-player.js?v=<?= filemtime(__DIR__ . '/player/unified-player.js') ?>"></script>
     <script src="js/app.js?v=<?= filemtime(__DIR__ . '/js/app.js') ?>"></script>
     <script src="js/ui.js?v=<?= filemtime(__DIR__ . '/js/ui.js') ?>"></script>
+    <script src="js/gullify-audio.js?v=<?= filemtime(__DIR__ . '/js/gullify-audio.js') ?>"></script>
+    <script src="js/equalizer.js?v=<?= filemtime(__DIR__ . '/js/equalizer.js') ?>"></script>
     <script src="js/now-playing-fs.js?v=<?= filemtime(__DIR__ . '/js/now-playing-fs.js') ?>"></script>
 </body>
 </html>

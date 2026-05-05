@@ -72,27 +72,17 @@
     }
 
     function ensureAnalyser() {
-        const player = getPlayer();
-        if (!player || !player.audio) return null;
         if (analyser) return analyser;
-
-        try {
-            const Ctx = window.AudioContext || window.webkitAudioContext;
-            if (!Ctx) return null;
-            audioCtx = new Ctx();
-            audioSrc = audioCtx.createMediaElementSource(player.audio);
-            analyser = audioCtx.createAnalyser();
-            analyser.fftSize = 128;
-            audioSrc.connect(analyser);
-            analyser.connect(audioCtx.destination);
-            return analyser;
-        } catch (e) {
-            // createMediaElementSource throws if already created. In that case,
-            // we silently fall back to a faux visualizer driven by time.
-            console.warn('Visualizer: real audio analyser unavailable, using fallback', e);
-            analyser = 'fallback';
-            return analyser;
+        // Prefer the shared gullifyAudio chain (which already owns the
+        // single MediaElementSource). Falls back to a faux visualizer if the
+        // chain failed to build (e.g. no AudioContext support).
+        if (window.gullifyAudio && window.gullifyAudio.ensure()) {
+            audioCtx  = window.gullifyAudio.getContext();
+            analyser  = window.gullifyAudio.getAnalyser();
+            if (analyser) return analyser;
         }
+        analyser = 'fallback';
+        return analyser;
     }
 
     function paintVisualizer() {
