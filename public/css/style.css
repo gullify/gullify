@@ -5709,3 +5709,319 @@ body.npfs-open { overflow: hidden; }
     .npfs-title { font-size: 26px; }
     .npfs-artist { font-size: 15px; }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   QUEUE PANEL — permanent right rail in audiophile theme (desktop only)
+   ═══════════════════════════════════════════════════════════════════════════ */
+@media (min-width: 1025px) {
+    html[data-theme="audiophile"] .queue-sidebar {
+        position: fixed !important;
+        top: 60px !important;
+        bottom: 70px !important;
+        right: 0 !important;
+        width: 340px;
+        background: var(--bg-primary);
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
+        border-left: 1px solid var(--border);
+        z-index: 50;
+        transition: transform 0.25s ease;
+    }
+    html[data-theme="audiophile"] .queue-sidebar.collapsed {
+        transform: translateX(100%);
+    }
+    /* Push the main content left so it doesn't slide under the queue panel */
+    html[data-theme="audiophile"] .main-content {
+        margin-right: 340px;
+        transition: margin-right 0.25s ease;
+    }
+    html[data-theme="audiophile"] .main-content.queue-collapsed {
+        margin-right: 0;
+    }
+    /* The mobile drawer is hidden — queue lives in the right rail */
+    html[data-theme="audiophile"] .mobile-now-playing { display: none !important; }
+}
+
+/* Tabs row — mono caps, accent underline on active */
+html[data-theme="audiophile"] .queue-sidebar-tabs {
+    display: flex;
+    background: var(--bg-primary);
+    border-bottom: 1px solid var(--border);
+    height: 60px;        /* match topbar */
+    flex-shrink: 0;
+    padding: 0 8px;
+    gap: 0;
+    align-items: stretch;
+}
+html[data-theme="audiophile"] .queue-sidebar-tab {
+    flex: 1;
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: var(--text-tertiary);
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    letter-spacing: 0.10em;
+    text-transform: uppercase;
+    cursor: pointer;
+    display: flex;
+    flex-direction: row;
+    gap: 6px;
+    align-items: center;
+    justify-content: center;
+    padding: 0 6px;
+    transition: color 0.15s, border-color 0.15s;
+}
+html[data-theme="audiophile"] .queue-sidebar-tab i {
+    font-size: 14px;
+}
+html[data-theme="audiophile"] .queue-sidebar-tab:hover {
+    color: var(--text-primary);
+    background: transparent;
+}
+html[data-theme="audiophile"] .queue-sidebar-tab.active {
+    color: var(--text-primary);
+    border-bottom-color: var(--accent);
+    background: transparent;
+}
+
+/* Panel header — sentence-case title + ghost clear button */
+html[data-theme="audiophile"] .queue-header {
+    padding: 16px 20px 14px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+html[data-theme="audiophile"] .queue-header h3 {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+}
+html[data-theme="audiophile"] .queue-clear-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-tertiary);
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    cursor: pointer;
+    padding: 0;
+    transition: color 0.15s;
+}
+html[data-theme="audiophile"] .queue-clear-btn:hover {
+    color: var(--accent);
+}
+
+/* Queue list items — denser, mono duration, accent on playing */
+html[data-theme="audiophile"] .queue-list { padding: 8px 8px 24px; }
+html[data-theme="audiophile"] .queue-item {
+    padding: 8px;
+    gap: 10px;
+    border-radius: 6px;
+    align-items: center;
+}
+html[data-theme="audiophile"] .queue-item:hover { background: var(--bg-elevated); }
+html[data-theme="audiophile"] .queue-item.active { background: var(--bg-elevated); }
+html[data-theme="audiophile"] .queue-item.active .queue-item-title {
+    color: var(--accent);
+}
+html[data-theme="audiophile"] .queue-item-thumbnail {
+    width: 36px;
+    height: 36px;
+    border-radius: 4px;
+    flex-shrink: 0;
+}
+html[data-theme="audiophile"] .queue-item-info { min-width: 0; }
+html[data-theme="audiophile"] .queue-item-title {
+    font-size: 12.5px;
+    font-weight: 500;
+}
+html[data-theme="audiophile"] .queue-item-artist {
+    font-size: 11px;
+    color: var(--text-tertiary);
+}
+
+/* Empty state — calmer mono caps */
+html[data-theme="audiophile"] .queue-sidebar-panel .empty-state p {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-tertiary);
+}
+
+/* Mobile (≤1024px) — keep existing drawer behavior, no permanent rail */
+@media (max-width: 1024px) {
+    html[data-theme="audiophile"] .queue-sidebar {
+        /* fall back to default drawer */
+    }
+    html[data-theme="audiophile"] .main-content { margin-right: 0; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   PLAYER BAR BUTTONS — audiophile theme
+   Match the design: ghost icons, white-circle play, accent on active.
+   ═══════════════════════════════════════════════════════════════════════════ */
+html[data-theme="audiophile"] #unified-player-container .player-buttons,
+html[data-theme="audiophile"] .unified-player .player-buttons {
+    gap: 14px;
+    align-items: center;
+}
+
+html[data-theme="audiophile"] #unified-player-container .player-btn,
+html[data-theme="audiophile"] .unified-player .player-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text-secondary);
+    opacity: 1;
+    transition: background 0.15s, color 0.15s, transform 0.12s;
+    padding: 0;
+}
+html[data-theme="audiophile"] #unified-player-container .player-btn svg,
+html[data-theme="audiophile"] .unified-player .player-btn svg {
+    width: 18px;
+    height: 18px;
+}
+html[data-theme="audiophile"] #unified-player-container .player-btn:hover,
+html[data-theme="audiophile"] .unified-player .player-btn:hover {
+    color: var(--text-primary);
+    background: var(--bg-hover);
+    opacity: 1;
+}
+html[data-theme="audiophile"] #unified-player-container .player-btn.active,
+html[data-theme="audiophile"] .unified-player .player-btn.active {
+    color: var(--accent);
+    opacity: 1;
+}
+
+/* Play button — white circle with dark icon */
+html[data-theme="audiophile"] #unified-player-container .player-btn.play-btn,
+html[data-theme="audiophile"] .unified-player .player-btn.play-btn {
+    width: 38px;
+    height: 38px;
+    background: var(--text-primary) !important;
+    color: var(--bg-primary);
+    border-radius: 50%;
+    box-shadow: 0 2px 8px oklch(0 0 0 / 0.3);
+}
+html[data-theme="audiophile"] #unified-player-container .player-btn.play-btn:hover,
+html[data-theme="audiophile"] .unified-player .player-btn.play-btn:hover {
+    transform: scale(1.06);
+    background: var(--text-primary) !important;
+    color: var(--bg-primary);
+}
+html[data-theme="audiophile"] #unified-player-container .player-btn.play-btn svg,
+html[data-theme="audiophile"] .unified-player .player-btn.play-btn svg {
+    width: 16px;
+    height: 16px;
+}
+
+/* Favorite — accent when active (replaces the hard-red svg) */
+html[data-theme="audiophile"] #unified-player-container .player-btn.favorite.active,
+html[data-theme="audiophile"] .unified-player .player-btn.favorite.active {
+    color: var(--accent);
+}
+html[data-theme="audiophile"] #unified-player-container .player-btn.favorite.active svg,
+html[data-theme="audiophile"] .unified-player .player-btn.favorite.active svg {
+    fill: var(--accent);
+    stroke: var(--accent);
+}
+
+/* Time display — mono tabular, smaller */
+html[data-theme="audiophile"] #unified-player-container .player-time,
+html[data-theme="audiophile"] .unified-player .player-time {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 10.5px;
+    color: var(--text-tertiary);
+    gap: 4px;
+}
+
+/* Volume slider — thinner, accent fill on hover */
+html[data-theme="audiophile"] #unified-player-container .volume-slider,
+html[data-theme="audiophile"] .unified-player .volume-slider {
+    width: 90px;
+    height: 4px;
+    background: var(--border);
+    border-radius: 4px;
+    -webkit-appearance: none;
+    appearance: none;
+    outline: none;
+    cursor: pointer;
+}
+html[data-theme="audiophile"] #unified-player-container .volume-slider::-webkit-slider-thumb,
+html[data-theme="audiophile"] .unified-player .volume-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 12px;
+    height: 12px;
+    background: var(--text-primary);
+    border-radius: 50%;
+    border: none;
+    cursor: pointer;
+    transition: background 0.15s, transform 0.15s;
+}
+html[data-theme="audiophile"] #unified-player-container .volume-slider:hover::-webkit-slider-thumb,
+html[data-theme="audiophile"] .unified-player .volume-slider:hover::-webkit-slider-thumb {
+    background: var(--accent);
+    transform: scale(1.15);
+}
+html[data-theme="audiophile"] #unified-player-container .volume-slider::-moz-range-thumb,
+html[data-theme="audiophile"] .unified-player .volume-slider::-moz-range-thumb {
+    width: 12px;
+    height: 12px;
+    background: var(--text-primary);
+    border-radius: 50%;
+    border: none;
+    cursor: pointer;
+}
+html[data-theme="audiophile"] #unified-player-container .volume-slider:hover::-moz-range-thumb,
+html[data-theme="audiophile"] .unified-player .volume-slider:hover::-moz-range-thumb {
+    background: var(--accent);
+}
+
+/* Player song info — tighter, mono specs */
+html[data-theme="audiophile"] #unified-player-container .player-song-info,
+html[data-theme="audiophile"] .unified-player .player-song-info {
+    gap: 12px;
+}
+html[data-theme="audiophile"] #unified-player-container .player-album-cover,
+html[data-theme="audiophile"] .unified-player .player-album-cover {
+    width: 48px;
+    height: 48px;
+    border-radius: 6px;
+}
+html[data-theme="audiophile"] #unified-player-container .player-song-title,
+html[data-theme="audiophile"] .unified-player .player-song-title {
+    font-size: 13px;
+    font-weight: 500;
+}
+html[data-theme="audiophile"] #unified-player-container .player-song-artist,
+html[data-theme="audiophile"] .unified-player .player-song-artist {
+    font-size: 11.5px;
+    color: var(--text-tertiary);
+}
+html[data-theme="audiophile"] #unified-player-container .player-audio-specs,
+html[data-theme="audiophile"] .unified-player .player-audio-specs {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-quaternary);
+    letter-spacing: 0.04em;
+}
+
+/* Progress bar at the top — accent on hover */
+html[data-theme="audiophile"] #unified-player-container .player-progress,
+html[data-theme="audiophile"] .unified-player .player-progress {
+    height: 3px;
+    background: var(--border);
+    transition: height 0.12s;
+}
+html[data-theme="audiophile"] #unified-player-container .player-progress:hover,
+html[data-theme="audiophile"] .unified-player .player-progress:hover {
+    height: 5px;
+}

@@ -121,6 +121,45 @@ window.applyHeroColor = function(el, imgUrl) {
 };
 
 /**
+ * Audiophile-only: queue panel collapse toggle.
+ * The right-rail queue is permanent in audiophile-desktop, but the existing
+ * queue-toggle button still wires up to slide via the legacy .open class.
+ * Here we add a complementary handler that flips .collapsed on the sidebar
+ * and .queue-collapsed on .main-content, so users can hide the panel for a
+ * full-width main view. State persists across sessions.
+ */
+(function () {
+    function isAudiophileDesktop() {
+        return document.documentElement.getAttribute('data-theme') === 'audiophile'
+            && window.innerWidth >= 1025;
+    }
+    function bindQueueCollapse() {
+        const btn = document.getElementById('unifiedQueueToggle');
+        const sidebar = document.getElementById('unifiedQueueSidebar');
+        const main = document.querySelector('.main-content');
+        if (!btn || !sidebar || !main) { setTimeout(bindQueueCollapse, 250); return; }
+
+        const stored = localStorage.getItem('gullifyQueueCollapsed') === '1';
+        if (isAudiophileDesktop() && stored) {
+            sidebar.classList.add('collapsed');
+            main.classList.add('queue-collapsed');
+        }
+
+        btn.addEventListener('click', () => {
+            if (!isAudiophileDesktop()) return;
+            const collapsed = sidebar.classList.toggle('collapsed');
+            main.classList.toggle('queue-collapsed', collapsed);
+            localStorage.setItem('gullifyQueueCollapsed', collapsed ? '1' : '0');
+        });
+    }
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', bindQueueCollapse);
+    } else {
+        bindQueueCollapse();
+    }
+})();
+
+/**
  * UI State Helpers
  */
 function showLoading() {
