@@ -3064,7 +3064,7 @@
                             </button>
                         </div>
 
-                        <div style="display: flex; align-items: center; gap: 20px; margin-bottom: 30px;">
+                        <div class="artist-header-container">
                             <div>
                                 <div id="artist-avatar-${artistId}" class="artist-avatar-large" style="cursor:pointer;position:relative;" onclick="openArtistArtworkEditor(${artistId}, '${(artist.imageUrl || '').replace(/'/g, "\\'")}', '${artist.name.replace(/'/g, "\\'")}')">
                                     ${artist.imageUrl ? '<img src="' + artist.imageUrl + '" style="width:100%;height:100%;object-fit:cover;">' : '<span style="color:white;font-size:48px;font-weight:700;">' + artist.name.charAt(0).toUpperCase() + '</span>'}
@@ -3181,6 +3181,14 @@
                     showArtistBackground(artist.imageUrl);
                 } else {
                     hideAlbumBackground();
+                }
+
+                // Tint the audiophile hero gradient with the artist image's dominant color
+                if (window.applyHeroColor && artist.imageUrl) {
+                    window.applyHeroColor(
+                        contentBody.querySelector('.artist-header-container'),
+                        artist.imageUrl
+                    );
                 }
 
                 // Album covers are now loaded directly from API response via artworkUrl
@@ -3665,6 +3673,14 @@
                     showAlbumBackground(albumData.artworkUrl);
                 } else {
                     hideAlbumBackground();
+                }
+
+                // Tint the audiophile hero gradient with the cover's dominant color
+                if (window.applyHeroColor && albumData.artworkUrl) {
+                    window.applyHeroColor(
+                        contentBody.querySelector('.album-header-container'),
+                        albumData.artworkUrl
+                    );
                 }
 
                 // Store album data for playback

@@ -5255,3 +5255,164 @@ html[data-theme="audiophile"] #unified-player-container .player-progress:hover .
 html[data-theme="audiophile"] .unified-player .player-progress:hover .player-progress-bar {
     background: var(--accent);
 }
+
+/* ───── Album / Artist hero (audiophile) ───── */
+html[data-theme="audiophile"] .album-header-container,
+html[data-theme="audiophile"] .artist-header-container {
+    display: grid !important;
+    grid-template-columns: 240px 1fr;
+    gap: 28px;
+    align-items: end;
+    margin-bottom: 32px !important;
+    padding: 32px 0 8px;
+    position: relative;
+    isolation: isolate;
+}
+html[data-theme="audiophile"] .album-header-container::before,
+html[data-theme="audiophile"] .artist-header-container::before {
+    content: "";
+    position: absolute;
+    inset: -32px -32px 0 -32px;
+    background: linear-gradient(180deg,
+        var(--hero-color, oklch(0.30 0.06 250 / 0.4)) 0%,
+        transparent 100%);
+    z-index: -1;
+    pointer-events: none;
+    border-radius: 0 0 var(--radius-lg, 14px) var(--radius-lg, 14px);
+}
+
+/* Cover & avatar — large hero size */
+html[data-theme="audiophile"] .album-cover-large,
+html[data-theme="audiophile"] .artist-avatar-large {
+    width: 240px !important;
+    height: 240px !important;
+    border-radius: 14px !important;
+    box-shadow: 0 24px 60px -16px oklch(0 0 0 / 0.6);
+    background: var(--placeholder-gradient);
+}
+
+/* Meta column */
+html[data-theme="audiophile"] .album-header-info,
+html[data-theme="audiophile"] .artist-header-container > div:nth-child(2) {
+    color: var(--text-primary) !important;
+    text-shadow: none !important;
+    display: flex;
+    flex-direction: column;
+    justify-content: end;
+    min-width: 0;
+}
+
+/* Mono caps "ALBUM" / "ARTIST" label — overrides inline-styled <p> */
+html[data-theme="audiophile"] .album-header-info > p:first-child {
+    font-family: var(--font-mono) !important;
+    font-size: 11px !important;
+    letter-spacing: 0.10em !important;
+    text-transform: uppercase !important;
+    color: var(--text-tertiary) !important;
+    text-shadow: none !important;
+    font-weight: 500 !important;
+    margin-bottom: 10px !important;
+}
+
+/* Title — big audiophile wordmark */
+html[data-theme="audiophile"] .album-title,
+html[data-theme="audiophile"] .artist-header-container h2 {
+    font-size: 48px !important;
+    font-weight: 700 !important;
+    letter-spacing: -0.025em !important;
+    line-height: 1.05 !important;
+    color: var(--text-primary) !important;
+    text-shadow: none !important;
+    margin: 0 0 14px !important;
+    overflow-wrap: break-word !important;
+    white-space: normal !important;
+    text-overflow: clip !important;
+    overflow: visible !important;
+}
+
+/* Subtitle row (artist • year • #songs) */
+html[data-theme="audiophile"] .album-header-info > p:nth-of-type(2),
+html[data-theme="audiophile"] .artist-header-container p {
+    font-size: 13px !important;
+    color: var(--text-secondary) !important;
+    text-shadow: none !important;
+    margin-bottom: 16px !important;
+}
+
+/* Action row — primary play in amber, others ghost-secondary */
+html[data-theme="audiophile"] .album-action-btn {
+    background: var(--bg-elevated) !important;
+    color: var(--text-primary) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 8px !important;
+    padding: 9px 16px !important;
+    font-size: 13px !important;
+    font-weight: 500 !important;
+    text-shadow: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    box-shadow: none !important;
+}
+html[data-theme="audiophile"] .album-action-btn:hover {
+    background: var(--bg-hover) !important;
+    border-color: var(--border-strong) !important;
+    transform: none !important;
+    box-shadow: none !important;
+}
+html[data-theme="audiophile"] .album-play-btn {
+    background: var(--accent) !important;
+    color: var(--accent-text) !important;
+    border-color: transparent !important;
+}
+html[data-theme="audiophile"] .album-play-btn:hover {
+    background: var(--accent-strong) !important;
+}
+
+/* Glass action button (artist Play All) — same treatment */
+html[data-theme="audiophile"] .glass-action-btn {
+    background: var(--accent) !important;
+    color: var(--accent-text) !important;
+    border: none !important;
+    border-radius: 8px !important;
+    padding: 9px 16px !important;
+    font-size: 13px !important;
+    font-weight: 500 !important;
+    text-shadow: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    box-shadow: none !important;
+}
+html[data-theme="audiophile"] .glass-action-btn:hover {
+    background: var(--accent-strong) !important;
+    transform: none !important;
+}
+
+/* Genre pill in artist hero */
+html[data-theme="audiophile"] .artist-header-container .genre-badge {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.05em;
+}
+
+/* Mobile — collapse hero to single column */
+@media (max-width: 760px) {
+    html[data-theme="audiophile"] .album-header-container,
+    html[data-theme="audiophile"] .artist-header-container {
+        grid-template-columns: 1fr !important;
+        gap: 16px !important;
+        text-align: left;
+        padding: 16px 0 4px;
+    }
+    html[data-theme="audiophile"] .album-cover-large,
+    html[data-theme="audiophile"] .artist-avatar-large {
+        width: 200px !important;
+        height: 200px !important;
+    }
+    html[data-theme="audiophile"] .album-title,
+    html[data-theme="audiophile"] .artist-header-container h2 {
+        font-size: 32px !important;
+    }
+}

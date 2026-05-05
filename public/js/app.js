@@ -60,6 +60,67 @@ function showToast(message, type = 'info') {
 }
 
 /**
+ * Extract a representative dominant color from an image URL.
+ * Returns a Promise resolving to an oklch() color string, or a sensible fallback.
+ * Used by the audiophile theme to tint album/artist hero backdrops.
+ */
+window._heroColorCache = {};
+window.extractHeroColor = function(imgUrl) {
+    if (!imgUrl) return Promise.resolve('oklch(0.30 0.06 250 / 0.4)');
+    if (window._heroColorCache[imgUrl]) return Promise.resolve(window._heroColorCache[imgUrl]);
+    return new Promise((resolve) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        const fallback = 'oklch(0.30 0.06 250 / 0.4)';
+        img.onerror = () => resolve(fallback);
+        img.onload = () => {
+            try {
+                const size = 32;
+                const canvas = document.createElement('canvas');
+                canvas.width = size; canvas.height = size;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, size, size);
+                const data = ctx.getImageData(0, 0, size, size).data;
+                // Pick the most saturated, mid-luminance pixel
+                let bestR = 0, bestG = 0, bestB = 0, bestScore = -1;
+                for (let i = 0; i < data.length; i += 4) {
+                    const r = data[i], g = data[i+1], b = data[i+2], a = data[i+3];
+                    if (a < 128) continue;
+                    const max = Math.max(r, g, b), min = Math.min(r, g, b);
+                    const lum = (max + min) / 2 / 255;
+                    const sat = max === 0 ? 0 : (max - min) / max;
+                    // Reward saturation, penalize extreme darks/lights
+                    const score = sat * (1 - Math.abs(lum - 0.5));
+                    if (score > bestScore) {
+                        bestScore = score;
+                        bestR = r; bestG = g; bestB = b;
+                    }
+                }
+                const hex = '#' +
+                    [bestR, bestG, bestB].map(v => v.toString(16).padStart(2, '0')).join('');
+                // Use oklch with limited chroma + 0.4 alpha for a soft hero gradient
+                const color = `color-mix(in oklch, ${hex} 55%, transparent)`;
+                window._heroColorCache[imgUrl] = color;
+                resolve(color);
+            } catch (e) {
+                resolve(fallback);
+            }
+        };
+        img.src = imgUrl;
+    });
+};
+
+/**
+ * Apply the extracted hero color to an element as the --hero-color CSS variable.
+ */
+window.applyHeroColor = function(el, imgUrl) {
+    if (!el) return;
+    window.extractHeroColor(imgUrl).then(color => {
+        el.style.setProperty('--hero-color', color);
+    });
+};
+
+/**
  * UI State Helpers
  */
 function showLoading() {
