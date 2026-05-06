@@ -70,6 +70,10 @@
                 <i class="ri-folder-music-line"></i>
                 <span data-i18n="scan.library">Bibliothèque</span>
             </div>
+            <div class="nav-subitem" data-settings-section="apps">
+                <i class="ri-smartphone-line"></i>
+                <span data-i18n="settings.apps">Applications</span>
+            </div>
             <?php if (!empty($_SESSION['is_admin'])): ?>
             <div class="nav-subitem" data-settings-section="admin">
                 <i class="ri-shield-user-line"></i>

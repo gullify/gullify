@@ -13,6 +13,10 @@ $_allowedThemes = ['audiophile', 'dark', 'midnight', 'sunset', 'forest', 'aurora
 $appTheme = $_COOKIE['gullify_theme'] ?? 'audiophile';
 if (!in_array($appTheme, $_allowedThemes, true)) $appTheme = 'audiophile';
 
+// Apps download metadata (Android APK link surfaced in Settings → Apps)
+$androidUrl     = AppConfig::get('apps.android.url',     'https://download.gullify.app/gullify-latest.apk');
+$androidVersion = AppConfig::get('apps.android.version', '');
+
 // Redirect to setup wizard if not configured
 if (!AppConfig::isSetupDone()) {
     header('Location: /setup/');
@@ -362,6 +366,8 @@ try {
             sftpUser: <?= json_encode($currentSftpUser) ?>,
             sftpPath: <?= json_encode($currentSftpPath) ?>,
             isAdmin: <?= !empty($_SESSION['is_admin']) ? 'true' : 'false' ?>,
+            androidUrl:     <?= json_encode($androidUrl) ?>,
+            androidVersion: <?= json_encode($androidVersion) ?>,
             currentView: 'home',
             library: null,
             favorites: [],

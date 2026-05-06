@@ -4835,6 +4835,53 @@
             `;
         }
 
+        // Settings → Apps : download links for native clients (Android for now)
+        function getSettingsAppsHtml() {
+            const url = (app.androidUrl || '').trim();
+            if (!url) {
+                return `
+                    <div class="settings-section">
+                        <div class="settings-section-title"><i class="ri-smartphone-line"></i> ${t('settings.apps','Applications')}</div>
+                        <div style="font-size:13px;color:var(--text-secondary);">
+                            ${t('settings.apps_disabled','Aucune application disponible pour le moment.')}
+                        </div>
+                    </div>
+                `;
+            }
+            const version = app.androidVersion ? `v${escapeHtml(app.androidVersion)}` : '';
+            return `
+                <div class="settings-section">
+                    <div class="settings-section-title"><i class="ri-smartphone-line"></i> ${t('settings.apps','Applications')}</div>
+
+                    <div class="settings-row">
+                        <div class="settings-row-label">
+                            <span style="display:flex;align-items:center;gap:8px;">
+                                <i class="ri-android-line" style="color:var(--accent);font-size:18px;"></i>
+                                ${t('settings.android_app','Application Android')}
+                                ${version ? `<span class="mono" style="font-size:11px;color:var(--text-tertiary);letter-spacing:0.05em;">${version}</span>` : ''}
+                            </span>
+                            <span>${t('settings.android_desc','Player Gullify natif pour téléphones et tablettes Android. Installation manuelle (APK).')}</span>
+                        </div>
+                        <a class="btn btn-primary" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" download style="flex-shrink:0;text-decoration:none;">
+                            <i class="ri-download-2-line"></i>
+                            <span>${t('common.download','Télécharger')} APK</span>
+                        </a>
+                    </div>
+
+                    <div style="margin-top:12px;padding:12px 14px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:10px;">
+                        <div style="font-size:11px;letter-spacing:0.06em;text-transform:uppercase;color:var(--text-tertiary);font-family:var(--font-mono);margin-bottom:6px;">
+                            ${t('settings.install_note','Installation')}
+                        </div>
+                        <div style="font-size:12.5px;color:var(--text-secondary);line-height:1.55;">
+                            ${t('settings.android_install_step1','1. Active <strong>Sources inconnues</strong> dans les paramètres Android.')}<br>
+                            ${t('settings.android_install_step2','2. Ouvre le fichier APK téléchargé et accepte les permissions.')}<br>
+                            ${t('settings.android_install_step3', "3. À l'ouverture, entre l'URL de ton serveur Gullify et tes identifiants.")}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
         function getSettingsAdminHtml() {
             return `
                 <div class="settings-section" id="adminUsersSection">
@@ -4879,6 +4926,7 @@
                 case 'appearance': return getSettingsAppearanceHtml();
                 case 'language':   return getSettingsLanguageHtml();
                 case 'library':    return getSettingsLibraryHtml();
+                case 'apps':       return getSettingsAppsHtml();
                 case 'admin':      return getSettingsAdminHtml();
                 default:           return getSettingsAppearanceHtml();
             }

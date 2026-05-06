@@ -264,6 +264,8 @@ class AppConfig {
             'APP_DEBUG' => 'app.debug',
             'APP_SECRET' => 'app.secret',
             'LASTFM_API_KEY' => 'lastfm.api_key',
+            'GULLIFY_ANDROID_URL'     => 'apps.android.url',
+            'GULLIFY_ANDROID_VERSION' => 'apps.android.version',
         ];
 
         foreach ($envMap as $envKey => $configKey) {
@@ -288,6 +290,8 @@ class AppConfig {
             'APP_DEBUG' => 'app.debug',
             'APP_SECRET' => 'app.secret',
             'LASTFM_API_KEY' => 'lastfm.api_key',
+            'GULLIFY_ANDROID_URL'     => 'apps.android.url',
+            'GULLIFY_ANDROID_VERSION' => 'apps.android.version',
         ];
 
         if (isset($map[$key])) {
