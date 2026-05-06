@@ -144,6 +144,7 @@ function serveLocalFile($path) {
     $mtime = (int)filemtime($path);
     $etag  = '"' . $mtime . '"';
 
+    // no-cache forces the browser to revalidate; the 304 path makes that cheap.
     header('Cache-Control: no-cache');
     header('Last-Modified: ' . gmdate('D, d M Y H:i:s', $mtime) . ' GMT');
     header('ETag: ' . $etag);
@@ -170,8 +171,18 @@ function serveBase64($data) {
 }
 
 function serveBinary($bin, $mime = 'image/jpeg') {
+    // Use the content hash as ETag so updates invalidate the browser cache.
+    // no-cache here is "must revalidate" — when the data hasn't changed the
+    // browser gets a fast 304 (no body); when it has, it gets the new bytes.
+    $etag = '"' . substr(md5($bin), 0, 16) . '"';
     header('Content-Type: ' . $mime);
-    header('Cache-Control: public, max-age=31536000');
+    header('Cache-Control: no-cache');
+    header('ETag: ' . $etag);
+    header('Last-Modified: ' . gmdate('D, d M Y H:i:s', time()) . ' GMT');
+    if (trim($_SERVER['HTTP_IF_NONE_MATCH'] ?? '') === $etag) {
+        http_response_code(304);
+        exit;
+    }
     header('Content-Length: ' . strlen($bin));
     echo $bin;
     exit;

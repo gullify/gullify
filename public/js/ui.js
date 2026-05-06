@@ -237,6 +237,84 @@
             document.getElementById('artworkEditorOverlay').style.display = 'flex';
         }
 
+        // ── Artist images batch (Deezer auto-HD for all artists of the user) ──
+        let _artistBatchPollTimer = null;
+
+        function startArtistImageBatch(onlyMissing) {
+            const fd = new FormData();
+            fd.append('only_missing', onlyMissing ? '1' : '0');
+            const params = new URLSearchParams({ action: 'start', only_missing: onlyMissing ? '1' : '0' });
+            fetch(`${BASE_PATH}/batch_fetch_artist_images.php?${params}`, { method: 'POST' })
+                .then(r => r.json())
+                .then(j => {
+                    if (!j.success) {
+                        showToast(j.error || 'Erreur', 'error');
+                        return;
+                    }
+                    document.getElementById('artist-batch-progress').style.display = 'block';
+                    pollArtistImageBatch();
+                })
+                .catch(e => showToast('Erreur : ' + e.message, 'error'));
+        }
+        window.startArtistImageBatch = startArtistImageBatch;
+
+        function cancelArtistImageBatch() {
+            fetch(`${BASE_PATH}/batch_fetch_artist_images.php?action=cancel`, { method: 'POST' });
+        }
+        window.cancelArtistImageBatch = cancelArtistImageBatch;
+
+        async function pollArtistImageBatch() {
+            try {
+                const r = await fetch(`${BASE_PATH}/batch_fetch_artist_images.php?action=status`);
+                const j = await r.json();
+                const s = j.state || {};
+                const total     = s.total     || 0;
+                const processed = s.processed || 0;
+                const updated   = s.updated   || 0;
+                const skipped   = s.skipped   || 0;
+                const failed    = s.failed    || 0;
+                const pct       = total > 0 ? Math.round(processed / total * 100) : 0;
+                const phase     = s.phase || (s.running ? 'running' : 'idle');
+
+                const bar    = document.getElementById('artist-batch-bar');
+                const pctEl  = document.getElementById('artist-batch-percent');
+                const stEl   = document.getElementById('artist-batch-status');
+                const curEl  = document.getElementById('artist-batch-current');
+                if (bar)   bar.style.width = pct + '%';
+                if (pctEl) pctEl.textContent = pct + '%';
+
+                if (phase === 'done') {
+                    if (stEl) stEl.textContent = `Terminé · ${updated} mis à jour, ${skipped} ignorés, ${failed} échecs`;
+                    if (curEl) curEl.textContent = '';
+                    clearInterval(_artistBatchPollTimer);
+                    _artistBatchPollTimer = null;
+                    setTimeout(() => {
+                        const wrap = document.getElementById('artist-batch-progress');
+                        if (wrap) wrap.style.display = 'none';
+                    }, 4000);
+                    showToast(`Photos artistes : ${updated} mises à jour`, 'success');
+                } else if (phase === 'cancelled') {
+                    if (stEl) stEl.textContent = `Annulé à ${processed}/${total}`;
+                    clearInterval(_artistBatchPollTimer);
+                    _artistBatchPollTimer = null;
+                } else if (phase === 'error') {
+                    if (stEl) stEl.textContent = 'Erreur : ' + (s.last_error || 'inconnue');
+                    clearInterval(_artistBatchPollTimer);
+                    _artistBatchPollTimer = null;
+                } else {
+                    if (stEl)  stEl.textContent  = `${processed}/${total} · ${updated} ok, ${skipped} skip, ${failed} fail`;
+                    if (curEl) curEl.textContent = s.current || '';
+                }
+            } catch (e) { /* keep polling */ }
+        }
+        if (!_artistBatchPollTimer) {
+            _artistBatchPollTimer = setInterval(() => {
+                if (document.getElementById('artist-batch-progress')?.style.display === 'block') {
+                    pollArtistImageBatch();
+                }
+            }, 1500);
+        }
+
         // Auto-fetch a 1000×1000 picture from Deezer for the current artist.
         // On success, refreshes the avatar in the artist view + grid + bg.
         async function autoFetchArtistImage() {
@@ -4679,6 +4757,44 @@
                             <i class="ri-image-line"></i>
                             <span>${t('common.run', 'Lancer')}</span>
                         </button>
+                    </div>
+                    <div class="settings-row">
+                        <div class="settings-row-label">
+                            <span>${t('scan.artist_hd', "Photos d'artistes HD (Deezer)")}</span>
+                            <span>${t('scan.artist_hd_desc', "Récupère une image 1000×1000 pour chaque artiste depuis l'API publique de Deezer")}</span>
+                        </div>
+                        <div style="display:flex;gap:6px;flex-shrink:0;">
+                            <button class="btn btn-secondary" onclick="startArtistImageBatch(true)" style="flex-shrink:0;" title="${t('scan.artist_hd_missing','Manquantes uniquement')}">
+                                <i class="ri-magic-line"></i>
+                                <span>${t('scan.artist_hd_missing','Manquantes')}</span>
+                            </button>
+                            <button class="btn btn-secondary" onclick="startArtistImageBatch(false)" style="flex-shrink:0;" title="${t('scan.artist_hd_all','Toutes')}">
+                                <i class="ri-refresh-line"></i>
+                                <span>${t('common.all','Toutes')}</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="artist-batch-progress" style="display:none;margin-top:-10px;margin-bottom:20px;">
+                    <div class="settings-section" style="border:1px solid var(--accent);background:rgba(var(--accent-rgb),0.05);">
+                        <div class="settings-section-title">
+                            <i class="ri-loader-4-line"></i>
+                            <span>${t('scan.artist_hd_progress', 'Récupération des photos artistes')}</span>
+                        </div>
+                        <div style="display:flex;justify-content:space-between;margin-bottom:6px;font-size:13px;">
+                            <span id="artist-batch-status">—</span>
+                            <span id="artist-batch-percent" style="color:var(--accent);font-weight:600;">0%</span>
+                        </div>
+                        <div style="width:100%;height:8px;background:var(--hover-bg);border-radius:4px;overflow:hidden;margin-bottom:8px;">
+                            <div id="artist-batch-bar" style="width:0%;height:100%;background:var(--accent);border-radius:4px;transition:width 0.3s ease;"></div>
+                        </div>
+                        <div id="artist-batch-current" style="font-size:11px;color:var(--text-secondary);font-family:monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></div>
+                        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px;">
+                            <button class="btn btn-secondary btn-sm" onclick="cancelArtistImageBatch()">
+                                <i class="ri-close-line"></i> ${t('common.cancel','Annuler')}
+                            </button>
+                        </div>
                     </div>
                 </div>
 
