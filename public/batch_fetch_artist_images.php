@@ -1,14 +1,21 @@
 <?php
 /**
- * Gullify — Batch Deezer fetch for all artist images of the current user.
+ * Gullify — Chunked HD artist images fetcher.
  *
- *   POST ?action=start  → kick off a background process; returns immediately
- *   GET  ?action=status → live progress (read-only)
- *   POST ?action=cancel → request cancellation (cooperative, checked on each tick)
+ *   POST ?action=start[&only_missing=1]   → initialise state, return first status
+ *   POST ?action=process[&chunk=N]        → process next N artists (default 1), return state
+ *   POST ?action=cancel                   → stop after current chunk
+ *   POST ?action=reset                    → wipe state (use to recover from stuck "already running")
+ *   GET  ?action=status                   → current state, no work
  *
- * Progress is written to /tmp/gullify-artist-batch-{user}.json so multiple
- * users don't collide. The worker itself runs as the same PHP process via a
- * detached background command.
+ * Each artist tries:
+ *   1) YouTube Music (best for francophone / niche; via python/ytmusic_search.py)
+ *   2) Deezer (fallback when YT has nothing)
+ *
+ * State lives in /tmp/gullify-artist-batch-{user}.json.
+ *
+ * No detached worker, no exec, no cron. The frontend pings this endpoint
+ * every couple of seconds and each call does ~1 chunk of synchronous work.
  */
 
 ini_set('display_errors', 0);
@@ -29,16 +36,15 @@ if ($user === '') {
 
 function progressFile(string $user): string
 {
-    $base = sys_get_temp_dir();
-    return $base . '/gullify-artist-batch-' . preg_replace('/[^a-z0-9_]/i', '_', $user) . '.json';
+    return sys_get_temp_dir() . '/gullify-artist-batch-' . preg_replace('/[^a-z0-9_]/i', '_', $user) . '.json';
 }
 
 function readProgress(string $user): array
 {
     $f = progressFile($user);
-    if (!file_exists($f)) return ['running' => false];
+    if (!file_exists($f)) return ['running' => false, 'phase' => 'idle'];
     $j = json_decode(@file_get_contents($f), true);
-    return is_array($j) ? $j : ['running' => false];
+    return is_array($j) ? $j : ['running' => false, 'phase' => 'idle'];
 }
 
 function writeProgress(string $user, array $state): void
@@ -46,7 +52,37 @@ function writeProgress(string $user, array $state): void
     @file_put_contents(progressFile($user), json_encode($state));
 }
 
-function deezerSearch(string $name, ?string &$matchedName = null): ?string
+function ytMusicArtistImage(string $name): ?string
+{
+    $script = AppConfig::getPythonPath() . '/ytmusic_search.py';
+    if (!file_exists($script)) return null;
+    $python = is_executable('/opt/ytdlp/bin/python3') ? '/opt/ytdlp/bin/python3' : 'python3';
+    $cmd    = sprintf('%s %s artist %s 2>/dev/null',
+        $python,
+        escapeshellarg($script),
+        escapeshellarg($name)
+    );
+    $out = @shell_exec($cmd);
+    if (!$out) return null;
+    $data = json_decode($out, true);
+    $hits = $data['results'] ?? [];
+    if (!$hits) return null;
+
+    // Prefer an exact case-insensitive match
+    $exact = null;
+    foreach ($hits as $h) {
+        if (mb_strtolower($h['name'] ?? '') === mb_strtolower($name)) { $exact = $h; break; }
+    }
+    $best = $exact ?? $hits[0];
+    $thumb = $best['thumbnail'] ?? '';
+    if (!$thumb) return null;
+    // YT thumbnails come back at the smallest size in some setups —
+    // upgrade common width tokens to a 1000px version.
+    $thumb = preg_replace('/=w\d+-h\d+/', '=w1000-h1000', $thumb);
+    return $thumb;
+}
+
+function deezerArtistImage(string $name): ?string
 {
     $url = 'https://api.deezer.com/search/artist?limit=5&q=' . urlencode($name);
     $ch  = curl_init($url);
@@ -67,7 +103,6 @@ function deezerSearch(string $name, ?string &$matchedName = null): ?string
         if (mb_strtolower($h['name'] ?? '') === mb_strtolower($name)) { $best = $h; break; }
     }
     $best ??= $hits[0];
-    $matchedName = $best['name'] ?? null;
     return $best['picture_xl'] ?? $best['picture_big'] ?? null;
 }
 
@@ -78,171 +113,169 @@ function downloadImage(string $url): ?string
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_TIMEOUT        => 12,
         CURLOPT_USERAGENT      => 'Gullify/1.0',
+        CURLOPT_FOLLOWLOCATION => true,
     ]);
-    $bin = curl_exec($ch);
+    $bin  = curl_exec($ch);
     $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
     if ($code !== 200 || !$bin || strlen($bin) < 200) return null;
     return $bin;
 }
 
-function runBatch(string $user, bool $onlyMissing): void
+function fetchOneArtist(string $name): ?array
 {
-    $startState = readProgress($user);
-    // Cancellation flag survives; running flag should be true here
-    writeProgress($user, [
-        'running'   => true,
-        'started_at' => time(),
-        'cancel'    => false,
-        'phase'     => 'init',
-        'total'     => 0,
-        'processed' => 0,
-        'updated'   => 0,
-        'skipped'   => 0,
-        'failed'    => 0,
-        'current'   => null,
-        'last_error'=> null,
-    ]);
+    // YouTube Music first (better for francophone / niche)
+    $url = ytMusicArtistImage($name);
+    $src = 'ytmusic';
+    if (!$url) {
+        $url = deezerArtistImage($name);
+        $src = 'deezer';
+    }
+    if (!$url) return null;
 
-    try {
-        $db = AppConfig::getDB();
-        $stmt = $db->prepare('SELECT id, name FROM artists WHERE user = ? ORDER BY name ASC');
-        $stmt->execute([$user]);
-        $artists = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    $bin = downloadImage($url);
+    if (!$bin) return null;
+    return ['data' => $bin, 'source' => $src];
+}
 
-        $cacheDir = AppConfig::getDataPath() . '/cache/artwork';
-        if (!is_dir($cacheDir)) @mkdir($cacheDir, 0775, true);
+function startBatch(string $user, bool $onlyMissing): array
+{
+    $db = AppConfig::getDB();
+    $stmt = $db->prepare('SELECT id, name FROM artists WHERE user = ? ORDER BY name ASC');
+    $stmt->execute([$user]);
+    $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
 
-        $total = count($artists);
-        $state = readProgress($user);
-        $state['total'] = $total;
-        $state['phase'] = 'fetching';
-        writeProgress($user, $state);
+    $cacheDir = AppConfig::getDataPath() . '/cache/artwork';
+    if (!is_dir($cacheDir)) @mkdir($cacheDir, 0775, true);
 
-        $updated = 0; $skipped = 0; $failed = 0;
-        foreach ($artists as $i => $a) {
-            // Re-read state to honor cancel
-            $cur = readProgress($user);
-            if (!empty($cur['cancel'])) {
-                $cur['phase'] = 'cancelled';
-                $cur['running'] = false;
-                writeProgress($user, $cur);
-                return;
-            }
-
-            $cacheFile = $cacheDir . '/artist_' . $a['id'] . '.jpg';
-            // "Only missing" mode: skip artists that already have a non-trivial cached file
-            if ($onlyMissing && file_exists($cacheFile) && filesize($cacheFile) > 50000) {
-                $skipped++;
-            } else {
-                $matched = null;
-                $imgUrl  = deezerSearch($a['name'], $matched);
-                if ($imgUrl) {
-                    $bin = downloadImage($imgUrl);
-                    if ($bin && @file_put_contents($cacheFile, $bin) !== false) {
-                        @chmod($cacheFile, 0644);
-                        // Clear legacy DB blob
-                        $u = $db->prepare('UPDATE artists SET image = NULL WHERE id = ?');
-                        $u->execute([$a['id']]);
-                        $updated++;
-                    } else {
-                        $failed++;
-                    }
-                } else {
-                    $failed++;
-                }
-                // Be polite to Deezer's free API: ~3 req/s
-                usleep(350_000);
-            }
-
-            $cur = readProgress($user);
-            $cur['processed'] = $i + 1;
-            $cur['updated']   = $updated;
-            $cur['skipped']   = $skipped;
-            $cur['failed']    = $failed;
-            $cur['current']   = $a['name'];
-            writeProgress($user, $cur);
+    $pending = [];
+    $skipped = 0;
+    foreach ($rows as $a) {
+        $cacheFile = $cacheDir . '/artist_' . $a['id'] . '.jpg';
+        if ($onlyMissing && file_exists($cacheFile) && filesize($cacheFile) > 50000) {
+            $skipped++;
+            continue;
         }
+        $pending[] = ['id' => (int)$a['id'], 'name' => $a['name']];
+    }
 
-        $cur = readProgress($user);
-        $cur['phase']   = 'done';
-        $cur['running'] = false;
-        $cur['ended_at'] = time();
-        writeProgress($user, $cur);
+    $state = [
+        'running'    => count($pending) > 0,
+        'phase'      => count($pending) > 0 ? 'fetching' : 'done',
+        'started_at' => time(),
+        'cancel'     => false,
+        'pending'    => $pending,
+        'total'      => count($rows),
+        'processed'  => 0,
+        'updated'    => 0,
+        'skipped'    => $skipped,
+        'failed'     => 0,
+        'current'    => null,
+        'last_error' => null,
+        'last_source'=> null,
+        'only_missing' => $onlyMissing,
+    ];
+    writeProgress($user, $state);
+    return $state;
+}
 
-        // Push a notification with the summary
+function processChunk(string $user, int $chunkSize): array
+{
+    $state = readProgress($user);
+    if (empty($state['running'])) return $state;
+    if (!empty($state['cancel'])) {
+        $state['running'] = false;
+        $state['phase']   = 'cancelled';
+        writeProgress($user, $state);
+        return $state;
+    }
+
+    $cacheDir = AppConfig::getDataPath() . '/cache/artwork';
+    if (!is_dir($cacheDir)) @mkdir($cacheDir, 0775, true);
+    $db = AppConfig::getDB();
+
+    $chunkSize = max(1, min(5, $chunkSize));
+    for ($i = 0; $i < $chunkSize && !empty($state['pending']); $i++) {
+        $artist = array_shift($state['pending']);
+        $state['current'] = $artist['name'];
         try {
-            Notifications::add($user, 'images_refresh',
+            $res = fetchOneArtist($artist['name']);
+            if ($res !== null) {
+                $cacheFile = $cacheDir . '/artist_' . $artist['id'] . '.jpg';
+                if (@file_put_contents($cacheFile, $res['data']) !== false) {
+                    @chmod($cacheFile, 0644);
+                    $upd = $db->prepare('UPDATE artists SET image = NULL WHERE id = ?');
+                    $upd->execute([$artist['id']]);
+                    $state['updated']++;
+                    $state['last_source'] = $res['source'];
+                } else {
+                    $state['failed']++;
+                }
+            } else {
+                $state['failed']++;
+            }
+        } catch (\Throwable $e) {
+            $state['failed']++;
+            $state['last_error'] = $e->getMessage();
+        }
+        $state['processed']++;
+    }
+
+    if (empty($state['pending'])) {
+        $state['running']  = false;
+        $state['phase']    = 'done';
+        $state['ended_at'] = time();
+        try {
+            Notifications::add(
+                $user,
+                'images_refresh',
                 'Images artistes mises à jour',
-                sprintf('%d mis à jour · %d ignorés · %d échec', $updated, $skipped, $failed),
-                ['updated' => $updated, 'skipped' => $skipped, 'failed' => $failed]
+                sprintf('%d mis à jour · %d ignorés · %d échec',
+                    $state['updated'], $state['skipped'], $state['failed']),
+                ['updated' => $state['updated'], 'skipped' => $state['skipped'], 'failed' => $state['failed']]
             );
-        } catch (\Throwable $e) { /* notifications are best-effort */ }
-    } catch (\Throwable $e) {
-        $cur = readProgress($user);
-        $cur['phase']     = 'error';
-        $cur['running']   = false;
-        $cur['last_error']= $e->getMessage();
-        writeProgress($user, $cur);
+        } catch (\Throwable $e) { /* best-effort */ }
     }
+
+    writeProgress($user, $state);
+    return $state;
 }
 
-if ($action === 'start') {
-    if (!function_exists('curl_init')) {
-        echo json_encode(['success' => false, 'error' => 'curl missing']);
-        exit;
-    }
-    $existing = readProgress($user);
-    if (!empty($existing['running'])) {
-        echo json_encode(['success' => false, 'error' => 'already running', 'state' => $existing]);
-        exit;
-    }
-    $onlyMissing = !empty($_REQUEST['only_missing']);
-
-    // Detach: spawn a background PHP process so the request returns immediately
-    $self = __FILE__;
-    $cmd  = sprintf(
-        '%s %s %s %s > /dev/null 2>&1 &',
-        escapeshellcmd(PHP_BINARY),
-        escapeshellarg($self),
-        '--worker',
-        ($onlyMissing ? '1' : '0')
-    );
-    // Pass the user via env (PHP_AUTH_USER won't survive)
-    putenv('GULLIFY_BATCH_USER=' . $user);
-    // Mark as running BEFORE spawn so quick polls see it
-    writeProgress($user, ['running' => true, 'phase' => 'starting', 'cancel' => false]);
-    if (function_exists('exec')) {
-        exec("GULLIFY_BATCH_USER=" . escapeshellarg($user) . " " . $cmd);
+try {
+    if ($action === 'start') {
+        if (!function_exists('curl_init')) {
+            echo json_encode(['success' => false, 'error' => 'curl missing']);
+            exit;
+        }
+        $existing = readProgress($user);
+        // Self-heal: if "running" but stale > 60 s without progress, allow restart
+        $stale = !empty($existing['running']) &&
+                 (time() - (int)($existing['started_at'] ?? 0) > 60) &&
+                 ($existing['processed'] ?? 0) === 0;
+        if (!empty($existing['running']) && !$stale) {
+            echo json_encode(['success' => false, 'error' => 'already_running', 'state' => $existing]);
+            exit;
+        }
+        $state = startBatch($user, !empty($_REQUEST['only_missing']));
+        echo json_encode(['success' => true, 'state' => $state]);
+    } elseif ($action === 'process') {
+        $chunk = (int)($_REQUEST['chunk'] ?? 1);
+        $state = processChunk($user, $chunk);
+        echo json_encode(['success' => true, 'state' => $state]);
+    } elseif ($action === 'cancel') {
+        $state = readProgress($user);
+        $state['cancel'] = true;
+        writeProgress($user, $state);
+        echo json_encode(['success' => true, 'state' => $state]);
+    } elseif ($action === 'reset') {
+        @unlink(progressFile($user));
+        echo json_encode(['success' => true, 'state' => ['running' => false, 'phase' => 'idle']]);
+    } elseif ($action === 'status') {
+        echo json_encode(['success' => true, 'state' => readProgress($user)]);
     } else {
-        // Fallback: run inline (will block the request)
-        runBatch($user, $onlyMissing);
+        echo json_encode(['success' => false, 'error' => 'unknown action']);
     }
-    echo json_encode(['success' => true, 'started' => true]);
-    exit;
+} catch (\Throwable $e) {
+    http_response_code(500);
+    echo json_encode(['success' => false, 'error' => $e->getMessage()]);
 }
-
-if ($action === 'cancel') {
-    $cur = readProgress($user);
-    if (!empty($cur['running'])) {
-        $cur['cancel'] = true;
-        writeProgress($user, $cur);
-    }
-    echo json_encode(['success' => true]);
-    exit;
-}
-
-if ($action === 'status') {
-    echo json_encode(['success' => true, 'state' => readProgress($user)]);
-    exit;
-}
-
-// CLI worker mode
-if (PHP_SAPI === 'cli' && in_array('--worker', $argv ?? [], true)) {
-    $cliUser = getenv('GULLIFY_BATCH_USER') ?: '';
-    $only    = (($argv[2] ?? '0') === '1');
-    if ($cliUser !== '') runBatch($cliUser, $only);
-    exit;
-}
-
-echo json_encode(['success' => false, 'error' => 'unknown action']);
