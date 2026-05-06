@@ -3542,8 +3542,9 @@
             if (reset) {
                 albumsViewState.albums  = [];
                 albumsViewState.offset  = 0;
-                const sortEl = document.getElementById('albums-sort-select');
-                if (sortEl) albumsViewState.sort = sortEl.value;
+                // albumsViewState.sort is the source of truth; both the legacy
+                // <select> (onchange) and the audiophile chip (onclick) write
+                // to it directly. Don't read it back from the (stale) DOM.
                 showLoading();
             }
 
