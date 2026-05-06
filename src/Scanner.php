@@ -291,6 +291,35 @@ class Scanner {
 
         echo "Incremental scan completed for user: $user\n";
         $this->saveProgress('idle', 'Scan completed!');
+
+        // Push a notification with a quick summary so the user sees it in the
+        // topbar bell. Counts are computed cheaply from the just-updated stats.
+        try {
+            require_once __DIR__ . '/Notifications.php';
+            $stmt = $this->db->prepare("
+                SELECT
+                    (SELECT COUNT(*) FROM artists WHERE user = ?)                     AS n_artists,
+                    (SELECT COUNT(*) FROM albums  al JOIN artists a ON al.artist_id = a.id WHERE a.user = ?) AS n_albums,
+                    (SELECT COUNT(*) FROM songs   s  JOIN albums al ON s.album_id = al.id JOIN artists a ON al.artist_id = a.id WHERE a.user = ?) AS n_songs
+            ");
+            $stmt->execute([$user, $user, $user]);
+            $row = $stmt->fetch(\PDO::FETCH_ASSOC) ?: [];
+            $msg = sprintf(
+                '%s artistes · %s albums · %s chansons',
+                number_format((int)($row['n_artists'] ?? 0), 0, ',', ' '),
+                number_format((int)($row['n_albums']  ?? 0), 0, ',', ' '),
+                number_format((int)($row['n_songs']   ?? 0), 0, ',', ' ')
+            );
+            Notifications::add($user, 'scan_complete', 'Scan terminé', $msg, [
+                'counts' => [
+                    'artists' => (int)($row['n_artists'] ?? 0),
+                    'albums'  => (int)($row['n_albums']  ?? 0),
+                    'songs'   => (int)($row['n_songs']   ?? 0),
+                ],
+            ]);
+        } catch (\Throwable $e) {
+            error_log('Scanner: failed to write scan_complete notification: ' . $e->getMessage());
+        }
     }
 
     /**

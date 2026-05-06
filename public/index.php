@@ -184,15 +184,23 @@ try {
     </div>
 
     <!-- Notifications popover (audiophile, desktop) -->
-    <div id="notifPopover" class="cast-popover" hidden role="dialog" aria-label="Notifications">
+    <div id="notifPopover" class="cast-popover notif-popover" hidden role="dialog" aria-label="Notifications">
         <div class="cast-header">
             <span>Notifications</span>
             <button class="cast-close" id="notifClose" aria-label="Close">
                 <i class="ri-close-line"></i>
             </button>
         </div>
-        <div class="cast-body" id="notifList">
+        <div class="cast-body notif-list" id="notifList">
             <div class="cast-empty mono">Aucune notification</div>
+        </div>
+        <div class="notif-footer" id="notifFooter" hidden>
+            <button class="notif-foot-btn" id="notifMarkAll">
+                <i class="ri-mail-open-line"></i> Tout marquer lu
+            </button>
+            <button class="notif-foot-btn" id="notifClearAll">
+                <i class="ri-delete-bin-line"></i> Effacer tout
+            </button>
         </div>
     </div>
 

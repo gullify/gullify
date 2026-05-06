@@ -5258,6 +5258,8 @@
         window.shuffleAlbum = shuffleAlbum;
         window.playArtistSongs = playArtistSongs;
         window.playArtistTopTrack = playArtistTopTrack;
+        window.viewAlbum = viewAlbum;
+        window.viewArtist = viewArtist;
         window.playRandomSongs = playRandomSongs;
         window.playRandomArtist = playRandomArtist;
         window.playSongFromAlbum = playSongFromAlbum;

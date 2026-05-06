@@ -6772,3 +6772,116 @@ html[data-theme="audiophile"] .song-item .song-duration {
 html[data-theme="audiophile"] .song-album-cell {
     color: var(--text-tertiary) !important;
 }
+
+/* ───── Notifications popover (audiophile) ───── */
+.notif-popover { width: 360px; padding: 0; }
+.notif-popover .cast-header { padding: 14px 16px; border-bottom: 1px solid var(--border); margin-bottom: 0; }
+.notif-popover .notif-list {
+    max-height: 60vh;
+    overflow-y: auto;
+    padding: 6px;
+}
+.notif-item {
+    display: grid;
+    grid-template-columns: 28px 1fr 24px;
+    gap: 10px;
+    padding: 10px 12px 10px 10px;
+    border-radius: 8px;
+    cursor: pointer;
+    align-items: start;
+    position: relative;
+    transition: background 0.12s;
+}
+.notif-item:hover { background: var(--bg-hover); }
+.notif-item.unread { background: var(--accent-soft, oklch(0.78 0.14 65 / 0.10)); }
+.notif-item.unread::before {
+    content: '';
+    position: absolute;
+    left: 4px; top: 50%;
+    width: 4px; height: 4px;
+    background: var(--accent);
+    border-radius: 50%;
+    transform: translateY(-50%);
+}
+.notif-icon {
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    color: var(--accent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    flex-shrink: 0;
+}
+.notif-body { min-width: 0; }
+.notif-title {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-primary);
+    line-height: 1.3;
+    margin-bottom: 2px;
+}
+.notif-message {
+    font-size: 12px;
+    color: var(--text-secondary);
+    line-height: 1.4;
+}
+.notif-time {
+    font-size: 10px;
+    color: var(--text-tertiary);
+    letter-spacing: 0.04em;
+    margin-top: 4px;
+}
+.notif-clear {
+    background: transparent;
+    border: none;
+    color: var(--text-quaternary, var(--text-tertiary));
+    cursor: pointer;
+    padding: 0;
+    width: 24px; height: 24px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    opacity: 0;
+    transition: opacity 0.12s, color 0.12s, background 0.12s;
+}
+.notif-item:hover .notif-clear { opacity: 1; }
+.notif-clear:hover {
+    color: var(--accent);
+    background: var(--bg-hover);
+}
+
+.notif-footer {
+    display: flex;
+    border-top: 1px solid var(--border);
+    padding: 6px;
+    gap: 4px;
+}
+.notif-foot-btn {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: var(--text-tertiary);
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 8px 6px;
+    border-radius: 6px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    transition: background 0.12s, color 0.12s;
+}
+.notif-foot-btn:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+}
+.notif-foot-btn i { font-size: 12px; }

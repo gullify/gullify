@@ -180,6 +180,188 @@ window.applyHeroColor = function(el, imgUrl) {
 })();
 
 /**
+ * Audiophile-only: notifications system.
+ *
+ * Polls /api/notifications.php for a count every 30s, updates the topbar
+ * bell's badge dot, and renders items into the popover when opened. Items
+ * are clickable for navigation when the payload carries an albumId or
+ * artistId. "Mark all read" + "Effacer tout" actions live in the popover
+ * footer.
+ */
+(function () {
+    const POLL_MS = 30_000;
+    let pollTimer = null;
+    let lastUnread = 0;
+
+    function $(id) { return document.getElementById(id); }
+    function basePath() { return window.BASE_PATH || ''; }
+
+    async function fetchCount() {
+        try {
+            const r = await fetch(basePath() + '/api/notifications.php?action=count', { credentials: 'same-origin' });
+            const j = await r.json();
+            if (j && j.success) updateBadge(j.unread || 0);
+        } catch (e) { /* silent */ }
+    }
+
+    async function fetchList() {
+        try {
+            const r = await fetch(basePath() + '/api/notifications.php?action=list&limit=30', { credentials: 'same-origin' });
+            const j = await r.json();
+            if (j && j.success) {
+                renderList(j.data || []);
+                updateBadge(j.unread || 0);
+            }
+        } catch (e) { /* silent */ }
+    }
+
+    function updateBadge(count) {
+        lastUnread = count;
+        const dot = $('topbarNotifDot');
+        if (dot) dot.toggleAttribute('hidden', !(count > 0));
+    }
+
+    function timeAgo(iso) {
+        const d = new Date(String(iso).replace(' ', 'T'));
+        if (isNaN(d)) return '';
+        const sec = Math.max(0, Math.floor((Date.now() - d.getTime()) / 1000));
+        if (sec < 60)        return `il y a ${sec}s`;
+        if (sec < 3600)      return `il y a ${Math.floor(sec / 60)}m`;
+        if (sec < 86400)     return `il y a ${Math.floor(sec / 3600)}h`;
+        if (sec < 604800)    return `il y a ${Math.floor(sec / 86400)}j`;
+        return d.toLocaleDateString('fr-FR');
+    }
+
+    function escapeHtml(s) {
+        return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    const ICONS = {
+        scan_complete: 'ri-radar-line',
+        download_done: 'ri-download-cloud-line',
+        download_failed: 'ri-error-warning-line',
+        import:         'ri-add-circle-line',
+        info:           'ri-information-line',
+    };
+
+    function renderList(items) {
+        const host = $('notifList');
+        if (!host) return;
+        if (!items.length) {
+            host.innerHTML = '<div class="cast-empty mono">Aucune notification</div>';
+            const footer = $('notifFooter');
+            if (footer) footer.hidden = true;
+            return;
+        }
+        host.innerHTML = items.map(n => {
+            const icon = ICONS[n.type] || ICONS.info;
+            const cls  = 'notif-item' + (n.unread ? ' unread' : '');
+            const data = n.data || {};
+            const action =
+                data.albumId  ? `data-album-id="${data.albumId}"`   :
+                data.artistId ? `data-artist-id="${data.artistId}"` : '';
+            const msg = n.message ? `<div class="notif-message">${escapeHtml(n.message)}</div>` : '';
+            return `
+                <div class="${cls}" data-id="${n.id}" ${action}>
+                    <span class="notif-icon"><i class="${icon}"></i></span>
+                    <div class="notif-body">
+                        <div class="notif-title">${escapeHtml(n.title)}</div>
+                        ${msg}
+                        <div class="notif-time mono">${timeAgo(n.created_at)}</div>
+                    </div>
+                    <button class="notif-clear" title="Supprimer" aria-label="Clear">
+                        <i class="ri-close-line"></i>
+                    </button>
+                </div>
+            `;
+        }).join('');
+        const footer = $('notifFooter');
+        if (footer) footer.hidden = false;
+    }
+
+    async function markRead(id = 0) {
+        try {
+            const r = await fetch(basePath() + `/api/notifications.php?action=mark_read&id=${id}`,
+                { method: 'POST', credentials: 'same-origin' });
+            const j = await r.json();
+            if (j && j.success) updateBadge(j.unread || 0);
+        } catch (e) {}
+    }
+    async function clearOne(id = 0) {
+        try {
+            const r = await fetch(basePath() + `/api/notifications.php?action=clear&id=${id}`,
+                { method: 'POST', credentials: 'same-origin' });
+            const j = await r.json();
+            if (j && j.success) {
+                updateBadge(j.unread || 0);
+                fetchList();
+            }
+        } catch (e) {}
+    }
+
+    function bindNotifPopover() {
+        const list = $('notifList');
+        if (list && list.dataset.bound !== '1') {
+            list.dataset.bound = '1';
+            list.addEventListener('click', async (e) => {
+                const clearBtn = e.target.closest('.notif-clear');
+                const item     = e.target.closest('.notif-item');
+                if (!item) return;
+                const id = parseInt(item.dataset.id, 10);
+                if (clearBtn) {
+                    e.stopPropagation();
+                    await clearOne(id);
+                    return;
+                }
+                // Open mark-as-read + navigate (album/artist) if payload allows
+                await markRead(id);
+                item.classList.remove('unread');
+                if (item.dataset.albumId && typeof window.viewAlbum === 'function') {
+                    window.viewAlbum(parseInt(item.dataset.albumId, 10));
+                } else if (item.dataset.artistId && typeof window.viewArtist === 'function') {
+                    window.viewArtist(parseInt(item.dataset.artistId, 10));
+                }
+            });
+        }
+        const markAllBtn = $('notifMarkAll');
+        const clearAllBtn = $('notifClearAll');
+        if (markAllBtn && markAllBtn.dataset.bound !== '1') {
+            markAllBtn.dataset.bound = '1';
+            markAllBtn.addEventListener('click', async () => {
+                await markRead(0);
+                document.querySelectorAll('#notifList .notif-item.unread').forEach(el => el.classList.remove('unread'));
+            });
+        }
+        if (clearAllBtn && clearAllBtn.dataset.bound !== '1') {
+            clearAllBtn.dataset.bound = '1';
+            clearAllBtn.addEventListener('click', async () => {
+                await clearOne(0);
+            });
+        }
+    }
+
+    function startPolling() {
+        if (pollTimer) return;
+        fetchCount();
+        pollTimer = setInterval(fetchCount, POLL_MS);
+    }
+
+    // Public hook: opens the popover and refreshes the list
+    window.gullifyNotifications = {
+        refreshList: fetchList,
+        refreshCount: fetchCount,
+        markAllRead: () => markRead(0),
+    };
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => { bindNotifPopover(); startPolling(); });
+    } else {
+        bindNotifPopover();
+        startPolling();
+    }
+})();
+
+/**
  * Audiophile-only: topbar action bindings (nav arrows, cast, notifications,
  * settings). The buttons are rendered for all themes by default but the CSS
  * only reveals them in audiophile-desktop. Wire them up unconditionally;
@@ -224,7 +406,10 @@ window.applyHeroColor = function(el, imgUrl) {
         if (back)     back.addEventListener('click',     () => history.back());
         if (fwd)      fwd.addEventListener('click',      () => history.forward());
         if (cast)     cast.addEventListener('click',     () => openPopover('castPopover',  cast));
-        if (notif)    notif.addEventListener('click',    () => openPopover('notifPopover', notif));
+        if (notif)    notif.addEventListener('click',    () => {
+            openPopover('notifPopover', notif);
+            if (window.gullifyNotifications) window.gullifyNotifications.refreshList();
+        });
         if (castClose)  castClose.addEventListener('click',  () => closePopover('castPopover'));
         if (notifClose) notifClose.addEventListener('click', () => closePopover('notifPopover'));
 

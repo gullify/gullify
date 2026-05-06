@@ -210,6 +210,20 @@ SELECT name, NULL FROM (
 ) AS g(name)
 WHERE (SELECT COUNT(*) FROM genres) = 0;
 
+-- Notifications: per-user system messages (scan complete, downloads, etc.)
+CREATE TABLE IF NOT EXISTS notifications (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    user VARCHAR(100) NOT NULL,
+    type VARCHAR(40) NOT NULL,
+    title VARCHAR(200) NOT NULL,
+    message TEXT NULL,
+    data JSON NULL,
+    read_at DATETIME NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_notif_user_created (user, created_at DESC),
+    INDEX idx_notif_user_read (user, read_at)
+);
+
 -- Views
 CREATE OR REPLACE VIEW top_songs AS
     SELECT s.id as song_id, s.title, a.name as artist, al.name as album,
