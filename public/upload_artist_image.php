@@ -52,58 +52,48 @@ try {
         throw new Exception('Impossible de lire l\'image');
     }
 
-    // Resize (max 500x500, maintain aspect ratio)
-    $originalWidth = imagesx($image);
+    // Resize only if larger than 1000px (cap at 1000, preserve smaller).
+    // Higher cap than the legacy 500 because the audiophile hero displays
+    // artists at 240–320px CSS = up to 640px on retina, and a JPEG q=92 at
+    // 1000×1000 looks crisp at that size.
+    $originalWidth  = imagesx($image);
     $originalHeight = imagesy($image);
-    $maxDimension = 500;
-    $ratio = min($maxDimension / $originalWidth, $maxDimension / $originalHeight);
-    $newWidth = (int)($originalWidth * $ratio);
-    $newHeight = (int)($originalHeight * $ratio);
+    $maxDimension   = 1000;
 
-    $resizedImage = imagecreatetruecolor($newWidth, $newHeight);
-
-    if ($fileType === 'image/png') {
-        imagealphablending($resizedImage, false);
-        imagesavealpha($resizedImage, true);
-        $transparent = imagecolorallocatealpha($resizedImage, 255, 255, 255, 127);
-        imagefilledrectangle($resizedImage, 0, 0, $newWidth, $newHeight, $transparent);
+    if ($originalWidth > $maxDimension || $originalHeight > $maxDimension) {
+        $ratio     = min($maxDimension / $originalWidth, $maxDimension / $originalHeight);
+        $newWidth  = (int)($originalWidth  * $ratio);
+        $newHeight = (int)($originalHeight * $ratio);
+        $resized   = imagecreatetruecolor($newWidth, $newHeight);
+        imagecopyresampled($resized, $image, 0, 0, 0, 0, $newWidth, $newHeight, $originalWidth, $originalHeight);
+        imagedestroy($image);
+        $image = $resized;
     }
 
-    imagecopyresampled(
-        $resizedImage, $image,
-        0, 0, 0, 0,
-        $newWidth, $newHeight,
-        $originalWidth, $originalHeight
-    );
-
-    // Convert to JPEG base64
     ob_start();
-    imagejpeg($resizedImage, null, 85);
-    $optimizedImageData = ob_get_clean();
-    $base64Image = base64_encode($optimizedImageData);
-
+    imagejpeg($image, null, 92);
+    $jpegData = ob_get_clean();
     imagedestroy($image);
-    imagedestroy($resizedImage);
 
-    // Save to database
-    $db = AppConfig::getDB();
-    $stmt = $db->prepare('UPDATE artists SET image = ? WHERE id = ?');
-    $stmt->execute([$base64Image, $artistId]);
-    $updated = $stmt->rowCount();
-
-    if ($updated === 0) {
-        echo json_encode([
-            'error' => false,
-            'message' => 'Artiste ignoré (scan en cours ou déjà à jour)',
-            'skipped' => true
-        ]);
-        exit;
+    // Persist as a file in data/cache/artwork (mirrors how albums are stored).
+    // Drop the legacy base64 column to avoid storing two copies.
+    $cacheDir = AppConfig::getDataPath() . '/cache/artwork';
+    if (!is_dir($cacheDir)) @mkdir($cacheDir, 0775, true);
+    $cacheFile = $cacheDir . '/artist_' . (int)$artistId . '.jpg';
+    if (@file_put_contents($cacheFile, $jpegData) === false) {
+        throw new Exception("Impossible d'écrire l'image dans $cacheFile");
     }
+    @chmod($cacheFile, 0644);
+
+    $db = AppConfig::getDB();
+    $stmt = $db->prepare('UPDATE artists SET image = NULL WHERE id = ?');
+    $stmt->execute([$artistId]);
 
     echo json_encode([
-        'error' => false,
+        'error'   => false,
         'message' => 'Image uploadée avec succès',
-        'image' => $base64Image
+        'size'    => strlen($jpegData),
+        'cached'  => true,
     ]);
 
 } catch (Exception $e) {

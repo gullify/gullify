@@ -285,8 +285,19 @@ try {
             </h3>
 
             <!-- Current / preview artwork -->
-            <div style="display:flex;justify-content:center;margin-bottom:20px;">
+            <div style="display:flex;justify-content:center;margin-bottom:14px;">
                 <img id="artworkPreviewImg" src="" alt="Pochette" style="width:200px;height:200px;object-fit:cover;border-radius:12px;border:2px solid var(--border);">
+            </div>
+
+            <!-- Auto-fetch HD (artist only) -->
+            <div id="artworkAutoFetchRow" style="display:none;margin-bottom:18px;">
+                <button id="artworkAutoFetchBtn" onclick="autoFetchArtistImage()" class="btn btn-secondary" style="width:100%;display:flex;align-items:center;justify-content:center;gap:8px;">
+                    <i class="ri-magic-line"></i>
+                    <span>Auto HD depuis Deezer</span>
+                </button>
+                <div style="font-size:11px;color:var(--text-tertiary);text-align:center;margin-top:6px;">
+                    Récupère une image 1000×1000 nette
+                </div>
             </div>
 
             <!-- File upload -->

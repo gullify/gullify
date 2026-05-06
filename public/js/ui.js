@@ -229,9 +229,55 @@
             document.getElementById('artworkYtResults').innerHTML = '';
             document.getElementById('artworkYtQuery').value = ytQuery;
             document.getElementById('artworkSaveBtn').disabled = false;
+            // Reveal Deezer auto-HD button only in artist mode
+            const autoRow = document.getElementById('artworkAutoFetchRow');
+            if (autoRow) autoRow.style.display = (mode === 'artist') ? 'block' : 'none';
             const titleEl = document.getElementById('artworkEditorTitle');
             if (titleEl) titleEl.textContent = title;
             document.getElementById('artworkEditorOverlay').style.display = 'flex';
+        }
+
+        // Auto-fetch a 1000×1000 picture from Deezer for the current artist.
+        // On success, refreshes the avatar in the artist view + grid + bg.
+        async function autoFetchArtistImage() {
+            if (!_artworkTargetId || _artworkMode !== 'artist') return;
+            const btn      = document.getElementById('artworkAutoFetchBtn');
+            const statusEl = document.getElementById('artworkSaveStatus');
+            if (btn) btn.disabled = true;
+            statusEl.style.color = 'var(--text-secondary)';
+            statusEl.textContent = 'Recherche sur Deezer…';
+            try {
+                const r = await fetch(`${BASE_PATH}/fetch_artist_image.php?artist_id=${_artworkTargetId}`);
+                const j = await r.json();
+                if (j.error) {
+                    statusEl.style.color = 'var(--color-danger)';
+                    statusEl.textContent = j.message || 'Erreur';
+                    if (btn) btn.disabled = false;
+                    return;
+                }
+                statusEl.style.color = 'var(--color-success)';
+                statusEl.textContent = `OK • ${j.matched_name || ''} • ${(j.size/1024).toFixed(0)} KB`;
+                // Refresh visible images with a cache-bust query
+                const newUrl = `${BASE_PATH}/serve_image.php?artist_id=${_artworkTargetId}&t=${Date.now()}`;
+                const avatarEl = document.getElementById(`artist-avatar-${_artworkTargetId}`);
+                if (avatarEl) {
+                    const img = avatarEl.querySelector('img');
+                    if (img) img.src = newUrl;
+                    else avatarEl.innerHTML = `<img src="${newUrl}" style="width:100%;height:100%;object-fit:cover;">` + (avatarEl.querySelector('.artwork-edit-overlay')?.outerHTML || '');
+                }
+                document.getElementById('artworkPreviewImg').src = newUrl;
+                if (typeof showArtistBackground === 'function') showArtistBackground(newUrl);
+                if (window.applyHeroColor) {
+                    const heroEl = document.querySelector('.artist-header-container');
+                    if (heroEl) window.applyHeroColor(heroEl, newUrl);
+                }
+                setTimeout(() => closeArtworkEditor(), 800);
+            } catch (e) {
+                statusEl.style.color = 'var(--color-danger)';
+                statusEl.textContent = 'Erreur : ' + e.message;
+            } finally {
+                if (btn) btn.disabled = false;
+            }
         }
 
         function openArtworkEditor(albumId, currentUrl, artistName, albumName) {
