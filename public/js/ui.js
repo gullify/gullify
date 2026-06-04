@@ -2402,6 +2402,10 @@
         // ============ WEB RADIO SECTION ============
         let webRadioStations = [];
         let webRadioCurrentStation = null;
+        let radioFavOnly = false;
+        let radioManageMode = false;
+        let radioSelected = new Set();
+        const RADIO_API = () => `${BASE_PATH}/web_radio_api.php`;
 
         async function renderWebRadio() {
             hideAlbumBackground();
@@ -2431,8 +2435,24 @@
                 // Sort genres by count
                 const sortedGenres = Object.entries(genres).sort((a, b) => b[1].length - a[1].length);
 
+                const favCount = webRadioStations.filter(s => s.favorite).length;
                 let html = `
-                    <div class="web-radio-container">
+                    <div class="web-radio-container ${radioManageMode ? 'radio-manage-mode' : ''}" id="radioContainer">
+                        <div class="web-radio-toolbar">
+                            <button class="btn btn-primary btn-sm" onclick="openRadioAddModal()">
+                                <i class="ri-add-line"></i> Ajouter
+                            </button>
+                            <button class="btn btn-secondary btn-sm" onclick="openRadioBulkModal()">
+                                <i class="ri-upload-cloud-2-line"></i> Importer
+                            </button>
+                            <button class="btn btn-secondary btn-sm" id="radioManageBtn" onclick="toggleRadioManage()">
+                                <i class="ri-checkbox-multiple-line"></i> ${radioManageMode ? 'Annuler' : 'Gérer'}
+                            </button>
+                            <button class="chip ${radioFavOnly ? 'active' : ''}" id="radioFavChip" onclick="toggleRadioFavFilter()" style="margin-left:auto;">
+                                <i class="ri-heart-${radioFavOnly ? 'fill' : 'line'}"></i> Favoris (${favCount})
+                            </button>
+                        </div>
+
                         <div class="web-radio-header">
                             <div class="web-radio-filters">
                                 <input type="text" id="radioSearchInput" placeholder="${t('radio.search_ph', 'Rechercher une station...')}" class="search-input">
@@ -2463,6 +2483,16 @@
                         <div class="web-radio-grid" id="radioStationsGrid">
                             ${webRadioStations.map(station => renderRadioStationCard(station)).join('')}
                         </div>
+
+                        <div class="radio-manage-bar" id="radioManageBar">
+                            <span class="count" id="radioSelCount">0 sélectionnée(s)</span>
+                            <button class="btn btn-danger btn-sm" id="radioBulkDelBtn" onclick="bulkRemoveRadios()" disabled>
+                                <i class="ri-delete-bin-line"></i> Supprimer / Masquer
+                            </button>
+                            <button class="btn btn-secondary btn-sm" onclick="toggleRadioManage()">
+                                <i class="ri-close-line"></i> Terminer
+                            </button>
+                        </div>
                     </div>
                 `;
 
@@ -2472,20 +2502,30 @@
                 document.getElementById('radioSearchInput').addEventListener('input', filterRadioStations);
                 document.getElementById('radioGenreSelect').addEventListener('change', filterRadioStations);
 
-                // Setup play buttons with event delegation
+                // Single delegated click: play / fav / select / remove
                 document.getElementById('radioStationsGrid').addEventListener('click', function(e) {
+                    const card = e.target.closest('.radio-station-card');
+                    if (!card) return;
+                    const stationId = card.dataset.stationId;
+
+                    // Heart toggle
+                    const fav = e.target.closest('.radio-fav-btn');
+                    if (fav) { e.preventDefault(); e.stopPropagation(); toggleRadioFavorite(stationId); return; }
+
+                    if (radioManageMode) {
+                        toggleRadioSelected(stationId, card);
+                        return;
+                    }
+
                     const btn = e.target.closest('.play-radio-btn');
                     if (btn) {
                         e.preventDefault();
                         e.stopPropagation();
-                        const card = btn.closest('.radio-station-card');
-                        const stationId = card?.dataset.stationId;
-                        console.log('Play button clicked, stationId:', stationId);
-                        if (stationId) {
-                            playWebRadio(stationId);
-                        }
+                        if (stationId) playWebRadio(stationId);
                     }
                 });
+
+                filterRadioStations();
 
             } catch (error) {
                 console.error('Error loading web radio:', error);
@@ -2498,47 +2538,310 @@
             const format = station.streams?.[0]?.format || '';
             const genres = (station.genres || []).slice(0, 2).join(', ');
             const logo = station.logo || `${BASE_PATH}/assets/radio-placeholder.svg`;
+            const fav = !!station.favorite;
+            const custom = !!station.custom;
+            const sid = String(station.id);
+            const selected = radioSelected.has(sid);
 
             return `
-                <div class="radio-station-card" data-station-id="${station.id}" data-genres="${(station.genres || []).join(',').toLowerCase()}">
+                <div class="radio-station-card ${selected ? 'selected' : ''}"
+                     data-station-id="${escapeHtml(sid)}"
+                     data-fav="${fav ? '1' : '0'}"
+                     data-genres="${(station.genres || []).join(',').toLowerCase()}">
                     <div class="radio-station-logo">
-                        <img src="${logo}" alt="${station.name}" onerror="this.src='${BASE_PATH}/assets/radio-placeholder.svg'">
-                        <button class="play-radio-btn">
-                            <i class="ri-play-fill"></i>
+                        <img src="${logo}" alt="${escapeHtml(station.name)}" onerror="this.src='${BASE_PATH}/assets/radio-placeholder.svg'">
+                        <button class="radio-fav-btn ${fav ? 'active' : ''}" title="${fav ? 'Retirer des favoris' : 'Ajouter aux favoris'}">
+                            <i class="ri-heart-${fav ? 'fill' : 'line'}"></i>
                         </button>
+                        ${custom ? '<span class="radio-custom-tag">Custom</span>' : ''}
+                        <div class="radio-check"><i class="ri-check-line"></i></div>
+                        <button class="play-radio-btn"><i class="ri-play-fill"></i></button>
                     </div>
                     <div class="radio-station-info">
-                        <h3 class="radio-station-name">${station.name}</h3>
-                        <p class="radio-station-genre">${genres || station.language || 'Radio'}</p>
-                        <span class="radio-station-format">${format}</span>
+                        <h3 class="radio-station-name">${escapeHtml(station.name)}</h3>
+                        <p class="radio-station-genre">${escapeHtml(genres || station.language || 'Radio')}</p>
+                        <span class="radio-station-format">${escapeHtml(format)}</span>
                     </div>
                 </div>
             `;
         }
 
         function filterRadioStations() {
-            const searchTerm = document.getElementById('radioSearchInput').value.toLowerCase();
+            const searchTerm = document.getElementById('radioSearchInput')?.value.toLowerCase() || '';
             const selectedGenre = document.getElementById('radioGenreSelect')?.value || 'all';
 
             let visibleCount = 0;
             document.querySelectorAll('.radio-station-card').forEach(card => {
                 const name = card.querySelector('.radio-station-name').textContent.toLowerCase();
                 const genres = card.dataset.genres.toLowerCase();
+                const isFav  = card.dataset.fav === '1';
 
                 const matchesSearch = !searchTerm || name.includes(searchTerm) || genres.includes(searchTerm);
-                const matchesGenre = selectedGenre === 'all' || genres.includes(selectedGenre.toLowerCase());
+                const matchesGenre  = selectedGenre === 'all' || genres.includes(selectedGenre.toLowerCase());
+                const matchesFav    = !radioFavOnly || isFav;
 
-                const visible = matchesSearch && matchesGenre;
+                const visible = matchesSearch && matchesGenre && matchesFav;
                 card.style.display = visible ? '' : 'none';
                 if (visible) visibleCount++;
             });
 
-            // Update count in header
             const infoEl = document.querySelector('.web-radio-info');
             if (infoEl) {
                 infoEl.textContent = `${visibleCount} ${t('radio.station','station')}${visibleCount > 1 ? 's' : ''}`;
             }
         }
+
+        // ── Radio: management actions ────────────────────────────────────────
+        function toggleRadioFavFilter() {
+            radioFavOnly = !radioFavOnly;
+            const chip = document.getElementById('radioFavChip');
+            if (chip) {
+                chip.classList.toggle('active', radioFavOnly);
+                const icon = chip.querySelector('i');
+                if (icon) icon.className = 'ri-heart-' + (radioFavOnly ? 'fill' : 'line');
+            }
+            filterRadioStations();
+        }
+        window.toggleRadioFavFilter = toggleRadioFavFilter;
+
+        function toggleRadioManage() {
+            radioManageMode = !radioManageMode;
+            radioSelected.clear();
+            const container = document.getElementById('radioContainer');
+            if (container) container.classList.toggle('radio-manage-mode', radioManageMode);
+            document.querySelectorAll('.radio-station-card').forEach(c => c.classList.remove('selected'));
+            updateRadioManageBar();
+            const btn = document.getElementById('radioManageBtn');
+            if (btn) btn.innerHTML = `<i class="ri-checkbox-multiple-line"></i> ${radioManageMode ? 'Annuler' : 'Gérer'}`;
+        }
+        window.toggleRadioManage = toggleRadioManage;
+
+        function toggleRadioSelected(stationId, cardEl) {
+            if (radioSelected.has(stationId)) {
+                radioSelected.delete(stationId);
+                cardEl.classList.remove('selected');
+            } else {
+                radioSelected.add(stationId);
+                cardEl.classList.add('selected');
+            }
+            updateRadioManageBar();
+        }
+
+        function updateRadioManageBar() {
+            const n = radioSelected.size;
+            const cEl = document.getElementById('radioSelCount');
+            if (cEl) cEl.textContent = `${n} sélectionnée${n > 1 ? 's' : ''}`;
+            const del = document.getElementById('radioBulkDelBtn');
+            if (del) del.disabled = n === 0;
+        }
+
+        async function toggleRadioFavorite(stationId) {
+            try {
+                const r = await fetch(`${RADIO_API()}?action=toggle_favorite&station_id=${encodeURIComponent(stationId)}`, { method: 'POST' });
+                const j = await r.json();
+                if (!j.success) { showToast(j.error || 'Erreur', 'error'); return; }
+                // Update local + card UI
+                const st = webRadioStations.find(s => String(s.id) === String(stationId));
+                if (st) st.favorite = !!j.favorite;
+                const card = document.querySelector(`.radio-station-card[data-station-id="${CSS.escape(String(stationId))}"]`);
+                if (card) {
+                    card.dataset.fav = j.favorite ? '1' : '0';
+                    const btn = card.querySelector('.radio-fav-btn');
+                    if (btn) {
+                        btn.classList.toggle('active', !!j.favorite);
+                        const i = btn.querySelector('i');
+                        if (i) i.className = 'ri-heart-' + (j.favorite ? 'fill' : 'line');
+                    }
+                }
+                // Update fav-count chip
+                const favCount = webRadioStations.filter(s => s.favorite).length;
+                const chip = document.getElementById('radioFavChip');
+                if (chip) {
+                    const txt = chip.childNodes;
+                    chip.innerHTML = `<i class="ri-heart-${radioFavOnly ? 'fill' : 'line'}"></i> Favoris (${favCount})`;
+                }
+                if (radioFavOnly) filterRadioStations();
+            } catch (e) { showToast('Erreur : ' + e.message, 'error'); }
+        }
+        window.toggleRadioFavorite = toggleRadioFavorite;
+
+        async function bulkRemoveRadios() {
+            if (radioSelected.size === 0) return;
+            const ids = Array.from(radioSelected);
+            const customN  = ids.filter(s => s.startsWith('custom:')).length;
+            const catalogN = ids.length - customN;
+            const msg = `Supprimer ${customN} station(s) personnalisée(s) et masquer ${catalogN} station(s) du catalogue ?`;
+            if (!confirm(msg)) return;
+            try {
+                const r = await fetch(`${RADIO_API()}?action=remove_bulk`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ station_ids: ids }),
+                });
+                const j = await r.json();
+                if (!j.success) { showToast(j.error || 'Erreur', 'error'); return; }
+                showToast(`${j.deleted} supprimée(s), ${j.hidden} masquée(s)`, 'success');
+                radioSelected.clear();
+                radioManageMode = false;
+                renderWebRadio();
+            } catch (e) { showToast('Erreur : ' + e.message, 'error'); }
+        }
+        window.bulkRemoveRadios = bulkRemoveRadios;
+
+        // ── Radio: add single + bulk modals ─────────────────────────────────
+        function openRadioAddModal() {
+            document.getElementById('radioAddName').value = '';
+            document.getElementById('radioAddUrl').value = '';
+            document.getElementById('radioAddLogo').value = '';
+            document.getElementById('radioAddGenres').value = '';
+            document.getElementById('radioAddCountry').value = '';
+            document.getElementById('radioAddLanguage').value = '';
+            document.getElementById('radioAddStatus').textContent = '';
+            document.getElementById('radioAddModalOverlay').removeAttribute('hidden');
+        }
+        window.openRadioAddModal = openRadioAddModal;
+        function closeRadioAddModal() {
+            document.getElementById('radioAddModalOverlay').setAttribute('hidden', '');
+        }
+        window.closeRadioAddModal = closeRadioAddModal;
+
+        async function submitRadioAdd() {
+            const body = {
+                name:     document.getElementById('radioAddName').value.trim(),
+                url:      document.getElementById('radioAddUrl').value.trim(),
+                logo:     document.getElementById('radioAddLogo').value.trim() || null,
+                genres:   document.getElementById('radioAddGenres').value.trim(),
+                country:  document.getElementById('radioAddCountry').value.trim() || null,
+                language: document.getElementById('radioAddLanguage').value.trim() || null,
+            };
+            const statusEl = document.getElementById('radioAddStatus');
+            if (!body.name || !body.url) {
+                statusEl.style.color = 'var(--color-danger)';
+                statusEl.textContent = 'Nom et URL requis';
+                return;
+            }
+            try {
+                const r = await fetch(`${RADIO_API()}?action=add`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body),
+                });
+                const j = await r.json();
+                if (!j.success) {
+                    statusEl.style.color = 'var(--color-danger)';
+                    statusEl.textContent = j.error || 'Erreur';
+                    return;
+                }
+                showToast('Station ajoutée', 'success');
+                closeRadioAddModal();
+                renderWebRadio();
+            } catch (e) {
+                statusEl.style.color = 'var(--color-danger)';
+                statusEl.textContent = 'Erreur : ' + e.message;
+            }
+        }
+        window.submitRadioAdd = submitRadioAdd;
+
+        function openRadioBulkModal() {
+            document.getElementById('radioBulkText').value = '';
+            document.getElementById('radioBulkStatus').textContent = '';
+            document.getElementById('radioBulkModalOverlay').removeAttribute('hidden');
+        }
+        window.openRadioBulkModal = openRadioBulkModal;
+        function closeRadioBulkModal() {
+            document.getElementById('radioBulkModalOverlay').setAttribute('hidden', '');
+        }
+        window.closeRadioBulkModal = closeRadioBulkModal;
+
+        // Parse multi-format input: M3U(8), JSON array, or plain URL-per-line
+        function parseRadioBulk(text) {
+            const out = [];
+            const trimmed = text.trim();
+            if (!trimmed) return out;
+
+            // JSON array of {name,url,...}
+            if (trimmed.startsWith('[')) {
+                try {
+                    const arr = JSON.parse(trimmed);
+                    if (Array.isArray(arr)) {
+                        for (const it of arr) {
+                            if (!it) continue;
+                            const url = it.url || it.stream_url || '';
+                            if (!url) continue;
+                            out.push({
+                                name:     it.name || urlHost(url),
+                                url,
+                                logo:     it.logo || null,
+                                genres:   Array.isArray(it.genres) ? it.genres.join(',') : (it.genres || ''),
+                                country:  it.country  || null,
+                                language: it.language || null,
+                            });
+                        }
+                    }
+                    return out;
+                } catch (e) { /* fall through */ }
+            }
+
+            // M3U / M3U8 — collect #EXTINF lines paired with following URL
+            const lines = trimmed.split(/\r?\n/);
+            let pendingName = null;
+            for (const raw of lines) {
+                const line = raw.trim();
+                if (!line) { continue; }
+                if (line.startsWith('#EXTM3U') || line.startsWith('#EXTVLCOPT')) continue;
+                if (line.startsWith('#EXTINF')) {
+                    const m = line.match(/^#EXTINF:[^,]*,(.+)$/);
+                    pendingName = m ? m[1].trim() : null;
+                    continue;
+                }
+                if (line.startsWith('#')) continue;
+                if (/^https?:\/\//i.test(line)) {
+                    out.push({
+                        name: pendingName || urlHost(line),
+                        url: line,
+                    });
+                    pendingName = null;
+                }
+            }
+            return out;
+        }
+        function urlHost(u) {
+            try { return new URL(u).host.replace(/^www\./, ''); }
+            catch (e) { return 'Radio'; }
+        }
+
+        async function submitRadioBulk() {
+            const text = document.getElementById('radioBulkText').value;
+            const statusEl = document.getElementById('radioBulkStatus');
+            const items = parseRadioBulk(text);
+            if (items.length === 0) {
+                statusEl.style.color = 'var(--color-danger)';
+                statusEl.textContent = 'Aucune URL valide détectée';
+                return;
+            }
+            statusEl.style.color = 'var(--text-secondary)';
+            statusEl.textContent = `Import de ${items.length} station(s)…`;
+            try {
+                const r = await fetch(`${RADIO_API()}?action=add_bulk`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ items }),
+                });
+                const j = await r.json();
+                if (!j.success) {
+                    statusEl.style.color = 'var(--color-danger)';
+                    statusEl.textContent = j.error || 'Erreur';
+                    return;
+                }
+                showToast(`${j.added} ajoutée(s) · ${j.failed} échec(s)`, j.failed ? 'info' : 'success');
+                closeRadioBulkModal();
+                renderWebRadio();
+            } catch (e) {
+                statusEl.style.color = 'var(--color-danger)';
+                statusEl.textContent = 'Erreur : ' + e.message;
+            }
+        }
+        window.submitRadioBulk = submitRadioBulk;
 
         function playWebRadio(stationId) {
             const station = webRadioStations.find(s => s.id === stationId);

@@ -6,9 +6,17 @@
  */
 
 require_once __DIR__ . '/../../src/AppConfig.php';
+require_once __DIR__ . '/../../src/RadioStations.php';
 
 header('Content-Type: application/json');
 header('Cache-Control: no-cache');
+
+// Per-user state is opt-in: if no session, behave like before (anonymous list).
+$user = $_SESSION['username'] ?? '';
+if ($user === '') {
+    @session_start();
+    $user = $_SESSION['username'] ?? '';
+}
 
 $action = $_GET['action'] ?? 'list';
 $cacheFile = AppConfig::getDataPath() . '/cache/web_radio_ca.json';
@@ -214,10 +222,60 @@ function getGenres($stations) {
     return array_slice($genres, 0, 20, true);
 }
 
+/** Decorate every station with the user's favorite/hidden state and merge custom ones. */
+function decorateAndMerge(array $catalog, string $user): array {
+    if ($user === '') {
+        $catalog['stations'] = array_values(array_filter(
+            $catalog['stations'] ?? [],
+            fn($s) => empty($s['hidden'])
+        ));
+        $catalog['count'] = count($catalog['stations']);
+        return $catalog;
+    }
+    $custom = RadioStations::listCustom($user);
+    $state  = RadioStations::getState($user);
+
+    $merged = array_merge($custom, $catalog['stations'] ?? []);
+
+    // Apply state + filter hidden
+    $out = [];
+    foreach ($merged as $s) {
+        $sid = (string)($s['id'] ?? '');
+        $flags = $state[$sid] ?? ['favorite' => false, 'hidden' => false];
+        if (!empty($flags['hidden'])) continue;
+        $s['favorite'] = !empty($flags['favorite']);
+        $s['custom']   = !empty($s['custom']);
+        $out[] = $s;
+    }
+
+    // Favorites first, then everything else
+    usort($out, function($a, $b) {
+        $fa = !empty($a['favorite']) ? 1 : 0;
+        $fb = !empty($b['favorite']) ? 1 : 0;
+        if ($fa !== $fb) return $fb - $fa;
+        // Custom stations second
+        $ca = !empty($a['custom']) ? 1 : 0;
+        $cb = !empty($b['custom']) ? 1 : 0;
+        if ($ca !== $cb) return $cb - $ca;
+        return 0;
+    });
+
+    $catalog['stations'] = $out;
+    $catalog['count'] = count($out);
+    return $catalog;
+}
+
+function readJsonBody(): array {
+    $raw = file_get_contents('php://input');
+    $j = json_decode((string)$raw, true);
+    return is_array($j) ? $j : [];
+}
+
 try {
     switch ($action) {
         case 'list':
             $data = getStations($cacheFile, $cacheDuration);
+            $data = decorateAndMerge($data, $user);
             echo json_encode(['success' => true, 'data' => $data], JSON_UNESCAPED_UNICODE);
             break;
 
@@ -225,7 +283,7 @@ try {
             $query = $_GET['q'] ?? '';
             $data = getStations($cacheFile, $cacheDuration);
             $data['stations'] = searchStations($data['stations'], $query);
-            $data['count'] = count($data['stations']);
+            $data = decorateAndMerge($data, $user);
             echo json_encode(['success' => true, 'data' => $data], JSON_UNESCAPED_UNICODE);
             break;
 
@@ -246,6 +304,77 @@ try {
             $data = getStations($cacheFile, $cacheDuration);
             $genres = getGenres($data['stations']);
             echo json_encode(['success' => true, 'data' => $genres], JSON_UNESCAPED_UNICODE);
+            break;
+
+        // ─── User-managed actions (require a session) ───
+        case 'add':
+            if ($user === '') { http_response_code(401); echo json_encode(['success' => false, 'error' => 'unauthenticated']); break; }
+            $payload = readJsonBody();
+            if (!$payload) $payload = $_POST;
+            $id = RadioStations::addCustom($user, $payload);
+            if ($id === false) {
+                echo json_encode(['success' => false, 'error' => 'Nom et URL valides requis']);
+            } else {
+                echo json_encode(['success' => true, 'id' => 'custom:' . $id]);
+            }
+            break;
+
+        case 'add_bulk':
+            if ($user === '') { http_response_code(401); echo json_encode(['success' => false, 'error' => 'unauthenticated']); break; }
+            $payload = readJsonBody();
+            $items   = $payload['items'] ?? [];
+            if (!is_array($items) || !$items) { echo json_encode(['success' => false, 'error' => 'items[] manquant']); break; }
+            $added = 0; $failed = 0;
+            foreach ($items as $it) {
+                $id = RadioStations::addCustom($user, is_array($it) ? $it : []);
+                if ($id === false) $failed++; else $added++;
+            }
+            echo json_encode(['success' => true, 'added' => $added, 'failed' => $failed]);
+            break;
+
+        case 'remove':
+            if ($user === '') { http_response_code(401); echo json_encode(['success' => false, 'error' => 'unauthenticated']); break; }
+            $sid = $_REQUEST['station_id'] ?? readJsonBody()['station_id'] ?? '';
+            if (str_starts_with($sid, 'custom:')) {
+                $ok = RadioStations::removeCustom($user, (int)substr($sid, 7));
+                echo json_encode(['success' => $ok]);
+            } else {
+                // Catalog station can only be hidden, not deleted
+                $res = RadioStations::toggleFlag($user, $sid, 'is_hidden');
+                echo json_encode(['success' => true, 'hidden' => $res['hidden']]);
+            }
+            break;
+
+        case 'remove_bulk':
+            if ($user === '') { http_response_code(401); echo json_encode(['success' => false, 'error' => 'unauthenticated']); break; }
+            $sids = readJsonBody()['station_ids'] ?? [];
+            if (!is_array($sids)) { echo json_encode(['success' => false, 'error' => 'station_ids[] manquant']); break; }
+            $deleted = 0; $hidden = 0;
+            foreach ($sids as $sid) {
+                if (str_starts_with($sid, 'custom:')) {
+                    if (RadioStations::removeCustom($user, (int)substr($sid, 7))) $deleted++;
+                } else {
+                    RadioStations::setFlagBulk($user, [$sid], 'is_hidden', 1);
+                    $hidden++;
+                }
+            }
+            echo json_encode(['success' => true, 'deleted' => $deleted, 'hidden' => $hidden]);
+            break;
+
+        case 'toggle_favorite':
+            if ($user === '') { http_response_code(401); echo json_encode(['success' => false, 'error' => 'unauthenticated']); break; }
+            $sid = $_REQUEST['station_id'] ?? readJsonBody()['station_id'] ?? '';
+            if ($sid === '') { echo json_encode(['success' => false, 'error' => 'station_id requis']); break; }
+            $res = RadioStations::toggleFlag($user, (string)$sid, 'is_favorite');
+            echo json_encode(['success' => true, 'favorite' => $res['favorite']]);
+            break;
+
+        case 'unhide_all':
+            if ($user === '') { http_response_code(401); echo json_encode(['success' => false, 'error' => 'unauthenticated']); break; }
+            $db = AppConfig::getDB();
+            $stmt = $db->prepare("UPDATE radio_user_state SET is_hidden = 0 WHERE user = ?");
+            $stmt->execute([$user]);
+            echo json_encode(['success' => true, 'restored' => $stmt->rowCount()]);
             break;
 
         default:

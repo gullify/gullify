@@ -150,6 +150,69 @@ try {
     <!-- Menu overlay for mobile sidebar -->
     <div class="menu-overlay" id="menuOverlay"></div>
 
+    <!-- Add radio station modal -->
+    <div id="radioAddModalOverlay" class="modal-overlay" hidden role="dialog" aria-label="Add radio station">
+        <div class="modal-card">
+            <button class="modal-close" onclick="closeRadioAddModal()" aria-label="Close"><i class="ri-close-line"></i></button>
+            <h3 class="modal-title"><i class="ri-radio-line" style="color:var(--accent)"></i> Ajouter une station</h3>
+
+            <label class="field-label">Nom *</label>
+            <input type="text" id="radioAddName" class="modal-input" placeholder="Ex: CKOI 96.9">
+
+            <label class="field-label">URL du flux *</label>
+            <input type="url" id="radioAddUrl" class="modal-input" placeholder="https://stream.example.com/...">
+
+            <label class="field-label">Logo (URL, optionnel)</label>
+            <input type="url" id="radioAddLogo" class="modal-input" placeholder="https://...">
+
+            <label class="field-label">Genres (séparés par virgule)</label>
+            <input type="text" id="radioAddGenres" class="modal-input" placeholder="rock, alternatif">
+
+            <label class="field-label">Pays / Langue</label>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                <input type="text" id="radioAddCountry"  class="modal-input" placeholder="Canada">
+                <input type="text" id="radioAddLanguage" class="modal-input" placeholder="French">
+            </div>
+
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="closeRadioAddModal()">Annuler</button>
+                <button class="btn btn-primary" onclick="submitRadioAdd()">
+                    <i class="ri-check-line"></i> Ajouter
+                </button>
+            </div>
+            <div id="radioAddStatus" class="modal-status"></div>
+        </div>
+    </div>
+
+    <!-- Bulk import radio modal -->
+    <div id="radioBulkModalOverlay" class="modal-overlay" hidden role="dialog" aria-label="Bulk import radio">
+        <div class="modal-card" style="max-width:620px;">
+            <button class="modal-close" onclick="closeRadioBulkModal()" aria-label="Close"><i class="ri-close-line"></i></button>
+            <h3 class="modal-title"><i class="ri-upload-cloud-2-line" style="color:var(--accent)"></i> Importer des stations</h3>
+
+            <p style="font-size:13px;color:var(--text-secondary);margin:8px 0 14px;">
+                Colle une liste M3U/M3U8, un JSON, ou simplement une URL par ligne.
+                Pour les URLs seules, le nom prend le domaine. Le M3U lit le tag <code>#EXTINF</code>.
+            </p>
+
+            <textarea id="radioBulkText" class="modal-input" rows="12" placeholder="#EXTM3U
+#EXTINF:-1,Ma station
+https://stream.example.com/live
+
+OU une URL par ligne :
+https://stream2.example.com/live
+https://stream3.example.com/live"></textarea>
+
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="closeRadioBulkModal()">Annuler</button>
+                <button class="btn btn-primary" onclick="submitRadioBulk()">
+                    <i class="ri-upload-2-line"></i> Importer
+                </button>
+            </div>
+            <div id="radioBulkStatus" class="modal-status"></div>
+        </div>
+    </div>
+
     <!-- Equalizer modal (audiophile) -->
     <div id="eqModal" class="eq-modal" hidden role="dialog" aria-label="Equalizer">
         <div class="eq-backdrop" id="eqBackdrop"></div>
