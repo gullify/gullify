@@ -172,8 +172,15 @@ try {
             <input type="url" id="radioAddUrl" class="modal-input" placeholder="https://stream.example.com/... ou https://.../playlist.pls">
             <div id="radioResolveNote" class="mono" style="font-size:10.5px;color:var(--text-tertiary);margin-top:4px;letter-spacing:0.04em;"></div>
 
-            <label class="field-label">Logo (URL, optionnel)</label>
-            <input type="url" id="radioAddLogo" class="modal-input" placeholder="https://...">
+            <label class="field-label">Logo</label>
+            <input type="url" id="radioAddLogo" class="modal-input" placeholder="URL de l'image, ou utilise le bouton ci-dessous">
+            <div style="display:flex;gap:8px;align-items:center;margin-top:6px;">
+                <label class="btn btn-secondary btn-sm" style="flex-shrink:0;cursor:pointer;margin:0;">
+                    <i class="ri-upload-2-line"></i> <span>Téléverser</span>
+                    <input type="file" id="radioAddLogoFile" accept="image/png,image/jpeg,image/webp" style="display:none;">
+                </label>
+                <span id="radioAddLogoStatus" style="font-size:11px;color:var(--text-tertiary);font-family:var(--font-mono);"></span>
+            </div>
 
             <label class="field-label">Genres (séparés par virgule)</label>
             <input type="text" id="radioAddGenres" class="modal-input" placeholder="rock, alternatif">

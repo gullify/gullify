@@ -2719,6 +2719,8 @@
                 .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
             document.getElementById('radioAddStatus').textContent = '';
             document.getElementById('radioResolveNote').textContent = '';
+            const ls = document.getElementById('radioAddLogoStatus');
+            if (ls) ls.textContent = '';
             document.getElementById('radioEditHeader').setAttribute('hidden', '');
             document.getElementById('radioDeleteBtn').setAttribute('hidden', '');
             const fav = document.getElementById('radioEditFavBtn');
@@ -2730,9 +2732,47 @@
         function openRadioAddModal() {
             _radioEditing = null;
             _radioModalReset();
+            _bindRadioLogoUpload();
             document.getElementById('radioAddModalOverlay').removeAttribute('hidden');
         }
         window.openRadioAddModal = openRadioAddModal;
+
+        // Bind the file input → upload → write URL into the logo field.
+        // Idempotent; safe to call every time the modal opens.
+        function _bindRadioLogoUpload() {
+            const input = document.getElementById('radioAddLogoFile');
+            if (!input || input.dataset.bound === '1') return;
+            input.dataset.bound = '1';
+            input.addEventListener('change', async () => {
+                const file = input.files?.[0];
+                if (!file) return;
+                const statusEl = document.getElementById('radioAddLogoStatus');
+                const logoUrlEl = document.getElementById('radioAddLogo');
+                const preview = document.getElementById('radioEditLogoPreview');
+                statusEl.style.color = 'var(--text-tertiary)';
+                statusEl.textContent = 'Téléversement…';
+                try {
+                    const fd = new FormData();
+                    fd.append('logo', file);
+                    const r = await fetch(`${BASE_PATH}/upload_radio_logo.php`, { method: 'POST', body: fd });
+                    const j = await r.json();
+                    if (j.error) {
+                        statusEl.style.color = 'var(--color-danger)';
+                        statusEl.textContent = j.message || 'Erreur';
+                        return;
+                    }
+                    logoUrlEl.value = j.url;
+                    if (preview) preview.src = j.url;
+                    statusEl.style.color = 'var(--color-success)';
+                    statusEl.textContent = `OK · ${(j.size/1024).toFixed(0)} KB`;
+                } catch (e) {
+                    statusEl.style.color = 'var(--color-danger)';
+                    statusEl.textContent = 'Erreur : ' + e.message;
+                } finally {
+                    input.value = '';
+                }
+            });
+        }
 
         async function openRadioEditModal(stationId) {
             _radioModalReset();
@@ -2772,6 +2812,9 @@
                 nameInput.oninput = () => {
                     document.getElementById('radioEditName').textContent = nameInput.value || '';
                 };
+
+                // File upload binding (idempotent)
+                _bindRadioLogoUpload();
                 // Favorites button now lives in the footer; reveal + sync
                 const favBtn = document.getElementById('radioEditFavBtn');
                 favBtn.removeAttribute('hidden');
