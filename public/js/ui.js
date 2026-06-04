@@ -2740,8 +2740,8 @@
                 const local = webRadioStations.find(x => String(x.id) === String(stationId)) || s;
                 const fav = !!local.favorite;
 
-                document.getElementById('radioModalTitle').textContent = isCustom ? 'Modifier la station' : 'Détails de la station';
-                document.getElementById('radioSaveBtnLabel').textContent = isCustom ? 'Enregistrer' : 'Fermer';
+                document.getElementById('radioModalTitle').textContent = isCustom ? 'Modifier la station' : 'Personnaliser la station';
+                document.getElementById('radioSaveBtnLabel').textContent = 'Enregistrer';
 
                 // Editable preview header
                 const header = document.getElementById('radioEditHeader');
@@ -2765,14 +2765,13 @@
                 document.getElementById('radioAddCountry').value  = s.country  || '';
                 document.getElementById('radioAddLanguage').value = s.language || '';
 
-                // Catalog stations are read-only (only fav/hide allowed)
-                const readOnly = !isCustom;
+                // Every field is editable. Editing a catalog station on save
+                // converts it into a custom one (and hides the original).
                 ['radioAddName','radioAddUrl','radioAddLogo','radioAddGenres','radioAddCountry','radioAddLanguage'].forEach(id => {
                     const el = document.getElementById(id);
-                    if (el) el.disabled = readOnly;
+                    if (el) el.disabled = false;
                 });
                 document.getElementById('radioDeleteBtn').toggleAttribute('hidden', false);
-                document.getElementById('radioDeleteBtn').textContent = '';
                 document.getElementById('radioDeleteBtn').innerHTML = isCustom
                     ? `<i class="ri-delete-bin-line"></i> Supprimer`
                     : `<i class="ri-eye-off-line"></i> Masquer`;
@@ -2803,11 +2802,6 @@
                 country:  document.getElementById('radioAddCountry').value.trim() || null,
                 language: document.getElementById('radioAddLanguage').value.trim() || null,
             };
-            if (_radioEditing && !_radioEditing.custom) {
-                // Catalog: nothing to save, just close
-                closeRadioAddModal();
-                return;
-            }
             if (!body.name || !body.url) {
                 statusEl.style.color = 'var(--color-danger)';
                 statusEl.textContent = 'Nom et URL requis';
@@ -2817,10 +2811,14 @@
             statusEl.textContent = 'Enregistrement…';
             try {
                 let url, payload;
-                if (_radioEditing) {
+                if (_radioEditing && _radioEditing.custom) {
+                    // Existing custom station → update
                     url = `${RADIO_API()}?action=update`;
                     payload = { ...body, station_id: _radioEditing.id };
                 } else {
+                    // Either a brand-new station OR editing a catalog one:
+                    // create a custom record. For the catalog case, also
+                    // hide the original so the user only sees their copy.
                     url = `${RADIO_API()}?action=add`;
                     payload = body;
                 }
@@ -2835,12 +2833,22 @@
                     statusEl.textContent = j.error || 'Erreur';
                     return;
                 }
+
+                // Catalog → custom conversion: hide the original Radio Browser
+                // entry so there's only one row visible in the grid.
+                if (_radioEditing && !_radioEditing.custom) {
+                    try {
+                        await fetch(`${RADIO_API()}?action=remove&station_id=${encodeURIComponent(_radioEditing.id)}`, { method: 'POST' });
+                    } catch (e) { /* best-effort */ }
+                }
+
                 if (j.station) {
                     const fmt = j.station.format || '';
                     const pl  = j.station.is_playlist ? ' · playlist résolue' : '';
                     document.getElementById('radioResolveNote').textContent = fmt ? ('Format détecté : ' + fmt.toUpperCase() + pl) : '';
                 }
-                showToast(_radioEditing ? 'Station modifiée' : 'Station ajoutée', 'success');
+                const isEditing = !!_radioEditing;
+                showToast(isEditing ? 'Station modifiée' : 'Station ajoutée', 'success');
                 closeRadioAddModal();
                 renderWebRadio();
             } catch (e) {
