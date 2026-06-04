@@ -2405,6 +2405,7 @@
         let radioFavOnly = false;
         let radioManageMode = false;
         let radioSelected = new Set();
+        let _radioRenderSalt = Date.now();
         const RADIO_API = () => `${BASE_PATH}/web_radio_api.php`;
 
         async function renderWebRadio() {
@@ -2542,9 +2543,17 @@
             const streamUrl = station.streams?.[0]?.url || '';
             const format = station.streams?.[0]?.format || '';
             const genres = (station.genres || []).slice(0, 2).join(', ');
-            const logo = station.logo || `${BASE_PATH}/assets/radio-placeholder.svg`;
+            // Logo: external URLs left untouched (some signed CDNs reject
+            // extra query params). Internal placeholder gets the cache-bust
+            // so a reset reflects immediately. When the station's logo URL
+            // *changes* between saves, the browser naturally fetches the new
+            // one because the src attribute is different.
+            const baseLogo = station.logo || `${BASE_PATH}/assets/radio-placeholder.svg`;
+            const isInternal = baseLogo.startsWith(BASE_PATH) || baseLogo.startsWith('/');
+            const logo = isInternal
+                ? baseLogo + (baseLogo.includes('?') ? '&' : '?') + '_r=' + _radioRenderSalt
+                : baseLogo;
             const fav = !!station.favorite;
-            const custom = !!station.custom;
             const sid = String(station.id);
             const selected = radioSelected.has(sid);
 
@@ -2558,7 +2567,6 @@
                         <button class="radio-fav-btn ${fav ? 'active' : ''}" title="${fav ? 'Retirer des favoris' : 'Ajouter aux favoris'}">
                             <i class="ri-heart-${fav ? 'fill' : 'line'}"></i>
                         </button>
-                        ${custom ? '<span class="radio-custom-tag">Custom</span>' : ''}
                         <div class="radio-check"><i class="ri-check-line"></i></div>
                         <button class="play-radio-btn"><i class="ri-play-fill"></i></button>
                     </div>
@@ -2750,7 +2758,20 @@
                 const pl  = s.is_playlist ? ' · M3U/PLS résolu' : '';
                 document.getElementById('radioEditName').textContent = s.name || '';
                 document.getElementById('radioEditFmt').textContent  = (fmt || 'flux direct') + pl;
-                document.getElementById('radioEditLogoPreview').src  = s.logo || `${BASE_PATH}/assets/radio-placeholder.svg`;
+                const preview = document.getElementById('radioEditLogoPreview');
+                preview.src = s.logo || `${BASE_PATH}/assets/radio-placeholder.svg`;
+                preview.onerror = function () { this.src = `${BASE_PATH}/assets/radio-placeholder.svg`; };
+
+                // Live preview as the user edits the Logo URL field
+                const logoInput = document.getElementById('radioAddLogo');
+                logoInput.oninput = () => {
+                    const v = logoInput.value.trim();
+                    preview.src = v || `${BASE_PATH}/assets/radio-placeholder.svg`;
+                };
+                const nameInput = document.getElementById('radioAddName');
+                nameInput.oninput = () => {
+                    document.getElementById('radioEditName').textContent = nameInput.value || '';
+                };
                 // Favorites button now lives in the footer; reveal + sync
                 const favBtn = document.getElementById('radioEditFavBtn');
                 favBtn.removeAttribute('hidden');
@@ -2849,6 +2870,7 @@
                 }
                 const isEditing = !!_radioEditing;
                 showToast(isEditing ? 'Station modifiée' : 'Station ajoutée', 'success');
+                _radioRenderSalt = Date.now(); // force image re-fetch on next render
                 closeRadioAddModal();
                 renderWebRadio();
             } catch (e) {
