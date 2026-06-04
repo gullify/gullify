@@ -26,32 +26,82 @@ if ($user === '') {
     exit;
 }
 
-try {
-    if (empty($_FILES['logo']) || $_FILES['logo']['error'] !== UPLOAD_ERR_OK) {
-        throw new Exception('Aucun fichier reçu');
+function fetchExternalImage(string $url): array {
+    if (!filter_var($url, FILTER_VALIDATE_URL) || !preg_match('~^https?://~i', $url)) {
+        throw new Exception('URL invalide');
     }
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_FOLLOWLOCATION => true,
+        CURLOPT_TIMEOUT        => 10,
+        CURLOPT_CONNECTTIMEOUT => 5,
+        CURLOPT_USERAGENT      => 'Mozilla/5.0 Gullify/1.0',
+        CURLOPT_HTTPHEADER     => ['Accept: image/*'],
+    ]);
+    $bin  = curl_exec($ch);
+    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $ct   = (string)curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
+    curl_close($ch);
+    if ($code >= 400 || !$bin) {
+        throw new Exception("Téléchargement échoué (HTTP $code)");
+    }
+    if (strlen($bin) > 8 * 1024 * 1024) {
+        throw new Exception('Image distante trop volumineuse');
+    }
+    $mime = strtolower(strtok($ct, ';') ?: '');
+    if (!str_starts_with($mime, 'image/')) {
+        // Some servers omit a useful Content-Type — sniff from magic bytes
+        $magic = substr($bin, 0, 12);
+        if      (str_starts_with($magic, "\xFF\xD8\xFF"))                  $mime = 'image/jpeg';
+        elseif (str_starts_with($magic, "\x89PNG\r\n\x1A\n"))             $mime = 'image/png';
+        elseif (str_starts_with($magic, "RIFF") && substr($magic, 8, 4) === 'WEBP') $mime = 'image/webp';
+        else throw new Exception("Le serveur n'a pas retourné une image (Content-Type: $ct)");
+    }
+    return ['data' => $bin, 'mime' => $mime];
+}
 
-    $file = $_FILES['logo'];
+try {
+    $useUrl = !empty($_REQUEST['url']);
     $allowed = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
-    if (!in_array($file['type'], $allowed, true)) {
-        throw new Exception('Format non supporté (JPEG / PNG / WebP uniquement)');
-    }
-    if ($file['size'] > 4 * 1024 * 1024) {
-        throw new Exception('Fichier trop volumineux (max 4 MB)');
+
+    if ($useUrl) {
+        // Server-side fetch — avoids CORS / hotlinking / mixed-content issues
+        $fetched = fetchExternalImage((string)$_REQUEST['url']);
+        $bin  = $fetched['data'];
+        $mime = $fetched['mime'];
+        $tmpFile = tempnam(sys_get_temp_dir(), 'gullify_radio_');
+        @file_put_contents($tmpFile, $bin);
+        $tmpPath = $tmpFile;
+    } else {
+        if (empty($_FILES['logo']) || $_FILES['logo']['error'] !== UPLOAD_ERR_OK) {
+            throw new Exception('Aucun fichier reçu');
+        }
+        $file = $_FILES['logo'];
+        if (!in_array($file['type'], $allowed, true)) {
+            throw new Exception('Format non supporté (JPEG / PNG / WebP uniquement)');
+        }
+        if ($file['size'] > 4 * 1024 * 1024) {
+            throw new Exception('Fichier trop volumineux (max 4 MB)');
+        }
+        $mime    = $file['type'];
+        $tmpPath = $file['tmp_name'];
     }
 
     $im = null;
-    switch ($file['type']) {
+    switch ($mime) {
         case 'image/jpeg':
         case 'image/jpg':
-            $im = imagecreatefromjpeg($file['tmp_name']);
+            $im = imagecreatefromjpeg($tmpPath);
             break;
         case 'image/png':
-            $im = imagecreatefrompng($file['tmp_name']);
+            $im = imagecreatefrompng($tmpPath);
             break;
         case 'image/webp':
-            $im = imagecreatefromwebp($file['tmp_name']);
+            $im = imagecreatefromwebp($tmpPath);
             break;
+        default:
+            throw new Exception("Format non supporté: $mime");
     }
     if (!$im) throw new Exception("Impossible de décoder l'image");
 
@@ -97,13 +147,17 @@ try {
     $base = rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? ''), '/');
     $url  = $base . '/serve_radio_logo.php?f=' . urlencode($fname);
 
+    // Clean up the temp file used for URL-mode
+    if (!empty($tmpFile) && file_exists($tmpFile)) @unlink($tmpFile);
+
     echo json_encode([
         'error'   => false,
-        'message' => 'Logo téléversé',
+        'message' => $useUrl ? 'Image récupérée depuis l\'URL' : 'Logo téléversé',
         'url'     => $url,
         'size'    => strlen($bin),
     ]);
 } catch (\Throwable $e) {
+    if (!empty($tmpFile) && file_exists($tmpFile)) @unlink($tmpFile);
     http_response_code(400);
     echo json_encode(['error' => true, 'message' => $e->getMessage()]);
 }

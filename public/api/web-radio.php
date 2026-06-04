@@ -238,14 +238,15 @@ function decorateAndMerge(array $catalog, string $user): array {
 
     $merged = array_merge($custom, $catalog['stations'] ?? []);
 
-    // Apply state + filter hidden
+    // Apply state + filter hidden + attach folder_id
     $out = [];
     foreach ($merged as $s) {
         $sid = (string)($s['id'] ?? '');
-        $flags = $state[$sid] ?? ['favorite' => false, 'hidden' => false];
+        $flags = $state[$sid] ?? ['favorite' => false, 'hidden' => false, 'folder_id' => null];
         if (!empty($flags['hidden'])) continue;
-        $s['favorite'] = !empty($flags['favorite']);
-        $s['custom']   = !empty($s['custom']);
+        $s['favorite']  = !empty($flags['favorite']);
+        $s['custom']    = !empty($s['custom']);
+        $s['folder_id'] = $flags['folder_id'] ?? null;
         $out[] = $s;
     }
 
@@ -407,6 +408,54 @@ try {
             $stmt = $db->prepare("UPDATE radio_user_state SET is_hidden = 0 WHERE user = ?");
             $stmt->execute([$user]);
             echo json_encode(['success' => true, 'restored' => $stmt->rowCount()]);
+            break;
+
+        // ── Folders ──────────────────────────────────────────────────
+        case 'folders_list':
+            if ($user === '') { http_response_code(401); echo json_encode(['success' => false, 'error' => 'unauthenticated']); break; }
+            echo json_encode(['success' => true, 'folders' => RadioStations::listFolders($user)]);
+            break;
+
+        case 'folders_create':
+            if ($user === '') { http_response_code(401); echo json_encode(['success' => false, 'error' => 'unauthenticated']); break; }
+            $payload = readJsonBody();
+            $name  = trim((string)($payload['name'] ?? ''));
+            $color = $payload['color'] ?? null;
+            $id = RadioStations::createFolder($user, $name, $color);
+            if ($id === false) {
+                echo json_encode(['success' => false, 'error' => 'Nom requis']);
+            } else {
+                echo json_encode(['success' => true, 'id' => $id]);
+            }
+            break;
+
+        case 'folders_rename':
+            if ($user === '') { http_response_code(401); echo json_encode(['success' => false, 'error' => 'unauthenticated']); break; }
+            $payload = readJsonBody();
+            $id    = (int)($payload['id'] ?? 0);
+            $name  = trim((string)($payload['name'] ?? ''));
+            $color = $payload['color'] ?? null;
+            $ok = RadioStations::renameFolder($user, $id, $name, $color);
+            echo json_encode(['success' => $ok]);
+            break;
+
+        case 'folders_delete':
+            if ($user === '') { http_response_code(401); echo json_encode(['success' => false, 'error' => 'unauthenticated']); break; }
+            $id = (int)($_REQUEST['id'] ?? readJsonBody()['id'] ?? 0);
+            $ok = RadioStations::deleteFolder($user, $id);
+            echo json_encode(['success' => $ok]);
+            break;
+
+        case 'station_move':
+            if ($user === '') { http_response_code(401); echo json_encode(['success' => false, 'error' => 'unauthenticated']); break; }
+            $payload = readJsonBody();
+            $sids = $payload['station_ids'] ?? [];
+            if (!is_array($sids)) $sids = [];
+            $folderId = isset($payload['folder_id']) && $payload['folder_id'] !== null
+                ? (int)$payload['folder_id']
+                : null;
+            $n = RadioStations::moveStations($user, $sids, $folderId);
+            echo json_encode(['success' => true, 'moved' => $n]);
             break;
 
         default:

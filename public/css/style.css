@@ -7118,3 +7118,99 @@ textarea.modal-input { resize: vertical; min-height: 120px; font-family: var(--f
     text-align: center;
     color: var(--text-secondary);
 }
+
+/* ───── Radio folders strip (drag/drop targets) ───── */
+.radio-folder-strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 14px;
+    align-items: center;
+}
+.radio-folder-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px 5px 10px;
+    border-radius: 20px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+    font-size: 12px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, border-color 0.15s, transform 0.1s;
+    user-select: none;
+    position: relative;
+}
+.radio-folder-pill:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+}
+.radio-folder-pill.active {
+    background: var(--accent-soft, oklch(0.78 0.14 65 / 0.18));
+    color: var(--accent);
+    border-color: oklch(0.78 0.14 65 / 0.4);
+}
+.radio-folder-pill.drop-hover {
+    background: var(--accent-soft, oklch(0.78 0.14 65 / 0.25));
+    border-color: var(--accent);
+    transform: scale(1.04);
+}
+.radio-folder-pill .folder-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+.radio-folder-pill .folder-count {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    color: var(--text-tertiary);
+    margin-left: 2px;
+}
+.radio-folder-pill .folder-edit {
+    background: transparent;
+    border: none;
+    color: var(--text-tertiary);
+    padding: 0;
+    margin-left: 4px;
+    width: 16px;
+    height: 16px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    border-radius: 4px;
+    font-size: 12px;
+    opacity: 0;
+    transition: opacity 0.15s;
+}
+.radio-folder-pill:hover .folder-edit { opacity: 1; }
+.radio-folder-pill .folder-edit:hover { color: var(--accent); background: var(--bg-hover); }
+
+.radio-folder-new {
+    background: transparent;
+    border: 1px dashed var(--border);
+    color: var(--text-tertiary);
+    cursor: pointer;
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-family: inherit;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: color 0.15s, border-color 0.15s;
+}
+.radio-folder-new:hover {
+    color: var(--accent);
+    border-color: var(--accent);
+}
+
+/* Drag state on station cards */
+.radio-station-card[draggable="true"] { cursor: grab; }
+.radio-station-card.dragging {
+    opacity: 0.6;
+    transform: scale(0.96);
+    cursor: grabbing;
+}

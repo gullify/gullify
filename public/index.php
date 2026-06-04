@@ -173,13 +173,16 @@ try {
             <div id="radioResolveNote" class="mono" style="font-size:10.5px;color:var(--text-tertiary);margin-top:4px;letter-spacing:0.04em;"></div>
 
             <label class="field-label">Logo</label>
-            <input type="url" id="radioAddLogo" class="modal-input" placeholder="URL de l'image, ou utilise le bouton ci-dessous">
-            <div style="display:flex;gap:8px;align-items:center;margin-top:6px;">
+            <input type="url" id="radioAddLogo" class="modal-input" placeholder="URL de l'image, ou utilise les boutons ci-dessous">
+            <div style="display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap;">
                 <label class="btn btn-secondary btn-sm" style="flex-shrink:0;cursor:pointer;margin:0;">
                     <i class="ri-upload-2-line"></i> <span>Téléverser</span>
                     <input type="file" id="radioAddLogoFile" accept="image/png,image/jpeg,image/webp" style="display:none;">
                 </label>
-                <span id="radioAddLogoStatus" style="font-size:11px;color:var(--text-tertiary);font-family:var(--font-mono);"></span>
+                <button type="button" class="btn btn-secondary btn-sm" id="radioFetchUrlBtn" onclick="fetchLogoFromUrl()" title="Télécharger l'image depuis l'URL ci-dessus vers le serveur">
+                    <i class="ri-download-cloud-2-line"></i> Capturer URL
+                </button>
+                <span id="radioAddLogoStatus" style="font-size:11px;color:var(--text-tertiary);font-family:var(--font-mono);flex:1;min-width:0;"></span>
             </div>
 
             <label class="field-label">Genres (séparés par virgule)</label>

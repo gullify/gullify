@@ -2406,6 +2406,8 @@
         let radioManageMode = false;
         let radioSelected = new Set();
         let _radioRenderSalt = Date.now();
+        let radioFolders = [];
+        let radioFolderFilter = 'all'; // 'all' | 'unfiled' | folder id (number)
         const RADIO_API = () => `${BASE_PATH}/web_radio_api.php`;
 
         async function renderWebRadio() {
@@ -2423,6 +2425,14 @@
                 }
 
                 webRadioStations = result.data.stations || [];
+                // Fetch folders (parallel with render — set radioFolders then re-render the strip)
+                fetch(`${RADIO_API()}?action=folders_list`).then(r => r.json()).then(j => {
+                    if (j.success) {
+                        radioFolders = j.folders || [];
+                        renderRadioFolderStrip();
+                    }
+                }).catch(() => {});
+
                 const genres = {};
 
                 // Group by genre
@@ -2453,6 +2463,8 @@
                                 <i class="ri-heart-${radioFavOnly ? 'fill' : 'line'}"></i> Favoris (${favCount})
                             </button>
                         </div>
+
+                        <div class="radio-folder-strip" id="radioFolderStrip"></div>
 
                         <div class="web-radio-header">
                             <div class="web-radio-filters">
@@ -2498,6 +2510,7 @@
                 `;
 
                 contentBody.innerHTML = html;
+                renderRadioFolderStrip();
 
                 // Setup search and genre filter
                 document.getElementById('radioSearchInput').addEventListener('input', filterRadioStations);
@@ -2539,6 +2552,128 @@
             }
         }
 
+        // Folders strip: "Toutes" + each folder + "Sans dossier" + "+ Nouveau"
+        function renderRadioFolderStrip() {
+            const host = document.getElementById('radioFolderStrip');
+            if (!host) return;
+            const f = radioFolderFilter;
+            const counts = { unfiled: 0 };
+            for (const s of webRadioStations) {
+                if (!s.folder_id) counts.unfiled++;
+            }
+            const items = [
+                `<div class="radio-folder-pill ${f === 'all' ? 'active' : ''}" data-folder="all" onclick="setRadioFolderFilter('all')">
+                    <i class="ri-folder-open-line"></i> Toutes (${webRadioStations.length})
+                </div>`,
+                ...radioFolders.map(fl => `
+                    <div class="radio-folder-pill ${String(f) === String(fl.id) ? 'active' : ''}"
+                         data-folder="${fl.id}"
+                         onclick="setRadioFolderFilter(${fl.id})"
+                         oncontextmenu="event.preventDefault(); editRadioFolder(${fl.id})">
+                        <span class="folder-dot" style="background:${fl.color || 'var(--accent)'}"></span>
+                        <span>${escapeHtml(fl.name)}</span>
+                        <span class="folder-count">${fl.station_count || 0}</span>
+                        <button class="folder-edit" onclick="event.stopPropagation(); editRadioFolder(${fl.id})" title="Modifier">
+                            <i class="ri-pencil-line"></i>
+                        </button>
+                    </div>
+                `),
+                `<div class="radio-folder-pill ${f === 'unfiled' ? 'active' : ''}" data-folder="unfiled" onclick="setRadioFolderFilter('unfiled')">
+                    <i class="ri-inbox-line"></i> Sans dossier (${counts.unfiled})
+                </div>`,
+                `<button class="radio-folder-new" onclick="createRadioFolderPrompt()">
+                    <i class="ri-add-line"></i> Nouveau dossier
+                </button>`,
+            ];
+            host.innerHTML = items.join('');
+            _bindRadioFolderDropTargets();
+            filterRadioStations();
+        }
+        window.setRadioFolderFilter = function(v) {
+            radioFolderFilter = v;
+            document.querySelectorAll('.radio-folder-pill').forEach(p =>
+                p.classList.toggle('active', String(p.dataset.folder) === String(v))
+            );
+            filterRadioStations();
+        };
+        window.createRadioFolderPrompt = async function() {
+            const name = (prompt('Nom du dossier ?') || '').trim();
+            if (!name) return;
+            try {
+                const r = await fetch(`${RADIO_API()}?action=folders_create`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name }),
+                });
+                const j = await r.json();
+                if (!j.success) { showToast(j.error || 'Erreur', 'error'); return; }
+                showToast('Dossier créé', 'success');
+                renderWebRadio();
+            } catch (e) { showToast('Erreur : ' + e.message, 'error'); }
+        };
+        window.editRadioFolder = async function(id) {
+            const f = radioFolders.find(x => x.id === id);
+            if (!f) return;
+            const choice = prompt(`Renommer « ${f.name} » (laisser vide pour supprimer) :`, f.name);
+            if (choice === null) return;
+            try {
+                if (choice.trim() === '') {
+                    if (!confirm(`Supprimer le dossier « ${f.name} » ? Les stations qu'il contient seront déclassées (et conservées).`)) return;
+                    const r = await fetch(`${RADIO_API()}?action=folders_delete&id=${id}`, { method: 'POST' });
+                    const j = await r.json();
+                    if (!j.success) { showToast('Erreur', 'error'); return; }
+                    showToast('Dossier supprimé', 'success');
+                } else {
+                    const r = await fetch(`${RADIO_API()}?action=folders_rename`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ id, name: choice.trim() }),
+                    });
+                    const j = await r.json();
+                    if (!j.success) { showToast('Erreur', 'error'); return; }
+                    showToast('Dossier renommé', 'success');
+                }
+                renderWebRadio();
+            } catch (e) { showToast('Erreur : ' + e.message, 'error'); }
+        };
+
+        // Wire drop targets: each folder pill accepts station cards
+        function _bindRadioFolderDropTargets() {
+            document.querySelectorAll('.radio-folder-pill').forEach(pill => {
+                pill.addEventListener('dragover', e => {
+                    e.preventDefault();
+                    pill.classList.add('drop-hover');
+                });
+                pill.addEventListener('dragleave', () => pill.classList.remove('drop-hover'));
+                pill.addEventListener('drop', async e => {
+                    e.preventDefault();
+                    pill.classList.remove('drop-hover');
+                    const draggedId = e.dataTransfer.getData('text/plain');
+                    if (!draggedId) return;
+                    // If multiple are selected (manage mode), move them all
+                    const ids = radioManageMode && radioSelected.size > 0
+                        ? Array.from(radioSelected)
+                        : [draggedId];
+                    const target = pill.dataset.folder;
+                    let folderId = null;
+                    if (target !== 'all' && target !== 'unfiled') folderId = parseInt(target, 10);
+                    // 'all' drop = no-op; 'unfiled' = move to null
+                    if (target === 'all') return;
+                    try {
+                        const r = await fetch(`${RADIO_API()}?action=station_move`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ station_ids: ids, folder_id: folderId }),
+                        });
+                        const j = await r.json();
+                        if (!j.success) { showToast('Erreur', 'error'); return; }
+                        showToast(`${j.moved} déplacée(s)`, 'success');
+                        renderWebRadio();
+                    } catch (e2) { showToast('Erreur : ' + e2.message, 'error'); }
+                });
+            });
+        }
+
         function renderRadioStationCard(station) {
             const streamUrl = station.streams?.[0]?.url || '';
             const format = station.streams?.[0]?.format || '';
@@ -2559,9 +2694,13 @@
 
             return `
                 <div class="radio-station-card ${selected ? 'selected' : ''}"
+                     draggable="true"
                      data-station-id="${escapeHtml(sid)}"
                      data-fav="${fav ? '1' : '0'}"
-                     data-genres="${(station.genres || []).join(',').toLowerCase()}">
+                     data-folder="${station.folder_id ?? ''}"
+                     data-genres="${(station.genres || []).join(',').toLowerCase()}"
+                     ondragstart="event.dataTransfer.setData('text/plain', this.dataset.stationId); event.dataTransfer.effectAllowed = 'move'; this.classList.add('dragging');"
+                     ondragend="this.classList.remove('dragging');">
                     <div class="radio-station-logo">
                         <img src="${logo}" alt="${escapeHtml(station.name)}" onerror="this.src='${BASE_PATH}/assets/radio-placeholder.svg'">
                         <button class="radio-fav-btn ${fav ? 'active' : ''}" title="${fav ? 'Retirer des favoris' : 'Ajouter aux favoris'}">
@@ -2582,18 +2721,23 @@
         function filterRadioStations() {
             const searchTerm = document.getElementById('radioSearchInput')?.value.toLowerCase() || '';
             const selectedGenre = document.getElementById('radioGenreSelect')?.value || 'all';
+            const folderFilter = radioFolderFilter;
 
             let visibleCount = 0;
             document.querySelectorAll('.radio-station-card').forEach(card => {
                 const name = card.querySelector('.radio-station-name').textContent.toLowerCase();
                 const genres = card.dataset.genres.toLowerCase();
                 const isFav  = card.dataset.fav === '1';
+                const cardFolder = card.dataset.folder || '';
 
                 const matchesSearch = !searchTerm || name.includes(searchTerm) || genres.includes(searchTerm);
                 const matchesGenre  = selectedGenre === 'all' || genres.includes(selectedGenre.toLowerCase());
                 const matchesFav    = !radioFavOnly || isFav;
+                let matchesFolder = true;
+                if (folderFilter === 'unfiled')     matchesFolder = !cardFolder;
+                else if (folderFilter !== 'all')    matchesFolder = String(cardFolder) === String(folderFilter);
 
-                const visible = matchesSearch && matchesGenre && matchesFav;
+                const visible = matchesSearch && matchesGenre && matchesFav && matchesFolder;
                 card.style.display = visible ? '' : 'none';
                 if (visible) visibleCount++;
             });
@@ -2736,6 +2880,42 @@
             document.getElementById('radioAddModalOverlay').removeAttribute('hidden');
         }
         window.openRadioAddModal = openRadioAddModal;
+
+        // Server-side fetch of a logo from the URL field. Useful when the
+        // source server blocks hotlinking, has CORS issues, or the page is
+        // HTTPS while the asset is HTTP (mixed content).
+        async function fetchLogoFromUrl() {
+            const urlInput = document.getElementById('radioAddLogo');
+            const statusEl = document.getElementById('radioAddLogoStatus');
+            const preview  = document.getElementById('radioEditLogoPreview');
+            const url = urlInput.value.trim();
+            if (!url) {
+                statusEl.style.color = 'var(--color-danger)';
+                statusEl.textContent = 'Colle d\'abord une URL';
+                return;
+            }
+            statusEl.style.color = 'var(--text-tertiary)';
+            statusEl.textContent = 'Téléchargement…';
+            try {
+                const fd = new FormData();
+                fd.append('url', url);
+                const r = await fetch(`${BASE_PATH}/upload_radio_logo.php`, { method: 'POST', body: fd });
+                const j = await r.json();
+                if (j.error) {
+                    statusEl.style.color = 'var(--color-danger)';
+                    statusEl.textContent = j.message || 'Erreur';
+                    return;
+                }
+                urlInput.value = j.url;
+                if (preview) preview.src = j.url;
+                statusEl.style.color = 'var(--color-success)';
+                statusEl.textContent = `OK · ${(j.size/1024).toFixed(0)} KB`;
+            } catch (e) {
+                statusEl.style.color = 'var(--color-danger)';
+                statusEl.textContent = 'Erreur : ' + e.message;
+            }
+        }
+        window.fetchLogoFromUrl = fetchLogoFromUrl;
 
         // Bind the file input → upload → write URL into the logo field.
         // Idempotent; safe to call every time the modal opens.
