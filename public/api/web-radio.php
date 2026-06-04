@@ -315,7 +315,38 @@ try {
             if ($id === false) {
                 echo json_encode(['success' => false, 'error' => 'Nom et URL valides requis']);
             } else {
-                echo json_encode(['success' => true, 'id' => 'custom:' . $id]);
+                $row = RadioStations::getCustom($user, $id);
+                echo json_encode(['success' => true, 'id' => 'custom:' . $id, 'station' => $row]);
+            }
+            break;
+
+        case 'update':
+            if ($user === '') { http_response_code(401); echo json_encode(['success' => false, 'error' => 'unauthenticated']); break; }
+            $payload = readJsonBody();
+            $sid = $payload['station_id'] ?? '';
+            if (!str_starts_with((string)$sid, 'custom:')) {
+                echo json_encode(['success' => false, 'error' => 'Seules les stations personnalisées sont modifiables']);
+                break;
+            }
+            $ok = RadioStations::updateCustom($user, (int)substr($sid, 7), $payload);
+            $row = RadioStations::getCustom($user, (int)substr($sid, 7));
+            echo json_encode(['success' => $ok, 'station' => $row]);
+            break;
+
+        case 'get':
+            if ($user === '') { http_response_code(401); echo json_encode(['success' => false, 'error' => 'unauthenticated']); break; }
+            $sid = $_REQUEST['station_id'] ?? '';
+            if (str_starts_with((string)$sid, 'custom:')) {
+                $row = RadioStations::getCustom($user, (int)substr($sid, 7));
+                echo json_encode(['success' => (bool)$row, 'station' => $row]);
+            } else {
+                $catalog = getStations($cacheFile, $cacheDuration);
+                $found = null;
+                foreach ($catalog['stations'] ?? [] as $s) {
+                    if ((string)($s['id'] ?? '') === (string)$sid) { $found = $s; break; }
+                }
+                if ($found) $found['custom'] = false;
+                echo json_encode(['success' => (bool)$found, 'station' => $found]);
             }
             break;
 

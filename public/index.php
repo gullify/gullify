@@ -150,17 +150,30 @@ try {
     <!-- Menu overlay for mobile sidebar -->
     <div class="menu-overlay" id="menuOverlay"></div>
 
-    <!-- Add radio station modal -->
+    <!-- Add / Edit radio station modal (dual-purpose) -->
     <div id="radioAddModalOverlay" class="modal-overlay" hidden role="dialog" aria-label="Add radio station">
-        <div class="modal-card">
+        <div class="modal-card" style="max-width:520px;">
             <button class="modal-close" onclick="closeRadioAddModal()" aria-label="Close"><i class="ri-close-line"></i></button>
-            <h3 class="modal-title"><i class="ri-radio-line" style="color:var(--accent)"></i> Ajouter une station</h3>
+            <h3 class="modal-title"><i class="ri-radio-line" style="color:var(--accent)"></i> <span id="radioModalTitle">Ajouter une station</span></h3>
+
+            <!-- Editable preview: logo + name -->
+            <div id="radioEditHeader" style="display:flex;gap:14px;align-items:center;margin-bottom:14px;" hidden>
+                <img id="radioEditLogoPreview" alt="" style="width:56px;height:56px;border-radius:8px;object-fit:cover;background:var(--bg-primary);border:1px solid var(--border);">
+                <div style="flex:1;min-width:0;">
+                    <div id="radioEditName" style="font-size:15px;font-weight:600;color:var(--text-primary);"></div>
+                    <div id="radioEditFmt" class="mono" style="font-size:10.5px;letter-spacing:0.06em;color:var(--text-tertiary);text-transform:uppercase;margin-top:3px;"></div>
+                </div>
+                <button id="radioEditFavBtn" class="btn btn-secondary btn-sm" onclick="editFavToggle()">
+                    <i class="ri-heart-line"></i> <span>Favoris</span>
+                </button>
+            </div>
 
             <label class="field-label">Nom *</label>
             <input type="text" id="radioAddName" class="modal-input" placeholder="Ex: CKOI 96.9">
 
-            <label class="field-label">URL du flux *</label>
-            <input type="url" id="radioAddUrl" class="modal-input" placeholder="https://stream.example.com/...">
+            <label class="field-label">URL (flux direct, M3U, M3U8/HLS ou PLS) *</label>
+            <input type="url" id="radioAddUrl" class="modal-input" placeholder="https://stream.example.com/... ou https://.../playlist.pls">
+            <div id="radioResolveNote" class="mono" style="font-size:10.5px;color:var(--text-tertiary);margin-top:4px;letter-spacing:0.04em;"></div>
 
             <label class="field-label">Logo (URL, optionnel)</label>
             <input type="url" id="radioAddLogo" class="modal-input" placeholder="https://...">
@@ -174,10 +187,29 @@ try {
                 <input type="text" id="radioAddLanguage" class="modal-input" placeholder="French">
             </div>
 
-            <div class="modal-actions">
+            <!-- Format help block -->
+            <details style="margin-top:14px;background:var(--bg-primary);border:1px solid var(--border);border-radius:8px;padding:10px 12px;">
+                <summary style="cursor:pointer;font-size:12px;color:var(--text-secondary);">
+                    <i class="ri-information-line"></i> Formats supportés
+                </summary>
+                <div style="font-size:12px;color:var(--text-secondary);margin-top:8px;line-height:1.6;">
+                    <strong>Flux direct</strong> — MP3, AAC, OGG/Vorbis, OPUS, FLAC.<br>
+                    <em>Icecast et Shoutcast</em> exposent ce type d'URL : ça fonctionne tel quel.<br><br>
+                    <strong>Playlists résolues côté serveur</strong> :<br>
+                    • <code>.m3u</code> / <code>.m3u8</code> (avec <code>#EXTINF</code>) — le premier flux interne est extrait<br>
+                    • <code>.pls</code> (format INI avec <code>File1=…</code>) — la première ligne <code>File*=</code> est extraite<br><br>
+                    <strong>HLS</strong> (<code>.m3u8</code> avec <code>#EXT-X-STREAM-INF</code>) — passe tel quel.<br>
+                    Lu nativement par Safari/iOS et l'app Android via ExoPlayer. Sur Chrome web, nécessite hls.js.
+                </div>
+            </details>
+
+            <div class="modal-actions" id="radioModalActions">
+                <button class="btn btn-danger" id="radioDeleteBtn" onclick="editDelete()" hidden style="margin-right:auto;">
+                    <i class="ri-delete-bin-line"></i> Supprimer
+                </button>
                 <button class="btn btn-secondary" onclick="closeRadioAddModal()">Annuler</button>
-                <button class="btn btn-primary" onclick="submitRadioAdd()">
-                    <i class="ri-check-line"></i> Ajouter
+                <button class="btn btn-primary" id="radioSaveBtn" onclick="submitRadioSave()">
+                    <i class="ri-check-line"></i> <span id="radioSaveBtnLabel">Ajouter</span>
                 </button>
             </div>
             <div id="radioAddStatus" class="modal-status"></div>

@@ -2502,13 +2502,13 @@
                 document.getElementById('radioSearchInput').addEventListener('input', filterRadioStations);
                 document.getElementById('radioGenreSelect').addEventListener('change', filterRadioStations);
 
-                // Single delegated click: play / fav / select / remove
+                // Single delegated click: play / fav / select / edit
                 document.getElementById('radioStationsGrid').addEventListener('click', function(e) {
                     const card = e.target.closest('.radio-station-card');
                     if (!card) return;
                     const stationId = card.dataset.stationId;
 
-                    // Heart toggle
+                    // Heart toggle wins over everything else
                     const fav = e.target.closest('.radio-fav-btn');
                     if (fav) { e.preventDefault(); e.stopPropagation(); toggleRadioFavorite(stationId); return; }
 
@@ -2517,12 +2517,17 @@
                         return;
                     }
 
+                    // Explicit play button → start streaming
                     const btn = e.target.closest('.play-radio-btn');
                     if (btn) {
                         e.preventDefault();
                         e.stopPropagation();
                         if (stationId) playWebRadio(stationId);
+                        return;
                     }
+
+                    // Card body → open edit modal
+                    if (stationId) openRadioEditModal(stationId);
                 });
 
                 filterRadioStations();
@@ -2688,24 +2693,95 @@
         }
         window.bulkRemoveRadios = bulkRemoveRadios;
 
-        // ── Radio: add single + bulk modals ─────────────────────────────────
-        function openRadioAddModal() {
-            document.getElementById('radioAddName').value = '';
-            document.getElementById('radioAddUrl').value = '';
-            document.getElementById('radioAddLogo').value = '';
-            document.getElementById('radioAddGenres').value = '';
-            document.getElementById('radioAddCountry').value = '';
-            document.getElementById('radioAddLanguage').value = '';
+        // ── Radio: add / edit / bulk modals ─────────────────────────────────
+        let _radioEditing = null; // null = add mode; otherwise { id, custom, ... }
+
+        function _radioModalReset() {
+            ['radioAddName','radioAddUrl','radioAddLogo','radioAddGenres','radioAddCountry','radioAddLanguage']
+                .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
             document.getElementById('radioAddStatus').textContent = '';
+            document.getElementById('radioResolveNote').textContent = '';
+            document.getElementById('radioEditHeader').setAttribute('hidden', '');
+            document.getElementById('radioDeleteBtn').setAttribute('hidden', '');
+            document.getElementById('radioModalTitle').textContent = 'Ajouter une station';
+            document.getElementById('radioSaveBtnLabel').textContent = 'Ajouter';
+        }
+
+        function openRadioAddModal() {
+            _radioEditing = null;
+            _radioModalReset();
             document.getElementById('radioAddModalOverlay').removeAttribute('hidden');
         }
         window.openRadioAddModal = openRadioAddModal;
+
+        async function openRadioEditModal(stationId) {
+            _radioModalReset();
+            const overlay = document.getElementById('radioAddModalOverlay');
+            try {
+                const r = await fetch(`${RADIO_API()}?action=get&station_id=${encodeURIComponent(stationId)}`);
+                const j = await r.json();
+                if (!j.success || !j.station) { showToast('Station introuvable', 'error'); return; }
+                const s = j.station;
+                const isCustom = (typeof stationId === 'string' && stationId.startsWith('custom:'));
+                _radioEditing = { id: stationId, custom: isCustom, raw: s };
+
+                const local = webRadioStations.find(x => String(x.id) === String(stationId)) || s;
+                const fav = !!local.favorite;
+
+                document.getElementById('radioModalTitle').textContent = isCustom ? 'Modifier la station' : 'Détails de la station';
+                document.getElementById('radioSaveBtnLabel').textContent = isCustom ? 'Enregistrer' : 'Fermer';
+
+                // Editable preview header
+                const header = document.getElementById('radioEditHeader');
+                header.removeAttribute('hidden');
+                const fmt = (s.streams?.[0]?.format) || (s.format ?? '');
+                const pl  = s.is_playlist ? ' · M3U/PLS résolu' : '';
+                document.getElementById('radioEditName').textContent = s.name || '';
+                document.getElementById('radioEditFmt').textContent  = (fmt || 'flux direct') + pl;
+                document.getElementById('radioEditLogoPreview').src  = s.logo || `${BASE_PATH}/assets/radio-placeholder.svg`;
+                const favBtn = document.getElementById('radioEditFavBtn');
+                favBtn.classList.toggle('active', fav);
+                favBtn.innerHTML = `<i class="ri-heart-${fav ? 'fill' : 'line'}"></i> <span>${fav ? 'Retirer' : 'Favoris'}</span>`;
+
+                // Prefill editable fields
+                const origUrl = s.original_url || (s.streams?.[0]?.url) || '';
+                document.getElementById('radioAddName').value     = s.name || '';
+                document.getElementById('radioAddUrl').value      = origUrl;
+                document.getElementById('radioAddLogo').value     = s.logo || '';
+                document.getElementById('radioAddGenres').value   = Array.isArray(s.genres) ? s.genres.join(', ') : '';
+                document.getElementById('radioAddCountry').value  = s.country  || '';
+                document.getElementById('radioAddLanguage').value = s.language || '';
+
+                // Catalog stations are read-only (only fav/hide allowed)
+                const readOnly = !isCustom;
+                ['radioAddName','radioAddUrl','radioAddLogo','radioAddGenres','radioAddCountry','radioAddLanguage'].forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) el.disabled = readOnly;
+                });
+                document.getElementById('radioDeleteBtn').toggleAttribute('hidden', false);
+                document.getElementById('radioDeleteBtn').textContent = '';
+                document.getElementById('radioDeleteBtn').innerHTML = isCustom
+                    ? `<i class="ri-delete-bin-line"></i> Supprimer`
+                    : `<i class="ri-eye-off-line"></i> Masquer`;
+
+                overlay.removeAttribute('hidden');
+            } catch (e) { showToast('Erreur : ' + e.message, 'error'); }
+        }
+        window.openRadioEditModal = openRadioEditModal;
+
         function closeRadioAddModal() {
             document.getElementById('radioAddModalOverlay').setAttribute('hidden', '');
+            // Re-enable inputs for next open
+            ['radioAddName','radioAddUrl','radioAddLogo','radioAddGenres','radioAddCountry','radioAddLanguage'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.disabled = false;
+            });
+            _radioEditing = null;
         }
         window.closeRadioAddModal = closeRadioAddModal;
 
-        async function submitRadioAdd() {
+        async function submitRadioSave() {
+            const statusEl = document.getElementById('radioAddStatus');
             const body = {
                 name:     document.getElementById('radioAddName').value.trim(),
                 url:      document.getElementById('radioAddUrl').value.trim(),
@@ -2714,17 +2790,31 @@
                 country:  document.getElementById('radioAddCountry').value.trim() || null,
                 language: document.getElementById('radioAddLanguage').value.trim() || null,
             };
-            const statusEl = document.getElementById('radioAddStatus');
+            if (_radioEditing && !_radioEditing.custom) {
+                // Catalog: nothing to save, just close
+                closeRadioAddModal();
+                return;
+            }
             if (!body.name || !body.url) {
                 statusEl.style.color = 'var(--color-danger)';
                 statusEl.textContent = 'Nom et URL requis';
                 return;
             }
+            statusEl.style.color = 'var(--text-secondary)';
+            statusEl.textContent = 'Enregistrement…';
             try {
-                const r = await fetch(`${RADIO_API()}?action=add`, {
+                let url, payload;
+                if (_radioEditing) {
+                    url = `${RADIO_API()}?action=update`;
+                    payload = { ...body, station_id: _radioEditing.id };
+                } else {
+                    url = `${RADIO_API()}?action=add`;
+                    payload = body;
+                }
+                const r = await fetch(url, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(body),
+                    body: JSON.stringify(payload),
                 });
                 const j = await r.json();
                 if (!j.success) {
@@ -2732,7 +2822,12 @@
                     statusEl.textContent = j.error || 'Erreur';
                     return;
                 }
-                showToast('Station ajoutée', 'success');
+                if (j.station) {
+                    const fmt = j.station.format || '';
+                    const pl  = j.station.is_playlist ? ' · playlist résolue' : '';
+                    document.getElementById('radioResolveNote').textContent = fmt ? ('Format détecté : ' + fmt.toUpperCase() + pl) : '';
+                }
+                showToast(_radioEditing ? 'Station modifiée' : 'Station ajoutée', 'success');
                 closeRadioAddModal();
                 renderWebRadio();
             } catch (e) {
@@ -2740,7 +2835,36 @@
                 statusEl.textContent = 'Erreur : ' + e.message;
             }
         }
-        window.submitRadioAdd = submitRadioAdd;
+        window.submitRadioSave = submitRadioSave;
+
+        async function editFavToggle() {
+            if (!_radioEditing) return;
+            await toggleRadioFavorite(_radioEditing.id);
+            const local = webRadioStations.find(x => String(x.id) === String(_radioEditing.id));
+            const fav = !!(local && local.favorite);
+            const btn = document.getElementById('radioEditFavBtn');
+            btn.classList.toggle('active', fav);
+            btn.innerHTML = `<i class="ri-heart-${fav ? 'fill' : 'line'}"></i> <span>${fav ? 'Retirer' : 'Favoris'}</span>`;
+        }
+        window.editFavToggle = editFavToggle;
+
+        async function editDelete() {
+            if (!_radioEditing) return;
+            const isCustom = _radioEditing.custom;
+            const msg = isCustom
+                ? `Supprimer définitivement « ${_radioEditing.raw?.name || ''} » ?`
+                : `Masquer cette station du catalogue ? (Elle peut être restaurée dans les paramètres.)`;
+            if (!confirm(msg)) return;
+            try {
+                const r = await fetch(`${RADIO_API()}?action=remove&station_id=${encodeURIComponent(_radioEditing.id)}`, { method: 'POST' });
+                const j = await r.json();
+                if (!j.success) { showToast(j.error || 'Erreur', 'error'); return; }
+                showToast(isCustom ? 'Station supprimée' : 'Station masquée', 'success');
+                closeRadioAddModal();
+                renderWebRadio();
+            } catch (e) { showToast('Erreur : ' + e.message, 'error'); }
+        }
+        window.editDelete = editDelete;
 
         function openRadioBulkModal() {
             document.getElementById('radioBulkText').value = '';
