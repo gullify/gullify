@@ -2696,6 +2696,16 @@
         // ── Radio: add / edit / bulk modals ─────────────────────────────────
         let _radioEditing = null; // null = add mode; otherwise { id, custom, ... }
 
+        function _radioApplyFavBtnStyle(btn, isFav) {
+            if (!btn) return;
+            // Mirror the .chip.active treatment used elsewhere in audiophile
+            btn.classList.toggle('active', isFav);
+            btn.style.color           = isFav ? 'var(--accent)' : '';
+            btn.style.borderColor     = isFav ? 'oklch(0.78 0.14 65 / 0.4)' : '';
+            btn.style.background      = isFav ? 'var(--accent-soft, oklch(0.78 0.14 65 / 0.18))' : '';
+            btn.innerHTML = `<i class="ri-heart-${isFav ? 'fill' : 'line'}"></i> <span>${isFav ? 'Retirer des favoris' : 'Ajouter aux favoris'}</span>`;
+        }
+
         function _radioModalReset() {
             ['radioAddName','radioAddUrl','radioAddLogo','radioAddGenres','radioAddCountry','radioAddLanguage']
                 .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
@@ -2703,6 +2713,8 @@
             document.getElementById('radioResolveNote').textContent = '';
             document.getElementById('radioEditHeader').setAttribute('hidden', '');
             document.getElementById('radioDeleteBtn').setAttribute('hidden', '');
+            const fav = document.getElementById('radioEditFavBtn');
+            if (fav) { fav.setAttribute('hidden', ''); _radioApplyFavBtnStyle(fav, false); }
             document.getElementById('radioModalTitle').textContent = 'Ajouter une station';
             document.getElementById('radioSaveBtnLabel').textContent = 'Ajouter';
         }
@@ -2739,9 +2751,10 @@
                 document.getElementById('radioEditName').textContent = s.name || '';
                 document.getElementById('radioEditFmt').textContent  = (fmt || 'flux direct') + pl;
                 document.getElementById('radioEditLogoPreview').src  = s.logo || `${BASE_PATH}/assets/radio-placeholder.svg`;
+                // Favorites button now lives in the footer; reveal + sync
                 const favBtn = document.getElementById('radioEditFavBtn');
-                favBtn.classList.toggle('active', fav);
-                favBtn.innerHTML = `<i class="ri-heart-${fav ? 'fill' : 'line'}"></i> <span>${fav ? 'Retirer' : 'Favoris'}</span>`;
+                favBtn.removeAttribute('hidden');
+                _radioApplyFavBtnStyle(favBtn, fav);
 
                 // Prefill editable fields
                 const origUrl = s.original_url || (s.streams?.[0]?.url) || '';
@@ -2841,10 +2854,7 @@
             if (!_radioEditing) return;
             await toggleRadioFavorite(_radioEditing.id);
             const local = webRadioStations.find(x => String(x.id) === String(_radioEditing.id));
-            const fav = !!(local && local.favorite);
-            const btn = document.getElementById('radioEditFavBtn');
-            btn.classList.toggle('active', fav);
-            btn.innerHTML = `<i class="ri-heart-${fav ? 'fill' : 'line'}"></i> <span>${fav ? 'Retirer' : 'Favoris'}</span>`;
+            _radioApplyFavBtnStyle(document.getElementById('radioEditFavBtn'), !!(local && local.favorite));
         }
         window.editFavToggle = editFavToggle;
 

@@ -156,16 +156,13 @@ try {
             <button class="modal-close" onclick="closeRadioAddModal()" aria-label="Close"><i class="ri-close-line"></i></button>
             <h3 class="modal-title"><i class="ri-radio-line" style="color:var(--accent)"></i> <span id="radioModalTitle">Ajouter une station</span></h3>
 
-            <!-- Editable preview: logo + name -->
+            <!-- Editable preview: logo + name (favorite button moved to footer) -->
             <div id="radioEditHeader" style="display:flex;gap:14px;align-items:center;margin-bottom:14px;" hidden>
                 <img id="radioEditLogoPreview" alt="" style="width:56px;height:56px;border-radius:8px;object-fit:cover;background:var(--bg-primary);border:1px solid var(--border);">
                 <div style="flex:1;min-width:0;">
                     <div id="radioEditName" style="font-size:15px;font-weight:600;color:var(--text-primary);"></div>
                     <div id="radioEditFmt" class="mono" style="font-size:10.5px;letter-spacing:0.06em;color:var(--text-tertiary);text-transform:uppercase;margin-top:3px;"></div>
                 </div>
-                <button id="radioEditFavBtn" class="btn btn-secondary btn-sm" onclick="editFavToggle()">
-                    <i class="ri-heart-line"></i> <span>Favoris</span>
-                </button>
             </div>
 
             <label class="field-label">Nom *</label>
@@ -204,10 +201,13 @@ try {
             </details>
 
             <div class="modal-actions" id="radioModalActions">
-                <button class="btn btn-danger" id="radioDeleteBtn" onclick="editDelete()" hidden style="margin-right:auto;">
+                <button class="btn btn-secondary" id="radioEditFavBtn" onclick="editFavToggle()" hidden>
+                    <i class="ri-heart-line"></i> <span>Favoris</span>
+                </button>
+                <button class="btn btn-danger" id="radioDeleteBtn" onclick="editDelete()" hidden>
                     <i class="ri-delete-bin-line"></i> Supprimer
                 </button>
-                <button class="btn btn-secondary" onclick="closeRadioAddModal()">Annuler</button>
+                <button class="btn btn-secondary" onclick="closeRadioAddModal()" style="margin-left:auto;">Annuler</button>
                 <button class="btn btn-primary" id="radioSaveBtn" onclick="submitRadioSave()">
                     <i class="ri-check-line"></i> <span id="radioSaveBtnLabel">Ajouter</span>
                 </button>
