@@ -6,18 +6,19 @@
  */
 
 require_once __DIR__ . '/../../src/AppConfig.php';
+
+// Boot the Gullify session (with the right cookie name + path).
+// The web radio view is always reached from inside the SPA, so we always
+// have a logged-in user. auth_required.php handles cookie/session/Bearer
+// token flows for us.
+require_once __DIR__ . '/../../src/auth_required.php';
+
 require_once __DIR__ . '/../../src/RadioStations.php';
 
 header('Content-Type: application/json');
 header('Cache-Control: no-cache');
 
-// Per-user state is opt-in: if no session, behave like before (anonymous list).
-$user = $_SESSION['username'] ?? '';
-if ($user === '') {
-    @session_start();
-    $user = $_SESSION['username'] ?? '';
-}
-
+$user   = $_SESSION['username'] ?? '';
 $action = $_GET['action'] ?? 'list';
 $cacheFile = AppConfig::getDataPath() . '/cache/web_radio_ca.json';
 $cacheDuration = 3600; // 1 hour
