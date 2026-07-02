@@ -20,6 +20,13 @@ class LibraryScreen extends StatelessWidget {
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Bibliothèque'),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.add_circle_outline),
+              tooltip: 'Ajouter de la musique',
+              onPressed: () => context.push('/yt-downloads'),
+            ),
+          ],
           bottom: const TabBar(
             isScrollable: true,
             tabAlignment: TabAlignment.start,

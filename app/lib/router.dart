@@ -17,6 +17,8 @@ import 'screens/server_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/shell_screen.dart';
 import 'screens/splash_screen.dart';
+import 'screens/stats_screen.dart';
+import 'screens/yt_downloads_screen.dart';
 import 'state/auth.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
@@ -82,6 +84,14 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/settings/downloads',
         builder: (_, _) => const DownloadsScreen(),
+      ),
+      GoRoute(
+        path: '/yt-downloads',
+        builder: (_, _) => const YtDownloadsScreen(),
+      ),
+      GoRoute(
+        path: '/stats',
+        builder: (_, _) => const StatsScreen(),
       ),
     ],
     redirect: (context, state) {
