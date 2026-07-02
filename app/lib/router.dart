@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -67,7 +68,19 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/now-playing',
-        builder: (_, _) => const NowPlayingScreen(),
+        // Glisse depuis le bas, cohérent avec la fermeture par swipe.
+        pageBuilder: (_, state) => CustomTransitionPage(
+          key: state.pageKey,
+          child: const NowPlayingScreen(),
+          transitionDuration: const Duration(milliseconds: 250),
+          transitionsBuilder: (_, animation, _, child) => SlideTransition(
+            position: animation.drive(
+              Tween(begin: const Offset(0, 1), end: Offset.zero)
+                  .chain(CurveTween(curve: Curves.easeOutCubic)),
+            ),
+            child: child,
+          ),
+        ),
       ),
       GoRoute(
         path: '/notifications',

@@ -6,6 +6,7 @@ import '../state/library.dart';
 import '../state/offline.dart';
 import '../state/player.dart';
 import '../widgets/artwork.dart';
+import '../widgets/mini_player.dart';
 import '../widgets/song_menu.dart';
 import '../widgets/song_tile.dart';
 
@@ -24,6 +25,7 @@ class AlbumScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(),
+      bottomNavigationBar: const MiniPlayer(),
       body: detail.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('Erreur: $e')),
@@ -63,7 +65,10 @@ class AlbumScreen extends ConsumerWidget {
                             ),
                           ),
                         const SizedBox(height: 12),
-                        Row(
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          crossAxisAlignment: WrapCrossAlignment.center,
                           children: [
                             FilledButton.icon(
                               onPressed: d.songs.isEmpty
@@ -74,10 +79,17 @@ class AlbumScreen extends ConsumerWidget {
                               icon: const Icon(Icons.play_arrow),
                               label: const Text('Lecture'),
                             ),
-                            if (offlineSupported) ...[
-                              const SizedBox(width: 8),
+                            IconButton.outlined(
+                              tooltip: 'Lecture aléatoire',
+                              icon: const Icon(Icons.shuffle),
+                              onPressed: d.songs.isEmpty
+                                  ? null
+                                  : () => ref
+                                      .read(playerActionsProvider)
+                                      .playSongs(d.songs.toList()..shuffle()),
+                            ),
+                            if (offlineSupported)
                               _DownloadAlbumButton(songs: d.songs),
-                            ],
                           ],
                         ),
                       ],

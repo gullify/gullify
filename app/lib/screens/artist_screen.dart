@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../state/library.dart';
 import '../state/player.dart';
 import '../widgets/artwork.dart';
+import '../widgets/mini_player.dart';
 import '../widgets/song_menu.dart';
 import '../widgets/song_tile.dart';
 
@@ -18,6 +19,7 @@ class ArtistScreen extends ConsumerWidget {
     final detail = ref.watch(artistDetailProvider(artistId));
 
     return Scaffold(
+      bottomNavigationBar: const MiniPlayer(),
       body: detail.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('Erreur: $e')),

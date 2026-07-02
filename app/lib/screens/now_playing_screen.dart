@@ -29,7 +29,12 @@ class NowPlayingScreen extends ConsumerWidget {
     final isRadio = item.extras?['radio'] == true;
     final songId = item.extras?['songId'] as int?;
 
-    return Scaffold(
+    // Swipe vers le bas pour fermer le lecteur (en plus de la flèche).
+    return Dismissible(
+      key: const ValueKey('now-playing'),
+      direction: DismissDirection.down,
+      onDismissed: (_) => context.pop(),
+      child: Scaffold(
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.keyboard_arrow_down),
@@ -153,6 +158,7 @@ class NowPlayingScreen extends ConsumerWidget {
             ],
           ),
         ),
+      ),
       ),
     );
   }
