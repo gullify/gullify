@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../state/app_update.dart';
 import '../state/auth.dart';
 import '../state/equalizer.dart';
 import '../state/offline.dart';
+import '../widgets/update_dialog.dart';
 
-const appVersion = '2.0.0';
+const appVersion = '2.1.0';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -77,6 +79,7 @@ class SettingsScreen extends ConsumerWidget {
             title: Text('Gullify'),
             subtitle: Text('Version $appVersion'),
           ),
+          const _UpdateTile(),
         ],
       ),
     );
@@ -117,6 +120,54 @@ String formatBytes(int bytes) {
     return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} Mo';
   }
   return '${(bytes / 1024).toStringAsFixed(0)} Ko';
+}
+
+class _UpdateTile extends ConsumerWidget {
+  const _UpdateTile();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final update = ref.watch(appUpdateProvider);
+
+    final subtitle = switch (update.status) {
+      UpdateStatus.checking => 'Vérification…',
+      UpdateStatus.upToDate => 'Vous avez la dernière version',
+      UpdateStatus.available =>
+        'Version ${update.available!.versionName} disponible',
+      UpdateStatus.downloading => 'Téléchargement en cours…',
+      UpdateStatus.readyToInstall => 'Prêt à installer',
+      UpdateStatus.error => update.message ?? 'Erreur',
+      UpdateStatus.idle => null,
+    };
+
+    return ListTile(
+      leading: update.status == UpdateStatus.checking
+          ? const SizedBox(
+              width: 24,
+              height: 24,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : Icon(
+              update.status == UpdateStatus.available
+                  ? Icons.system_update
+                  : Icons.update,
+            ),
+      title: const Text('Rechercher des mises à jour'),
+      subtitle: subtitle != null ? Text(subtitle) : null,
+      onTap: () async {
+        final notifier = ref.read(appUpdateProvider.notifier);
+        if (ref.read(appUpdateProvider).status == UpdateStatus.available) {
+          showUpdateDialog(context);
+          return;
+        }
+        await notifier.check();
+        if (context.mounted &&
+            ref.read(appUpdateProvider).status == UpdateStatus.available) {
+          showUpdateDialog(context);
+        }
+      },
+    );
+  }
 }
 
 class _SectionHeader extends StatelessWidget {

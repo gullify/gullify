@@ -47,6 +47,8 @@ dependencies:
   path_provider: ^2.1.5
   audio_service: ^0.18.19
   audio_session: ^0.2.4
+  package_info_plus: ^10.2.0
+  open_filex: ^4.7.0
 
 dev_dependencies:
   flutter_test:
