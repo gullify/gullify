@@ -1,0 +1,142 @@
+import '../models/album.dart';
+import '../models/artist.dart';
+import '../models/song.dart';
+import 'api_client.dart';
+
+/// Detail payload for an artist page.
+class ArtistDetail {
+  const ArtistDetail({
+    required this.artist,
+    required this.albums,
+    required this.topTracks,
+  });
+
+  final Artist artist;
+  final List<Album> albums;
+  final List<Song> topTracks;
+}
+
+/// Detail payload for an album page.
+class AlbumDetail {
+  const AlbumDetail({required this.album, required this.songs});
+
+  final Album album;
+  final List<Song> songs;
+}
+
+class SearchResults {
+  const SearchResults({
+    this.artists = const [],
+    this.albums = const [],
+    this.songs = const [],
+  });
+
+  final List<Artist> artists;
+  final List<Album> albums;
+  final List<Song> songs;
+
+  bool get isEmpty => artists.isEmpty && albums.isEmpty && songs.isEmpty;
+}
+
+class LibraryRepository {
+  LibraryRepository(this._client);
+
+  final ApiClient _client;
+
+  /// Legacy endpoints return artwork as server-root-relative URLs
+  /// (e.g. "serve_image.php?album_id=1") — make them absolute.
+  String? _abs(String? url) {
+    if (url == null || url.isEmpty) return null;
+    if (url.startsWith('http://') || url.startsWith('https://')) return url;
+    return _client.resourceUrl(url);
+  }
+
+  Artist _artist(Map<String, dynamic> j) =>
+      Artist.fromJson(j).copyWith(imageUrl: _abs(j['imageUrl'] as String?));
+
+  Album _album(Map<String, dynamic> j) =>
+      Album.fromJson(j).copyWith(artworkUrl: _abs(j['artworkUrl'] as String?));
+
+  Song _song(Map<String, dynamic> j) =>
+      Song.fromJson(j).copyWith(artworkUrl: _abs(j['artworkUrl'] as String?));
+
+  List<T> _list<T>(dynamic v, T Function(Map<String, dynamic>) map) =>
+      (v as List<dynamic>? ?? [])
+          .map((e) => map(e as Map<String, dynamic>))
+          .toList();
+
+  /// URL used by the audio player to stream a song.
+  String streamUrl(Song song) => _client.resourceUrl(
+        'stream.php?path=${Uri.encodeQueryComponent(song.filePath)}',
+      );
+
+  Future<List<Artist>> artists({int limit = 5000, int offset = 0}) async {
+    final data = await _client.get('library.php', query: {
+      'action': 'library',
+      'limit': limit,
+      'offset': offset,
+    }) as Map<String, dynamic>;
+    return _list(data['artists'], _artist);
+  }
+
+  Future<List<Album>> albums({int limit = 5000, int offset = 0}) async {
+    final data = await _client.get('library.php', query: {
+      'action': 'get_all_albums',
+      'limit': limit,
+      'offset': offset,
+    }) as Map<String, dynamic>;
+    return _list(data['albums'], _album);
+  }
+
+  Future<List<Album>> recentAlbums({int limit = 20}) async {
+    final data = await _client.get('library.php', query: {
+      'action': 'recent_albums',
+      'limit': limit,
+    });
+    return _list(data, _album);
+  }
+
+  Future<ArtistDetail> artistDetail(int id) async {
+    final data = await _client.get('library.php', query: {
+      'action': 'artist',
+      'id': id,
+    }) as Map<String, dynamic>;
+    return ArtistDetail(
+      artist: _artist(data['artist'] as Map<String, dynamic>),
+      albums: _list(data['albums'], _album),
+      topTracks: _list(data['topTracks'], _song),
+    );
+  }
+
+  Future<AlbumDetail> albumDetail(int id) async {
+    final data = await _client.get('library.php', query: {
+      'action': 'album_songs',
+      'id': id,
+    }) as Map<String, dynamic>;
+    final artist = data['artist'] as Map<String, dynamic>?;
+    return AlbumDetail(
+      album: Album(
+        id: (data['id'] as num).toInt(),
+        name: data['name'] as String? ?? '',
+        year: (data['year'] as num?)?.toInt(),
+        artworkUrl: _abs(data['artworkUrl'] as String?),
+        artistId: (artist?['id'] as num?)?.toInt(),
+        artistName: artist?['name'] as String?,
+      ),
+      songs: _list(data['songs'], _song),
+    );
+  }
+
+  Future<SearchResults> search(String query) async {
+    if (query.trim().isEmpty) return const SearchResults();
+    final data = await _client.get('library.php', query: {
+      'action': 'search',
+      'query': query,
+    }) as Map<String, dynamic>;
+    return SearchResults(
+      artists: _list(data['artists'], _artist),
+      albums: _list(data['albums'], _album),
+      songs: _list(data['songs'], _song),
+    );
+  }
+}

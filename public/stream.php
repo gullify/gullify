@@ -12,6 +12,14 @@ require_once __DIR__ . '/../src/Storage/StorageFactory.php';
 
 ini_set('max_execution_time', 0);
 
+header('Access-Control-Allow-Origin: *');
+header('Access-Control-Allow-Headers: Range');
+header('Access-Control-Expose-Headers: Content-Range, Accept-Ranges, Content-Length');
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    http_response_code(204);
+    exit;
+}
+
 $relativePath = $_GET['path'] ?? '';
 if ($relativePath === '') {
     header('HTTP/1.0 400 Bad Request');

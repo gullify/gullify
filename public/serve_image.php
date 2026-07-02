@@ -7,6 +7,8 @@ require_once __DIR__ . '/../src/AppConfig.php';
 require_once __DIR__ . '/../src/PathHelper.php';
 require_once __DIR__ . '/../src/Storage/StorageFactory.php';
 
+header('Access-Control-Allow-Origin: *');
+
 try {
     $albumId = $_GET['album_id'] ?? null;
     $artistId = $_GET['artist_id'] ?? null;

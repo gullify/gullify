@@ -1,11 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'audio/audio_handler.dart';
 import 'router.dart';
+import 'state/player.dart';
 import 'theme.dart';
 
-void main() {
-  runApp(const ProviderScope(child: GullifyApp()));
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  final audioHandler = await initAudioHandler();
+  runApp(
+    ProviderScope(
+      overrides: [audioHandlerProvider.overrideWithValue(audioHandler)],
+      child: const GullifyApp(),
+    ),
+  );
 }
 
 class GullifyApp extends ConsumerWidget {
