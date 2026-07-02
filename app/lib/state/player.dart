@@ -5,19 +5,25 @@ import '../audio/audio_handler.dart';
 import '../models/song.dart';
 import 'auth.dart';
 import 'library.dart';
+import 'offline.dart';
 
 /// Overridden in main() with the handler created by AudioService.init().
 final audioHandlerProvider = Provider<GullifyAudioHandler>(
   (ref) => throw UnimplementedError('audioHandlerProvider must be overridden'),
 );
 
-/// Keeps the handler's repository in sync with auth (needed by Android Auto).
+/// Keeps the handler's repository in sync with auth (needed by Android Auto)
+/// and its offline map in sync with downloads.
 final audioHandlerBinderProvider = Provider<void>((ref) {
   final handler = ref.watch(audioHandlerProvider);
   final auth = ref.watch(authProvider);
   handler.repository = auth.status == AuthStatus.authenticated
       ? ref.watch(libraryRepositoryProvider)
       : null;
+  handler.offlinePaths = {
+    for (final o in (ref.watch(offlineProvider).value ?? {}).values)
+      o.song.id: o.localPath,
+  };
 });
 
 final currentMediaItemProvider = StreamProvider<MediaItem?>(

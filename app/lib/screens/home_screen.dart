@@ -22,9 +22,9 @@ class HomeScreen extends ConsumerWidget {
         actions: [
           const _NotificationsButton(),
           IconButton(
-            icon: const Icon(Icons.logout),
-            tooltip: 'Déconnexion',
-            onPressed: () => ref.read(authProvider.notifier).logout(),
+            icon: const Icon(Icons.settings_outlined),
+            tooltip: 'Paramètres',
+            onPressed: () => context.push('/settings'),
           ),
         ],
       ),

@@ -169,6 +169,23 @@ class LibraryRepository {
     return (l == null || l.trim().isEmpty) ? null : l;
   }
 
+  /// Report a play to the server (play_history + song_stats).
+  Future<void> trackPlay({
+    required int songId,
+    required int seconds,
+    required bool completed,
+  }) async {
+    await _client.post(
+      'radio.php',
+      query: {'action': 'track_play'},
+      form: {
+        'song_id': songId,
+        'duration_played': seconds,
+        'completed': completed ? 1 : 0,
+      },
+    );
+  }
+
   Future<SearchResults> search(String query) async {
     if (query.trim().isEmpty) return const SearchResults();
     final data = await _client.get('library.php', query: {

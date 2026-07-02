@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../models/song.dart';
 import '../state/library.dart';
+import '../state/offline.dart';
 import '../state/player.dart';
 import '../widgets/artwork.dart';
 import '../widgets/song_menu.dart';
@@ -61,14 +63,22 @@ class AlbumScreen extends ConsumerWidget {
                             ),
                           ),
                         const SizedBox(height: 12),
-                        FilledButton.icon(
-                          onPressed: d.songs.isEmpty
-                              ? null
-                              : () => ref
-                                  .read(playerActionsProvider)
-                                  .playSongs(d.songs),
-                          icon: const Icon(Icons.play_arrow),
-                          label: const Text('Lecture'),
+                        Row(
+                          children: [
+                            FilledButton.icon(
+                              onPressed: d.songs.isEmpty
+                                  ? null
+                                  : () => ref
+                                      .read(playerActionsProvider)
+                                      .playSongs(d.songs),
+                              icon: const Icon(Icons.play_arrow),
+                              label: const Text('Lecture'),
+                            ),
+                            if (offlineSupported) ...[
+                              const SizedBox(width: 8),
+                              _DownloadAlbumButton(songs: d.songs),
+                            ],
+                          ],
                         ),
                       ],
                     ),
@@ -90,6 +100,64 @@ class AlbumScreen extends ConsumerWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _DownloadAlbumButton extends ConsumerStatefulWidget {
+  const _DownloadAlbumButton({required this.songs});
+
+  final List<Song> songs;
+
+  @override
+  ConsumerState<_DownloadAlbumButton> createState() =>
+      _DownloadAlbumButtonState();
+}
+
+class _DownloadAlbumButtonState extends ConsumerState<_DownloadAlbumButton> {
+  bool _busy = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final offline = ref.watch(offlineProvider).value ?? {};
+    final allDownloaded = widget.songs.isNotEmpty &&
+        widget.songs.every((s) => offline.containsKey(s.id));
+
+    if (_busy) {
+      return const SizedBox(
+        width: 40,
+        height: 40,
+        child: Padding(
+          padding: EdgeInsets.all(10),
+          child: CircularProgressIndicator(strokeWidth: 2),
+        ),
+      );
+    }
+    return IconButton.outlined(
+      tooltip: allDownloaded ? 'Album téléchargé' : "Télécharger l'album",
+      icon: Icon(
+        allDownloaded ? Icons.download_done : Icons.download_outlined,
+      ),
+      onPressed: allDownloaded || widget.songs.isEmpty
+          ? null
+          : () async {
+              setState(() => _busy = true);
+              final messenger = ScaffoldMessenger.of(context);
+              try {
+                await ref
+                    .read(offlineProvider.notifier)
+                    .downloadAll(widget.songs);
+                messenger.showSnackBar(
+                  const SnackBar(content: Text('Album téléchargé')),
+                );
+              } catch (_) {
+                messenger.showSnackBar(
+                  const SnackBar(content: Text('Échec du téléchargement')),
+                );
+              } finally {
+                if (mounted) setState(() => _busy = false);
+              }
+            },
     );
   }
 }

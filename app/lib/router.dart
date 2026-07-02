@@ -3,6 +3,8 @@ import 'package:go_router/go_router.dart';
 
 import 'screens/album_screen.dart';
 import 'screens/artist_screen.dart';
+import 'screens/downloads_screen.dart';
+import 'screens/equalizer_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/library_screen.dart';
 import 'screens/login_screen.dart';
@@ -12,6 +14,7 @@ import 'screens/playlist_screen.dart';
 import 'screens/radio_screen.dart';
 import 'screens/search_screen.dart';
 import 'screens/server_screen.dart';
+import 'screens/settings_screen.dart';
 import 'screens/shell_screen.dart';
 import 'screens/splash_screen.dart';
 import 'state/auth.dart';
@@ -67,6 +70,18 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/notifications',
         builder: (_, _) => const NotificationsScreen(),
+      ),
+      GoRoute(
+        path: '/settings',
+        builder: (_, _) => const SettingsScreen(),
+      ),
+      GoRoute(
+        path: '/settings/equalizer',
+        builder: (_, _) => const EqualizerScreen(),
+      ),
+      GoRoute(
+        path: '/settings/downloads',
+        builder: (_, _) => const DownloadsScreen(),
       ),
     ],
     redirect: (context, state) {

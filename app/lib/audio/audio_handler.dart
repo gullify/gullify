@@ -1,8 +1,13 @@
+import 'dart:io';
+
 import 'package:audio_service/audio_service.dart';
+import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
 
 import '../api/library_repository.dart';
 import '../models/song.dart';
+
+bool get equalizerSupported => !kIsWeb && Platform.isAndroid;
 
 Future<GullifyAudioHandler> initAudioHandler() {
   return AudioService.init(
@@ -31,18 +36,35 @@ class GullifyAudioHandler extends BaseAudioHandler
     _player.playbackEventStream.listen(_broadcastState);
     _player.currentIndexStream.listen((index) {
       final q = queue.value;
-      if (index != null && index >= 0 && index < q.length) {
-        mediaItem.add(q[index]);
-      }
+      if (index == null || index < 0 || index >= q.length) return;
+      // setAudioSources can emit the same index more than once.
+      if (index == _queueIndex && identical(q, _trackedQueue)) return;
+      _queueIndex = index;
+      _trackedQueue = q;
+      _flushPlay();
+      _startTracking(q[index]);
+      mediaItem.add(q[index]);
+    });
+    _player.positionStream.listen((pos) {
+      if (_trackedSongId != null) _lastPosition = pos;
     });
     _player.processingStateStream.listen((s) {
-      if (s == ProcessingState.completed) stop();
+      if (s == ProcessingState.completed) {
+        _lastPosition = _trackedDuration;
+        stop();
+      }
     });
   }
 
+  /// Android-only equalizer (a pipeline breaks playback on web).
+  final equalizer = AndroidEqualizer();
+
   // Buffer tuning proven by the previous Android client (PixelPlay fork):
   // min 30s / max 60s / playback start after 5s.
-  final _player = AudioPlayer(
+  late final _player = AudioPlayer(
+    audioPipeline: equalizerSupported
+        ? AudioPipeline(androidAudioEffects: [equalizer])
+        : null,
     audioLoadConfiguration: const AudioLoadConfiguration(
       androidLoadControl: AndroidLoadControl(
         minBufferDuration: Duration(seconds: 30),
@@ -56,10 +78,52 @@ class GullifyAudioHandler extends BaseAudioHandler
   /// Set after login so the media browser (Android Auto) can list the library.
   LibraryRepository? repository;
 
+  /// songId → local file path for downloaded songs (kept in sync by
+  /// audioHandlerBinderProvider). Preferred over streaming when present.
+  Map<int, String> offlinePaths = const {};
+
   AudioPlayer get player => _player;
 
+  // ── Play tracking (play_history / song_stats server-side) ──────────────────
+
+  int? _trackedSongId;
+  Duration _trackedDuration = Duration.zero;
+  Duration _lastPosition = Duration.zero;
+  DateTime _trackedSince = DateTime.now();
+  int? _queueIndex;
+  List<MediaItem>? _trackedQueue;
+
+  void _startTracking(MediaItem item) {
+    _trackedSongId = item.extras?['songId'] as int?;
+    _trackedDuration = item.duration ?? Duration.zero;
+    _lastPosition = Duration.zero;
+    _trackedSince = DateTime.now();
+  }
+
+  /// Report the song being tracked, if it was played for at least 5 seconds.
+  void _flushPlay() {
+    final songId = _trackedSongId;
+    // Position updates can lag behind track changes — never report more
+    // than the wall-clock time spent on this track.
+    final elapsed = DateTime.now().difference(_trackedSince);
+    final played = _lastPosition <= elapsed ? _lastPosition : elapsed;
+    _trackedSongId = null;
+    if (songId == null || played < const Duration(seconds: 5)) return;
+    final completed = _trackedDuration > Duration.zero &&
+        played >= _trackedDuration - const Duration(seconds: 5);
+    repository
+        ?.trackPlay(
+          songId: songId,
+          seconds: played.inSeconds,
+          completed: completed,
+        )
+        .catchError((_) {});
+  }
+
   MediaItem _toMediaItem(Song s) => MediaItem(
-        id: repository!.streamUrl(s),
+        id: offlinePaths.containsKey(s.id)
+            ? Uri.file(offlinePaths[s.id]!).toString()
+            : repository!.streamUrl(s),
         title: s.title,
         artist: s.artistName,
         album: s.albumName,
@@ -69,6 +133,7 @@ class GullifyAudioHandler extends BaseAudioHandler
       );
 
   Future<void> playSongs(List<Song> songs, {int startIndex = 0}) async {
+    _flushPlay();
     final items = songs.map(_toMediaItem).toList();
     queue.add(items);
     await _player.setAudioSources(
@@ -83,6 +148,7 @@ class GullifyAudioHandler extends BaseAudioHandler
     required String title,
     String? logo,
   }) async {
+    _flushPlay();
     final item = MediaItem(
       id: url,
       title: title,
@@ -145,6 +211,7 @@ class GullifyAudioHandler extends BaseAudioHandler
 
   @override
   Future<void> stop() async {
+    _flushPlay();
     await _player.stop();
     await super.stop();
   }

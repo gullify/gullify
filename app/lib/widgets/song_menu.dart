@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../models/song.dart';
 import '../state/favorites.dart';
+import '../state/offline.dart';
 import '../state/playlists.dart';
 import 'artwork.dart';
 
@@ -53,6 +54,45 @@ Future<void> showSongMenu(BuildContext context, Song song) {
                   _showPlaylistPicker(context, song);
                 },
               ),
+              if (offlineSupported)
+                Builder(builder: (context) {
+                  final downloaded = ref
+                          .watch(offlineProvider)
+                          .value
+                          ?.containsKey(song.id) ??
+                      false;
+                  return ListTile(
+                    leading: Icon(
+                      downloaded
+                          ? Icons.download_done
+                          : Icons.download_outlined,
+                    ),
+                    title: Text(
+                      downloaded
+                          ? 'Retirer le téléchargement'
+                          : 'Télécharger',
+                    ),
+                    onTap: () async {
+                      Navigator.pop(context);
+                      final offline = ref.read(offlineProvider.notifier);
+                      final messenger = ScaffoldMessenger.of(context);
+                      try {
+                        if (downloaded) {
+                          await offline.remove(song.id);
+                        } else {
+                          await offline.download(song);
+                          messenger.showSnackBar(
+                            const SnackBar(content: Text('Titre téléchargé')),
+                          );
+                        }
+                      } catch (_) {
+                        messenger.showSnackBar(
+                          const SnackBar(content: Text('Échec du téléchargement')),
+                        );
+                      }
+                    },
+                  );
+                }),
               if (song.albumId != null)
                 ListTile(
                   leading: const Icon(Icons.album_outlined),

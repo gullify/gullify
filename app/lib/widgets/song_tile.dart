@@ -18,6 +18,8 @@ class SongTile extends StatelessWidget {
     this.showArtwork = true,
     this.leadingNumber,
     this.isPlaying = false,
+    this.subtitle,
+    this.trailing,
   });
 
   final Song song;
@@ -26,6 +28,8 @@ class SongTile extends StatelessWidget {
   final bool showArtwork;
   final int? leadingNumber;
   final bool isPlaying;
+  final String? subtitle;
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
@@ -54,17 +58,18 @@ class SongTile extends StatelessWidget {
             ? TextStyle(color: scheme.primary, fontWeight: FontWeight.w600)
             : null,
       ),
-      subtitle: song.artistName != null
+      subtitle: (subtitle ?? song.artistName) != null
           ? Text(
-              song.artistName!,
+              subtitle ?? song.artistName!,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             )
           : null,
-      trailing: Text(
-        formatDuration(song.duration),
-        style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12),
-      ),
+      trailing: trailing ??
+          Text(
+            formatDuration(song.duration),
+            style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12),
+          ),
     );
   }
 }
