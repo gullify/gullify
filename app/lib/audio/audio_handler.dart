@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
 
 import '../api/library_repository.dart';
+import '../api/radio_repository.dart';
 import '../models/song.dart';
 
 bool get equalizerSupported => !kIsWeb && Platform.isAndroid;
@@ -26,8 +27,12 @@ class BrowseIds {
   static const root = AudioService.browsableRootId;
   static const albums = 'ALBUMS';
   static const artists = 'ARTISTS';
+  static const favorites = 'FAVORITES';
+  static const recent = 'RECENT';
+  static const radios = 'RADIOS';
   static String album(int id) => 'ALBUM_$id';
   static String artist(int id) => 'ARTIST_$id';
+  static String radio(String id) => 'RADIO_$id';
 }
 
 class GullifyAudioHandler extends BaseAudioHandler
@@ -77,6 +82,15 @@ class GullifyAudioHandler extends BaseAudioHandler
 
   /// Set after login so the media browser (Android Auto) can list the library.
   LibraryRepository? repository;
+
+  /// Set after login — stations web radio pour Android Auto.
+  RadioRepository? radioRepository;
+
+  // Caches du browse tree : évitent un second aller-réseau entre le
+  // listing (getChildren) et la lecture (playFromMediaId).
+  final _albumSongsCache = <int, List<Song>>{};
+  List<Song>? _favoritesCache;
+  List<RadioStation>? _stationsCache;
 
   /// songId → local file path for downloaded songs (kept in sync by
   /// audioHandlerBinderProvider). Preferred over streaming when present.
@@ -218,6 +232,38 @@ class GullifyAudioHandler extends BaseAudioHandler
 
   // ── Media browser tree (Android Auto) ──────────────────────────────────────
 
+  MediaItem _browsableAlbum(int id, String name, String? artist, String? art) =>
+      MediaItem(
+        id: BrowseIds.album(id),
+        title: name,
+        artist: artist,
+        artUri: art != null ? Uri.parse(art) : null,
+        playable: false,
+      );
+
+  /// Entrées « Tout lire » / « Aléatoire » en tête d'une liste de pistes.
+  List<MediaItem> _playAllItems(String prefix, {String playLabel = 'Tout lire'}) => [
+        MediaItem(id: '${prefix}_PLAY', title: playLabel, playable: true),
+        MediaItem(
+          id: '${prefix}_SHUFFLE',
+          title: 'Lecture aléatoire',
+          playable: true,
+        ),
+      ];
+
+  List<MediaItem> _trackItems(String prefix, List<Song> songs) => [
+        for (final (i, s) in songs.indexed)
+          MediaItem(
+            id: '${prefix}_TRACK_$i',
+            title: s.title,
+            artist: s.artistName,
+            album: s.albumName,
+            duration: Duration(seconds: s.duration),
+            artUri: s.artworkUrl != null ? Uri.parse(s.artworkUrl!) : null,
+            playable: true,
+          ),
+      ];
+
   @override
   Future<List<MediaItem>> getChildren(
     String parentMediaId, [
@@ -226,61 +272,105 @@ class GullifyAudioHandler extends BaseAudioHandler
     final repo = repository;
     if (repo == null) return [];
 
-    if (parentMediaId == BrowseIds.root) {
-      return const [
-        MediaItem(
-          id: BrowseIds.albums,
-          title: 'Albums',
-          playable: false,
-        ),
-        MediaItem(
-          id: BrowseIds.artists,
-          title: 'Artistes',
-          playable: false,
-        ),
-      ];
+    switch (parentMediaId) {
+      case BrowseIds.root:
+        return const [
+          MediaItem(id: BrowseIds.favorites, title: 'Favoris', playable: false),
+          MediaItem(id: BrowseIds.recent, title: 'Nouveautés', playable: false),
+          MediaItem(id: BrowseIds.albums, title: 'Albums', playable: false),
+          MediaItem(id: BrowseIds.artists, title: 'Artistes', playable: false),
+          MediaItem(id: BrowseIds.radios, title: 'Radios', playable: false),
+        ];
+
+      case BrowseIds.favorites:
+        final songs = await repo.allFavorites();
+        _favoritesCache = songs;
+        if (songs.isEmpty) return [];
+        return [..._playAllItems('FAV'), ..._trackItems('FAV', songs)];
+
+      case BrowseIds.recent:
+        final albums = await repo.recentAlbums();
+        return [
+          for (final a in albums)
+            _browsableAlbum(a.id, a.name, a.artistName, a.artworkUrl),
+        ];
+
+      case BrowseIds.albums:
+        final albums = await repo.albums();
+        return [
+          for (final a in albums)
+            _browsableAlbum(a.id, a.name, a.artistName, a.artworkUrl),
+        ];
+
+      case BrowseIds.artists:
+        final artists = await repo.artists();
+        return [
+          for (final ar in artists)
+            MediaItem(
+              id: BrowseIds.artist(ar.id),
+              title: ar.name,
+              artUri: ar.imageUrl != null ? Uri.parse(ar.imageUrl!) : null,
+              playable: false,
+            ),
+        ];
+
+      case BrowseIds.radios:
+        final stations = await radioRepository?.stations() ?? [];
+        _stationsCache = stations;
+        // Favoris d'abord, comme dans l'app.
+        stations.sort((a, b) {
+          if (a.favorite != b.favorite) return a.favorite ? -1 : 1;
+          return a.name.compareTo(b.name);
+        });
+        return [
+          for (final s in stations)
+            MediaItem(
+              id: BrowseIds.radio(s.id),
+              title: s.name,
+              artist: s.genres.isNotEmpty ? s.genres.join(', ') : s.country,
+              artUri: s.logo != null ? Uri.parse(s.logo!) : null,
+              playable: true,
+            ),
+        ];
     }
-    if (parentMediaId == BrowseIds.albums) {
-      final albums = await repo.albums();
+
+    if (parentMediaId.startsWith('ALBUM_')) {
+      final id = int.parse(parentMediaId.substring('ALBUM_'.length));
+      final detail = await repo.albumDetail(id);
+      _albumSongsCache[id] = detail.songs;
       return [
-        for (final a in albums)
-          MediaItem(
-            id: BrowseIds.album(a.id),
-            title: a.name,
-            artist: a.artistName,
-            artUri: a.artworkUrl != null ? Uri.parse(a.artworkUrl!) : null,
-            playable: true,
-          ),
+        ..._playAllItems('ALBUM_$id', playLabel: "Lire l'album"),
+        ..._trackItems('ALBUM_$id', detail.songs),
       ];
     }
-    if (parentMediaId == BrowseIds.artists) {
-      final artists = await repo.artists();
-      return [
-        for (final ar in artists)
-          MediaItem(
-            id: BrowseIds.artist(ar.id),
-            title: ar.name,
-            artUri: ar.imageUrl != null ? Uri.parse(ar.imageUrl!) : null,
-            playable: false,
-          ),
-      ];
-    }
+
     if (parentMediaId.startsWith('ARTIST_')) {
       final id = int.parse(parentMediaId.substring('ARTIST_'.length));
       final detail = await repo.artistDetail(id);
       return [
+        ..._playAllItems('ARTIST_$id'),
         for (final a in detail.albums)
-          MediaItem(
-            id: BrowseIds.album(a.id),
-            title: a.name,
-            artist: detail.artist.name,
-            artUri: a.artworkUrl != null ? Uri.parse(a.artworkUrl!) : null,
-            playable: true,
-          ),
+          _browsableAlbum(a.id, a.name, detail.artist.name, a.artworkUrl),
       ];
     }
+
     return [];
   }
+
+  /// Toutes les chansons d'un artiste, dans l'ordre des albums.
+  Future<List<Song>> _artistSongs(LibraryRepository repo, int artistId) async {
+    final detail = await repo.artistDetail(artistId);
+    final albums = await Future.wait(
+      [for (final a in detail.albums) repo.albumDetail(a.id)],
+    );
+    return [for (final a in albums) ...a.songs];
+  }
+
+  Future<List<Song>> _albumSongs(LibraryRepository repo, int albumId) async =>
+      _albumSongsCache[albumId] ?? (await repo.albumDetail(albumId)).songs;
+
+  Future<List<Song>> _favorites(LibraryRepository repo) async =>
+      _favoritesCache ?? await repo.allFavorites();
 
   @override
   Future<void> playFromMediaId(
@@ -289,10 +379,56 @@ class GullifyAudioHandler extends BaseAudioHandler
   ]) async {
     final repo = repository;
     if (repo == null) return;
-    if (mediaId.startsWith('ALBUM_')) {
-      final id = int.parse(mediaId.substring('ALBUM_'.length));
-      final detail = await repo.albumDetail(id);
-      await playSongs(detail.songs);
+
+    // Android Auto attend une réaction immédiate de la session, sinon il
+    // affiche « impossible de lire la sélection ». On publie l'état de
+    // chargement avant tout aller-réseau.
+    playbackState.add(playbackState.value.copyWith(
+      processingState: AudioProcessingState.loading,
+      playing: false,
+    ));
+
+    final m = RegExp(r'^(ALBUM_(\d+)|ARTIST_(\d+)|FAV)(?:_(PLAY|SHUFFLE|TRACK_(\d+)))?$')
+        .firstMatch(mediaId);
+
+    try {
+      if (mediaId.startsWith('RADIO_')) {
+        final id = mediaId.substring('RADIO_'.length);
+        final stations = _stationsCache ?? await radioRepository?.stations() ?? [];
+        final s = stations.where((s) => s.id == id).firstOrNull;
+        if (s != null) {
+          await playRadio(url: s.streamUrl, title: s.name, logo: s.logo);
+        }
+        return;
+      }
+
+      if (m == null) return;
+
+      final List<Song> songs;
+      if (m.group(2) != null) {
+        songs = await _albumSongs(repo, int.parse(m.group(2)!));
+      } else if (m.group(3) != null) {
+        songs = await _artistSongs(repo, int.parse(m.group(3)!));
+      } else {
+        songs = await _favorites(repo);
+      }
+      if (songs.isEmpty) return;
+
+      final action = m.group(4) ?? 'PLAY';
+      if (action == 'SHUFFLE') {
+        await playSongs(songs.toList()..shuffle());
+      } else if (action.startsWith('TRACK_')) {
+        final index = int.parse(m.group(5)!);
+        await playSongs(songs, startIndex: index.clamp(0, songs.length - 1));
+      } else {
+        await playSongs(songs);
+      }
+    } catch (_) {
+      // Retombe sur idle pour qu'Android Auto ne reste pas bloqué en
+      // chargement si le serveur ne répond pas.
+      playbackState.add(playbackState.value.copyWith(
+        processingState: AudioProcessingState.idle,
+      ));
     }
   }
 

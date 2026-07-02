@@ -6,6 +6,7 @@ import '../models/song.dart';
 import 'auth.dart';
 import 'library.dart';
 import 'offline.dart';
+import 'radio.dart';
 
 /// Overridden in main() with the handler created by AudioService.init().
 final audioHandlerProvider = Provider<GullifyAudioHandler>(
@@ -17,9 +18,11 @@ final audioHandlerProvider = Provider<GullifyAudioHandler>(
 final audioHandlerBinderProvider = Provider<void>((ref) {
   final handler = ref.watch(audioHandlerProvider);
   final auth = ref.watch(authProvider);
-  handler.repository = auth.status == AuthStatus.authenticated
-      ? ref.watch(libraryRepositoryProvider)
-      : null;
+  final authenticated = auth.status == AuthStatus.authenticated;
+  handler.repository =
+      authenticated ? ref.watch(libraryRepositoryProvider) : null;
+  handler.radioRepository =
+      authenticated ? ref.watch(radioRepositoryProvider) : null;
   handler.offlinePaths = {
     for (final o in (ref.watch(offlineProvider).value ?? {}).values)
       o.song.id: o.localPath,
