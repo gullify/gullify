@@ -35,18 +35,18 @@ class ShellScreen extends ConsumerWidget {
                 label: 'Accueil',
               ),
               NavigationDestination(
-                icon: Icon(Icons.person_outline),
-                selectedIcon: Icon(Icons.person),
-                label: 'Artistes',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.album_outlined),
-                selectedIcon: Icon(Icons.album),
-                label: 'Albums',
-              ),
-              NavigationDestination(
                 icon: Icon(Icons.search),
                 label: 'Recherche',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.radio_outlined),
+                selectedIcon: Icon(Icons.radio),
+                label: 'Radio',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.library_music_outlined),
+                selectedIcon: Icon(Icons.library_music),
+                label: 'Bibliothèque',
               ),
             ],
           ),

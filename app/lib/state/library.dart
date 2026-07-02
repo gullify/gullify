@@ -40,6 +40,10 @@ final searchQueryProvider = NotifierProvider<SearchQuery, String>(
   SearchQuery.new,
 );
 
+final lyricsProvider = FutureProvider.family<String?, String>(
+  (ref, filePath) => ref.watch(libraryRepositoryProvider).lyrics(filePath),
+);
+
 final searchResultsProvider = FutureProvider<SearchResults>((ref) {
   final query = ref.watch(searchQueryProvider);
   return ref.watch(libraryRepositoryProvider).search(query);

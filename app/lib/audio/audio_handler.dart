@@ -65,7 +65,7 @@ class GullifyAudioHandler extends BaseAudioHandler
         album: s.albumName,
         duration: Duration(seconds: s.duration),
         artUri: s.artworkUrl != null ? Uri.parse(s.artworkUrl!) : null,
-        extras: {'songId': s.id},
+        extras: {'songId': s.id, 'filePath': s.filePath},
       );
 
   Future<void> playSongs(List<Song> songs, {int startIndex = 0}) async {
@@ -75,6 +75,24 @@ class GullifyAudioHandler extends BaseAudioHandler
       [for (final item in items) AudioSource.uri(Uri.parse(item.id))],
       initialIndex: startIndex,
     );
+    await _player.play();
+  }
+
+  Future<void> playRadio({
+    required String url,
+    required String title,
+    String? logo,
+  }) async {
+    final item = MediaItem(
+      id: url,
+      title: title,
+      artist: 'Radio',
+      isLive: true,
+      artUri: logo != null ? Uri.parse(logo) : null,
+      extras: const {'radio': true},
+    );
+    queue.add([item]);
+    await _player.setAudioSources([AudioSource.uri(Uri.parse(url))]);
     await _player.play();
   }
 
@@ -103,6 +121,26 @@ class GullifyAudioHandler extends BaseAudioHandler
   Future<void> skipToQueueItem(int index) async {
     await _player.seek(Duration.zero, index: index);
     await _player.play();
+  }
+
+  @override
+  Future<void> setShuffleMode(AudioServiceShuffleMode shuffleMode) async {
+    final enabled = shuffleMode != AudioServiceShuffleMode.none;
+    if (enabled) await _player.shuffle();
+    await _player.setShuffleModeEnabled(enabled);
+    playbackState.add(playbackState.value.copyWith(shuffleMode: shuffleMode));
+  }
+
+  @override
+  Future<void> setRepeatMode(AudioServiceRepeatMode repeatMode) async {
+    await _player.setLoopMode(switch (repeatMode) {
+      AudioServiceRepeatMode.one => LoopMode.one,
+      AudioServiceRepeatMode.all ||
+      AudioServiceRepeatMode.group =>
+        LoopMode.all,
+      AudioServiceRepeatMode.none => LoopMode.off,
+    });
+    playbackState.add(playbackState.value.copyWith(repeatMode: repeatMode));
   }
 
   @override

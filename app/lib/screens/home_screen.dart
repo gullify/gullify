@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../models/album.dart';
 import '../state/auth.dart';
 import '../state/library.dart';
+import '../state/notifications.dart';
 import '../widgets/artwork.dart';
 
 class HomeScreen extends ConsumerWidget {
@@ -19,6 +20,7 @@ class HomeScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('Gullify'),
         actions: [
+          const _NotificationsButton(),
           IconButton(
             icon: const Icon(Icons.logout),
             tooltip: 'Déconnexion',
@@ -65,6 +67,24 @@ class HomeScreen extends ConsumerWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _NotificationsButton extends ConsumerWidget {
+  const _NotificationsButton();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final unread = ref.watch(notificationsProvider).value?.unread ?? 0;
+    return IconButton(
+      tooltip: 'Notifications',
+      icon: Badge(
+        isLabelVisible: unread > 0,
+        label: Text('$unread'),
+        child: const Icon(Icons.notifications_outlined),
+      ),
+      onPressed: () => context.push('/notifications'),
     );
   }
 }

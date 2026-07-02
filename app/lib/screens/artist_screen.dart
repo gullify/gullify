@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../state/library.dart';
 import '../state/player.dart';
 import '../widgets/artwork.dart';
+import '../widgets/song_menu.dart';
 import '../widgets/song_tile.dart';
 
 class ArtistScreen extends ConsumerWidget {
@@ -70,6 +71,8 @@ class ArtistScreen extends ConsumerWidget {
                   onTap: () => ref
                       .read(playerActionsProvider)
                       .playSongs(d.topTracks, startIndex: i),
+                  onLongPress: () =>
+                      showSongMenu(context, d.topTracks[i]),
                 ),
               ),
             ],

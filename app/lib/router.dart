@@ -2,11 +2,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'screens/album_screen.dart';
-import 'screens/albums_screen.dart';
 import 'screens/artist_screen.dart';
-import 'screens/artists_screen.dart';
 import 'screens/home_screen.dart';
+import 'screens/library_screen.dart';
 import 'screens/login_screen.dart';
+import 'screens/notifications_screen.dart';
+import 'screens/now_playing_screen.dart';
+import 'screens/playlist_screen.dart';
+import 'screens/radio_screen.dart';
 import 'screens/search_screen.dart';
 import 'screens/server_screen.dart';
 import 'screens/shell_screen.dart';
@@ -27,16 +30,16 @@ final routerProvider = Provider<GoRouter>((ref) {
             GoRoute(path: '/', builder: (_, _) => const HomeScreen()),
           ]),
           StatefulShellBranch(routes: [
-            GoRoute(
-              path: '/artists',
-              builder: (_, _) => const ArtistsScreen(),
-            ),
-          ]),
-          StatefulShellBranch(routes: [
-            GoRoute(path: '/albums', builder: (_, _) => const AlbumsScreen()),
-          ]),
-          StatefulShellBranch(routes: [
             GoRoute(path: '/search', builder: (_, _) => const SearchScreen()),
+          ]),
+          StatefulShellBranch(routes: [
+            GoRoute(path: '/radio', builder: (_, _) => const RadioScreen()),
+          ]),
+          StatefulShellBranch(routes: [
+            GoRoute(
+              path: '/library',
+              builder: (_, _) => const LibraryScreen(),
+            ),
           ]),
         ],
       ),
@@ -49,6 +52,21 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/album/:id',
         builder: (_, state) =>
             AlbumScreen(albumId: int.parse(state.pathParameters['id']!)),
+      ),
+      GoRoute(
+        path: '/playlist/:id',
+        builder: (_, state) => PlaylistScreen(
+          playlistId: int.parse(state.pathParameters['id']!),
+          name: state.uri.queryParameters['name'] ?? 'Playlist',
+        ),
+      ),
+      GoRoute(
+        path: '/now-playing',
+        builder: (_, _) => const NowPlayingScreen(),
+      ),
+      GoRoute(
+        path: '/notifications',
+        builder: (_, _) => const NotificationsScreen(),
       ),
     ],
     redirect: (context, state) {

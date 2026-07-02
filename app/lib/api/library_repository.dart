@@ -127,6 +127,48 @@ class LibraryRepository {
     );
   }
 
+  Future<Set<int>> favoriteIds() async {
+    final data = await _client.get('library.php', query: {
+      'action': 'get_favorites',
+    }) as List<dynamic>;
+    return {
+      for (final e in data) ((e as Map<String, dynamic>)['id'] as num).toInt(),
+    };
+  }
+
+  Future<List<Song>> allFavorites() async {
+    final data = await _client.get('library.php', query: {
+      'action': 'get_all_favorites',
+    }) as Map<String, dynamic>;
+    // get_all_favorites uses `artist`/`album` keys instead of the usual names.
+    return [
+      for (final e in data['songs'] as List<dynamic>? ?? [])
+        _song({
+          ...e as Map<String, dynamic>,
+          'artistName': e['artist'],
+          'albumName': e['album'],
+        }),
+    ];
+  }
+
+  /// Returns true if the song is now a favorite.
+  Future<bool> toggleFavorite(int songId) async {
+    final data = await _client.post(
+      'library.php',
+      query: {'action': 'toggle_favorite'},
+      form: {'song_id': songId},
+    ) as Map<String, dynamic>;
+    return data['status'] == 'added';
+  }
+
+  Future<String?> lyrics(String filePath) async {
+    final data = await _client.get('lyrics.php', query: {
+      'path': filePath,
+    }) as Map<String, dynamic>;
+    final l = data['lyrics'] as String?;
+    return (l == null || l.trim().isEmpty) ? null : l;
+  }
+
   Future<SearchResults> search(String query) async {
     if (query.trim().isEmpty) return const SearchResults();
     final data = await _client.get('library.php', query: {

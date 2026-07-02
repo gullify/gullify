@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import '../state/library.dart';
 import '../state/player.dart';
 import '../widgets/artwork.dart';
+import '../widgets/song_menu.dart';
 import '../widgets/song_tile.dart';
 
 class SearchScreen extends ConsumerStatefulWidget {
@@ -84,6 +85,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                         onTap: () => ref
                             .read(playerActionsProvider)
                             .playSongs(r.songs, startIndex: i),
+                        onLongPress: () => showSongMenu(context, song),
                       ),
                   ],
                 );

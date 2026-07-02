@@ -75,11 +75,19 @@ class ApiClient {
   Future<dynamic> post(
     String path, {
     Object? body,
+    Map<String, dynamic>? form,
     Map<String, dynamic>? query,
   }) async {
     try {
       return _unwrap(
-        await _dio.post<dynamic>(path, data: body, queryParameters: query),
+        await _dio.post<dynamic>(
+          path,
+          data: form ?? body,
+          queryParameters: query,
+          options: form != null
+              ? Options(contentType: Headers.formUrlEncodedContentType)
+              : null,
+        ),
       );
     } on DioException catch (e) {
       throw ApiException('network', e.message ?? 'Network error');

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../state/library.dart';
 import '../state/player.dart';
 import '../widgets/artwork.dart';
+import '../widgets/song_menu.dart';
 import '../widgets/song_tile.dart';
 
 class AlbumScreen extends ConsumerWidget {
@@ -84,6 +85,7 @@ class AlbumScreen extends ConsumerWidget {
                 onTap: () => ref
                     .read(playerActionsProvider)
                     .playSongs(d.songs, startIndex: i),
+                onLongPress: () => showSongMenu(context, song),
               ),
           ],
         ),

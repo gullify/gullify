@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../state/player.dart';
 import 'artwork.dart';
@@ -19,7 +20,9 @@ class MiniPlayer extends ConsumerWidget {
 
     return Material(
       color: scheme.surfaceContainerHighest,
-      child: SafeArea(
+      child: InkWell(
+        onTap: () => context.push('/now-playing'),
+        child: SafeArea(
         top: false,
         child: SizedBox(
           height: 64,
@@ -75,6 +78,7 @@ class MiniPlayer extends ConsumerWidget {
               const SizedBox(width: 4),
             ],
           ),
+        ),
         ),
       ),
     );

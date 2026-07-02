@@ -32,6 +32,10 @@ final positionProvider = StreamProvider<Duration>(
   (ref) => AudioService.position,
 );
 
+final queueProvider = StreamProvider<List<MediaItem>>(
+  (ref) => ref.watch(audioHandlerProvider).queue,
+);
+
 class PlayerActions {
   PlayerActions(this._handler);
 
@@ -46,6 +50,34 @@ class PlayerActions {
   Future<void> next() => _handler.skipToNext();
   Future<void> previous() => _handler.skipToPrevious();
   Future<void> seek(Duration position) => _handler.seek(position);
+  Future<void> skipToQueueItem(int index) => _handler.skipToQueueItem(index);
+
+  Future<void> playRadio({
+    required String url,
+    required String title,
+    String? logo,
+  }) =>
+      _handler.playRadio(url: url, title: title, logo: logo);
+
+  Future<void> toggleShuffle() {
+    final current = _handler.playbackState.value.shuffleMode;
+    return _handler.setShuffleMode(
+      current == AudioServiceShuffleMode.none
+          ? AudioServiceShuffleMode.all
+          : AudioServiceShuffleMode.none,
+    );
+  }
+
+  Future<void> cycleRepeat() {
+    final current = _handler.playbackState.value.repeatMode;
+    return _handler.setRepeatMode(switch (current) {
+      AudioServiceRepeatMode.none => AudioServiceRepeatMode.all,
+      AudioServiceRepeatMode.all ||
+      AudioServiceRepeatMode.group =>
+        AudioServiceRepeatMode.one,
+      AudioServiceRepeatMode.one => AudioServiceRepeatMode.none,
+    });
+  }
 }
 
 final playerActionsProvider = Provider<PlayerActions>(

@@ -14,6 +14,7 @@ class SongTile extends StatelessWidget {
     super.key,
     required this.song,
     required this.onTap,
+    this.onLongPress,
     this.showArtwork = true,
     this.leadingNumber,
     this.isPlaying = false,
@@ -21,6 +22,7 @@ class SongTile extends StatelessWidget {
 
   final Song song;
   final VoidCallback onTap;
+  final VoidCallback? onLongPress;
   final bool showArtwork;
   final int? leadingNumber;
   final bool isPlaying;
@@ -30,6 +32,7 @@ class SongTile extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     return ListTile(
       onTap: onTap,
+      onLongPress: onLongPress,
       leading: showArtwork
           ? Artwork(url: song.artworkUrl, size: 44, icon: Icons.music_note)
           : SizedBox(
