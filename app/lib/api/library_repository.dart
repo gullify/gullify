@@ -24,6 +24,23 @@ class AlbumDetail {
   final List<Song> songs;
 }
 
+/// Suggestions du serveur, centrées sur un genre.
+class Suggestions {
+  const Suggestions({
+    this.genre,
+    this.artists = const [],
+    this.albums = const [],
+    this.songs = const [],
+  });
+
+  final String? genre;
+  final List<Artist> artists;
+  final List<Album> albums;
+  final List<Song> songs;
+
+  bool get isEmpty => artists.isEmpty && albums.isEmpty && songs.isEmpty;
+}
+
 class SearchResults {
   const SearchResults({
     this.artists = const [],
@@ -86,6 +103,23 @@ class LibraryRepository {
       'offset': offset,
     }) as Map<String, dynamic>;
     return _list(data['albums'], _album);
+  }
+
+  /// Titres les plus écoutés (song_stats).
+  Future<List<Song>> popularSongs({int limit = 20}) async {
+    final data = await _client.get('popular.php', query: {'limit': limit});
+    return _list(data, _song);
+  }
+
+  /// Suggestions basées sur un genre écouté récemment.
+  Future<Suggestions> suggestions() async {
+    final data = await _client.get('suggestions.php') as Map<String, dynamic>;
+    return Suggestions(
+      genre: data['genre'] as String?,
+      artists: _list(data['artists'], _artist),
+      albums: _list(data['albums'], _album),
+      songs: _list(data['songs'], _song),
+    );
   }
 
   Future<List<Album>> recentAlbums({int limit = 20}) async {

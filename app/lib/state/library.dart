@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../api/library_repository.dart';
 import '../models/album.dart';
 import '../models/artist.dart';
+import '../models/song.dart';
 import 'auth.dart';
 
 final libraryRepositoryProvider = Provider<LibraryRepository>(
@@ -19,6 +20,14 @@ final albumsProvider = FutureProvider<List<Album>>(
 
 final recentAlbumsProvider = FutureProvider<List<Album>>(
   (ref) => ref.watch(libraryRepositoryProvider).recentAlbums(),
+);
+
+final popularSongsProvider = FutureProvider<List<Song>>(
+  (ref) => ref.watch(libraryRepositoryProvider).popularSongs(limit: 10),
+);
+
+final suggestionsProvider = FutureProvider<Suggestions>(
+  (ref) => ref.watch(libraryRepositoryProvider).suggestions(),
 );
 
 final artistDetailProvider = FutureProvider.family<ArtistDetail, int>(

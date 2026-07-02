@@ -6,7 +6,10 @@ import '../models/album.dart';
 import '../state/auth.dart';
 import '../state/library.dart';
 import '../state/notifications.dart';
+import '../state/player.dart';
 import '../widgets/artwork.dart';
+import '../widgets/song_menu.dart';
+import '../widgets/song_tile.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -15,6 +18,8 @@ class HomeScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final auth = ref.watch(authProvider);
     final recent = ref.watch(recentAlbumsProvider);
+    final popular = ref.watch(popularSongsProvider);
+    final suggestions = ref.watch(suggestionsProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -34,7 +39,11 @@ class HomeScreen extends ConsumerWidget {
         ],
       ),
       body: RefreshIndicator(
-        onRefresh: () => ref.refresh(recentAlbumsProvider.future),
+        onRefresh: () {
+          ref.invalidate(popularSongsProvider);
+          ref.invalidate(suggestionsProvider);
+          return ref.refresh(recentAlbumsProvider.future);
+        },
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
@@ -68,6 +77,61 @@ class HomeScreen extends ConsumerWidget {
                             _AlbumCard(album: albums[i]),
                       ),
               ),
+            ),
+            // Les plus écoutés — masqué tant qu'il n'y a pas d'historique.
+            ...popular.maybeWhen(
+              data: (songs) => songs.isEmpty
+                  ? const <Widget>[]
+                  : [
+                      const SizedBox(height: 24),
+                      Text(
+                        'Les plus écoutés',
+                        style:
+                            Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                ),
+                      ),
+                      const SizedBox(height: 4),
+                      for (final (i, song) in songs.take(5).indexed)
+                        SongTile(
+                          song: song,
+                          onTap: () => ref
+                              .read(playerActionsProvider)
+                              .playSongs(songs, startIndex: i),
+                          onLongPress: () => showSongMenu(context, song),
+                        ),
+                    ],
+              orElse: () => const <Widget>[],
+            ),
+            // Suggestions par genre — masqué si le serveur n'en a pas.
+            ...suggestions.maybeWhen(
+              data: (s) => s.albums.isEmpty
+                  ? const <Widget>[]
+                  : [
+                      const SizedBox(height: 24),
+                      Text(
+                        s.genre != null
+                            ? 'Suggestions · ${s.genre}'
+                            : 'Suggestions',
+                        style:
+                            Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                ),
+                      ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        height: 190,
+                        child: ListView.separated(
+                          scrollDirection: Axis.horizontal,
+                          itemCount: s.albums.length,
+                          separatorBuilder: (_, _) =>
+                              const SizedBox(width: 12),
+                          itemBuilder: (context, i) =>
+                              _AlbumCard(album: s.albums[i]),
+                        ),
+                      ),
+                    ],
+              orElse: () => const <Widget>[],
             ),
           ],
         ),
