@@ -44,9 +44,21 @@ class AuthController extends Notifier<AuthState> {
     return const AuthState();
   }
 
+  /// Quoi qu'il arrive, le splash doit avancer : toute erreur inattendue
+  /// (stockage sécurisé, réseau, réponse malformée, timeout) retombe sur
+  /// l'écran de connexion ou de serveur — jamais sur un blocage.
   Future<void> _restore() async {
-    final serverUrl = await _storage.read(key: _kServerUrl);
-    final token = await _storage.read(key: _kToken);
+    String? serverUrl;
+    String? token;
+    try {
+      serverUrl = await _storage.read(key: _kServerUrl)
+          .timeout(const Duration(seconds: 10));
+      token = await _storage.read(key: _kToken)
+          .timeout(const Duration(seconds: 10));
+    } catch (_) {
+      state = const AuthState(status: AuthStatus.needsServer);
+      return;
+    }
 
     if (serverUrl == null || serverUrl.isEmpty) {
       state = const AuthState(status: AuthStatus.needsServer);
@@ -59,7 +71,9 @@ class AuthController extends Notifier<AuthState> {
 
     final client = ApiClient(serverUrl: serverUrl, token: token);
     try {
-      final data = await client.get('auth.php', query: {'action': 'me'});
+      final data = await client
+          .get('auth.php', query: {'action': 'me'})
+          .timeout(const Duration(seconds: 15));
       final user = User.fromJson(
         (data as Map<String, dynamic>)['user'] as Map<String, dynamic>,
       );
@@ -72,11 +86,12 @@ class AuthController extends Notifier<AuthState> {
     } on ApiException catch (e) {
       if (e.isUnauthenticated) {
         await _storage.delete(key: _kToken);
-        state = AuthState(status: AuthStatus.needsLogin, serverUrl: serverUrl);
-      } else {
-        // Server unreachable — keep credentials, let the user retry from login.
-        state = AuthState(status: AuthStatus.needsLogin, serverUrl: serverUrl);
       }
+      // Sinon : serveur injoignable — on garde les identifiants et
+      // l'utilisateur pourra réessayer depuis l'écran de connexion.
+      state = AuthState(status: AuthStatus.needsLogin, serverUrl: serverUrl);
+    } catch (_) {
+      state = AuthState(status: AuthStatus.needsLogin, serverUrl: serverUrl);
     }
   }
 

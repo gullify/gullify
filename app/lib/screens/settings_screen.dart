@@ -2,13 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../state/app_theme.dart';
 import '../state/app_update.dart';
 import '../state/auth.dart';
 import '../state/equalizer.dart';
 import '../state/offline.dart';
 import '../widgets/update_dialog.dart';
 
-const appVersion = '2.3.0';
+const appVersion = '2.4.0';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -73,6 +74,33 @@ class SettingsScreen extends ConsumerWidget {
               onTap: () => context.push('/settings/downloads'),
             ),
           if (equalizerSupported || offlineSupported) const Divider(),
+          const _SectionHeader('Apparence'),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+            child: SegmentedButton<ThemeMode>(
+              segments: const [
+                ButtonSegment(
+                  value: ThemeMode.system,
+                  label: Text('Système'),
+                  icon: Icon(Icons.brightness_auto),
+                ),
+                ButtonSegment(
+                  value: ThemeMode.light,
+                  label: Text('Clair'),
+                  icon: Icon(Icons.light_mode),
+                ),
+                ButtonSegment(
+                  value: ThemeMode.dark,
+                  label: Text('Sombre'),
+                  icon: Icon(Icons.dark_mode),
+                ),
+              ],
+              selected: {ref.watch(themeModeProvider)},
+              onSelectionChanged: (s) =>
+                  ref.read(themeModeProvider.notifier).set(s.first),
+            ),
+          ),
+          const Divider(),
           const _SectionHeader('À propos'),
           const ListTile(
             leading: Icon(Icons.info_outline),
