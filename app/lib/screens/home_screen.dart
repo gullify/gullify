@@ -20,6 +20,11 @@ class HomeScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('Gullify'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.bar_chart),
+            tooltip: 'Statistiques',
+            onPressed: () => context.push('/stats'),
+          ),
           const _NotificationsButton(),
           IconButton(
             icon: const Icon(Icons.settings_outlined),
