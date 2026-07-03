@@ -126,6 +126,23 @@ class AppUpdateNotifier extends Notifier<AppUpdateState> {
     }
   }
 
+  Future<void> _download(String url, String path) {
+    var lastPct = -1;
+    return _dio.download(
+      url,
+      path,
+      deleteOnError: true,
+      onReceiveProgress: (received, total) {
+        if (total <= 0) return;
+        final pct = (received * 100 ~/ total);
+        if (pct != lastPct) {
+          lastPct = pct;
+          state = state.copyWith(progress: pct / 100);
+        }
+      },
+    );
+  }
+
   /// Télécharge l'APK puis ouvre l'installeur système.
   Future<void> downloadAndInstall() async {
     final update = state.available;
@@ -134,24 +151,26 @@ class AppUpdateNotifier extends Notifier<AppUpdateState> {
     try {
       final dir = await getApplicationCacheDirectory();
       final path = '${dir.path}/gullify-update.apk';
-      await _dio.download(
-        update.downloadUrl,
-        path,
-        onReceiveProgress: (received, total) {
-          if (total > 0) {
-            state = state.copyWith(progress: received / total);
-          }
-        },
-      );
+      try {
+        await _download(update.downloadUrl, path);
+      } catch (_) {
+        // Repli : le lien « latest » pointe toujours sur la dernière version.
+        await _download('https://download.gullify.app/gullify-latest.apk', path);
+      }
       state = state.copyWith(
         status: UpdateStatus.readyToInstall,
         apkPath: path,
       );
       await install();
     } catch (e) {
+      // Affiche la cause réelle : indispensable pour diagnostiquer à distance.
+      final detail = e is DioException
+          ? '${e.type.name}${e.response != null ? ' HTTP ${e.response!.statusCode}' : ''}'
+              '${e.message != null ? ' — ${e.message}' : ''}'
+          : '$e';
       state = state.copyWith(
         status: UpdateStatus.error,
-        message: 'Échec du téléchargement de la mise à jour',
+        message: 'Échec du téléchargement : $detail',
       );
     }
   }
