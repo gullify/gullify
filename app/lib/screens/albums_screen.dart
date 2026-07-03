@@ -6,6 +6,7 @@ import '../models/album.dart';
 import '../state/library.dart';
 import '../widgets/alpha_grid.dart';
 import '../widgets/artwork.dart';
+import '../widgets/shuffle_library_button.dart';
 
 class AlbumsTab extends ConsumerWidget {
   const AlbumsTab({super.key});
@@ -21,6 +22,7 @@ class AlbumsTab extends ConsumerWidget {
         items: list,
         nameOf: (a) => a.name,
         hintText: 'Filtrer les albums…',
+        trailing: const ShuffleLibraryButton(),
         maxCrossAxisExtent: 180,
         childAspectRatio: 0.74,
         onRefresh: () => ref.refresh(albumsProvider.future),

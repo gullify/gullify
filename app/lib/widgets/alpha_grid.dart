@@ -14,6 +14,7 @@ class AlphaGrid<T> extends StatefulWidget {
     this.childAspectRatio = 0.78,
     this.spacing = 16.0,
     this.onRefresh,
+    this.trailing,
   });
 
   final List<T> items;
@@ -24,6 +25,9 @@ class AlphaGrid<T> extends StatefulWidget {
   final double childAspectRatio;
   final double spacing;
   final Future<void> Function()? onRefresh;
+
+  /// Widget affiché à droite du champ de filtre (ex. bouton aléatoire).
+  final Widget? trailing;
 
   @override
   State<AlphaGrid<T>> createState() => _AlphaGridState<T>();
@@ -88,13 +92,23 @@ class _AlphaGridState<T> extends State<AlphaGrid<T>> {
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-          child: TextField(
-            onChanged: (v) => setState(() => _query = v),
-            decoration: InputDecoration(
-              hintText: widget.hintText,
-              prefixIcon: const Icon(Icons.filter_list),
-              isDense: true,
-            ),
+          child: Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  onChanged: (v) => setState(() => _query = v),
+                  decoration: InputDecoration(
+                    hintText: widget.hintText,
+                    prefixIcon: const Icon(Icons.filter_list),
+                    isDense: true,
+                  ),
+                ),
+              ),
+              if (widget.trailing != null) ...[
+                const SizedBox(width: 8),
+                widget.trailing!,
+              ],
+            ],
           ),
         ),
         Expanded(

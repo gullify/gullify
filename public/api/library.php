@@ -607,6 +607,39 @@ try {
             'insights'         => ['mostActiveDay' => $mostActiveDay],
         ];
 
+    } elseif ($action === 'random_songs') {
+        // Lecture aléatoire de toute la bibliothèque : échantillon mélangé
+        // côté SQL (borné pour garder une file raisonnable).
+        $limit = min(500, max(1, intval($_GET['limit'] ?? 200)));
+        $stmt = $conn->prepare("
+            SELECT s.id, s.title, s.track_number, s.duration, s.file_path,
+                   s.album_id, al.name AS album_name,
+                   a.id AS artist_id, a.name AS artist_name
+            FROM songs s
+            JOIN albums al ON s.album_id = al.id
+            JOIN artists a ON al.artist_id = a.id
+            WHERE a.user = ?
+            ORDER BY RAND()
+            LIMIT $limit
+        ");
+        $stmt->execute([$user]);
+        $songs = [];
+        while ($row = $stmt->fetch()) {
+            $songs[] = [
+                'id' => (int)$row['id'],
+                'title' => $row['title'],
+                'trackNumber' => (int)$row['track_number'],
+                'duration' => (int)$row['duration'],
+                'filePath' => $row['file_path'],
+                'albumId' => (int)$row['album_id'],
+                'albumName' => $row['album_name'],
+                'artworkUrl' => albumArtworkUrl((int)$row['album_id']),
+                'artistId' => (int)$row['artist_id'],
+                'artistName' => $row['artist_name'],
+            ];
+        }
+        $response['data'] = $songs;
+
     } elseif ($action === 'search') {
         // `q` historique; `query` accepté aussi (client mobile).
         $query = trim($_GET['q'] ?? $_GET['query'] ?? '');

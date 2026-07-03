@@ -162,6 +162,16 @@ class LibraryRepository {
     );
   }
 
+  /// Échantillon aléatoire de toute la bibliothèque (mélangé côté serveur).
+  Future<List<Song>> randomSongs({int limit = 200}) async {
+    final data =
+        await _client.get('library.php', query: {
+      'action': 'random_songs',
+      'limit': limit,
+    });
+    return _list(data, _song);
+  }
+
   /// Titres les plus écoutés (song_stats).
   Future<List<Song>> popularSongs({int limit = 20}) async {
     final data = await _client.get('popular.php', query: {'limit': limit});

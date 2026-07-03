@@ -1,5 +1,3 @@
-import 'dart:ui' show ImageFilter;
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -8,7 +6,7 @@ import '../state/app_update.dart';
 import '../state/background_playback.dart';
 import '../state/home_widget_sync.dart';
 import '../state/player.dart';
-import '../theme.dart';
+import '../widgets/glass_box.dart';
 import '../widgets/mini_player.dart';
 import '../widgets/update_dialog.dart';
 
@@ -52,66 +50,127 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       }
     });
 
-    final surfaces = Theme.of(context).extension<GullifySurfaces>();
-    final frosted = surfaces?.frosted ?? false;
-
-    Widget bottom = NavigationBar(
-            selectedIndex: navigationShell.currentIndex,
-            onDestinationSelected: (i) => navigationShell.goBranch(
-              i,
-              initialLocation: i == navigationShell.currentIndex,
-            ),
-            destinations: const [
-              NavigationDestination(
-                icon: Icon(Icons.home_outlined),
-                selectedIcon: Icon(Icons.home),
-                label: 'Accueil',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.search),
-                label: 'Recherche',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.radio_outlined),
-                selectedIcon: Icon(Icons.radio),
-                label: 'Radio',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.library_music_outlined),
-                selectedIcon: Icon(Icons.library_music),
-                label: 'Bibliothèque',
-              ),
-            ],
-          );
-
-    if (frosted) {
-      // Effet verre : la barre de navigation seule dans sa pilule flottante
-      // (le mini-lecteur, séparé, gère son propre verre).
-      bottom = Padding(
-        padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(28),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 28, sigmaY: 28),
-            child: Container(
-              decoration: BoxDecoration(
-                color: surfaces?.barColor ?? Colors.transparent,
-                borderRadius: BorderRadius.circular(28),
-                border: Border.all(color: const Color(0x26FFFFFF)),
-              ),
-              child: bottom,
-            ),
-          ),
-        ),
-      );
-    }
-
     return Scaffold(
-      extendBody: frosted,
+      // Le contenu défile sous les barres de verre (elles sont translucides).
+      extendBody: true,
       body: navigationShell,
       bottomNavigationBar: Column(
         mainAxisSize: MainAxisSize.min,
-        children: [const MiniPlayer(), bottom],
+        children: [
+          const MiniPlayer(),
+          _GlassTabBar(navigationShell: navigationShell),
+        ],
+      ),
+    );
+  }
+}
+
+/// Barre d'onglets « liquid glass » : pilule de verre, onglet actif en
+/// pilule accent avec libellé, inactifs en icônes seules.
+class _GlassTabBar extends StatelessWidget {
+  const _GlassTabBar({required this.navigationShell});
+
+  final StatefulNavigationShell navigationShell;
+
+  static const _tabs = [
+    (Icons.home_outlined, Icons.home, 'Accueil'),
+    (Icons.search, Icons.search, 'Recherche'),
+    (Icons.radio_outlined, Icons.radio, 'Radio'),
+    (Icons.library_music_outlined, Icons.library_music, 'Bibliothèque'),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final current = navigationShell.currentIndex;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+      child: SafeArea(
+        top: false,
+        child: GlassBox(
+          radius: 22,
+          child: Padding(
+            padding: const EdgeInsets.all(6),
+            child: Row(
+              children: [
+                for (final (i, tab) in _tabs.indexed)
+                  Expanded(
+                    flex: current == i ? 5 : 2,
+                    child: _TabButton(
+                      icon: current == i ? tab.$2 : tab.$1,
+                      label: tab.$3,
+                      selected: current == i,
+                      scheme: scheme,
+                      onTap: () => navigationShell.goBranch(
+                        i,
+                        initialLocation: i == current,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TabButton extends StatelessWidget {
+  const _TabButton({
+    required this.icon,
+    required this.label,
+    required this.selected,
+    required this.scheme,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final ColorScheme scheme;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOutCubic,
+      height: 48,
+      margin: const EdgeInsets.symmetric(horizontal: 3),
+      decoration: BoxDecoration(
+        color: selected ? scheme.primary : Colors.transparent,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: onTap,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              size: 23,
+              color: selected ? scheme.onPrimary : scheme.onSurfaceVariant,
+            ),
+            if (selected) ...[
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
+                    color: scheme.onPrimary,
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }

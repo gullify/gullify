@@ -6,6 +6,7 @@ import '../models/artist.dart';
 import '../state/library.dart';
 import '../widgets/alpha_grid.dart';
 import '../widgets/artwork.dart';
+import '../widgets/shuffle_library_button.dart';
 
 class ArtistsTab extends ConsumerWidget {
   const ArtistsTab({super.key});
@@ -21,6 +22,7 @@ class ArtistsTab extends ConsumerWidget {
         items: list,
         nameOf: (a) => a.name,
         hintText: 'Filtrer les artistes…',
+        trailing: const ShuffleLibraryButton(),
         maxCrossAxisExtent: 160,
         onRefresh: () => ref.refresh(artistsProvider.future),
         itemBuilder: (context, artist) => InkWell(
