@@ -6,6 +6,9 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <!-- Auto-update : lancement de l'installeur d'APK téléchargé -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
+    <!-- Lecture continue écran éteint : sans cette exemption, Android coupe
+         le réseau de l'app en sommeil profond et le flux s'arrête. -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"/>
 
     <application
         android:label="Gullify"

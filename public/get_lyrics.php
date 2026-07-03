@@ -70,10 +70,19 @@ try {
         }
     }
 
-    if ($lyrics) {
-        echo json_encode(['success' => true, 'lyrics' => trim($lyrics), 'source' => 'id3']);
+    // Embedded lyrics win only when they carry LRC timestamps; otherwise
+    // keep them as fallback and still ask LRClib for the synced version.
+    if ($lyrics && preg_match('/^\[\d+:\d+/m', $lyrics)) {
+        echo json_encode([
+            'success'      => true,
+            'lyrics'       => trim(preg_replace('/^\[\d+:\d+[.:]\d+\]\s?/m', '', $lyrics)),
+            'syncedLyrics' => trim($lyrics),
+            'source'       => 'id3',
+        ]);
         exit;
     }
+    $embeddedFallback = $lyrics ? trim($lyrics) : null;
+    $lyrics = null;
 
     // ----------------------------------------------------------------
     // Step 2: LRClib.net (free public API, no key required)
@@ -114,6 +123,12 @@ try {
                 exit;
             }
         }
+    }
+
+    // LRClib n'a rien : retombe sur les paroles embarquées non synchronisées.
+    if (!empty($embeddedFallback)) {
+        echo json_encode(['success' => true, 'lyrics' => $embeddedFallback, 'source' => 'id3']);
+        exit;
     }
 
     // ----------------------------------------------------------------

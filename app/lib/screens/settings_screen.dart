@@ -1,8 +1,12 @@
+import 'dart:io';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../state/app_theme.dart';
+import '../state/background_playback.dart';
 import '../state/app_update.dart';
 // ignore: unused_import — GullifyStyle et son extension viennent du thème.
 import '../theme.dart';
@@ -11,7 +15,7 @@ import '../state/equalizer.dart';
 import '../state/offline.dart';
 import '../widgets/update_dialog.dart';
 
-const appVersion = '2.7.0';
+const appVersion = '2.8.0';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -75,6 +79,7 @@ class SettingsScreen extends ConsumerWidget {
               ),
               onTap: () => context.push('/settings/downloads'),
             ),
+          if (!kIsWeb && Platform.isAndroid) const _BackgroundPlaybackTile(),
           if (equalizerSupported || offlineSupported) const Divider(),
           const _SectionHeader('Apparence'),
           const _ThemePicker(),
@@ -126,6 +131,54 @@ String formatBytes(int bytes) {
     return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} Mo';
   }
   return '${(bytes / 1024).toStringAsFixed(0)} Ko';
+}
+
+class _BackgroundPlaybackTile extends StatefulWidget {
+  const _BackgroundPlaybackTile();
+
+  @override
+  State<_BackgroundPlaybackTile> createState() =>
+      _BackgroundPlaybackTileState();
+}
+
+class _BackgroundPlaybackTileState extends State<_BackgroundPlaybackTile> {
+  bool? _ok;
+
+  @override
+  void initState() {
+    super.initState();
+    _refresh();
+  }
+
+  Future<void> _refresh() async {
+    final ok = await backgroundPlaybackOk();
+    if (mounted) setState(() => _ok = ok);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return ListTile(
+      leading: Icon(
+        _ok == true ? Icons.battery_saver : Icons.battery_alert,
+        color: _ok == false ? scheme.error : null,
+      ),
+      title: const Text('Lecture écran éteint'),
+      subtitle: Text(
+        switch (_ok) {
+          true => 'Exemption de batterie accordée',
+          false => 'À autoriser — sinon la musique se coupe en veille',
+          null => 'Vérification…',
+        },
+      ),
+      onTap: _ok == true
+          ? null
+          : () async {
+              await requestBackgroundPlayback();
+              await _refresh();
+            },
+    );
+  }
 }
 
 class _ThemePicker extends ConsumerWidget {

@@ -39,6 +39,17 @@ class GullifyApp extends ConsumerWidget {
       themeMode: system ? ThemeMode.system : ThemeMode.dark,
       routerConfig: ref.watch(routerProvider),
       debugShowCheckedModeBanner: false,
+      // Fond en dégradé du thème « verre » : les scaffolds y sont
+      // transparents, le dégradé vit derrière tout le navigateur.
+      builder: (context, child) {
+        final bg =
+            Theme.of(context).extension<GullifySurfaces>()?.background;
+        if (bg == null || child == null) return child ?? const SizedBox();
+        return DecoratedBox(
+          decoration: BoxDecoration(gradient: bg),
+          child: child,
+        );
+      },
     );
   }
 }

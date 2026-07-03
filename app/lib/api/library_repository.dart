@@ -250,6 +250,9 @@ class LibraryRepository {
     final data = await _client.get('lyrics.php', query: {
       'path': filePath,
     }) as Map<String, dynamic>;
+    // syncedLyrics = LRC horodaté (défilement synchronisé); sinon texte brut.
+    final synced = data['syncedLyrics'] as String?;
+    if (synced != null && synced.trim().isNotEmpty) return synced;
     final l = data['lyrics'] as String?;
     return (l == null || l.trim().isEmpty) ? null : l;
   }

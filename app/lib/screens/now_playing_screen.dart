@@ -1,3 +1,5 @@
+import 'dart:ui' show ImageFilter;
+
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -7,6 +9,7 @@ import '../state/favorites.dart';
 import '../state/library.dart';
 import '../state/player.dart';
 import '../state/sleep_timer.dart';
+import '../theme.dart';
 import '../widgets/artwork.dart';
 import '../widgets/song_tile.dart';
 
@@ -30,137 +33,158 @@ class NowPlayingScreen extends ConsumerWidget {
     final isRadio = item.extras?['radio'] == true;
     final songId = item.extras?['songId'] as int?;
 
+    // Thème verre : la pochette floutée remplit l'arrière-plan du lecteur.
+    final frosted =
+        Theme.of(context).extension<GullifySurfaces>()?.frosted ?? false;
+    final artUrl = item.artUri?.toString();
+
     // Swipe vers le bas pour fermer le lecteur (en plus de la flèche).
     return Dismissible(
       key: const ValueKey('now-playing'),
       direction: DismissDirection.down,
       onDismissed: (_) => context.pop(),
       child: Scaffold(
+        extendBodyBehindAppBar: frosted,
         appBar: AppBar(
+          backgroundColor: frosted ? Colors.transparent : null,
           leading: IconButton(
             icon: const Icon(Icons.keyboard_arrow_down),
             onPressed: () => context.pop(),
           ),
           title: Text(isRadio ? 'Radio' : 'En lecture'),
         ),
-        body: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: Column(
-              children: [
-                const Spacer(),
-                Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 340),
-                    child: AspectRatio(
-                      aspectRatio: 1,
-                      child: Artwork(
-                        url: item.artUri?.toString(),
-                        borderRadius: 16,
-                        icon: isRadio ? Icons.radio : Icons.music_note,
-                      ),
-                    ),
-                  ),
-                ),
-                const Spacer(),
-                Text(
-                  item.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center,
-                  style: Theme.of(
-                    context,
-                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
-                ),
-                if (item.artist != null) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    item.artist!,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(color: scheme.onSurfaceVariant),
-                  ),
-                ],
-                const SizedBox(height: 16),
-                if (!isRadio) _SeekBar(duration: item.duration),
-                const SizedBox(height: 8),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        body: Stack(
+          fit: StackFit.expand,
+          children: [
+            if (frosted && artUrl != null)
+              ImageFiltered(
+                imageFilter: ImageFilter.blur(sigmaX: 60, sigmaY: 60),
+                child: Artwork(url: artUrl, borderRadius: 0),
+              ),
+            if (frosted && artUrl != null)
+              const DecoratedBox(
+                decoration: BoxDecoration(color: Color(0x990A0F1A)),
+              ),
+            SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Column(
                   children: [
-                    IconButton(
-                      icon: Icon(
-                        Icons.shuffle,
-                        color:
-                            (state?.shuffleMode ??
-                                    AudioServiceShuffleMode.none) !=
-                                AudioServiceShuffleMode.none
-                            ? scheme.primary
-                            : null,
+                    const Spacer(),
+                    Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 340),
+                        child: AspectRatio(
+                          aspectRatio: 1,
+                          child: Artwork(
+                            url: item.artUri?.toString(),
+                            borderRadius: 16,
+                            icon: isRadio ? Icons.radio : Icons.music_note,
+                          ),
+                        ),
                       ),
-                      onPressed: isRadio ? null : actions.toggleShuffle,
                     ),
-                    IconButton(
-                      iconSize: 40,
-                      icon: const Icon(Icons.skip_previous),
-                      onPressed: isRadio ? null : actions.previous,
-                    ),
-                    IconButton(
-                      iconSize: 72,
-                      icon: Icon(
-                        (state?.playing ?? false)
-                            ? Icons.pause_circle_filled
-                            : Icons.play_circle_fill,
-                        color: scheme.primary,
+                    const Spacer(),
+                    Text(
+                      item.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w700,
                       ),
-                      onPressed: actions.togglePlayPause,
                     ),
-                    IconButton(
-                      iconSize: 40,
-                      icon: const Icon(Icons.skip_next),
-                      onPressed: isRadio ? null : actions.next,
-                    ),
-                    IconButton(
-                      icon: Icon(
-                        switch (state?.repeatMode ??
-                            AudioServiceRepeatMode.none) {
-                          AudioServiceRepeatMode.one => Icons.repeat_one,
-                          _ => Icons.repeat,
-                        },
-                        color:
-                            (state?.repeatMode ??
-                                    AudioServiceRepeatMode.none) !=
-                                AudioServiceRepeatMode.none
-                            ? scheme.primary
-                            : null,
+                    if (item.artist != null) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        item.artist!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(color: scheme.onSurfaceVariant),
                       ),
-                      onPressed: isRadio ? null : actions.cycleRepeat,
+                    ],
+                    const SizedBox(height: 16),
+                    if (!isRadio) _SeekBar(duration: item.duration),
+                    const SizedBox(height: 8),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        IconButton(
+                          icon: Icon(
+                            Icons.shuffle,
+                            color:
+                                (state?.shuffleMode ??
+                                        AudioServiceShuffleMode.none) !=
+                                    AudioServiceShuffleMode.none
+                                ? scheme.primary
+                                : null,
+                          ),
+                          onPressed: isRadio ? null : actions.toggleShuffle,
+                        ),
+                        IconButton(
+                          iconSize: 40,
+                          icon: const Icon(Icons.skip_previous),
+                          onPressed: isRadio ? null : actions.previous,
+                        ),
+                        IconButton(
+                          iconSize: 72,
+                          icon: Icon(
+                            (state?.playing ?? false)
+                                ? Icons.pause_circle_filled
+                                : Icons.play_circle_fill,
+                            color: scheme.primary,
+                          ),
+                          onPressed: actions.togglePlayPause,
+                        ),
+                        IconButton(
+                          iconSize: 40,
+                          icon: const Icon(Icons.skip_next),
+                          onPressed: isRadio ? null : actions.next,
+                        ),
+                        IconButton(
+                          icon: Icon(
+                            switch (state?.repeatMode ??
+                                AudioServiceRepeatMode.none) {
+                              AudioServiceRepeatMode.one => Icons.repeat_one,
+                              _ => Icons.repeat,
+                            },
+                            color:
+                                (state?.repeatMode ??
+                                        AudioServiceRepeatMode.none) !=
+                                    AudioServiceRepeatMode.none
+                                ? scheme.primary
+                                : null,
+                          ),
+                          onPressed: isRadio ? null : actions.cycleRepeat,
+                        ),
+                      ],
                     ),
+                    const SizedBox(height: 8),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        if (songId != null) _FavoriteButton(songId: songId),
+                        if (!isRadio)
+                          IconButton(
+                            icon: const Icon(Icons.lyrics_outlined),
+                            tooltip: 'Paroles',
+                            onPressed: () => _showLyrics(context, ref, item),
+                          ),
+                        const _SleepTimerButton(),
+                        if (!isRadio)
+                          IconButton(
+                            icon: const Icon(Icons.queue_music),
+                            tooltip: "File d'attente",
+                            onPressed: () => _showQueue(context),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
                   ],
                 ),
-                const SizedBox(height: 8),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    if (songId != null) _FavoriteButton(songId: songId),
-                    if (!isRadio)
-                      IconButton(
-                        icon: const Icon(Icons.lyrics_outlined),
-                        tooltip: 'Paroles',
-                        onPressed: () => _showLyrics(context, ref, item),
-                      ),
-                    const _SleepTimerButton(),
-                    if (!isRadio)
-                      IconButton(
-                        icon: const Icon(Icons.queue_music),
-                        tooltip: "File d'attente",
-                        onPressed: () => _showQueue(context),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-              ],
+              ),
             ),
-          ),
+          ],
         ),
       ),
     );

@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../state/app_update.dart';
+import '../state/background_playback.dart';
 import '../state/home_widget_sync.dart';
 import '../state/player.dart';
 import '../theme.dart';
@@ -31,6 +32,10 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     Future.microtask(
       () => ref.read(appUpdateProvider.notifier).check(silent: true),
     );
+    // Lecture écran éteint : demande l'exemption batterie (une seule fois).
+    Future.delayed(const Duration(seconds: 2), () {
+      if (mounted) maybePromptBackgroundPlayback(context);
+    });
   }
 
   @override
@@ -86,13 +91,22 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     );
 
     if (frosted) {
-      // Effet verre : le contenu défile sous les barres, floutées en direct.
-      bottom = ClipRect(
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
-          child: ColoredBox(
-            color: surfaces?.barColor ?? Colors.transparent,
-            child: bottom,
+      // Effet verre : pilule flottante, contenu qui défile dessous,
+      // flou en direct + liseré lumineux.
+      bottom = Padding(
+        padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(28),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 28, sigmaY: 28),
+            child: Container(
+              decoration: BoxDecoration(
+                color: surfaces?.barColor ?? Colors.transparent,
+                borderRadius: BorderRadius.circular(28),
+                border: Border.all(color: const Color(0x26FFFFFF)),
+              ),
+              child: bottom,
+            ),
           ),
         ),
       );

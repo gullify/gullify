@@ -38,19 +38,28 @@ extension GullifyStyleInfo on GullifyStyle {
 /// Réglages de rendu propres au style, lus par les widgets (mini-player,
 /// barre de navigation) pour l'effet verre.
 class GullifySurfaces extends ThemeExtension<GullifySurfaces> {
-  const GullifySurfaces({this.frosted = false, this.barColor});
+  const GullifySurfaces({this.frosted = false, this.barColor, this.background});
 
-  /// Surfaces givrées : flou réel (BackdropFilter) sous les barres.
+  /// Surfaces givrées : flou réel (BackdropFilter) sous les barres,
+  /// barres flottantes, pochette floutée en fond du lecteur.
   final bool frosted;
 
   /// Couleur translucide des barres quand [frosted] est actif.
   final Color? barColor;
 
+  /// Dégradé de fond global (les scaffolds sont alors transparents).
+  final Gradient? background;
+
   @override
-  GullifySurfaces copyWith({bool? frosted, Color? barColor}) =>
+  GullifySurfaces copyWith({
+    bool? frosted,
+    Color? barColor,
+    Gradient? background,
+  }) =>
       GullifySurfaces(
         frosted: frosted ?? this.frosted,
         barColor: barColor ?? this.barColor,
+        background: background ?? this.background,
       );
 
   @override
@@ -152,12 +161,22 @@ ThemeData gullifyGlassTheme() {
     scheme,
     surfaces: const GullifySurfaces(
       frosted: true,
-      barColor: Color(0xB30D1524),
+      barColor: Color(0x8C0D1524),
+      background: LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [
+          Color(0xFF101A2E),
+          Color(0xFF0A0F1A),
+          Color(0xFF0E1E28),
+        ],
+      ),
     ),
   ).copyWith(
-    scaffoldBackgroundColor: _glassBg,
+    // Transparent : le dégradé global (main.dart) est visible partout.
+    scaffoldBackgroundColor: Colors.transparent,
     appBarTheme: const AppBarTheme(
-      backgroundColor: Color(0xB30D1524),
+      backgroundColor: Colors.transparent,
       surfaceTintColor: Colors.transparent,
     ),
     cardTheme: CardThemeData(
