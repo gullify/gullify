@@ -1,3 +1,5 @@
+import 'dart:ui' show ImageFilter;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -18,13 +20,15 @@ class MiniPlayer extends ConsumerWidget {
     final actions = ref.read(playerActionsProvider);
     final scheme = Theme.of(context).colorScheme;
 
-    // En thème « verre », le fond est translucide : le flou est appliqué par
-    // le shell (BackdropFilter commun avec la barre de navigation).
-    final frosted =
-        Theme.of(context).extension<GullifySurfaces>()?.frosted ?? false;
+    // Carte flottante, détachée de la barre de navigation. En thème
+    // « verre » elle a son propre flou; sinon une surface pleine arrondie.
+    final surfaces = Theme.of(context).extension<GullifySurfaces>();
+    final frosted = surfaces?.frosted ?? false;
 
-    return Material(
-      color: frosted ? Colors.transparent : scheme.surfaceContainerHighest,
+    Widget card = Material(
+      color: frosted
+          ? (surfaces?.barColor ?? Colors.transparent)
+          : scheme.surfaceContainerHighest,
       // Swipe horizontal : gauche = suivant, droite = précédent.
       child: GestureDetector(
         onHorizontalDragEnd: (details) {
@@ -37,9 +41,7 @@ class MiniPlayer extends ConsumerWidget {
         },
         child: InkWell(
           onTap: () => context.push('/now-playing'),
-          child: SafeArea(
-            top: false,
-            child: SizedBox(
+          child: SizedBox(
               height: 64,
               child: Row(
                 children: [
@@ -96,9 +98,29 @@ class MiniPlayer extends ConsumerWidget {
                 ],
               ),
             ),
-          ),
         ),
       ),
+    );
+
+    card = ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: frosted
+          ? BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 28, sigmaY: 28),
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: const Color(0x26FFFFFF)),
+                ),
+                child: card,
+              ),
+            )
+          : card,
+    );
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 6),
+      child: SafeArea(top: false, child: card),
     );
   }
 }

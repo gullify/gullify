@@ -55,11 +55,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     final surfaces = Theme.of(context).extension<GullifySurfaces>();
     final frosted = surfaces?.frosted ?? false;
 
-    Widget bottom = Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        const MiniPlayer(),
-        NavigationBar(
+    Widget bottom = NavigationBar(
             selectedIndex: navigationShell.currentIndex,
             onDestinationSelected: (i) => navigationShell.goBranch(
               i,
@@ -86,13 +82,11 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                 label: 'Bibliothèque',
               ),
             ],
-          ),
-      ],
-    );
+          );
 
     if (frosted) {
-      // Effet verre : pilule flottante, contenu qui défile dessous,
-      // flou en direct + liseré lumineux.
+      // Effet verre : la barre de navigation seule dans sa pilule flottante
+      // (le mini-lecteur, séparé, gère son propre verre).
       bottom = Padding(
         padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
         child: ClipRRect(
@@ -115,7 +109,10 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     return Scaffold(
       extendBody: frosted,
       body: navigationShell,
-      bottomNavigationBar: bottom,
+      bottomNavigationBar: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [const MiniPlayer(), bottom],
+      ),
     );
   }
 }

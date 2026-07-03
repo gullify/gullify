@@ -57,6 +57,7 @@ class ArtistScreen extends ConsumerWidget {
                     : null,
               ),
             ),
+            SliverToBoxAdapter(child: _ArtistPlayBar(detail: d)),
             if (d.topTracks.isNotEmpty) ...[
               const SliverPadding(
                 padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
@@ -404,6 +405,69 @@ class _ExpandableTextState extends State<_ExpandableText> {
               color: Theme.of(context).colorScheme.primary,
               fontWeight: FontWeight.w600,
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// « Tout lire » / « Aléatoire » : toutes les chansons de l'artiste,
+/// dans l'ordre des albums ou mélangées.
+class _ArtistPlayBar extends ConsumerStatefulWidget {
+  const _ArtistPlayBar({required this.detail});
+
+  final ArtistDetail detail;
+
+  @override
+  ConsumerState<_ArtistPlayBar> createState() => _ArtistPlayBarState();
+}
+
+class _ArtistPlayBarState extends ConsumerState<_ArtistPlayBar> {
+  bool _busy = false;
+
+  Future<void> _playAll({required bool shuffle}) async {
+    setState(() => _busy = true);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final repo = ref.read(libraryRepositoryProvider);
+      final details = await Future.wait([
+        for (final a in widget.detail.albums) repo.albumDetail(a.id),
+      ]);
+      final songs = [for (final det in details) ...det.songs];
+      if (songs.isEmpty) return;
+      if (shuffle) songs.shuffle();
+      await ref.read(playerActionsProvider).playSongs(songs);
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('Erreur : $e')));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.detail.albums.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+      child: Row(
+        children: [
+          FilledButton.icon(
+            onPressed: _busy ? null : () => _playAll(shuffle: false),
+            icon: _busy
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.play_arrow),
+            label: const Text('Tout lire'),
+          ),
+          const SizedBox(width: 8),
+          IconButton.outlined(
+            tooltip: 'Tout lire aléatoirement',
+            icon: const Icon(Icons.shuffle),
+            onPressed: _busy ? null : () => _playAll(shuffle: true),
           ),
         ],
       ),

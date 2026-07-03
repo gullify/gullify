@@ -131,6 +131,9 @@ try {
 }
 
 function servePlaceholder() {
+    // Le client mobile préfère un 404 (il affiche sa propre icône) au
+    // placeholder mascotte destiné au web.
+    if (($_GET['fallback'] ?? '') === '404') { http_response_code(404); exit; }
     $path = __DIR__ . '/logo_gullify_bo.png';
     if (!file_exists($path)) { http_response_code(404); exit; }
     header('Content-Type: image/png');

@@ -97,8 +97,14 @@ class LibraryRepository {
     return _client.resourceUrl(url);
   }
 
-  Artist _artist(Map<String, dynamic> j) =>
-      Artist.fromJson(j).copyWith(imageUrl: _abs(j['imageUrl'] as String?));
+  Artist _artist(Map<String, dynamic> j) {
+    // Le serveur omet imageUrl quand l'image n'est pas en DB, mais
+    // serve_image.php sait aussi la trouver dans le dossier de l'artiste.
+    // fallback=404 : pas d'image nulle part → l'app garde son icône.
+    final url = j['imageUrl'] as String? ??
+        'serve_image.php?artist_id=${j['id']}&fallback=404';
+    return Artist.fromJson(j).copyWith(imageUrl: _abs(url));
+  }
 
   Album _album(Map<String, dynamic> j) =>
       Album.fromJson(j).copyWith(artworkUrl: _abs(j['artworkUrl'] as String?));
