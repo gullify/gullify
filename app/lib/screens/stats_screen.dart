@@ -101,12 +101,63 @@ class StatsScreen extends ConsumerWidget {
                             ),
                         ],
                       ),
+                    if (s.recentPlays.isNotEmpty) ...[
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(0, 8, 0, 4),
+                        child: Text(
+                          'Historique récent',
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleMedium
+                              ?.copyWith(fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                      for (final p in s.recentPlays)
+                        ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: Artwork(url: p.artworkUrl, size: 44),
+                          title: Text(
+                            p.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          subtitle: Text(
+                            p.artistName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          trailing: Text(
+                            _relativeTime(p.playedAt),
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodySmall
+                                ?.copyWith(
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onSurfaceVariant,
+                                ),
+                          ),
+                          onTap: p.albumId > 0
+                              ? () => context.push('/album/${p.albumId}')
+                              : null,
+                        ),
+                    ],
                   ],
                 ),
               ),
       ),
     );
   }
+}
+
+String _relativeTime(DateTime? t) {
+  if (t == null) return '';
+  final diff = DateTime.now().difference(t);
+  if (diff.inMinutes < 1) return "à l'instant";
+  if (diff.inMinutes < 60) return 'il y a ${diff.inMinutes} min';
+  if (diff.inHours < 24) return 'il y a ${diff.inHours} h';
+  if (diff.inDays < 7) return 'il y a ${diff.inDays} j';
+  return '${t.day}/${t.month}';
 }
 
 class _StatTiles extends StatelessWidget {

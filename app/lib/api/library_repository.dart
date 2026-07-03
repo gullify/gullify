@@ -24,6 +24,35 @@ class AlbumDetail {
   final List<Song> songs;
 }
 
+class NewsArticle {
+  const NewsArticle({
+    required this.title,
+    required this.url,
+    required this.source,
+    required this.date,
+  });
+
+  final String title;
+  final String url;
+  final String source;
+  final String date;
+}
+
+/// Bio et actualités d'un artiste (sources externes, meilleur effort).
+class ArtistExtras {
+  const ArtistExtras({
+    this.bio,
+    this.listeners = 0,
+    this.articles = const [],
+  });
+
+  final String? bio;
+  final int listeners;
+  final List<NewsArticle> articles;
+
+  bool get isEmpty => bio == null && articles.isEmpty;
+}
+
 /// Suggestions du serveur, centrées sur un genre.
 class Suggestions {
   const Suggestions({
@@ -103,6 +132,28 @@ class LibraryRepository {
       'offset': offset,
     }) as Map<String, dynamic>;
     return _list(data['albums'], _album);
+  }
+
+  /// Bio (Last.fm) et actualités (Google News) d'un artiste.
+  Future<ArtistExtras> artistExtras(String artistName) async {
+    final data = await _client.get('artist-news.php', query: {
+      'artist': artistName,
+    }) as Map<String, dynamic>;
+    final bio = data['bio'] as Map<String, dynamic>?;
+    final news = data['news'] as Map<String, dynamic>?;
+    return ArtistExtras(
+      bio: bio?['available'] == true ? bio!['bio_summary'] as String? : null,
+      listeners: (bio?['listeners'] as num?)?.toInt() ?? 0,
+      articles: [
+        for (final a in (news?['articles'] as List<dynamic>? ?? []))
+          NewsArticle(
+            title: (a as Map<String, dynamic>)['title'] as String? ?? '',
+            url: a['url'] as String? ?? '',
+            source: a['source'] as String? ?? '',
+            date: a['date'] as String? ?? '',
+          ),
+      ],
+    );
   }
 
   /// Titres les plus écoutés (song_stats).

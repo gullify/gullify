@@ -61,6 +61,14 @@ class PlayerActions {
   Future<void> seek(Duration position) => _handler.seek(position);
   Future<void> skipToQueueItem(int index) => _handler.skipToQueueItem(index);
 
+  Future<void> playNext(Song song) => _handler.playNext(song);
+  Future<void> addToQueue(Song song) => _handler.addToQueue(song);
+  Future<void> moveQueueItem(int from, int to) =>
+      _handler.moveQueueItem(from, to);
+  Future<void> removeQueueItemAt(int index) =>
+      _handler.removeQueueItemAt(index);
+  Future<void> clearQueue() => _handler.clearQueueExceptCurrent();
+
   Future<void> playRadio({
     required String url,
     required String title,

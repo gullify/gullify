@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../state/app_update.dart';
+import '../state/home_widget_sync.dart';
 import '../state/player.dart';
 import '../theme.dart';
 import '../widgets/mini_player.dart';
@@ -36,6 +37,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   Widget build(BuildContext context) {
     // Keep the audio handler's repository bound to the current auth state.
     ref.watch(audioHandlerBinderProvider);
+    // Widget d'écran d'accueil synchronisé avec la lecture.
+    ref.watch(homeWidgetSyncProvider);
 
     ref.listen(appUpdateProvider, (prev, next) {
       if (prev?.status != UpdateStatus.available &&

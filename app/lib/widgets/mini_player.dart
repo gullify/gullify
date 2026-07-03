@@ -14,8 +14,7 @@ class MiniPlayer extends ConsumerWidget {
     final item = ref.watch(currentMediaItemProvider).value;
     if (item == null) return const SizedBox.shrink();
 
-    final playing =
-        ref.watch(playbackStateProvider).value?.playing ?? false;
+    final playing = ref.watch(playbackStateProvider).value?.playing ?? false;
     final actions = ref.read(playerActionsProvider);
     final scheme = Theme.of(context).colorScheme;
 
@@ -26,65 +25,78 @@ class MiniPlayer extends ConsumerWidget {
 
     return Material(
       color: frosted ? Colors.transparent : scheme.surfaceContainerHighest,
-      child: InkWell(
-        onTap: () => context.push('/now-playing'),
-        child: SafeArea(
-        top: false,
-        child: SizedBox(
-          height: 64,
-          child: Row(
-            children: [
-              const SizedBox(width: 8),
-              Artwork(
-                url: item.artUri?.toString(),
-                size: 48,
-                icon: Icons.music_note,
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      item.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                    if (item.artist != null)
-                      Text(
-                        item.artist!,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: scheme.onSurfaceVariant,
+      // Swipe horizontal : gauche = suivant, droite = précédent.
+      child: GestureDetector(
+        onHorizontalDragEnd: (details) {
+          final v = details.primaryVelocity ?? 0;
+          if (v < -300) {
+            actions.next();
+          } else if (v > 300) {
+            actions.previous();
+          }
+        },
+        child: InkWell(
+          onTap: () => context.push('/now-playing'),
+          child: SafeArea(
+            top: false,
+            child: SizedBox(
+              height: 64,
+              child: Row(
+                children: [
+                  const SizedBox(width: 8),
+                  Artwork(
+                    url: item.artUri?.toString(),
+                    size: 48,
+                    icon: Icons.music_note,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          item.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontWeight: FontWeight.w600),
                         ),
-                      ),
-                  ],
-                ),
+                        if (item.artist != null)
+                          Text(
+                            item.artist!,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: scheme.onSurfaceVariant,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.skip_previous),
+                    onPressed: actions.previous,
+                  ),
+                  IconButton(
+                    iconSize: 36,
+                    icon: Icon(
+                      playing
+                          ? Icons.pause_circle_filled
+                          : Icons.play_circle_fill,
+                      color: scheme.primary,
+                    ),
+                    onPressed: actions.togglePlayPause,
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.skip_next),
+                    onPressed: actions.next,
+                  ),
+                  const SizedBox(width: 4),
+                ],
               ),
-              IconButton(
-                icon: const Icon(Icons.skip_previous),
-                onPressed: actions.previous,
-              ),
-              IconButton(
-                iconSize: 36,
-                icon: Icon(
-                  playing ? Icons.pause_circle_filled : Icons.play_circle_fill,
-                  color: scheme.primary,
-                ),
-                onPressed: actions.togglePlayPause,
-              ),
-              IconButton(
-                icon: const Icon(Icons.skip_next),
-                onPressed: actions.next,
-              ),
-              const SizedBox(width: 4),
-            ],
+            ),
           ),
-        ),
         ),
       ),
     );

@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../models/song.dart';
 import '../state/favorites.dart';
 import '../state/offline.dart';
+import '../state/player.dart';
 import '../state/playlists.dart';
 import 'artwork.dart';
 
@@ -43,6 +44,22 @@ Future<void> showSongMenu(BuildContext context, Song song) {
                 ),
                 onTap: () {
                   ref.read(favoriteIdsProvider.notifier).toggle(song.id);
+                  Navigator.pop(context);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.playlist_play),
+                title: const Text('Jouer ensuite'),
+                onTap: () {
+                  ref.read(playerActionsProvider).playNext(song);
+                  Navigator.pop(context);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.queue),
+                title: const Text('Ajouter à la file'),
+                onTap: () {
+                  ref.read(playerActionsProvider).addToQueue(song);
                   Navigator.pop(context);
                 },
               ),

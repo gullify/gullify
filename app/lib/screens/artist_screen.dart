@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
+import '../api/library_repository.dart';
+import '../api/yt_downloads_repository.dart';
 import '../state/library.dart';
 import '../state/player.dart';
+import '../state/yt_downloads.dart';
 import '../widgets/artwork.dart';
 import '../widgets/mini_player.dart';
 import '../widgets/song_menu.dart';
@@ -134,8 +138,274 @@ class ArtistScreen extends ConsumerWidget {
                 },
               ),
             ),
+            SliverToBoxAdapter(child: _YtSuggestions(detail: d)),
+            SliverToBoxAdapter(child: _ArtistExtras(name: d.artist.name)),
+            const SliverPadding(padding: EdgeInsets.only(bottom: 24)),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Albums YouTube Music non possédés, téléchargeables en un tap.
+class _YtSuggestions extends ConsumerWidget {
+  const _YtSuggestions({required this.detail});
+
+  final ArtistDetail detail;
+
+  String _normalize(String s) => s
+      .toLowerCase()
+      .replaceAll(RegExp(r'\s*\((deluxe|remaster(ed)?|edition)[^)]*\)'), '')
+      .replaceAll(RegExp(r'[^a-z0-9]'), '');
+
+  Future<void> _download(
+    BuildContext context,
+    WidgetRef ref,
+    YtAlbum album,
+  ) async {
+    final messenger = ScaffoldMessenger.of(context);
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+    YtResolvedAlbum resolved;
+    try {
+      resolved = await ref
+          .read(ytDownloadsRepositoryProvider)
+          .resolveAlbum(album.browseId);
+    } catch (e) {
+      if (context.mounted) Navigator.pop(context);
+      messenger.showSnackBar(SnackBar(content: Text('Erreur : $e')));
+      return;
+    }
+    if (!context.mounted) return;
+    Navigator.pop(context);
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(resolved.title),
+        content: Text(
+          '${resolved.artist} · ${resolved.trackCount} pistes\n\n'
+          'Télécharger cet album dans votre bibliothèque ?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Annuler'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Télécharger'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      await ref.read(ytQueueProvider.notifier).start(resolved);
+      messenger.showSnackBar(
+        SnackBar(content: Text('Téléchargement démarré : ${resolved.title}')),
+      );
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('Échec : $e')));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final suggestions = ref.watch(ytArtistAlbumsProvider(detail.artist.name));
+    final owned = {for (final a in detail.albums) _normalize(a.name)};
+    final artistKey = _normalize(detail.artist.name);
+
+    return suggestions.maybeWhen(
+      data: (albums) {
+        final missing = albums
+            .where((a) =>
+                _normalize(a.artist) == artistKey &&
+                !owned.contains(_normalize(a.title)))
+            .toList();
+        if (missing.isEmpty) return const SizedBox.shrink();
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+              child: Text(
+                'À découvrir sur YouTube Music',
+                style: Theme.of(context)
+                    .textTheme
+                    .titleMedium
+                    ?.copyWith(fontWeight: FontWeight.w600),
+              ),
+            ),
+            SizedBox(
+              height: 180,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                itemCount: missing.length,
+                separatorBuilder: (_, _) => const SizedBox(width: 12),
+                itemBuilder: (context, i) {
+                  final a = missing[i];
+                  return InkWell(
+                    onTap: () => _download(context, ref, a),
+                    borderRadius: BorderRadius.circular(10),
+                    child: SizedBox(
+                      width: 120,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Stack(
+                            children: [
+                              Artwork(url: a.thumbnail, size: 120),
+                              Positioned(
+                                right: 4,
+                                bottom: 4,
+                                child: CircleAvatar(
+                                  radius: 14,
+                                  backgroundColor:
+                                      Theme.of(context).colorScheme.primary,
+                                  child: Icon(
+                                    Icons.download,
+                                    size: 16,
+                                    color:
+                                        Theme.of(context).colorScheme.onPrimary,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            a.title,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        );
+      },
+      orElse: () => const SizedBox.shrink(),
+    );
+  }
+}
+
+/// Bio (Last.fm) et actualités (Google News) — meilleur effort.
+class _ArtistExtras extends ConsumerWidget {
+  const _ArtistExtras({required this.name});
+
+  final String name;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final extras = ref.watch(artistExtrasProvider(name));
+    final scheme = Theme.of(context).colorScheme;
+
+    return extras.maybeWhen(
+      data: (e) {
+        if (e.isEmpty) return const SizedBox.shrink();
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (e.bio != null && e.bio!.trim().isNotEmpty) ...[
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                child: Text(
+                  'À propos',
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleMedium
+                      ?.copyWith(fontWeight: FontWeight.w600),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: _ExpandableText(e.bio!.trim()),
+              ),
+            ],
+            if (e.articles.isNotEmpty) ...[
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                child: Text(
+                  'Actualités',
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleMedium
+                      ?.copyWith(fontWeight: FontWeight.w600),
+                ),
+              ),
+              for (final article in e.articles)
+                ListTile(
+                  leading: const Icon(Icons.article_outlined),
+                  title: Text(
+                    article.title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 14),
+                  ),
+                  subtitle: Text(
+                    article.source,
+                    style: TextStyle(color: scheme.onSurfaceVariant),
+                  ),
+                  onTap: () => launchUrl(
+                    Uri.parse(article.url),
+                    mode: LaunchMode.externalApplication,
+                  ),
+                ),
+            ],
+          ],
+        );
+      },
+      orElse: () => const SizedBox.shrink(),
+    );
+  }
+}
+
+class _ExpandableText extends StatefulWidget {
+  const _ExpandableText(this.text);
+
+  final String text;
+
+  @override
+  State<_ExpandableText> createState() => _ExpandableTextState();
+}
+
+class _ExpandableTextState extends State<_ExpandableText> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: () => setState(() => _expanded = !_expanded),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            widget.text,
+            maxLines: _expanded ? null : 4,
+            overflow: _expanded ? null : TextOverflow.ellipsis,
+            style: const TextStyle(height: 1.5),
+          ),
+          Text(
+            _expanded ? 'Réduire' : 'Lire plus',
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.primary,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
       ),
     );
   }

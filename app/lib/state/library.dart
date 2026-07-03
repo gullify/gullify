@@ -34,6 +34,11 @@ final artistDetailProvider = FutureProvider.family<ArtistDetail, int>(
   (ref, id) => ref.watch(libraryRepositoryProvider).artistDetail(id),
 );
 
+/// Bio + actus, par nom d'artiste (sources externes — peut être vide).
+final artistExtrasProvider = FutureProvider.family<ArtistExtras, String>(
+  (ref, name) => ref.watch(libraryRepositoryProvider).artistExtras(name),
+);
+
 final albumDetailProvider = FutureProvider.family<AlbumDetail, int>(
   (ref, id) => ref.watch(libraryRepositoryProvider).albumDetail(id),
 );

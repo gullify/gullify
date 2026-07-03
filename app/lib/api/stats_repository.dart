@@ -107,6 +107,24 @@ class StatsGenre {
   final String color;
 }
 
+class RecentPlay {
+  const RecentPlay({
+    required this.title,
+    required this.artistName,
+    required this.albumId,
+    required this.artworkUrl,
+    required this.playedAt,
+    required this.completed,
+  });
+
+  final String title;
+  final String artistName;
+  final int albumId;
+  final String artworkUrl;
+  final DateTime? playedAt;
+  final bool completed;
+}
+
 class ListeningStats {
   const ListeningStats({
     required this.general,
@@ -117,6 +135,7 @@ class ListeningStats {
     required this.hourly,
     required this.weekday,
     required this.genres,
+    required this.recentPlays,
   });
 
   final StatsGeneral general;
@@ -127,6 +146,7 @@ class ListeningStats {
   final StatsChart hourly;
   final StatsChart weekday;
   final List<StatsGenre> genres;
+  final List<RecentPlay> recentPlays;
 
   bool get hasPlays => general.totalPlays > 0;
 }
@@ -203,6 +223,21 @@ class StatsRepository {
             color: i < genreColors.length ? genreColors[i] : '',
           ),
       ],
+      recentPlays: (data['recentPlays'] as List<dynamic>? ?? [])
+          .cast<Map<String, dynamic>>()
+          .map(
+            (j) => RecentPlay(
+              title: j['title'] as String? ?? '',
+              artistName: j['artist_name'] as String? ?? '',
+              albumId: (j['album_id'] as num?)?.toInt() ?? 0,
+              artworkUrl: _abs(j['artworkUrl'] as String? ?? ''),
+              playedAt: DateTime.tryParse(
+                (j['played_at_iso'] ?? j['played_at'] ?? '') as String,
+              ),
+              completed: j['completed'] == true,
+            ),
+          )
+          .toList(),
     );
   }
 }

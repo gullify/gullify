@@ -11,7 +11,7 @@ import '../state/equalizer.dart';
 import '../state/offline.dart';
 import '../widgets/update_dialog.dart';
 
-const appVersion = '2.6.0';
+const appVersion = '2.7.0';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});

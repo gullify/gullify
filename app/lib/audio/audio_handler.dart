@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:audio_service/audio_service.dart';
@@ -160,7 +161,7 @@ class GullifyAudioHandler extends BaseAudioHandler
       [for (final item in items) AudioSource.uri(Uri.parse(item.id))],
       initialIndex: startIndex,
     );
-    await _player.play();
+    await play();
   }
 
   Future<void> playRadio({
@@ -180,14 +181,87 @@ class GullifyAudioHandler extends BaseAudioHandler
     );
     queue.add([item]);
     await _player.setAudioSources([AudioSource.uri(Uri.parse(url))]);
-    await _player.play();
+    await play();
+  }
+
+  // ── Manipulation de la file de lecture ─────────────────────────────────────
+
+  /// Insère juste après la piste en cours.
+  Future<void> playNext(Song song) async {
+    final item = _toMediaItem(song);
+    final index = (_player.currentIndex ?? -1) + 1;
+    final q = [...queue.value]..insert(index.clamp(0, queue.value.length), item);
+    queue.add(q);
+    await _player.insertAudioSource(
+      index.clamp(0, q.length - 1),
+      AudioSource.uri(Uri.parse(item.id)),
+    );
+  }
+
+  /// Ajoute en fin de file.
+  Future<void> addToQueue(Song song) async {
+    final item = _toMediaItem(song);
+    queue.add([...queue.value, item]);
+    await _player.addAudioSource(AudioSource.uri(Uri.parse(item.id)));
+  }
+
+  Future<void> moveQueueItem(int from, int to) async {
+    final q = [...queue.value];
+    if (from < 0 || from >= q.length || to < 0 || to >= q.length) return;
+    q.insert(to, q.removeAt(from));
+    queue.add(q);
+    await _player.moveAudioSource(from, to);
   }
 
   @override
-  Future<void> play() => _player.play();
+  Future<void> removeQueueItemAt(int index) async {
+    final q = [...queue.value];
+    if (index < 0 || index >= q.length) return;
+    q.removeAt(index);
+    queue.add(q);
+    await _player.removeAudioSourceAt(index);
+  }
+
+  /// Vide la file en gardant la piste en cours.
+  Future<void> clearQueueExceptCurrent() async {
+    final current = _player.currentIndex;
+    if (current == null) return;
+    final q = queue.value;
+    if (current < q.length - 1) {
+      await _player.removeAudioSourceRange(current + 1, q.length);
+    }
+    if (current > 0) {
+      await _player.removeAudioSourceRange(0, current);
+    }
+    queue.add([q[current]]);
+  }
+
+  /// Fondu de volume court : reprise et pause en douceur plutôt qu'à sec.
+  /// (Un vrai crossfade entre pistes exigerait deux lecteurs simultanés.)
+  Future<void> _fadeTo(double target) async {
+    const steps = 8;
+    const stepDelay = Duration(milliseconds: 30);
+    final start = _player.volume;
+    for (var i = 1; i <= steps; i++) {
+      await _player.setVolume(start + (target - start) * i / steps);
+      await Future<void>.delayed(stepDelay);
+    }
+  }
 
   @override
-  Future<void> pause() => _player.pause();
+  Future<void> play() async {
+    await _player.setVolume(0);
+    // play() de just_audio ne se résout qu'à la pause/fin — ne pas attendre.
+    unawaited(_player.play());
+    await _fadeTo(1);
+  }
+
+  @override
+  Future<void> pause() async {
+    await _fadeTo(0);
+    await _player.pause();
+    await _player.setVolume(1);
+  }
 
   @override
   Future<void> seek(Duration position) => _player.seek(position);
@@ -207,7 +281,7 @@ class GullifyAudioHandler extends BaseAudioHandler
   @override
   Future<void> skipToQueueItem(int index) async {
     await _player.seek(Duration.zero, index: index);
-    await _player.play();
+    await play();
   }
 
   @override
