@@ -146,8 +146,14 @@ class GullifyAudioHandler extends BaseAudioHandler
         extras: {'songId': s.id, 'filePath': s.filePath},
       );
 
+  /// Vrai pendant le remplacement de la file : just_audio repasse alors par
+  /// `idle`, qu'il ne faut pas relayer (Android Auto lit STATE_NONE comme
+  /// « rien ne joue » et abandonne la sélection en cours).
+  bool _switchingSource = false;
+
   Future<void> playSongs(List<Song> songs, {int startIndex = 0}) async {
     _flushPlay();
+    _switchingSource = true;
     final items = songs.map(_toMediaItem).toList();
     queue.add(items);
     await _player.setAudioSources(
@@ -163,6 +169,7 @@ class GullifyAudioHandler extends BaseAudioHandler
     String? logo,
   }) async {
     _flushPlay();
+    _switchingSource = true;
     final item = MediaItem(
       id: url,
       title: title,
@@ -226,6 +233,7 @@ class GullifyAudioHandler extends BaseAudioHandler
   @override
   Future<void> stop() async {
     _flushPlay();
+    _switchingSource = false;
     await _player.stop();
     await super.stop();
   }
@@ -372,6 +380,90 @@ class GullifyAudioHandler extends BaseAudioHandler
   Future<List<Song>> _favorites(LibraryRepository repo) async =>
       _favoritesCache ?? await repo.allFavorites();
 
+  /// Selon la version d'Android Auto, la sélection d'un item passe par
+  /// prepareFromMediaId (puis play) plutôt que playFromMediaId. Le défaut du
+  /// plugin est un no-op silencieux — exactement le symptôme « impossible de
+  /// charger la sélection ». On joue directement : c'est ce qu'attend l'auto.
+  @override
+  Future<void> prepareFromMediaId(
+    String mediaId, [
+    Map<String, dynamic>? extras,
+  ]) =>
+      playFromMediaId(mediaId, extras);
+
+  /// Android Auto peut demander le détail d'un item avant de le jouer;
+  /// le défaut (null) fait échouer la sélection.
+  @override
+  Future<MediaItem?> getMediaItem(String mediaId) async {
+    final m =
+        RegExp(r'^(?:ALBUM_(\d+)|FAV)_TRACK_(\d+)$').firstMatch(mediaId);
+    if (m != null) {
+      final repo = repository;
+      if (repo == null) return null;
+      final songs = m.group(1) != null
+          ? await _albumSongs(repo, int.parse(m.group(1)!))
+          : await _favorites(repo);
+      final index = int.parse(m.group(2)!);
+      if (index < 0 || index >= songs.length) return null;
+      final s = songs[index];
+      return _toMediaItem(s).copyWith(id: mediaId);
+    }
+    if (mediaId.startsWith('RADIO_')) {
+      final id = mediaId.substring('RADIO_'.length);
+      final s = (_stationsCache ?? []).where((s) => s.id == id).firstOrNull;
+      if (s == null) return null;
+      return MediaItem(
+        id: mediaId,
+        title: s.name,
+        artist: 'Radio',
+        isLive: true,
+        artUri: s.logo != null ? Uri.parse(s.logo!) : null,
+      );
+    }
+    // File de lecture courante (ids = URL de flux).
+    return queue.value.where((i) => i.id == mediaId).firstOrNull;
+  }
+
+  /// Recherche vocale (« Joue X sur Gullify ») : meilleur artiste, sinon
+  /// album, sinon titres trouvés.
+  @override
+  Future<void> playFromSearch(
+    String query, [
+    Map<String, dynamic>? extras,
+  ]) async {
+    final repo = repository;
+    if (repo == null || query.trim().isEmpty) return;
+    playbackState.add(playbackState.value.copyWith(
+      processingState: AudioProcessingState.loading,
+      playing: false,
+    ));
+    try {
+      final r = await repo.search(query);
+      if (r.artists.isNotEmpty) {
+        await playSongs(await _artistSongs(repo, r.artists.first.id));
+      } else if (r.albums.isNotEmpty) {
+        await playSongs(await _albumSongs(repo, r.albums.first.id));
+      } else if (r.songs.isNotEmpty) {
+        await playSongs(r.songs);
+      } else {
+        playbackState.add(playbackState.value.copyWith(
+          processingState: AudioProcessingState.idle,
+        ));
+      }
+    } catch (_) {
+      playbackState.add(playbackState.value.copyWith(
+        processingState: AudioProcessingState.idle,
+      ));
+    }
+  }
+
+  @override
+  Future<void> prepareFromSearch(
+    String query, [
+    Map<String, dynamic>? extras,
+  ]) =>
+      playFromSearch(query, extras);
+
   @override
   Future<void> playFromMediaId(
     String mediaId, [
@@ -434,6 +526,21 @@ class GullifyAudioHandler extends BaseAudioHandler
 
   void _broadcastState(PlaybackEvent event) {
     final playing = _player.playing;
+    var processingState = switch (_player.processingState) {
+      ProcessingState.idle => AudioProcessingState.idle,
+      ProcessingState.loading => AudioProcessingState.loading,
+      ProcessingState.buffering => AudioProcessingState.buffering,
+      ProcessingState.ready => AudioProcessingState.ready,
+      ProcessingState.completed => AudioProcessingState.completed,
+    };
+    if (_switchingSource) {
+      if (processingState == AudioProcessingState.idle) {
+        processingState = AudioProcessingState.loading;
+      } else if (processingState == AudioProcessingState.ready ||
+          processingState == AudioProcessingState.buffering) {
+        _switchingSource = false;
+      }
+    }
     playbackState.add(
       playbackState.value.copyWith(
         controls: [
@@ -448,13 +555,7 @@ class GullifyAudioHandler extends BaseAudioHandler
           MediaAction.seekBackward,
         },
         androidCompactActionIndices: const [0, 1, 2],
-        processingState: switch (_player.processingState) {
-          ProcessingState.idle => AudioProcessingState.idle,
-          ProcessingState.loading => AudioProcessingState.loading,
-          ProcessingState.buffering => AudioProcessingState.buffering,
-          ProcessingState.ready => AudioProcessingState.ready,
-          ProcessingState.completed => AudioProcessingState.completed,
-        },
+        processingState: processingState,
         playing: playing,
         updatePosition: _player.position,
         bufferedPosition: _player.bufferedPosition,
