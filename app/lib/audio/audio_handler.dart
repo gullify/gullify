@@ -350,23 +350,36 @@ class GullifyAudioHandler extends BaseAudioHandler
           ),
       ];
 
+  /// Au lancement par Android Auto (téléphone verrouillé), la restauration
+  /// de session prend quelques secondes : on attend le repository plutôt
+  /// que de répondre « vide » (AA ne re-demande pas).
+  Future<LibraryRepository?> _awaitRepository() async {
+    for (var i = 0; i < 40 && repository == null; i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+    }
+    return repository;
+  }
+
   @override
   Future<List<MediaItem>> getChildren(
     String parentMediaId, [
     Map<String, dynamic>? options,
   ]) async {
-    final repo = repository;
+    // La racine est statique : toujours répondre, même avant l'auth.
+    if (parentMediaId == BrowseIds.root) {
+      return const [
+        MediaItem(id: BrowseIds.favorites, title: 'Favoris', playable: false),
+        MediaItem(id: BrowseIds.recent, title: 'Nouveautés', playable: false),
+        MediaItem(id: BrowseIds.albums, title: 'Albums', playable: false),
+        MediaItem(id: BrowseIds.artists, title: 'Artistes', playable: false),
+        MediaItem(id: BrowseIds.radios, title: 'Radios', playable: false),
+      ];
+    }
+
+    final repo = await _awaitRepository();
     if (repo == null) return [];
 
     switch (parentMediaId) {
-      case BrowseIds.root:
-        return const [
-          MediaItem(id: BrowseIds.favorites, title: 'Favoris', playable: false),
-          MediaItem(id: BrowseIds.recent, title: 'Nouveautés', playable: false),
-          MediaItem(id: BrowseIds.albums, title: 'Albums', playable: false),
-          MediaItem(id: BrowseIds.artists, title: 'Artistes', playable: false),
-          MediaItem(id: BrowseIds.radios, title: 'Radios', playable: false),
-        ];
 
       case BrowseIds.favorites:
         final songs = await repo.allFavorites();
@@ -476,7 +489,7 @@ class GullifyAudioHandler extends BaseAudioHandler
     final m =
         RegExp(r'^(?:ALBUM_(\d+)|FAV)_TRACK_(\d+)$').firstMatch(mediaId);
     if (m != null) {
-      final repo = repository;
+      final repo = await _awaitRepository();
       if (repo == null) return null;
       final songs = m.group(1) != null
           ? await _albumSongs(repo, int.parse(m.group(1)!))
@@ -509,7 +522,7 @@ class GullifyAudioHandler extends BaseAudioHandler
     String query, [
     Map<String, dynamic>? extras,
   ]) async {
-    final repo = repository;
+    final repo = await _awaitRepository();
     if (repo == null || query.trim().isEmpty) return;
     playbackState.add(playbackState.value.copyWith(
       processingState: AudioProcessingState.loading,
@@ -547,7 +560,7 @@ class GullifyAudioHandler extends BaseAudioHandler
     String mediaId, [
     Map<String, dynamic>? extras,
   ]) async {
-    final repo = repository;
+    final repo = await _awaitRepository();
     if (repo == null) return;
 
     // Android Auto attend une réaction immédiate de la session, sinon il

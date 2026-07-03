@@ -16,9 +16,23 @@ Future<void> main() async {
   // Ne bloque jamais le premier affichage : l'égaliseur se restaure en
   // arrière-plan et une erreur de plugin ne doit pas geler le démarrage.
   unawaited(applySavedEqualizer(audioHandler).catchError((_) {}));
+
+  // Container indépendant de l'arbre de widgets : quand Android Auto lance
+  // l'app sans interface (téléphone verrouillé), aucun widget ne se
+  // construit — la liaison auth → repositories du handler doit donc vivre
+  // ici, pas dans un écran.
+  final container = ProviderContainer(
+    overrides: [audioHandlerProvider.overrideWithValue(audioHandler)],
+  );
+  container.listen(
+    audioHandlerBinderProvider,
+    (_, _) {},
+    fireImmediately: true,
+  );
+
   runApp(
-    ProviderScope(
-      overrides: [audioHandlerProvider.overrideWithValue(audioHandler)],
+    UncontrolledProviderScope(
+      container: container,
       child: const GullifyApp(),
     ),
   );
