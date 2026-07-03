@@ -6,9 +6,10 @@ const gullifyAmber = Color(0xFFE3A94F);
 const _surface = Color(0xFF121212);
 const _surfaceContainer = Color(0xFF1C1B18);
 
-// Liquid Glass — bleu nuit profond, accent glacier, surfaces translucides.
-const _glassBg = Color(0xFF0A0F1A);
-const _glassAccent = Color(0xFF8AD4F0);
+// Liquid Glass Player (design de référence) : perle claire, verre blanc,
+// encre #191B21, accent indigo diffusé en halo.
+const glassInk = Color(0xFF191B21);
+const glassAccent = Color(0xFF4A5FE8);
 
 /// Styles visuels de l'app. `system` alterne Clair/Audiophile selon l'OS.
 enum GullifyStyle { system, clair, audiophile, amoled, glass }
@@ -31,14 +32,19 @@ extension GullifyStyleInfo on GullifyStyle {
         GullifyStyle.amoled =>
           (Colors.black, const Color(0xFF0A0A0A), gullifyAmber),
         GullifyStyle.glass =>
-          (_glassBg, const Color(0x1FFFFFFF), _glassAccent),
+          (const Color(0xFFF2F3F7), Colors.white, glassAccent),
       };
 }
 
 /// Réglages de rendu propres au style, lus par les widgets (mini-player,
 /// barre de navigation) pour l'effet verre.
 class GullifySurfaces extends ThemeExtension<GullifySurfaces> {
-  const GullifySurfaces({this.frosted = false, this.barColor, this.background});
+  const GullifySurfaces({
+    this.frosted = false,
+    this.barColor,
+    this.background,
+    this.accentBlob,
+  });
 
   /// Surfaces givrées : flou réel (BackdropFilter) sous les barres,
   /// barres flottantes, pochette floutée en fond du lecteur.
@@ -50,16 +56,21 @@ class GullifySurfaces extends ThemeExtension<GullifySurfaces> {
   /// Dégradé de fond global (les scaffolds sont alors transparents).
   final Gradient? background;
 
+  /// Halo d'accent diffus en haut de l'écran (design Liquid Glass Player).
+  final Color? accentBlob;
+
   @override
   GullifySurfaces copyWith({
     bool? frosted,
     Color? barColor,
     Gradient? background,
+    Color? accentBlob,
   }) =>
       GullifySurfaces(
         frosted: frosted ?? this.frosted,
         barColor: barColor ?? this.barColor,
         background: background ?? this.background,
+        accentBlob: accentBlob ?? this.accentBlob,
       );
 
   @override
@@ -180,46 +191,39 @@ ThemeData gullifyAmoledTheme() {
   );
 }
 
-/// « Liquid Glass » — bleu nuit, accent glacier, barres givrées translucides
-/// (les widgets appliquent un vrai flou via [GullifySurfaces.frosted]).
+/// « Liquid Glass » — reproduction fidèle du design de référence :
+/// dégradé perle, verre blanc, encre #191B21, gris #6B7078/#8A8F98,
+/// accent indigo avec halo diffus en haut d'écran.
 ThemeData gullifyGlassTheme() {
-  final scheme = ColorScheme.fromSeed(
-    seedColor: _glassAccent,
-    brightness: Brightness.dark,
-    surface: _glassBg,
-  ).copyWith(
-    primary: _glassAccent,
-    onPrimary: const Color(0xFF06222E),
-    surfaceContainerHighest: const Color(0x14FFFFFF),
-    outlineVariant: const Color(0x1FFFFFFF),
+  final scheme = ColorScheme.fromSeed(seedColor: glassAccent).copyWith(
+    primary: glassAccent,
+    onPrimary: Colors.white,
+    surface: const Color(0xFFF2F3F7),
+    onSurface: glassInk,
+    onSurfaceVariant: const Color(0xFF6B7078),
+    outline: const Color(0xFFA0A4AC),
+    outlineVariant: const Color(0xFFD8DCE4),
+    surfaceContainerHighest: const Color(0xCCFFFFFF),
   );
   return _base(
     scheme,
     surfaces: const GullifySurfaces(
       frosted: true,
-      barColor: Color(0x8C0D1524),
+      accentBlob: glassAccent,
       background: LinearGradient(
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
-        colors: [
-          Color(0xFF101A2E),
-          Color(0xFF0A0F1A),
-          Color(0xFF0E1E28),
-        ],
+        colors: [Color(0xFFF6F6F8), Color(0xFFECEEF4), Color(0xFFE6EAF1)],
       ),
     ),
   ).copyWith(
     cardTheme: CardThemeData(
-      color: const Color(0x14FFFFFF),
+      color: const Color(0x8CFFFFFF),
       elevation: 0,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: const BorderSide(color: Color(0x1FFFFFFF)),
+        borderRadius: BorderRadius.circular(18),
+        side: const BorderSide(color: Color(0xB3FFFFFF)),
       ),
-    ),
-    navigationBarTheme: const NavigationBarThemeData(
-      backgroundColor: Colors.transparent,
-      elevation: 0,
     ),
   );
 }

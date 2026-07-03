@@ -50,18 +50,45 @@ class GullifyApp extends ConsumerWidget {
       title: 'Gullify',
       theme: chosen ?? gullifyLightTheme(),
       darkTheme: chosen ?? gullifyTheme(),
-      themeMode: system ? ThemeMode.system : ThemeMode.dark,
+      themeMode: system
+          ? ThemeMode.system
+          : chosen!.brightness == Brightness.dark
+              ? ThemeMode.dark
+              : ThemeMode.light,
       routerConfig: ref.watch(routerProvider),
       debugShowCheckedModeBanner: false,
       // Fond en dégradé du thème « verre » : les scaffolds y sont
       // transparents, le dégradé vit derrière tout le navigateur.
       builder: (context, child) {
-        final bg =
-            Theme.of(context).extension<GullifySurfaces>()?.background;
+        final surfaces = Theme.of(context).extension<GullifySurfaces>();
+        final bg = surfaces?.background;
         if (bg == null || child == null) return child ?? const SizedBox();
         return DecoratedBox(
           decoration: BoxDecoration(gradient: bg),
-          child: child,
+          child: Stack(
+            children: [
+              // Halo d'accent diffus (design) : lueur douce en haut d'écran.
+              if (surfaces?.accentBlob != null)
+                Positioned(
+                  top: -140,
+                  left: -60,
+                  child: Container(
+                    width: 420,
+                    height: 420,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: RadialGradient(
+                        colors: [
+                          surfaces!.accentBlob!.withValues(alpha: 0.16),
+                          surfaces.accentBlob!.withValues(alpha: 0.0),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              child,
+            ],
+          ),
         );
       },
     );

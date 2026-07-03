@@ -7,7 +7,7 @@ const _storage = FlutterSecureStorage();
 const _kThemeStyle = 'theme_style';
 
 /// Style visuel choisi par l'utilisateur, persisté entre les sessions.
-/// Défaut : Audiophile (l'identité sombre historique de Gullify).
+/// Défaut : Liquid Glass (le design de référence).
 final themeStyleProvider = NotifierProvider<ThemeStyleNotifier, GullifyStyle>(
   ThemeStyleNotifier.new,
 );
@@ -16,7 +16,7 @@ class ThemeStyleNotifier extends Notifier<GullifyStyle> {
   @override
   GullifyStyle build() {
     _restore();
-    return GullifyStyle.audiophile;
+    return GullifyStyle.glass;
   }
 
   Future<void> _restore() async {
@@ -25,7 +25,7 @@ class ThemeStyleNotifier extends Notifier<GullifyStyle> {
       if (raw == null) return;
       state = GullifyStyle.values.firstWhere(
         (s) => s.name == raw,
-        orElse: () => GullifyStyle.audiophile,
+        orElse: () => GullifyStyle.glass,
       );
     } catch (_) {
       // Meilleur effort : on garde le défaut.

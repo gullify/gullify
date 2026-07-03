@@ -22,102 +22,84 @@ class ArtistScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final detail = ref.watch(artistDetailProvider(artistId));
+    final scheme = Theme.of(context).colorScheme;
 
     return Scaffold(
       bottomNavigationBar: const MiniPlayer(),
       body: detail.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('Erreur: $e')),
-        data: (d) => CustomScrollView(
-          slivers: [
-            const SliverAppBar(pinned: false),
-            SliverToBoxAdapter(
-              child: Column(
-                children: [
-                  DecoratedBox(
-                    decoration: const BoxDecoration(
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: Color(0x59141932),
-                          blurRadius: 40,
-                          offset: Offset(0, 18),
-                        ),
-                      ],
-                    ),
-                    child: Artwork(
-                      url: d.artist.imageUrl,
-                      size: 118,
-                      borderRadius: 59,
-                      icon: Icons.person,
-                    ),
+        data: (d) => ListView(
+          padding: const EdgeInsets.only(bottom: 24),
+          children: [
+            // Retour : rond de verre, comme le design (pas d'AppBar).
+            SafeArea(
+              bottom: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(14, 10, 20, 0),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: GlassIconButton(
+                    icon: Icons.chevron_left,
+                    tooltip: 'Retour',
+                    onPressed: () => context.pop(),
                   ),
-                  const SizedBox(height: 14),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
-                    child: Text(
-                      d.artist.name,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        fontSize: 26,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: -0.5,
-                      ),
-                    ),
-                  ),
-                  Text(
-                    '${d.albums.length} album${d.albums.length > 1 ? 's' : ''}',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                ],
-              ),
-            ),
-            SliverToBoxAdapter(child: _ArtistPlayBar(detail: d)),
-            if (d.topTracks.isNotEmpty) ...[
-              const SliverPadding(
-                padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
-                sliver: SliverToBoxAdapter(
-                  child: Text(
-                    'Populaires',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ),
-              SliverList.builder(
-                itemCount: d.topTracks.length,
-                itemBuilder: (context, i) => SongTile(
-                  song: d.topTracks[i],
-                  onTap: () => ref
-                      .read(playerActionsProvider)
-                      .playSongs(d.topTracks, startIndex: i),
-                  onLongPress: () =>
-                      showSongMenu(context, d.topTracks[i]),
-                ),
-              ),
-            ],
-            const SliverPadding(
-              padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
-              sliver: SliverToBoxAdapter(
-                child: Text(
-                  'Albums',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                 ),
               ),
             ),
-            SliverToBoxAdapter(
-              child: SizedBox(
-                height: 196,
+            const SizedBox(height: 14),
+            Center(
+              child: DecoratedBox(
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Color(0x59141932),
+                      blurRadius: 40,
+                      offset: Offset(0, 18),
+                    ),
+                  ],
+                ),
+                child: Artwork(
+                  url: d.artist.imageUrl,
+                  size: 118,
+                  borderRadius: 59,
+                  icon: Icons.person,
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Text(
+                d.artist.name,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 26,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.5,
+                ),
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              '${d.albums.length} album${d.albums.length > 1 ? 's' : ''}',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: scheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 16),
+            _ArtistPlayBar(detail: d),
+            if (d.albums.isNotEmpty) ...[
+              const SectionTitle('Albums'),
+              SizedBox(
+                height: 198,
                 child: ListView.separated(
                   scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 14),
                   itemCount: d.albums.length,
                   separatorBuilder: (_, _) => const SizedBox(width: 13),
                   itemBuilder: (context, i) {
@@ -162,9 +144,7 @@ class ArtistScreen extends ConsumerWidget {
                                 '${album.year}',
                                 style: TextStyle(
                                   fontSize: 12,
-                                  color: Theme.of(context)
-                                      .colorScheme
-                                      .onSurfaceVariant,
+                                  color: scheme.onSurfaceVariant,
                                 ),
                               ),
                           ],
@@ -174,10 +154,27 @@ class ArtistScreen extends ConsumerWidget {
                   },
                 ),
               ),
-            ),
-            SliverToBoxAdapter(child: _YtSuggestions(detail: d)),
-            SliverToBoxAdapter(child: _ArtistExtras(name: d.artist.name)),
-            const SliverPadding(padding: EdgeInsets.only(bottom: 24)),
+            ],
+            if (d.topTracks.isNotEmpty) ...[
+              const SectionTitle('Titres populaires'),
+              const SizedBox(height: 6),
+              for (final (i, track) in d.topTracks.indexed)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: SongTile(
+                    song: track,
+                    showArtwork: false,
+                    leadingNumber: i + 1,
+                    subtitle: track.albumName,
+                    onTap: () => ref
+                        .read(playerActionsProvider)
+                        .playSongs(d.topTracks, startIndex: i),
+                    onLongPress: () => showSongMenu(context, track),
+                  ),
+                ),
+            ],
+            _YtSuggestions(detail: d),
+            _ArtistExtras(name: d.artist.name),
           ],
         ),
       ),

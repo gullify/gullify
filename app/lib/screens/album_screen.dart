@@ -26,7 +26,6 @@ class AlbumScreen extends ConsumerWidget {
         ?.extras?['songId'] as int?;
 
     return Scaffold(
-      appBar: AppBar(),
       bottomNavigationBar: const MiniPlayer(),
       body: detail.when(
         loading: () => const Center(child: CircularProgressIndicator()),
@@ -34,6 +33,21 @@ class AlbumScreen extends ConsumerWidget {
         data: (d) => ListView(
           padding: const EdgeInsets.only(bottom: 24),
           children: [
+            // Retour : rond de verre, comme le design (pas d'AppBar).
+            SafeArea(
+              bottom: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(14, 10, 20, 6),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: GlassIconButton(
+                    icon: Icons.chevron_left,
+                    tooltip: 'Retour',
+                    onPressed: () => context.pop(),
+                  ),
+                ),
+              ),
+            ),
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
               child: Row(
