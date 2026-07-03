@@ -9,6 +9,7 @@ import '../state/library.dart';
 import '../state/player.dart';
 import '../state/yt_downloads.dart';
 import '../widgets/artwork.dart';
+import '../widgets/glass_kit.dart';
 import '../widgets/mini_player.dart';
 import '../widgets/song_menu.dart';
 import '../widgets/song_tile.dart';
@@ -29,32 +30,51 @@ class ArtistScreen extends ConsumerWidget {
         error: (e, _) => Center(child: Text('Erreur: $e')),
         data: (d) => CustomScrollView(
           slivers: [
-            SliverAppBar(
-              pinned: true,
-              expandedHeight: 240,
-              flexibleSpace: FlexibleSpaceBar(
-                title: Text(d.artist.name),
-                background: d.artist.imageUrl != null
-                    ? Stack(
-                        fit: StackFit.expand,
-                        children: [
-                          Artwork(
-                            url: d.artist.imageUrl,
-                            borderRadius: 0,
-                            icon: Icons.person,
-                          ),
-                          const DecoratedBox(
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                begin: Alignment.topCenter,
-                                end: Alignment.bottomCenter,
-                                colors: [Colors.transparent, Colors.black87],
-                              ),
-                            ),
-                          ),
-                        ],
-                      )
-                    : null,
+            const SliverAppBar(pinned: false),
+            SliverToBoxAdapter(
+              child: Column(
+                children: [
+                  DecoratedBox(
+                    decoration: const BoxDecoration(
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Color(0x59141932),
+                          blurRadius: 40,
+                          offset: Offset(0, 18),
+                        ),
+                      ],
+                    ),
+                    child: Artwork(
+                      url: d.artist.imageUrl,
+                      size: 118,
+                      borderRadius: 59,
+                      icon: Icons.person,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: Text(
+                      d.artist.name,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 26,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.5,
+                      ),
+                    ),
+                  ),
+                  Text(
+                    '${d.albums.length} album${d.albums.length > 1 ? 's' : ''}',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
               ),
             ),
             SliverToBoxAdapter(child: _ArtistPlayBar(detail: d)),
@@ -92,51 +112,67 @@ class ArtistScreen extends ConsumerWidget {
                 ),
               ),
             ),
-            SliverPadding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-              sliver: SliverGrid.builder(
-                gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                  maxCrossAxisExtent: 180,
-                  mainAxisSpacing: 16,
-                  crossAxisSpacing: 16,
-                  childAspectRatio: 0.76,
-                ),
-                itemCount: d.albums.length,
-                itemBuilder: (context, i) {
-                  final album = d.albums[i];
-                  return InkWell(
-                    onTap: () => context.push('/album/${album.id}'),
-                    borderRadius: BorderRadius.circular(10),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: AspectRatio(
-                            aspectRatio: 1,
-                            child: Artwork(url: album.artworkUrl),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          album.name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontWeight: FontWeight.w600),
-                        ),
-                        if (album.year != null)
-                          Text(
-                            '${album.year}',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .onSurfaceVariant,
+            SliverToBoxAdapter(
+              child: SizedBox(
+                height: 196,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+                  itemCount: d.albums.length,
+                  separatorBuilder: (_, _) => const SizedBox(width: 13),
+                  itemBuilder: (context, i) {
+                    final album = d.albums[i];
+                    return InkWell(
+                      onTap: () => context.push('/album/${album.id}'),
+                      borderRadius: BorderRadius.circular(20),
+                      child: SizedBox(
+                        width: 140,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            DecoratedBox(
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(20),
+                                boxShadow: const [
+                                  BoxShadow(
+                                    color: Color(0x40141932),
+                                    blurRadius: 26,
+                                    offset: Offset(0, 14),
+                                  ),
+                                ],
+                              ),
+                              child: Artwork(
+                                url: album.artworkUrl,
+                                size: 140,
+                                borderRadius: 20,
+                              ),
                             ),
-                          ),
-                      ],
-                    ),
-                  );
-                },
+                            const SizedBox(height: 8),
+                            Text(
+                              album.name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 13.5,
+                              ),
+                            ),
+                            if (album.year != null)
+                              Text(
+                                '${album.year}',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onSurfaceVariant,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
               ),
             ),
             SliverToBoxAdapter(child: _YtSuggestions(detail: d)),
@@ -449,26 +485,30 @@ class _ArtistPlayBarState extends ConsumerState<_ArtistPlayBar> {
   Widget build(BuildContext context) {
     if (widget.detail.albums.isEmpty) return const SizedBox.shrink();
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
       child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          FilledButton.icon(
-            onPressed: _busy ? null : () => _playAll(shuffle: false),
-            icon: _busy
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.play_arrow),
-            label: const Text('Tout lire'),
-          ),
-          const SizedBox(width: 8),
-          IconButton.outlined(
+          GlassIconButton(
+            icon: Icons.shuffle,
             tooltip: 'Tout lire aléatoirement',
-            icon: const Icon(Icons.shuffle),
+            size: 48,
             onPressed: _busy ? null : () => _playAll(shuffle: true),
           ),
+          const SizedBox(width: 12),
+          _busy
+              ? const SizedBox(
+                  width: 52,
+                  height: 52,
+                  child: Padding(
+                    padding: EdgeInsets.all(15),
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                )
+              : AccentPlayButton(
+                  label: 'Tout lire',
+                  onPressed: () => _playAll(shuffle: false),
+                ),
         ],
       ),
     );

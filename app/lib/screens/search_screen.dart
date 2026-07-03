@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import '../state/library.dart';
 import '../state/player.dart';
 import '../widgets/artwork.dart';
+import '../widgets/glass_box.dart';
 import '../widgets/song_menu.dart';
 import '../widgets/song_tile.dart';
 
@@ -40,12 +41,19 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: TextField(
-          autofocus: false,
-          onChanged: _onChanged,
-          decoration: const InputDecoration(
-            hintText: 'Artistes, albums, chansons…',
-            prefixIcon: Icon(Icons.search),
+        toolbarHeight: 64,
+        title: GlassBox(
+          radius: 18,
+          child: TextField(
+            autofocus: false,
+            onChanged: _onChanged,
+            decoration: const InputDecoration(
+              hintText: 'Titres, artistes, albums…',
+              prefixIcon: Icon(Icons.search),
+              filled: false,
+              isDense: true,
+              contentPadding: EdgeInsets.symmetric(vertical: 14),
+            ),
           ),
         ),
       ),

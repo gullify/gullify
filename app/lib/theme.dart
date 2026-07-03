@@ -69,7 +69,28 @@ class GullifySurfaces extends ThemeExtension<GullifySurfaces> {
 ThemeData _base(ColorScheme scheme, {GullifySurfaces? surfaces}) => ThemeData(
       useMaterial3: true,
       colorScheme: scheme,
-      appBarTheme: const AppBarTheme(surfaceTintColor: Colors.transparent),
+      // Style « Liquid Glass Player » : scaffolds transparents, le dégradé
+      // global (main.dart) est visible derrière tout, les barres de verre
+      // floutent le contenu qui défile dessous.
+      scaffoldBackgroundColor: Colors.transparent,
+      appBarTheme: const AppBarTheme(
+        backgroundColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
+      ),
+      textTheme: const TextTheme(
+        headlineSmall: TextStyle(
+          fontWeight: FontWeight.w800,
+          letterSpacing: -0.6,
+        ),
+        titleLarge: TextStyle(
+          fontWeight: FontWeight.w800,
+          letterSpacing: -0.5,
+        ),
+        titleMedium: TextStyle(
+          fontSize: 16.5,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         border: OutlineInputBorder(
@@ -97,9 +118,17 @@ ThemeData _base(ColorScheme scheme, {GullifySurfaces? surfaces}) => ThemeData(
       extensions: [surfaces ?? const GullifySurfaces()],
     );
 
-/// Thème clair — même accent ambre, surfaces claires.
-ThemeData gullifyLightTheme() =>
-    _base(ColorScheme.fromSeed(seedColor: gullifyAmber));
+/// Thème clair — dégradé perle du design Liquid Glass Player.
+ThemeData gullifyLightTheme() => _base(
+      ColorScheme.fromSeed(seedColor: gullifyAmber),
+      surfaces: const GullifySurfaces(
+        background: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFFF6F6F8), Color(0xFFECEEF4), Color(0xFFE6EAF1)],
+        ),
+      ),
+    );
 
 /// Thème sombre « audiophile » historique.
 ThemeData gullifyTheme() {
@@ -112,11 +141,15 @@ ThemeData gullifyTheme() {
     onPrimary: Colors.black,
     surfaceContainerHighest: _surfaceContainer,
   );
-  return _base(scheme).copyWith(
-    scaffoldBackgroundColor: _surface,
-    appBarTheme: const AppBarTheme(
-      backgroundColor: _surface,
-      surfaceTintColor: Colors.transparent,
+  return _base(
+    scheme,
+    surfaces: const GullifySurfaces(
+      barColor: Color(0xC71C1B18),
+      background: LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [Color(0xFF191511), Color(0xFF121212), Color(0xFF141210)],
+      ),
     ),
   );
 }
@@ -133,12 +166,15 @@ ThemeData gullifyAmoledTheme() {
     surfaceContainerHighest: const Color(0xFF111111),
     outlineVariant: const Color(0xFF222222),
   );
-  return _base(scheme).copyWith(
-    scaffoldBackgroundColor: Colors.black,
-    appBarTheme: const AppBarTheme(
-      backgroundColor: Colors.black,
-      surfaceTintColor: Colors.transparent,
+  return _base(
+    scheme,
+    surfaces: const GullifySurfaces(
+      barColor: Color(0xD90A0A0A),
+      background: LinearGradient(
+        colors: [Colors.black, Colors.black],
+      ),
     ),
+  ).copyWith(
     cardTheme: const CardThemeData(color: Color(0xFF0A0A0A)),
     dividerTheme: const DividerThemeData(color: Color(0xFF1A1A1A)),
   );
@@ -173,12 +209,6 @@ ThemeData gullifyGlassTheme() {
       ),
     ),
   ).copyWith(
-    // Transparent : le dégradé global (main.dart) est visible partout.
-    scaffoldBackgroundColor: Colors.transparent,
-    appBarTheme: const AppBarTheme(
-      backgroundColor: Colors.transparent,
-      surfaceTintColor: Colors.transparent,
-    ),
     cardTheme: CardThemeData(
       color: const Color(0x14FFFFFF),
       elevation: 0,

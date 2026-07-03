@@ -8,6 +8,7 @@ import '../state/library.dart';
 import '../state/notifications.dart';
 import '../state/player.dart';
 import '../widgets/artwork.dart';
+import '../widgets/glass_kit.dart';
 import '../widgets/song_menu.dart';
 import '../widgets/song_tile.dart';
 
@@ -21,23 +22,10 @@ class HomeScreen extends ConsumerWidget {
     final popular = ref.watch(popularSongsProvider);
     final suggestions = ref.watch(suggestionsProvider);
 
+    final hour = DateTime.now().hour;
+    final greeting = hour >= 18 || hour < 5 ? 'Bonsoir' : 'Bonjour';
+
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Gullify'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.bar_chart),
-            tooltip: 'Statistiques',
-            onPressed: () => context.push('/stats'),
-          ),
-          const _NotificationsButton(),
-          IconButton(
-            icon: const Icon(Icons.settings_outlined),
-            tooltip: 'Paramètres',
-            onPressed: () => context.push('/settings'),
-          ),
-        ],
-      ),
       body: RefreshIndicator(
         onRefresh: () {
           ref.invalidate(popularSongsProvider);
@@ -47,13 +35,58 @@ class HomeScreen extends ConsumerWidget {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            Text(
-              'Bonjour, ${auth.user?.fullName ?? auth.user?.username ?? ''}',
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
+            SafeArea(
+              bottom: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(4, 6, 0, 0),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '$greeting, ${auth.user?.fullName ?? auth.user?.username ?? ''}',
+                            style: TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w600,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant,
+                            ),
+                          ),
+                          const Text(
+                            'Gullify',
+                            style: TextStyle(
+                              fontSize: 30,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: -0.6,
+                              height: 1.02,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    GlassIconButton(
+                      icon: Icons.bar_chart,
+                      tooltip: 'Statistiques',
+                      size: 42,
+                      onPressed: () => context.push('/stats'),
+                    ),
+                    const SizedBox(width: 8),
+                    const _NotificationsButton(),
+                    const SizedBox(width: 8),
+                    GlassIconButton(
+                      icon: Icons.settings_outlined,
+                      tooltip: 'Paramètres',
+                      size: 42,
+                      onPressed: () => context.push('/settings'),
+                    ),
+                  ],
+                ),
+              ),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 20),
             Text(
               'Ajouts récents',
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
@@ -146,14 +179,15 @@ class _NotificationsButton extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final unread = ref.watch(notificationsProvider).value?.unread ?? 0;
-    return IconButton(
-      tooltip: 'Notifications',
-      icon: Badge(
-        isLabelVisible: unread > 0,
-        label: Text('$unread'),
-        child: const Icon(Icons.notifications_outlined),
+    return Badge(
+      isLabelVisible: unread > 0,
+      label: Text('$unread'),
+      child: GlassIconButton(
+        icon: Icons.notifications_outlined,
+        tooltip: 'Notifications',
+        size: 42,
+        onPressed: () => context.push('/notifications'),
       ),
-      onPressed: () => context.push('/notifications'),
     );
   }
 }

@@ -9,9 +9,7 @@ import '../state/favorites.dart';
 import '../state/library.dart';
 import '../state/player.dart';
 import '../state/sleep_timer.dart';
-import '../theme.dart';
 import '../widgets/artwork.dart';
-import '../widgets/song_tile.dart';
 
 class NowPlayingScreen extends ConsumerWidget {
   const NowPlayingScreen({super.key});
@@ -33,9 +31,8 @@ class NowPlayingScreen extends ConsumerWidget {
     final isRadio = item.extras?['radio'] == true;
     final songId = item.extras?['songId'] as int?;
 
-    // Thème verre : la pochette floutée remplit l'arrière-plan du lecteur.
-    final frosted =
-        Theme.of(context).extension<GullifySurfaces>()?.frosted ?? false;
+    // La pochette floutée remplit l'arrière-plan (design Liquid Glass).
+    final light = scheme.brightness == Brightness.light;
     final artUrl = item.artUri?.toString();
 
     // Swipe vers le bas pour fermer le lecteur (en plus de la flèche).
@@ -44,27 +41,51 @@ class NowPlayingScreen extends ConsumerWidget {
       direction: DismissDirection.down,
       onDismissed: (_) => context.pop(),
       child: Scaffold(
-        extendBodyBehindAppBar: frosted,
+        extendBodyBehindAppBar: true,
         appBar: AppBar(
-          backgroundColor: frosted ? Colors.transparent : null,
+          backgroundColor: Colors.transparent,
           leading: IconButton(
-            icon: const Icon(Icons.keyboard_arrow_down),
+            icon: const Icon(Icons.keyboard_arrow_down, size: 32),
             onPressed: () => context.pop(),
           ),
-          title: Text(isRadio ? 'Radio' : 'En lecture'),
+          centerTitle: true,
+          title: Column(
+            children: [
+              Text(
+                isRadio ? 'RADIO' : 'EN LECTURE DEPUIS',
+                style: TextStyle(
+                  fontSize: 10,
+                  letterSpacing: 1.6,
+                  fontWeight: FontWeight.w700,
+                  color: scheme.onSurfaceVariant,
+                ),
+              ),
+              if (item.album != null)
+                Text(
+                  item.album!,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+            ],
+          ),
         ),
         body: Stack(
           fit: StackFit.expand,
           children: [
-            if (frosted && artUrl != null)
+            if (artUrl != null)
               ImageFiltered(
                 imageFilter: ImageFilter.blur(sigmaX: 60, sigmaY: 60),
                 child: Artwork(url: artUrl, borderRadius: 0),
               ),
-            if (frosted && artUrl != null)
-              const DecoratedBox(
-                decoration: BoxDecoration(color: Color(0x990A0F1A)),
+            DecoratedBox(
+              decoration: BoxDecoration(
+                color: light ? const Color(0xD9FFFFFF) : const Color(0xBF0A0C12),
               ),
+            ),
             SafeArea(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -76,35 +97,63 @@ class NowPlayingScreen extends ConsumerWidget {
                         constraints: const BoxConstraints(maxWidth: 340),
                         child: AspectRatio(
                           aspectRatio: 1,
-                          child: Artwork(
-                            url: item.artUri?.toString(),
-                            borderRadius: 16,
-                            icon: isRadio ? Icons.radio : Icons.music_note,
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(28),
+                              boxShadow: const [
+                                BoxShadow(
+                                  color: Color(0x59141932),
+                                  blurRadius: 44,
+                                  offset: Offset(0, 22),
+                                ),
+                              ],
+                            ),
+                            child: Artwork(
+                              url: item.artUri?.toString(),
+                              borderRadius: 28,
+                              icon: isRadio ? Icons.radio : Icons.music_note,
+                            ),
                           ),
                         ),
                       ),
                     ),
                     const Spacer(),
-                    Text(
-                      item.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                item.title,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: -0.5,
+                                ),
+                              ),
+                              if (item.artist != null)
+                                Text(
+                                  item.artist!,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w500,
+                                    color: scheme.onSurfaceVariant,
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                        if (songId != null) _FavoriteButton(songId: songId),
+                      ],
                     ),
-                    if (item.artist != null) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        item.artist!,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(color: scheme.onSurfaceVariant),
-                      ),
-                    ],
-                    const SizedBox(height: 16),
-                    if (!isRadio) _SeekBar(duration: item.duration),
+                    const SizedBox(height: 10),
+                    if (!isRadio)
+                      _Waveform(duration: item.duration, seed: item.title),
                     const SizedBox(height: 8),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -163,7 +212,6 @@ class NowPlayingScreen extends ConsumerWidget {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                       children: [
-                        if (songId != null) _FavoriteButton(songId: songId),
                         if (!isRadio)
                           IconButton(
                             icon: const Icon(Icons.lyrics_outlined),
@@ -297,44 +345,104 @@ class _FavoriteButton extends ConsumerWidget {
   }
 }
 
-class _SeekBar extends ConsumerWidget {
-  const _SeekBar({this.duration});
+/// Scrubber « forme d'onde » du design : barres déterministes par titre,
+/// portion écoulée en couleur accent, glisser/taper pour naviguer.
+class _Waveform extends ConsumerWidget {
+  const _Waveform({required this.duration, required this.seed});
 
   final Duration? duration;
+  final String seed;
+
+  static const _barCount = 44;
+
+  List<double> _bars() {
+    // Pseudo-aléatoire stable : même chanson, même onde.
+    var h = seed.hashCode;
+    final bars = <double>[];
+    for (var i = 0; i < _barCount; i++) {
+      h = 0x1fffffff & (h * 31 + i * 2654435761);
+      final v = (h % 1000) / 1000;
+      bars.add(0.25 + 0.75 * v);
+    }
+    return bars;
+  }
+
+  void _seekTo(WidgetRef ref, double dx, double width) {
+    final total = duration;
+    if (total == null || total == Duration.zero) return;
+    final fraction = (dx / width).clamp(0.0, 1.0);
+    ref
+        .read(playerActionsProvider)
+        .seek(Duration(milliseconds: (total.inMilliseconds * fraction).round()));
+  }
+
+  String _fmt(Duration d) =>
+      '${d.inMinutes}:${(d.inSeconds % 60).toString().padLeft(2, '0')}';
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final scheme = Theme.of(context).colorScheme;
     final position = ref.watch(positionProvider).value ?? Duration.zero;
     final total = duration ?? Duration.zero;
-    final max = total.inMilliseconds.toDouble();
-    final value = position.inMilliseconds.clamp(0, total.inMilliseconds);
+    final progress = total.inMilliseconds > 0
+        ? (position.inMilliseconds / total.inMilliseconds).clamp(0.0, 1.0)
+        : 0.0;
+    final bars = _bars();
 
     return Column(
       children: [
-        Slider(
-          max: max > 0 ? max : 1,
-          value: value.toDouble(),
-          onChanged: max > 0
-              ? (v) => ref
-                    .read(playerActionsProvider)
-                    .seek(Duration(milliseconds: v.round()))
-              : null,
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                formatDuration(position.inSeconds),
-                style: const TextStyle(fontSize: 12),
+        LayoutBuilder(
+          builder: (context, constraints) => GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTapDown: (d) =>
+                _seekTo(ref, d.localPosition.dx, constraints.maxWidth),
+            onHorizontalDragUpdate: (d) =>
+                _seekTo(ref, d.localPosition.dx, constraints.maxWidth),
+            child: SizedBox(
+              height: 56,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  for (final (i, h) in bars.indexed) ...[
+                    Expanded(
+                      child: Container(
+                        height: 8 + 44 * h,
+                        decoration: BoxDecoration(
+                          color: (i + 0.5) / _barCount <= progress
+                              ? scheme.primary
+                              : scheme.onSurface.withValues(alpha: 0.18),
+                          borderRadius: BorderRadius.circular(3),
+                        ),
+                      ),
+                    ),
+                    if (i < _barCount - 1) const SizedBox(width: 2),
+                  ],
+                ],
               ),
-              Text(
-                formatDuration(total.inSeconds),
-                style: const TextStyle(fontSize: 12),
-              ),
-            ],
+            ),
           ),
+        ),
+        const SizedBox(height: 6),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              _fmt(position),
+              style: TextStyle(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w600,
+                color: scheme.onSurfaceVariant,
+              ),
+            ),
+            Text(
+              _fmt(total),
+              style: TextStyle(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w600,
+                color: scheme.onSurfaceVariant,
+              ),
+            ),
+          ],
         ),
       ],
     );

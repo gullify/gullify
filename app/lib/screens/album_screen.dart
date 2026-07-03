@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../models/song.dart';
 import '../state/library.dart';
 import '../state/offline.dart';
 import '../state/player.dart';
 import '../widgets/artwork.dart';
+import '../widgets/glass_kit.dart';
 import '../widgets/mini_player.dart';
 import '../widgets/song_menu.dart';
 import '../widgets/song_tile.dart';
@@ -33,10 +35,27 @@ class AlbumScreen extends ConsumerWidget {
           padding: const EdgeInsets.only(bottom: 24),
           children: [
             Padding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
               child: Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Artwork(url: d.album.artworkUrl, size: 140),
+                  DecoratedBox(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(22),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Color(0x47141932),
+                          blurRadius: 40,
+                          offset: Offset(0, 18),
+                        ),
+                      ],
+                    ),
+                    child: Artwork(
+                      url: d.album.artworkUrl,
+                      size: 120,
+                      borderRadius: 22,
+                    ),
+                  ),
                   const SizedBox(width: 16),
                   Expanded(
                     child: Column(
@@ -44,57 +63,96 @@ class AlbumScreen extends ConsumerWidget {
                       children: [
                         Text(
                           d.album.name,
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleLarge
-                              ?.copyWith(fontWeight: FontWeight.w700),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 23,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.5,
+                            height: 1.08,
+                          ),
                         ),
                         if (d.album.artistName != null)
-                          Text(
-                            d.album.artistName!,
-                            style: Theme.of(context).textTheme.bodyMedium,
-                          ),
-                        if (d.album.year != null)
-                          Text(
-                            '${d.album.year}',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .onSurfaceVariant,
+                          InkWell(
+                            onTap: d.album.artistId != null
+                                ? () => context
+                                    .push('/artist/${d.album.artistId}')
+                                : null,
+                            child: Padding(
+                              padding: const EdgeInsets.only(top: 6),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Flexible(
+                                    child: Text(
+                                      d.album.artistName!,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w700,
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .primary,
+                                      ),
+                                    ),
+                                  ),
+                                  Icon(
+                                    Icons.chevron_right,
+                                    size: 18,
+                                    color:
+                                        Theme.of(context).colorScheme.primary,
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
-                        const SizedBox(height: 12),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          crossAxisAlignment: WrapCrossAlignment.center,
-                          children: [
-                            FilledButton.icon(
-                              onPressed: d.songs.isEmpty
-                                  ? null
-                                  : () => ref
-                                      .read(playerActionsProvider)
-                                      .playSongs(d.songs),
-                              icon: const Icon(Icons.play_arrow),
-                              label: const Text('Lecture'),
-                            ),
-                            IconButton.outlined(
-                              tooltip: 'Lecture aléatoire',
-                              icon: const Icon(Icons.shuffle),
-                              onPressed: d.songs.isEmpty
-                                  ? null
-                                  : () => ref
-                                      .read(playerActionsProvider)
-                                      .playSongs(d.songs.toList()..shuffle()),
-                            ),
-                            if (offlineSupported)
-                              _DownloadAlbumButton(songs: d.songs),
-                          ],
+                        Text(
+                          [
+                            if (d.album.year != null) '${d.album.year}',
+                            '${d.songs.length} titre${d.songs.length > 1 ? 's' : ''}',
+                          ].join(' · '),
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w600,
+                            color:
+                                Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
                         ),
                       ],
                     ),
                   ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 6),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: AccentPlayButton(
+                      onPressed: d.songs.isEmpty
+                          ? null
+                          : () => ref
+                              .read(playerActionsProvider)
+                              .playSongs(d.songs),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  GlassIconButton(
+                    icon: Icons.shuffle,
+                    tooltip: 'Lecture aléatoire',
+                    size: 50,
+                    onPressed: d.songs.isEmpty
+                        ? null
+                        : () => ref
+                            .read(playerActionsProvider)
+                            .playSongs(d.songs.toList()..shuffle()),
+                  ),
+                  if (offlineSupported) ...[
+                    const SizedBox(width: 12),
+                    _DownloadAlbumButton(songs: d.songs),
+                  ],
                 ],
               ),
             ),
@@ -137,19 +195,18 @@ class _DownloadAlbumButtonState extends ConsumerState<_DownloadAlbumButton> {
 
     if (_busy) {
       return const SizedBox(
-        width: 40,
-        height: 40,
+        width: 50,
+        height: 50,
         child: Padding(
-          padding: EdgeInsets.all(10),
+          padding: EdgeInsets.all(14),
           child: CircularProgressIndicator(strokeWidth: 2),
         ),
       );
     }
-    return IconButton.outlined(
+    return GlassIconButton(
+      size: 50,
       tooltip: allDownloaded ? 'Album téléchargé' : "Télécharger l'album",
-      icon: Icon(
-        allDownloaded ? Icons.download_done : Icons.download_outlined,
-      ),
+      icon: allDownloaded ? Icons.download_done : Icons.download_outlined,
       onPressed: allDownloaded || widget.songs.isEmpty
           ? null
           : () async {
