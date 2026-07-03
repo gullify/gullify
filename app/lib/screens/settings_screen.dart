@@ -4,12 +4,14 @@ import 'package:go_router/go_router.dart';
 
 import '../state/app_theme.dart';
 import '../state/app_update.dart';
+// ignore: unused_import — GullifyStyle et son extension viennent du thème.
+import '../theme.dart';
 import '../state/auth.dart';
 import '../state/equalizer.dart';
 import '../state/offline.dart';
 import '../widgets/update_dialog.dart';
 
-const appVersion = '2.5.0';
+const appVersion = '2.6.0';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -75,31 +77,7 @@ class SettingsScreen extends ConsumerWidget {
             ),
           if (equalizerSupported || offlineSupported) const Divider(),
           const _SectionHeader('Apparence'),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
-            child: SegmentedButton<ThemeMode>(
-              segments: const [
-                ButtonSegment(
-                  value: ThemeMode.system,
-                  label: Text('Système'),
-                  icon: Icon(Icons.brightness_auto),
-                ),
-                ButtonSegment(
-                  value: ThemeMode.light,
-                  label: Text('Clair'),
-                  icon: Icon(Icons.light_mode),
-                ),
-                ButtonSegment(
-                  value: ThemeMode.dark,
-                  label: Text('Sombre'),
-                  icon: Icon(Icons.dark_mode),
-                ),
-              ],
-              selected: {ref.watch(themeModeProvider)},
-              onSelectionChanged: (s) =>
-                  ref.read(themeModeProvider.notifier).set(s.first),
-            ),
-          ),
+          const _ThemePicker(),
           const Divider(),
           const _SectionHeader('À propos'),
           const ListTile(
@@ -148,6 +126,101 @@ String formatBytes(int bytes) {
     return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} Mo';
   }
   return '${(bytes / 1024).toStringAsFixed(0)} Ko';
+}
+
+class _ThemePicker extends ConsumerWidget {
+  const _ThemePicker();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final current = ref.watch(themeStyleProvider);
+    final scheme = Theme.of(context).colorScheme;
+
+    return SizedBox(
+      height: 118,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        children: [
+          for (final style in GullifyStyle.values)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(14),
+                onTap: () =>
+                    ref.read(themeStyleProvider.notifier).set(style),
+                child: Container(
+                  width: 96,
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      width: 2,
+                      color: current == style
+                          ? scheme.primary
+                          : scheme.outlineVariant,
+                    ),
+                  ),
+                  child: Column(
+                    children: [
+                      // Aperçu : fond + surface + pastille d'accent.
+                      Expanded(
+                        child: Builder(builder: (context) {
+                          final (bg, surface, accent) = style.preview;
+                          return Container(
+                            width: double.infinity,
+                            decoration: BoxDecoration(
+                              color: bg,
+                              borderRadius: BorderRadius.circular(8),
+                              border:
+                                  Border.all(color: scheme.outlineVariant),
+                            ),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Container(
+                                  width: 44,
+                                  height: 10,
+                                  decoration: BoxDecoration(
+                                    color: surface,
+                                    borderRadius: BorderRadius.circular(3),
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                Container(
+                                  width: 16,
+                                  height: 16,
+                                  decoration: BoxDecoration(
+                                    color: accent,
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        style.label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: current == style
+                              ? FontWeight.w700
+                              : FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
 }
 
 class _UpdateTile extends ConsumerWidget {

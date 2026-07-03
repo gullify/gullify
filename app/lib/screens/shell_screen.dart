@@ -1,9 +1,12 @@
+import 'dart:ui' show ImageFilter;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../state/app_update.dart';
 import '../state/player.dart';
+import '../theme.dart';
 import '../widgets/mini_player.dart';
 import '../widgets/update_dialog.dart';
 
@@ -41,13 +44,14 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       }
     });
 
-    return Scaffold(
-      body: navigationShell,
-      bottomNavigationBar: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const MiniPlayer(),
-          NavigationBar(
+    final surfaces = Theme.of(context).extension<GullifySurfaces>();
+    final frosted = surfaces?.frosted ?? false;
+
+    Widget bottom = Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const MiniPlayer(),
+        NavigationBar(
             selectedIndex: navigationShell.currentIndex,
             onDestinationSelected: (i) => navigationShell.goBranch(
               i,
@@ -75,8 +79,26 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
               ),
             ],
           ),
-        ],
-      ),
+      ],
+    );
+
+    if (frosted) {
+      // Effet verre : le contenu défile sous les barres, floutées en direct.
+      bottom = ClipRect(
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+          child: ColoredBox(
+            color: surfaces?.barColor ?? Colors.transparent,
+            child: bottom,
+          ),
+        ),
+      );
+    }
+
+    return Scaffold(
+      extendBody: frosted,
+      body: navigationShell,
+      bottomNavigationBar: bottom,
     );
   }
 }

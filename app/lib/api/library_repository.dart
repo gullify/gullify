@@ -222,9 +222,10 @@ class LibraryRepository {
 
   Future<SearchResults> search(String query) async {
     if (query.trim().isEmpty) return const SearchResults();
+    // Le serveur lit `q` (le nom `query` était ignoré → il renvoyait tout).
     final data = await _client.get('library.php', query: {
       'action': 'search',
-      'query': query,
+      'q': query,
     }) as Map<String, dynamic>;
     return SearchResults(
       artists: _list(data['artists'], _artist),

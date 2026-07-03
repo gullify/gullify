@@ -75,6 +75,14 @@ class PlaylistScreen extends ConsumerWidget {
                             ref.read(playerActionsProvider).playSongs(songs),
                       ),
                     ),
+                    const SizedBox(width: 8),
+                    IconButton.outlined(
+                      tooltip: 'Lecture aléatoire',
+                      icon: const Icon(Icons.shuffle),
+                      onPressed: () => ref
+                          .read(playerActionsProvider)
+                          .playSongs(songs.toList()..shuffle()),
+                    ),
                   ],
                 ),
               ),

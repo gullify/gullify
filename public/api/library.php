@@ -608,7 +608,8 @@ try {
         ];
 
     } elseif ($action === 'search') {
-        $query = isset($_GET['q']) ? $_GET['q'] : '';
+        // `q` historique; `query` accepté aussi (client mobile).
+        $query = trim($_GET['q'] ?? $_GET['query'] ?? '');
         $searchTerm = "%{$query}%";
 
         $stmt = $conn->prepare('
@@ -651,7 +652,52 @@ try {
                 'artistName' => $row['artist_name']
             ];
         }
-        $response['data'] = ['songs' => $songs];
+
+        // Artistes et albums correspondants (le client mobile les affiche).
+        $artists = [];
+        $albums = [];
+        if ($query !== '') {
+            $stmt = $conn->prepare('
+                SELECT id, name
+                FROM artists
+                WHERE user = ? AND name LIKE ?
+                ORDER BY name ASC
+                LIMIT 20
+            ');
+            $stmt->execute([$user, $searchTerm]);
+            while ($row = $stmt->fetch()) {
+                $artists[] = [
+                    'id' => (int)$row['id'],
+                    'name' => $row['name'],
+                    'imageUrl' => 'serve_image.php?artist_id=' . $row['id'],
+                ];
+            }
+
+            $stmt = $conn->prepare('
+                SELECT al.id, al.name, al.year, a.id AS artist_id, a.name AS artist_name
+                FROM albums al
+                JOIN artists a ON al.artist_id = a.id
+                WHERE a.user = ? AND al.name LIKE ?
+                ORDER BY al.name ASC
+                LIMIT 20
+            ');
+            $stmt->execute([$user, $searchTerm]);
+            while ($row = $stmt->fetch()) {
+                $albums[] = [
+                    'id' => (int)$row['id'],
+                    'name' => $row['name'],
+                    'year' => $row['year'] !== null ? (int)$row['year'] : null,
+                    'artistId' => (int)$row['artist_id'],
+                    'artistName' => $row['artist_name'],
+                    'artworkUrl' => albumArtworkUrl((int)$row['id']),
+                ];
+            }
+        } else {
+            // Requête vide : ne rien renvoyer plutôt que toute la bibliothèque.
+            $songs = [];
+        }
+
+        $response['data'] = ['songs' => $songs, 'artists' => $artists, 'albums' => $albums];
 
     } elseif ($action === 'get_genres') {
         $stmt = $conn->prepare('

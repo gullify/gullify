@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../state/player.dart';
+import '../theme.dart';
 import 'artwork.dart';
 
 class MiniPlayer extends ConsumerWidget {
@@ -18,8 +19,13 @@ class MiniPlayer extends ConsumerWidget {
     final actions = ref.read(playerActionsProvider);
     final scheme = Theme.of(context).colorScheme;
 
+    // En thème « verre », le fond est translucide : le flou est appliqué par
+    // le shell (BackdropFilter commun avec la barre de navigation).
+    final frosted =
+        Theme.of(context).extension<GullifySurfaces>()?.frosted ?? false;
+
     return Material(
-      color: scheme.surfaceContainerHighest,
+      color: frosted ? Colors.transparent : scheme.surfaceContainerHighest,
       child: InkWell(
         onTap: () => context.push('/now-playing'),
         child: SafeArea(

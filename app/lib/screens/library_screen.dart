@@ -68,14 +68,48 @@ class _FavoritesTab extends ConsumerWidget {
         return RefreshIndicator(
           onRefresh: () => ref.refresh(allFavoritesProvider.future),
           child: ListView.builder(
-            itemCount: songs.length,
-            itemBuilder: (context, i) => SongTile(
-              song: songs[i],
-              onTap: () => ref
-                  .read(playerActionsProvider)
-                  .playSongs(songs, startIndex: i),
-              onLongPress: () => showSongMenu(context, songs[i]),
-            ),
+            itemCount: songs.length + 1,
+            itemBuilder: (context, i) {
+              if (i == 0) {
+                return Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                  child: Row(
+                    children: [
+                      FilledButton.icon(
+                        onPressed: () =>
+                            ref.read(playerActionsProvider).playSongs(songs),
+                        icon: const Icon(Icons.play_arrow),
+                        label: const Text('Lecture'),
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton.outlined(
+                        tooltip: 'Lecture aléatoire',
+                        icon: const Icon(Icons.shuffle),
+                        onPressed: () => ref
+                            .read(playerActionsProvider)
+                            .playSongs(songs.toList()..shuffle()),
+                      ),
+                      const Spacer(),
+                      Text(
+                        '${songs.length} titre${songs.length > 1 ? 's' : ''}',
+                        style: TextStyle(
+                          color:
+                              Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }
+              final song = songs[i - 1];
+              return SongTile(
+                song: song,
+                onTap: () => ref
+                    .read(playerActionsProvider)
+                    .playSongs(songs, startIndex: i - 1),
+                onLongPress: () => showSongMenu(context, song),
+              );
+            },
           ),
         );
       },

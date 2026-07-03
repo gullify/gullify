@@ -29,11 +29,14 @@ class GullifyApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final style = ref.watch(themeStyleProvider);
+    final system = style == GullifyStyle.system;
+    final chosen = system ? null : themeFor(style, Brightness.dark);
     return MaterialApp.router(
       title: 'Gullify',
-      theme: gullifyLightTheme(),
-      darkTheme: gullifyTheme(),
-      themeMode: ref.watch(themeModeProvider),
+      theme: chosen ?? gullifyLightTheme(),
+      darkTheme: chosen ?? gullifyTheme(),
+      themeMode: system ? ThemeMode.system : ThemeMode.dark,
       routerConfig: ref.watch(routerProvider),
       debugShowCheckedModeBanner: false,
     );
