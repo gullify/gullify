@@ -17,6 +17,10 @@ Future<GullifyAudioHandler> initAudioHandler() {
     config: const AudioServiceConfig(
       androidNotificationChannelId: 'app.gullify.audio',
       androidNotificationChannelName: 'Lecture Gullify',
+      // Icône monochrome dédiée : le mipmap adaptatif du launcher (défaut)
+      // est refusé silencieusement comme petite icône par plusieurs
+      // appareils → aucune notification média, app gelée en veille.
+      androidNotificationIcon: 'drawable/ic_notification',
       androidNotificationOngoing: true,
       androidStopForegroundOnPause: true,
     ),
