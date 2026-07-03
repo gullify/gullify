@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Ressources chargées par NOM (getIdentifier) : le réducteur de ressources
+     du build release les croit inutilisées et les supprime, ce qui fait
+     planter chaque setState d'audio_service sur Android 13+
+     (« You must specify an icon resource id to build a CustomAction ») :
+     pas de notification média, pas de service au premier plan, musique
+     coupée en veille, et session vide pour Android Auto. -->
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:keep="@drawable/audio_service_*,@drawable/ic_notification" />
