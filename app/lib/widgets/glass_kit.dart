@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 
-import 'glass_box.dart';
-
 /// Petits composants du langage « Liquid Glass Player » :
 /// boutons ronds de verre, pilule Lecture accent, titres de section,
 /// barres d'égaliseur animées pour la piste en cours.
@@ -23,17 +21,32 @@ class GlassIconButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
+    final light = Theme.of(context).brightness == Brightness.light;
+    // Pas de BackdropFilter ici : sur un petit bouton le flou est invisible,
+    // et multiplier les filtres cause des artefacts GPU sur certains
+    // appareils. Un fond translucide + liseré suffit à l'effet verre.
+    return Container(
       width: size,
       height: size,
-      child: GlassBox(
-        radius: size / 2,
-        child: IconButton(
-          tooltip: tooltip,
-          icon: Icon(icon, size: size * 0.5),
-          color: Theme.of(context).colorScheme.onSurface,
-          onPressed: onPressed,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: light ? const Color(0x8CFFFFFF) : const Color(0x33FFFFFF),
+        border: Border.all(
+          color: light ? const Color(0xB3FFFFFF) : const Color(0x26FFFFFF),
         ),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x1A1A1E37),
+            blurRadius: 16,
+            offset: Offset(0, 6),
+          ),
+        ],
+      ),
+      child: IconButton(
+        tooltip: tooltip,
+        icon: Icon(icon, size: size * 0.5),
+        color: Theme.of(context).colorScheme.onSurface,
+        onPressed: onPressed,
       ),
     );
   }

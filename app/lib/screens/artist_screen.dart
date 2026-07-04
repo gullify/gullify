@@ -96,7 +96,7 @@ class ArtistScreen extends ConsumerWidget {
             if (d.albums.isNotEmpty) ...[
               const SectionTitle('Albums'),
               SizedBox(
-                height: 198,
+                height: 216,
                 child: ListView.separated(
                   scrollDirection: Axis.horizontal,
                   padding: const EdgeInsets.fromLTRB(20, 12, 20, 14),
