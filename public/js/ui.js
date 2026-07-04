@@ -3896,6 +3896,7 @@
                                 </div>
                             </div>
                             <div>
+                                <div class="detail-eyebrow" aria-hidden="true">${t('artist.label', 'Artiste')}</div>
                                 <h2 style="font-size: 32px; margin-bottom: 10px; color: white; text-shadow: 0 1px 3px rgba(0,0,0,0.8), 0 0 10px rgba(0,0,0,0.5);">${artist.name}</h2>
                                 <p style="color: rgba(255,255,255,0.85); font-size: 14px; text-shadow: 0 1px 2px rgba(0,0,0,0.6);">
                                     <span id="artist-stats-${artistId}">${t('counts.albums_songs','{a} albums • {s} chansons').replace('{a}', albums.length).replace('{s}', totalSongs)}</span>
@@ -9041,6 +9042,62 @@
                 tagEditor.close();
             }
         });
+
+        // ── Marquage visuel de la piste en cours dans les listes ──
+        // Présentation uniquement : pose/retire les classes .playing/.paused
+        // sur les rangées [data-song-id] et injecte les barres d'égaliseur
+        // (.song-eq, masquées par défaut — seul le thème Liquid Glass les affiche).
+        (function () {
+            const audioEl = document.getElementById('unifiedAudioPlayer');
+            if (!audioEl) return;
+
+            function currentSongId() {
+                const p = window.gullifyPlayer;
+                if (!p) return null;
+                const tr = p.currentTrack || (p.queue && p.queue[p.currentTrackIndex]);
+                return (tr && tr.id != null) ? String(tr.id) : null;
+            }
+
+            function ensureEq(row) {
+                const icon = row.querySelector('.song-play-icon');
+                if (icon && !icon.querySelector('.song-eq')) {
+                    const eq = document.createElement('span');
+                    eq.className = 'song-eq';
+                    eq.setAttribute('aria-hidden', 'true');
+                    eq.innerHTML = '<span></span><span></span><span></span>';
+                    icon.appendChild(eq);
+                }
+            }
+
+            function syncPlayingRows() {
+                const id = currentSongId();
+                const paused = audioEl.paused;
+                document.querySelectorAll('.song-item.playing').forEach(row => {
+                    if (!id || row.dataset.songId !== id) row.classList.remove('playing', 'paused');
+                });
+                if (!id) return;
+                document.querySelectorAll('.song-item[data-song-id="' + id + '"]').forEach(row => {
+                    ensureEq(row);
+                    row.classList.add('playing');
+                    row.classList.toggle('paused', paused);
+                });
+            }
+
+            ['play', 'pause', 'ended', 'emptied', 'loadeddata'].forEach(ev =>
+                audioEl.addEventListener(ev, syncPlayingRows)
+            );
+
+            // Les vues sont re-rendues via innerHTML : on re-synchronise après chaque rendu
+            const bodyEl = document.getElementById('contentBody');
+            if (bodyEl && window.MutationObserver) {
+                let scheduled = false;
+                new MutationObserver(() => {
+                    if (scheduled) return;
+                    scheduled = true;
+                    setTimeout(() => { scheduled = false; syncPlayingRows(); }, 60);
+                }).observe(bodyEl, { childList: true, subtree: true });
+            }
+        })();
 
         // Initialize app
         init();

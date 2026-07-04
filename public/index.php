@@ -9,9 +9,9 @@ $_langFile = __DIR__ . '/lang/' . $appLang . '.json';
 $_langData = file_exists($_langFile) ? file_get_contents($_langFile) : '{}';
 
 // Theme detection (cookie → default audiophile)
-$_allowedThemes = ['audiophile', 'dark', 'midnight', 'sunset', 'forest', 'aurora', 'sand', 'nord', 'lime', 'light'];
-$appTheme = $_COOKIE['gullify_theme'] ?? 'audiophile';
-if (!in_array($appTheme, $_allowedThemes, true)) $appTheme = 'audiophile';
+$_allowedThemes = ['liquidglass', 'audiophile', 'dark', 'midnight', 'sunset', 'forest', 'aurora', 'sand', 'nord', 'lime', 'light'];
+$appTheme = $_COOKIE['gullify_theme'] ?? 'liquidglass';
+if (!in_array($appTheme, $_allowedThemes, true)) $appTheme = 'liquidglass';
 
 // Apps download metadata (Android APK link surfaced in Settings → Apps)
 $androidUrl     = AppConfig::get('apps.android.url',     'https://download.gullify.app/gullify-latest.apk');
@@ -83,6 +83,8 @@ try {
     <link rel="stylesheet" href="player/unified-player.css?v=<?= time() ?>">
     <link rel="stylesheet" href="context-menu.css">
     <link rel="stylesheet" href="tag-editor.css">
+    <!-- Thème Liquid Glass (sur-style dédié, chargé après les feuilles de base) -->
+    <link rel="stylesheet" href="css/liquid-glass.css?v=<?= filemtime(__DIR__ . '/css/liquid-glass.css') ?>">
 </head>
 <body>
     <!-- Background -->

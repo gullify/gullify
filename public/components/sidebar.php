@@ -16,6 +16,8 @@
             <i class="ri-home-4-line"></i>
             <span data-i18n="nav.home">Accueil</span>
         </div>
+        <!-- Libellé de section : visible uniquement avec le thème Liquid Glass -->
+        <div class="nav-section-label" aria-hidden="true">Bibliothèque</div>
         <div class="nav-item" data-view="artists">
             <i class="ri-mic-line"></i>
             <span data-i18n="nav.artists">Artistes</span>
@@ -40,6 +42,8 @@
             <i class="ri-play-list-line"></i>
             <span data-i18n="nav.playlists">Playlists</span>
         </div>
+        <!-- Libellé de section : visible uniquement avec le thème Liquid Glass -->
+        <div class="nav-section-label" aria-hidden="true">Plus</div>
         <div class="nav-item" data-view="statistics">
             <i class="ri-pie-chart-line"></i>
             <span data-i18n="nav.statistics">Statistiques</span>
