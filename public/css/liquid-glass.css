@@ -228,7 +228,8 @@ html[data-theme="liquidglass"] .content-header h2 {
 
 /* Recherche : pilule de verre toujours ouverte, icône à gauche */
 html[data-theme="liquidglass"] .header-search-wrap {
-    flex: 0 1 380px;
+    flex: 0 1 340px;
+    min-width: 46px; /* peut se resserrer jusqu'à l'icône seule */
     max-width: 44vw;
     flex-direction: row-reverse;
     padding: 0 6px 0 0;
@@ -271,18 +272,29 @@ html[data-theme="liquidglass"] .header-top.search-active #contentTitle {
     pointer-events: auto;
 }
 
-/* Boutons d'action topbar : ronds en verre 40px */
+/* Boutons d'action topbar : ronds en verre */
 @media (min-width: 1025px) {
     html[data-theme="liquidglass"] .topbar-actions {
         display: flex;
-        gap: 8px;
+        gap: 6px;
         align-items: center;
+        flex-shrink: 0;
     }
     html[data-theme="liquidglass"] .nav-arrows { display: flex; gap: 4px; }
 }
+/* Écrans moyens : on allège la rangée pour ne pas écraser le titre/recherche
+   quand le panneau file d'attente (350px) est ancré à droite */
+@media (min-width: 1025px) and (max-width: 1399px) {
+    html[data-theme="liquidglass"] .nav-arrows { display: none; }
+}
+@media (min-width: 1025px) and (max-width: 1199px) {
+    html[data-theme="liquidglass"] #topbarEqBtn,
+    html[data-theme="liquidglass"] #topbarCastBtn,
+    html[data-theme="liquidglass"] #topbarNotifBtn { display: none; }
+}
 html[data-theme="liquidglass"] .topbar-icon-btn {
-    width: 40px;
-    height: 40px;
+    width: 38px;
+    height: 38px;
     border-radius: 50%;
     background: rgba(255, 255, 255, 0.6);
     -webkit-backdrop-filter: blur(20px);
@@ -573,6 +585,9 @@ html[data-theme="liquidglass"] .song-duration {
     font-size: 12.5px;
     color: var(--lg-gray-4);
     font-variant-numeric: tabular-nums;
+    min-width: 52px;
+    text-align: right;
+    order: 2; /* durée en fin de rangée, alignée sous l'icône horloge */
 }
 html[data-theme="liquidglass"] .song-plays {
     font-size: 12px;
@@ -828,12 +843,6 @@ html[data-theme="liquidglass"] #unified-player-container .player {
         padding: 0 24px;
         gap: 24px;
     }
-    /* Entre 769 et 1024px la file d'attente garde son ancrage plein bord,
-       mais doit s'arrêter au-dessus du lecteur de 94px */
-    html[data-theme="liquidglass"] .queue-sidebar,
-    html[data-theme="liquidglass"] .unified-player .queue-sidebar {
-        bottom: 94px;
-    }
 }
 
 /* Progression : fine ligne accent arrondie en haut de la barre */
@@ -963,43 +972,78 @@ html[data-theme="liquidglass"] .unified-player-toast {
 
 /* ════════════════════ 10. FILE D'ATTENTE — panneau de verre flottant ════════════════════ */
 
+/* Habillage de verre (tous formats). Les positions de base viennent des
+   règles historiques `#unifiedQueueSidebar { ... !important }` de style.css :
+   en dessous de 1025px on conserve le tiroir coulissant d'origine (.open). */
 html[data-theme="liquidglass"] .queue-sidebar,
 html[data-theme="liquidglass"] .unified-player .queue-sidebar {
-    background: rgba(255, 255, 255, 0.55);
-    -webkit-backdrop-filter: blur(26px) saturate(1.8);
-    backdrop-filter: blur(26px) saturate(1.8);
-    border: 1px solid rgba(255, 255, 255, 0.72);
+    background: rgba(255, 255, 255, 0.55) !important;
+    -webkit-backdrop-filter: blur(26px) saturate(1.8) !important;
+    backdrop-filter: blur(26px) saturate(1.8) !important;
+    border: 1px solid rgba(255, 255, 255, 0.72) !important;
     box-shadow: var(--lg-card-shadow);
 }
+
+/* Desktop : panneau ancré (mécanisme audiophile .collapsed/.queue-collapsed,
+   étendu à liquidglass dans app.js). Le contenu principal se RESSERRE quand
+   le panneau est ouvert — il ne passe pas dessous. Les !important sont
+   nécessaires pour battre les règles héritées `#unifiedQueueSidebar {...}
+   !important` de style.css (dont `.open { right: 0 !important }`, rendu
+   inopérant ici par la spécificité supérieure de ces sélecteurs). */
 @media (min-width: 1025px) {
-    html[data-theme="liquidglass"] .queue-sidebar,
-    html[data-theme="liquidglass"] .unified-player .queue-sidebar {
-        top: 80px;
-        bottom: 108px;
-        width: 322px;
+    html[data-theme="liquidglass"] #unifiedQueueSidebar {
+        position: fixed !important;
+        top: 80px !important;
+        bottom: 14px !important;
+        right: 14px !important;
+        width: 322px !important;
         border-radius: 22px;
-        right: -340px;
+        z-index: 500 !important; /* au-dessus du contenu, sous lecteur & modales */
+        transition: transform 0.25s ease, opacity 0.25s ease !important;
     }
-    html[data-theme="liquidglass"] .queue-sidebar.open,
-    html[data-theme="liquidglass"] .unified-player .queue-sidebar.open {
-        right: 14px;
+    html[data-theme="liquidglass"] body.player-visible #unifiedQueueSidebar {
+        bottom: 108px !important; /* 94px lecteur + 14px marge */
+    }
+    html[data-theme="liquidglass"] #unifiedQueueSidebar.collapsed {
+        transform: translateX(calc(100% + 28px));
+        opacity: 0;
+        pointer-events: none;
+    }
+    /* Poussée du contenu : 14 (marge) + 322 (panneau) + 14 (gouttière) */
+    html[data-theme="liquidglass"] .main-content {
+        margin-right: 350px;
+        transition: margin-right 0.25s ease, margin-left 0.3s ease;
+    }
+    html[data-theme="liquidglass"] .main-content.queue-collapsed {
+        margin-right: 0;
     }
 }
 
-/* Onglets : contrôle segmenté en pilules */
+/* Onglets : contrôle segmenté en pilules.
+   Le style de base empile icône+texte en colonne sur fond opaque
+   (var(--bg-primary)) — on repasse en ligne, fond transparent, sinon
+   les libellés débordent de la pilule et une bande opaque casse le verre. */
 html[data-theme="liquidglass"] .queue-sidebar-tabs,
 html[data-theme="liquidglass"] .unified-player .queue-sidebar-tabs {
     gap: 4px;
     padding: 12px 12px 4px;
     border-bottom: none;
+    background: transparent;
+    border-radius: 22px 22px 0 0;
 }
 html[data-theme="liquidglass"] .queue-sidebar-tab,
 html[data-theme="liquidglass"] .unified-player .queue-sidebar-tab {
     border: none;
     border-radius: 11px;
     height: 36px;
+    padding: 0 8px;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
     font-size: 12.5px;
     font-weight: 700;
+    white-space: nowrap;
     color: var(--lg-gray-3);
     background: transparent;
 }
@@ -1157,4 +1201,19 @@ html[data-theme="liquidglass"] .loading-spinner {
 html[data-theme="liquidglass"] :focus-visible {
     outline: 2px solid var(--accent);
     outline-offset: 2px;
+}
+
+/* ════════════════════ 12. AJUSTEMENTS PETITS ÉCRANS ════════════════════ */
+
+@media (max-width: 768px) {
+    html[data-theme="liquidglass"] .artist-header-container,
+    html[data-theme="liquidglass"] .album-header-container {
+        flex-wrap: wrap;
+        align-items: flex-start;
+        gap: 18px;
+    }
+    html[data-theme="liquidglass"] .artist-avatar-large { width: 120px; height: 120px; }
+    html[data-theme="liquidglass"] .album-cover-large { width: 132px; height: 132px; }
+    html[data-theme="liquidglass"] .artist-header-container h2 { font-size: 28px !important; }
+    html[data-theme="liquidglass"] .album-title { font-size: 26px; }
 }

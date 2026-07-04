@@ -121,17 +121,18 @@ window.applyHeroColor = function(el, imgUrl) {
 };
 
 /**
- * Audiophile-only: queue panel toggle (desktop ≥1025px).
- * The right-rail queue is permanent. Both the player-bar queue button
- * (#unifiedQueueToggle) and the new topbar button (#topbarQueueToggle) toggle
- * `.collapsed` on the sidebar and `.queue-collapsed` on .main-content, giving
- * the user a way to hide the panel for a full-width main view. State persists
- * across sessions. Outside audiophile-desktop the legacy slide-in drawer
- * behavior is left untouched.
+ * Docked queue themes (audiophile + liquidglass), desktop ≥1025px.
+ * The right-rail queue pushes the main content instead of overlaying it.
+ * Both the player-bar queue button (#unifiedQueueToggle) and the topbar
+ * button (#topbarQueueToggle) toggle `.collapsed` on the sidebar and
+ * `.queue-collapsed` on .main-content, giving the user a way to hide the
+ * panel for a full-width main view. State persists across sessions.
+ * Outside these themes the legacy slide-in drawer behavior is untouched.
  */
 (function () {
     function isAudiophileDesktop() {
-        return document.documentElement.getAttribute('data-theme') === 'audiophile'
+        const theme = document.documentElement.getAttribute('data-theme');
+        return (theme === 'audiophile' || theme === 'liquidglass')
             && window.innerWidth >= 1025;
     }
     function applyState(collapsed, sidebar, main, topBtn) {
