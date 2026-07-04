@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 
-/// Grille avec filtre instantané et index alphabétique de défilement rapide.
-/// Les items sont triés par nom; l'index A-Z saute à la première entrée de
-/// la lettre (les hauteurs de cellules étant uniformes, l'offset se calcule).
+/// Grille ou liste avec en-tête défilant, filtre instantané et index
+/// alphabétique de défilement rapide. Les items sont triés par nom;
+/// l'index A-Z saute à la première entrée de la lettre (les hauteurs de
+/// cellules étant uniformes, l'offset se calcule; la hauteur de l'en-tête
+/// est mesurée à l'écran et mise en cache).
 class AlphaGrid<T> extends StatefulWidget {
   const AlphaGrid({
     super.key,
@@ -15,6 +17,8 @@ class AlphaGrid<T> extends StatefulWidget {
     this.spacing = 16.0,
     this.onRefresh,
     this.trailing,
+    this.header,
+    this.rowExtent,
   });
 
   final List<T> items;
@@ -29,12 +33,23 @@ class AlphaGrid<T> extends StatefulWidget {
   /// Widget affiché à droite du champ de filtre (ex. bouton aléatoire).
   final Widget? trailing;
 
+  /// En-tête qui défile avec le contenu, au-dessus du champ de filtre.
+  final Widget? header;
+
+  /// Mode liste : hauteur fixe des rangées. Absent → grille.
+  final double? rowExtent;
+
   @override
   State<AlphaGrid<T>> createState() => _AlphaGridState<T>();
 }
 
 class _AlphaGridState<T> extends State<AlphaGrid<T>> {
+  static const _gridPadding = EdgeInsets.fromLTRB(20, 12, 32, 18);
+  static const _listPadding = EdgeInsets.fromLTRB(12, 8, 26, 18);
+
   final _scroll = ScrollController();
+  final _topKey = GlobalKey();
+  double _topHeight = 0;
   String _query = '';
   String? _flashLetter;
 
@@ -61,14 +76,26 @@ class _AlphaGridState<T> extends State<AlphaGrid<T>> {
   void _jumpTo(String letter, List<T> sorted, double width) {
     final index = sorted.indexWhere((e) => _letterOf(e) == letter);
     if (index < 0) return;
-    final usable = width - 32; // padding horizontal de la grille
-    final columns =
-        (usable / widget.maxCrossAxisExtent).ceil().clamp(1, 12);
-    final cellWidth =
-        (usable - (columns - 1) * widget.spacing) / columns;
-    final cellHeight = cellWidth / widget.childAspectRatio;
-    final row = index ~/ columns;
-    final offset = 16 + row * (cellHeight + widget.spacing);
+    // En-tête + champ de filtre : hauteur mesurée quand ils sont visibles
+    // (au sommet), sinon dernière valeur connue.
+    final topSize = _topKey.currentContext?.size;
+    if (topSize != null) _topHeight = topSize.height;
+
+    double offset;
+    final rowExtent = widget.rowExtent;
+    if (rowExtent != null) {
+      offset = _topHeight + _listPadding.top + index * rowExtent;
+    } else {
+      final usable = width - _gridPadding.horizontal;
+      final columns = (usable / (widget.maxCrossAxisExtent + widget.spacing))
+          .ceil()
+          .clamp(1, 12);
+      final cellWidth = (usable - (columns - 1) * widget.spacing) / columns;
+      final cellHeight = cellWidth / widget.childAspectRatio;
+      final row = index ~/ columns;
+      offset =
+          _topHeight + _gridPadding.top + row * (cellHeight + widget.spacing);
+    }
     _scroll.jumpTo(
       offset.clamp(0, _scroll.position.maxScrollExtent).toDouble(),
     );
@@ -88,92 +115,118 @@ class _AlphaGridState<T> extends State<AlphaGrid<T>> {
           .compareTo(widget.nameOf(b).toLowerCase()));
     final letters = {for (final e in sorted) _letterOf(e)};
 
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-          child: Row(
+    final scrollView = CustomScrollView(
+      controller: _scroll,
+      physics: const AlwaysScrollableScrollPhysics(),
+      slivers: [
+        SliverToBoxAdapter(
+          child: Column(
+            key: _topKey,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Expanded(
-                child: TextField(
-                  onChanged: (v) => setState(() => _query = v),
-                  decoration: InputDecoration(
-                    hintText: widget.hintText,
-                    prefixIcon: const Icon(Icons.filter_list),
-                    isDense: true,
-                  ),
+              if (widget.header != null) widget.header!,
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        onChanged: (v) => setState(() => _query = v),
+                        decoration: InputDecoration(
+                          hintText: widget.hintText,
+                          prefixIcon: const Icon(Icons.filter_list),
+                          isDense: true,
+                        ),
+                      ),
+                    ),
+                    if (widget.trailing != null) ...[
+                      const SizedBox(width: 8),
+                      widget.trailing!,
+                    ],
+                  ],
                 ),
               ),
-              if (widget.trailing != null) ...[
-                const SizedBox(width: 8),
-                widget.trailing!,
-              ],
             ],
           ),
         ),
-        Expanded(
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final grid = GridView.builder(
-                controller: _scroll,
-                padding: const EdgeInsets.fromLTRB(16, 16, 32, 16),
-                gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
-                  maxCrossAxisExtent: widget.maxCrossAxisExtent,
-                  mainAxisSpacing: widget.spacing,
-                  crossAxisSpacing: widget.spacing,
-                  childAspectRatio: widget.childAspectRatio,
-                ),
-                itemCount: sorted.length,
-                itemBuilder: (context, i) =>
-                    widget.itemBuilder(context, sorted[i]),
-              );
-
-              return Stack(
-                children: [
-                  widget.onRefresh != null
-                      ? RefreshIndicator(
-                          onRefresh: widget.onRefresh!, child: grid)
-                      : grid,
-                  if (_query.isEmpty && sorted.length > 30)
-                    Positioned(
-                      right: 0,
-                      top: 0,
-                      bottom: 0,
-                      child: _AlphaBar(
-                        available: letters,
-                        onLetter: (l) =>
-                            _jumpTo(l, sorted, constraints.maxWidth),
-                        onDone: () => setState(() => _flashLetter = null),
-                      ),
-                    ),
-                  if (_flashLetter != null)
-                    Center(
-                      child: Container(
-                        width: 72,
-                        height: 72,
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color: scheme.primary,
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Text(
-                          _flashLetter!,
-                          style: TextStyle(
-                            fontSize: 36,
-                            fontWeight: FontWeight.w700,
-                            color: scheme.onPrimary,
-                          ),
-                        ),
-                      ),
-                    ),
-                  if (sorted.isEmpty)
-                    const Center(child: Text('Aucun résultat')),
-                ],
-              );
-            },
+        if (sorted.isEmpty)
+          const SliverFillRemaining(
+            hasScrollBody: false,
+            child: Center(child: Text('Aucun résultat')),
+          )
+        else if (widget.rowExtent != null)
+          SliverPadding(
+            padding: _listPadding,
+            sliver: SliverFixedExtentList(
+              itemExtent: widget.rowExtent!,
+              delegate: SliverChildBuilderDelegate(
+                (context, i) => widget.itemBuilder(context, sorted[i]),
+                childCount: sorted.length,
+              ),
+            ),
+          )
+        else
+          SliverPadding(
+            padding: _gridPadding,
+            sliver: SliverGrid(
+              gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+                maxCrossAxisExtent: widget.maxCrossAxisExtent,
+                mainAxisSpacing: widget.spacing,
+                crossAxisSpacing: widget.spacing,
+                childAspectRatio: widget.childAspectRatio,
+              ),
+              delegate: SliverChildBuilderDelegate(
+                (context, i) => widget.itemBuilder(context, sorted[i]),
+                childCount: sorted.length,
+              ),
+            ),
           ),
+        SliverToBoxAdapter(
+          child: SizedBox(height: MediaQuery.paddingOf(context).bottom + 8),
         ),
       ],
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) => Stack(
+        children: [
+          widget.onRefresh != null
+              ? RefreshIndicator(
+                  onRefresh: widget.onRefresh!, child: scrollView)
+              : scrollView,
+          if (_query.isEmpty && sorted.length > 30)
+            Positioned(
+              right: 0,
+              top: 0,
+              bottom: 0,
+              child: _AlphaBar(
+                available: letters,
+                onLetter: (l) => _jumpTo(l, sorted, constraints.maxWidth),
+                onDone: () => setState(() => _flashLetter = null),
+              ),
+            ),
+          if (_flashLetter != null)
+            Center(
+              child: Container(
+                width: 72,
+                height: 72,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: scheme.primary,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Text(
+                  _flashLetter!,
+                  style: TextStyle(
+                    fontSize: 36,
+                    fontWeight: FontWeight.w700,
+                    color: scheme.onPrimary,
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }

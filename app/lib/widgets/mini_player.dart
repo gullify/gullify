@@ -42,6 +42,9 @@ class MiniPlayer extends ConsumerWidget {
           },
           child: GlassBox(
             radius: 20,
+            // Pas de flou : c'est ce filtre qui, sur certains GPU, se
+            // peignait en plein écran sur les pages artiste/album.
+            blur: false,
             child: Stack(
               children: [
                 // Progression : filet accent sur le bord supérieur.

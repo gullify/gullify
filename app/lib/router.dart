@@ -6,14 +6,12 @@ import 'screens/album_screen.dart';
 import 'screens/artist_screen.dart';
 import 'screens/downloads_screen.dart';
 import 'screens/equalizer_screen.dart';
-import 'screens/home_screen.dart';
-import 'screens/library_screen.dart';
+import 'screens/explore_screen.dart';
+import 'screens/library_home_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/notifications_screen.dart';
 import 'screens/now_playing_screen.dart';
 import 'screens/playlist_screen.dart';
-import 'screens/radio_screen.dart';
-import 'screens/search_screen.dart';
 import 'screens/server_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/shell_screen.dart';
@@ -33,18 +31,12 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (_, _, shell) => ShellScreen(navigationShell: shell),
         branches: [
           StatefulShellBranch(routes: [
-            GoRoute(path: '/', builder: (_, _) => const HomeScreen()),
-          ]),
-          StatefulShellBranch(routes: [
-            GoRoute(path: '/search', builder: (_, _) => const SearchScreen()),
-          ]),
-          StatefulShellBranch(routes: [
-            GoRoute(path: '/radio', builder: (_, _) => const RadioScreen()),
+            GoRoute(path: '/', builder: (_, _) => const LibraryHomeScreen()),
           ]),
           StatefulShellBranch(routes: [
             GoRoute(
-              path: '/library',
-              builder: (_, _) => const LibraryScreen(),
+              path: '/explore',
+              builder: (_, _) => const ExploreScreen(),
             ),
           ]),
         ],

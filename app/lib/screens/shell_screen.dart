@@ -58,31 +58,39 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         mainAxisSize: MainAxisSize.min,
         children: [
           const MiniPlayer(),
-          _GlassTabBar(navigationShell: navigationShell),
+          GlassTabBar(
+            currentIndex: navigationShell.currentIndex,
+            onSelect: (i) => navigationShell.goBranch(
+              i,
+              initialLocation: i == navigationShell.currentIndex,
+            ),
+          ),
         ],
       ),
     );
   }
 }
 
-/// Barre d'onglets « liquid glass » : pilule de verre, onglet actif en
-/// pilule accent avec libellé, inactifs en icônes seules.
-class _GlassTabBar extends StatelessWidget {
-  const _GlassTabBar({required this.navigationShell});
+/// Barre d'onglets « liquid glass » (design) : pilule de verre, deux onglets
+/// icône + libellé côte à côte, l'actif en pilule accent.
+class GlassTabBar extends StatelessWidget {
+  const GlassTabBar({
+    super.key,
+    required this.currentIndex,
+    required this.onSelect,
+  });
 
-  final StatefulNavigationShell navigationShell;
+  final int currentIndex;
+  final ValueChanged<int> onSelect;
 
   static const _tabs = [
-    (Icons.home_outlined, Icons.home, 'Accueil'),
-    (Icons.search, Icons.search, 'Recherche'),
-    (Icons.radio_outlined, Icons.radio, 'Radio'),
     (Icons.library_music_outlined, Icons.library_music, 'Bibliothèque'),
+    (Icons.travel_explore, Icons.travel_explore, 'Explorer'),
   ];
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final current = navigationShell.currentIndex;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
@@ -96,16 +104,12 @@ class _GlassTabBar extends StatelessWidget {
               children: [
                 for (final (i, tab) in _tabs.indexed)
                   Expanded(
-                    flex: current == i ? 5 : 2,
                     child: _TabButton(
-                      icon: current == i ? tab.$2 : tab.$1,
+                      icon: currentIndex == i ? tab.$2 : tab.$1,
                       label: tab.$3,
-                      selected: current == i,
+                      selected: currentIndex == i,
                       scheme: scheme,
-                      onTap: () => navigationShell.goBranch(
-                        i,
-                        initialLocation: i == current,
-                      ),
+                      onTap: () => onSelect(i),
                     ),
                   ),
               ],
@@ -154,21 +158,20 @@ class _TabButton extends StatelessWidget {
               size: 23,
               color: selected ? scheme.onPrimary : scheme.onSurfaceVariant,
             ),
-            if (selected) ...[
-              const SizedBox(width: 8),
-              Flexible(
-                child: Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 14,
-                    color: scheme.onPrimary,
-                  ),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 14,
+                  color:
+                      selected ? scheme.onPrimary : scheme.onSurfaceVariant,
                 ),
               ),
-            ],
+            ),
           ],
         ),
       ),

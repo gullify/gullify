@@ -12,10 +12,15 @@ class GlassBox extends StatelessWidget {
     super.key,
     required this.child,
     this.radius = 20,
+    this.blur = true,
   });
 
   final Widget child;
   final double radius;
+
+  /// Flou en direct (BackdropFilter). À désactiver hors du shell : sur
+  /// certains GPU le filtre se peint en plein écran (bug pilote).
+  final bool blur;
 
   @override
   Widget build(BuildContext context) {
@@ -42,17 +47,32 @@ class GlassBox extends StatelessWidget {
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(radius),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
-          child: Container(
-            decoration: BoxDecoration(
-              color: background,
-              borderRadius: BorderRadius.circular(radius),
-              border: Border.all(color: borderColor),
-            ),
-            child: child,
-          ),
-        ),
+        child: blur
+            ? BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: background,
+                    borderRadius: BorderRadius.circular(radius),
+                    border: Border.all(color: borderColor),
+                  ),
+                  child: child,
+                ),
+              )
+            : Container(
+                decoration: BoxDecoration(
+                  // Sans flou : fond plus opaque pour rester lisible.
+                  color: Color.alphaBlend(
+                    background,
+                    light
+                        ? const Color(0x59FFFFFF)
+                        : const Color(0x59000000),
+                  ),
+                  borderRadius: BorderRadius.circular(radius),
+                  border: Border.all(color: borderColor),
+                ),
+                child: child,
+              ),
       ),
     );
   }
