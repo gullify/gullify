@@ -419,6 +419,81 @@
         }
 
         /* ═══════════════ Audiophile (oklch dark + warm amber accent) ═══════════════ */
+        /* ── Liquid Glass — design de référence (claude.ai/design) ──
+           Perle claire, verre blanc flouté, encre #191B21, accent indigo. */
+        [data-theme="liquidglass"] {
+            --bg-primary: #eceef4;
+            --bg-secondary: #f6f6f8;
+            --bg-tertiary: #e6eaf1;
+            --player-bg: rgba(255, 255, 255, 0.68);
+            --player-bg-translucent: rgba(255, 255, 255, 0.55);
+            --glass-bg: rgba(255, 255, 255, 0.55);
+            --glass-border: rgba(255, 255, 255, 0.72);
+
+            --text-primary: #191b21;
+            --text-secondary: #6b7078;
+            --text-tertiary: #8a8f98;
+
+            --accent: #4a5fe8;
+            --accent-hover: #3d50cc;
+
+            --color-success: #27ae60;
+            --color-success-hover: #219a52;
+            --color-success-soft: rgba(39, 174, 96, 0.12);
+            --color-danger: #e74c3c;
+            --color-danger-hover: #c0392b;
+            --color-danger-soft: rgba(231, 76, 60, 0.12);
+            --color-info: #4a5fe8;
+            --color-info-hover: #3d50cc;
+            --color-info-soft: rgba(74, 95, 232, 0.12);
+            --color-warning: #f39c12;
+
+            --border: rgba(26, 30, 55, 0.08);
+            --shadow: rgba(26, 30, 55, 0.12);
+            --hover-bg: rgba(255, 255, 255, 0.55);
+            --card-bg: rgba(255, 255, 255, 0.5);
+            --card-bg-hover: rgba(255, 255, 255, 0.75);
+            --card-border: rgba(255, 255, 255, 0.7);
+            --card-bg-strong: rgba(255, 255, 255, 0.65);
+
+            --focus-ring: rgba(74, 95, 232, 0.4);
+
+            --btn-secondary-bg: rgba(255, 255, 255, 0.55);
+            --btn-secondary-bg-hover: rgba(255, 255, 255, 0.8);
+            --btn-secondary-border: rgba(255, 255, 255, 0.72);
+            --btn-secondary-text: #191b21;
+
+            --placeholder-gradient: linear-gradient(135deg, #8a9bff 0%, #4a5fe8 100%);
+        }
+
+        /* Fond : dégradé perle + halo d'accent diffus en haut (design) */
+        html[data-theme="liquidglass"] body {
+            background:
+                radial-gradient(420px 420px at 8% -6%, rgba(74, 95, 232, 0.14) 0%, rgba(74, 95, 232, 0) 70%),
+                linear-gradient(178deg, #f6f6f8 0%, #eceef4 55%, #e6eaf1 100%);
+            background-attachment: fixed;
+        }
+
+        /* Surfaces de verre : flou réel sur la barre latérale et le lecteur */
+        html[data-theme="liquidglass"] .sidebar {
+            background: rgba(255, 255, 255, 0.55);
+            -webkit-backdrop-filter: blur(24px) saturate(1.8);
+            backdrop-filter: blur(24px) saturate(1.8);
+            border-right: 1px solid rgba(255, 255, 255, 0.72);
+        }
+        html[data-theme="liquidglass"] .player,
+        html[data-theme="liquidglass"] .unified-player .player {
+            background: rgba(255, 255, 255, 0.55);
+            -webkit-backdrop-filter: blur(24px) saturate(1.8);
+            backdrop-filter: blur(24px) saturate(1.8);
+            border-top: 1px solid rgba(255, 255, 255, 0.72);
+            box-shadow: 0 -10px 30px rgba(26, 30, 55, 0.10);
+        }
+        html[data-theme="liquidglass"] .album-card {
+            box-shadow: 0 14px 26px -10px rgba(20, 25, 50, 0.25);
+            border-radius: 20px;
+        }
+
         [data-theme="audiophile"] {
             --bg-primary: oklch(0.16 0.005 270);
             --bg-secondary: oklch(0.20 0.006 270);

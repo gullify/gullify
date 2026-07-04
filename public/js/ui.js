@@ -584,6 +584,7 @@
         }
 
         const THEMES = {
+            liquidglass:{ label: 'Liquid Glass', icon: 'ri-drop-line',      statusBar: '#f6f6f8' },
             audiophile: { label: 'Audiophile', icon: 'ri-vinyl-line',       statusBar: '#1a1a1d' },
             light:      { label: 'Clair',      icon: 'ri-sun-line',         statusBar: '#f0f2f5' },
             dark:       { label: 'Sombre',     icon: 'ri-moon-line',        statusBar: '#1a252f' },
@@ -596,7 +597,7 @@
             lime:       { label: 'Lime',       icon: 'ri-flashlight-line',  statusBar: '#0a0a0a' }
         };
 
-        const DEFAULT_THEME = 'audiophile';
+        const DEFAULT_THEME = 'liquidglass';
 
         const CARD_STYLES = {
             default:  { label: 'Standard',  icon: 'ri-layout-grid-line' },
@@ -1529,7 +1530,7 @@
                 `;
 
                 // Chart.js defaults
-                const isDark = !['', 'light', 'sand', null].includes(document.documentElement.getAttribute('data-theme'));
+                const isDark = !['', 'light', 'sand', 'liquidglass', null].includes(document.documentElement.getAttribute('data-theme'));
                 const gridColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)';
                 const tickColor = isDark ? '#95a5a6' : '#5f6368';
 
