@@ -127,7 +127,7 @@ class StatsScreen extends ConsumerWidget {
                             overflow: TextOverflow.ellipsis,
                           ),
                           trailing: Text(
-                            _relativeTime(p.playedAt),
+                            relativeTime(p.playedAt),
                             style: Theme.of(context)
                                 .textTheme
                                 .bodySmall
@@ -150,7 +150,8 @@ class StatsScreen extends ConsumerWidget {
   }
 }
 
-String _relativeTime(DateTime? t) {
+/// « il y a X » — partagé avec l'écran d'accueil (Derniers joués).
+String relativeTime(DateTime? t) {
   if (t == null) return '';
   final diff = DateTime.now().difference(t);
   if (diff.inMinutes < 1) return "à l'instant";

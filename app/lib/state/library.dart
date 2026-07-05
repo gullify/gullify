@@ -22,10 +22,9 @@ final recentAlbumsProvider = FutureProvider<List<Album>>(
   (ref) => ref.watch(libraryRepositoryProvider).recentAlbums(),
 );
 
-// Vue « Titres » de la bibliothèque : les plus écoutés (meilleure source
-// de titres disponible côté serveur).
+/// « Les plus populaires » de l'accueil (top écoutes).
 final popularSongsProvider = FutureProvider<List<Song>>(
-  (ref) => ref.watch(libraryRepositoryProvider).popularSongs(limit: 100),
+  (ref) => ref.watch(libraryRepositoryProvider).popularSongs(limit: 10),
 );
 
 final suggestionsProvider = FutureProvider<Suggestions>(

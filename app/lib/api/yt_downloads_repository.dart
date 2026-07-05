@@ -25,6 +25,37 @@ class YtAlbum {
   final String browseId;
 }
 
+/// Chanson seule trouvée sur YouTube Music (téléchargeable à l'unité).
+class YtSong {
+  const YtSong({
+    required this.title,
+    required this.artist,
+    required this.album,
+    required this.duration,
+    required this.thumbnail,
+    required this.videoId,
+  });
+
+  factory YtSong.fromJson(Map<String, dynamic> json) => YtSong(
+        title: json['title'] as String? ?? '',
+        artist: json['artist'] as String? ?? '',
+        album: json['album'] as String? ?? '',
+        duration: json['duration'] as String? ?? '',
+        thumbnail: json['thumbnail'] as String? ?? '',
+        videoId: json['videoId'] as String? ?? '',
+      );
+
+  final String title;
+  final String artist;
+  final String album;
+  final String duration;
+  final String thumbnail;
+  final String videoId;
+
+  /// URL acceptée telle quelle par l'action `start` (yt-dlp).
+  String get watchUrl => 'https://music.youtube.com/watch?v=$videoId';
+}
+
 /// Album résolu en playlist téléchargeable.
 class YtResolvedAlbum {
   const YtResolvedAlbum({
@@ -108,6 +139,20 @@ class YtDownloadsRepository {
         .cast<Map<String, dynamic>>()
         .map(YtAlbum.fromJson)
         .where((a) => a.browseId.isNotEmpty)
+        .toList();
+  }
+
+  Future<List<YtSong>> searchSongs(String query) async {
+    // Envelope v2 : {success, data: {songs: [...]}} → data = {songs: [...]}.
+    final data = await _client.get(
+      'download.php',
+      query: {'action': 'search_songs', 'query': query},
+    ) as Map<String, dynamic>;
+    final songs = data['songs'] as List<dynamic>? ?? [];
+    return songs
+        .cast<Map<String, dynamic>>()
+        .map(YtSong.fromJson)
+        .where((s) => s.videoId.isNotEmpty)
         .toList();
   }
 

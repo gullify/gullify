@@ -24,7 +24,7 @@ class PlaylistScreen extends ConsumerWidget {
     final actions = ref.read(playlistActionsProvider);
 
     return Scaffold(
-      bottomNavigationBar: const MiniPlayer(),
+      bottomNavigationBar: const SafeArea(top: false, child: MiniPlayer()),
       appBar: AppBar(
         title: Text(name),
         actions: [

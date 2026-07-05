@@ -27,6 +27,16 @@ final ytSearchResultsProvider = FutureProvider<List<YtAlbum>>((ref) {
   return ref.watch(ytDownloadsRepositoryProvider).searchAlbums(query);
 });
 
+/// Albums YouTube Music pour une requête (onglet Recherche).
+final ytAlbumSearchProvider = FutureProvider.family<List<YtAlbum>, String>(
+  (ref, query) => ref.watch(ytDownloadsRepositoryProvider).searchAlbums(query),
+);
+
+/// Chansons seules YouTube Music pour une requête (onglet Recherche).
+final ytSongSearchProvider = FutureProvider.family<List<YtSong>, String>(
+  (ref, query) => ref.watch(ytDownloadsRepositoryProvider).searchSongs(query),
+);
+
 /// Albums YouTube Music d'un artiste (suggestions sur sa page).
 final ytArtistAlbumsProvider = FutureProvider.family<List<YtAlbum>, String>(
   (ref, artistName) =>

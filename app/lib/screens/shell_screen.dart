@@ -71,8 +71,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   }
 }
 
-/// Barre d'onglets « liquid glass » (design) : pilule de verre, deux onglets
-/// icône + libellé côte à côte, l'actif en pilule accent.
+/// Barre d'onglets « liquid glass » : pilule de verre, l'onglet actif
+/// s'étend en pilule accent avec libellé, les inactifs en icônes seules.
 class GlassTabBar extends StatelessWidget {
   const GlassTabBar({
     super.key,
@@ -84,8 +84,10 @@ class GlassTabBar extends StatelessWidget {
   final ValueChanged<int> onSelect;
 
   static const _tabs = [
+    (Icons.home_outlined, Icons.home, 'Accueil'),
     (Icons.library_music_outlined, Icons.library_music, 'Bibliothèque'),
-    (Icons.travel_explore, Icons.travel_explore, 'Explorer'),
+    (Icons.radio_outlined, Icons.radio, 'Radio'),
+    (Icons.search, Icons.search, 'Recherche'),
   ];
 
   @override
@@ -104,6 +106,7 @@ class GlassTabBar extends StatelessWidget {
               children: [
                 for (final (i, tab) in _tabs.indexed)
                   Expanded(
+                    flex: currentIndex == i ? 5 : 2,
                     child: _TabButton(
                       icon: currentIndex == i ? tab.$2 : tab.$1,
                       label: tab.$3,
@@ -158,20 +161,21 @@ class _TabButton extends StatelessWidget {
               size: 23,
               color: selected ? scheme.onPrimary : scheme.onSurfaceVariant,
             ),
-            const SizedBox(width: 8),
-            Flexible(
-              child: Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 14,
-                  color:
-                      selected ? scheme.onPrimary : scheme.onSurfaceVariant,
+            if (selected) ...[
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
+                    color: scheme.onPrimary,
+                  ),
                 ),
               ),
-            ),
+            ],
           ],
         ),
       ),

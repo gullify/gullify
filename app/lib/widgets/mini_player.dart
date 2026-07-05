@@ -9,6 +9,11 @@ import 'glass_box.dart';
 /// Mini-lecteur flottant, style Liquid Glass Player : carte de verre avec
 /// barre de progression fine sur le bord supérieur, bouton lecture rond
 /// plein en couleur accent. Swipe horizontal = piste suivante/précédente.
+///
+/// Pas de SafeArea ici : dans le shell, la barre d'onglets en dessous
+/// applique déjà l'inset gestuel (le doubler faisait flotter le
+/// mini-lecteur trop haut). Les écrans de détail qui l'affichent seul en
+/// bottomNavigationBar l'enveloppent : SafeArea(top: false, child: …).
 class MiniPlayer extends ConsumerWidget {
   const MiniPlayer({super.key});
 
@@ -28,23 +33,23 @@ class MiniPlayer extends ConsumerWidget {
         : 0.0;
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 0, 12, 9),
-      child: SafeArea(
-        top: false,
-        child: GestureDetector(
-          onHorizontalDragEnd: (details) {
-            final v = details.primaryVelocity ?? 0;
-            if (v < -300) {
-              actions.next();
-            } else if (v > 300) {
-              actions.previous();
-            }
-          },
-          child: GlassBox(
-            radius: 20,
-            // Pas de flou : c'est ce filtre qui, sur certains GPU, se
-            // peignait en plein écran sur les pages artiste/album.
-            blur: false,
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 6),
+      child: GestureDetector(
+        onHorizontalDragEnd: (details) {
+          final v = details.primaryVelocity ?? 0;
+          if (v < -300) {
+            actions.next();
+          } else if (v > 300) {
+            actions.previous();
+          }
+        },
+        child: GlassBox(
+          radius: 20,
+          // Pas de flou : c'est ce filtre qui, sur certains GPU, se
+          // peignait en plein écran sur les pages artiste/album.
+          blur: false,
+          child: SizedBox(
+            height: 62,
             child: Stack(
               children: [
                 // Progression : filet accent sur le bord supérieur.
@@ -83,6 +88,11 @@ class MiniPlayer extends ConsumerWidget {
                               const SizedBox(width: 12),
                               Expanded(
                                 child: Column(
+                                  // min obligatoire : en bottomNavigationBar
+                                  // (contrainte bornée), max étendait la
+                                  // Column — et le mini-lecteur — à tout
+                                  // l'écran (bug « lecteur plein écran »).
+                                  mainAxisSize: MainAxisSize.min,
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [

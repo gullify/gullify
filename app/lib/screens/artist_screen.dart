@@ -25,7 +25,7 @@ class ArtistScreen extends ConsumerWidget {
     final scheme = Theme.of(context).colorScheme;
 
     return Scaffold(
-      bottomNavigationBar: const MiniPlayer(),
+      bottomNavigationBar: const SafeArea(top: false, child: MiniPlayer()),
       body: detail.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('Erreur: $e')),

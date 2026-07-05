@@ -138,6 +138,35 @@ try {
             echo json_encode(['success' => true, 'data' => ['albums' => $albums]]);
             break;
 
+        case 'search_songs':
+            // Chansons seules sur YouTube Music (téléchargement à l'unité :
+            // l'app construit ensuite https://music.youtube.com/watch?v=ID).
+            $query = trim($_GET['query'] ?? '');
+            if (!$query) {
+                echo json_encode(['success' => false, 'error' => 'query required']);
+                break;
+            }
+            $pythonScript = AppConfig::getPythonPath() . '/ytmusic_search.py';
+            $pythonBin    = file_exists('/opt/ytdlp/bin/python3') ? '/opt/ytdlp/bin/python3' : 'python3';
+            $cmd = $pythonBin . ' ' . escapeshellarg($pythonScript)
+                 . ' song ' . escapeshellarg($query) . ' 2>/dev/null';
+            $output = shell_exec($cmd);
+            if (!$output) {
+                echo json_encode(['success' => true, 'data' => ['songs' => []]]);
+                break;
+            }
+            $data = json_decode($output, true);
+            $songs = array_values(array_filter(array_map(fn($r) => [
+                'title'     => $r['title']     ?? '',
+                'artist'    => $r['artist']    ?? '',
+                'album'     => $r['album']     ?? '',
+                'duration'  => $r['duration']  ?? '',
+                'thumbnail' => $r['thumbnail'] ?? '',
+                'videoId'   => $r['videoId']   ?? '',
+            ], $data['results'] ?? []), fn($s) => $s['videoId'] !== ''));
+            echo json_encode(['success' => true, 'data' => ['songs' => $songs]]);
+            break;
+
         case 'resolve_album':
             $browseId = trim($_GET['browse_id'] ?? '');
             if (!$browseId) {
