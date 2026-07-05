@@ -25,6 +25,25 @@ class YtAlbum {
   final String browseId;
 }
 
+/// Artiste similaire suggéré par YouTube Music.
+class YtArtist {
+  const YtArtist({
+    required this.name,
+    required this.browseId,
+    required this.thumbnail,
+  });
+
+  factory YtArtist.fromJson(Map<String, dynamic> json) => YtArtist(
+        name: json['name'] as String? ?? '',
+        browseId: json['browseId'] as String? ?? '',
+        thumbnail: json['thumbnail'] as String? ?? '',
+      );
+
+  final String name;
+  final String browseId;
+  final String thumbnail;
+}
+
 /// Chanson seule trouvée sur YouTube Music (téléchargeable à l'unité).
 class YtSong {
   const YtSong({
@@ -153,6 +172,20 @@ class YtDownloadsRepository {
         .cast<Map<String, dynamic>>()
         .map(YtSong.fromJson)
         .where((s) => s.videoId.isNotEmpty)
+        .toList();
+  }
+
+  /// Artistes similaires (YouTube Music) à partir d'un nom.
+  Future<List<YtArtist>> relatedArtists(String name) async {
+    final data = await _client.get(
+      'download.php',
+      query: {'action': 'related_artists', 'query': name},
+    ) as Map<String, dynamic>;
+    final artists = data['artists'] as List<dynamic>? ?? [];
+    return artists
+        .cast<Map<String, dynamic>>()
+        .map(YtArtist.fromJson)
+        .where((a) => a.name.isNotEmpty)
         .toList();
   }
 

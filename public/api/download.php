@@ -167,6 +167,31 @@ try {
             echo json_encode(['success' => true, 'data' => ['songs' => $songs]]);
             break;
 
+        case 'related_artists':
+            // Artistes similaires (YouTube Music) à partir d'un nom d'artiste.
+            $query = trim($_GET['query'] ?? '');
+            if (!$query) {
+                echo json_encode(['success' => false, 'error' => 'query required']);
+                break;
+            }
+            $pythonScript = AppConfig::getPythonPath() . '/ytmusic_search.py';
+            $pythonBin    = file_exists('/opt/ytdlp/bin/python3') ? '/opt/ytdlp/bin/python3' : 'python3';
+            $cmd = $pythonBin . ' ' . escapeshellarg($pythonScript)
+                 . ' related ' . escapeshellarg($query) . ' 2>/dev/null';
+            $output = shell_exec($cmd);
+            if (!$output) {
+                echo json_encode(['success' => true, 'data' => ['artists' => []]]);
+                break;
+            }
+            $data = json_decode($output, true);
+            $artists = array_values(array_filter(array_map(fn($r) => [
+                'name'      => $r['name']      ?? '',
+                'browseId'  => $r['browseId']  ?? '',
+                'thumbnail' => $r['thumbnail'] ?? '',
+            ], $data['results'] ?? []), fn($a) => $a['name'] !== ''));
+            echo json_encode(['success' => true, 'data' => ['artists' => $artists]]);
+            break;
+
         case 'resolve_album':
             $browseId = trim($_GET['browse_id'] ?? '');
             if (!$browseId) {

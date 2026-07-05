@@ -100,7 +100,7 @@ class RadioRepository {
           'url': url,
           'country': country ?? '',
           'genres': genres,
-          if (logo != null) 'logo': logo,
+          'logo': ?logo,
         },
       );
 

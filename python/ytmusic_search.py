@@ -75,6 +75,31 @@ def search_artists(query):
     except Exception as e:
         return []
 
+def related_artists(query):
+    """Artistes similaires : cherche l'artiste, puis lit ses artistes liés."""
+    try:
+        ytmusic = YTMusic()
+        found = ytmusic.search(query, filter="artists", limit=1)
+        if not found:
+            return []
+        browse_id = found[0].get("browseId", "")
+        if not browse_id:
+            return []
+        artist = ytmusic.get_artist(browse_id)
+        related = (artist.get("related") or {}).get("results", []) or []
+        out = []
+        for item in related:
+            out.append({
+                "name": item.get("title", ""),
+                "browseId": item.get("browseId", ""),
+                "thumbnail": item.get("thumbnails", [{}])[-1].get("url", "")
+                    if item.get("thumbnails") else "",
+                "type": "artist",
+            })
+        return [a for a in out if a["name"]]
+    except Exception:
+        return []
+
 def get_album_details(browse_id):
     """Get detailed album information including track listing"""
     try:
@@ -120,6 +145,8 @@ def main():
         results = search_songs(query)
     elif search_type == "artist":
         results = search_artists(query)
+    elif search_type == "related":
+        results = related_artists(query)
     elif search_type == "album_details":
         # query is actually browseId in this case
         details = get_album_details(query)

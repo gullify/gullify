@@ -43,6 +43,12 @@ final ytArtistAlbumsProvider = FutureProvider.family<List<YtAlbum>, String>(
       ref.watch(ytDownloadsRepositoryProvider).searchAlbums(artistName),
 );
 
+/// Artistes similaires (YouTube Music) pour un nom d'artiste.
+final relatedArtistsProvider = FutureProvider.family<List<YtArtist>, String>(
+  (ref, artistName) =>
+      ref.watch(ytDownloadsRepositoryProvider).relatedArtists(artistName),
+);
+
 /// File de téléchargement serveur, rafraîchie tant qu'un item est actif.
 final ytQueueProvider =
     AsyncNotifierProvider<YtQueueNotifier, List<ServerDownload>>(

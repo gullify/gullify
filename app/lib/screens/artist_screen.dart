@@ -123,6 +123,7 @@ class ArtistScreen extends ConsumerWidget {
                 ),
             ],
             _YtSuggestions(detail: d),
+            _SimilarArtists(name: d.artist.name),
             _ArtistExtras(name: d.artist.name),
           ],
         ),
@@ -461,6 +462,88 @@ class _ArtistPlayBarState extends ConsumerState<_ArtistPlayBar> {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Artistes similaires (YouTube Music) : carrousel d'avatars ronds. Un tap
+/// lance une recherche sur ce nom pour l'explorer / télécharger.
+class _SimilarArtists extends ConsumerWidget {
+  const _SimilarArtists({required this.name});
+
+  final String name;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final related = ref.watch(relatedArtistsProvider(name));
+    return related.maybeWhen(
+      data: (artists) {
+        if (artists.isEmpty) return const SizedBox.shrink();
+        final scheme = Theme.of(context).colorScheme;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SectionTitle('Artistes similaires'),
+            SizedBox(
+              height: 148,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.fromLTRB(20, 10, 20, 12),
+                itemCount: artists.length,
+                separatorBuilder: (_, _) => const SizedBox(width: 14),
+                itemBuilder: (context, i) {
+                  final a = artists[i];
+                  return SizedBox(
+                    width: 92,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(46),
+                      onTap: () {
+                        ref.read(searchQueryProvider.notifier).set(a.name);
+                        context.go('/search');
+                      },
+                      child: Column(
+                        children: [
+                          DecoratedBox(
+                            decoration: const BoxDecoration(
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Color(0x33000000),
+                                  blurRadius: 14,
+                                  offset: Offset(0, 6),
+                                ),
+                              ],
+                            ),
+                            child: Artwork(
+                              url: a.thumbnail.isEmpty ? null : a.thumbnail,
+                              size: 88,
+                              borderRadius: 44,
+                              icon: Icons.person,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            a.name,
+                            maxLines: 1,
+                            textAlign: TextAlign.center,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w600,
+                              color: scheme.onSurface,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        );
+      },
+      orElse: () => const SizedBox.shrink(),
     );
   }
 }
