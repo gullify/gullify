@@ -6,6 +6,7 @@ import 'screens/album_screen.dart';
 import 'screens/artist_screen.dart';
 import 'screens/downloads_screen.dart';
 import 'screens/equalizer_screen.dart';
+import 'screens/favorites_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/library_screen.dart';
 import 'screens/login_screen.dart';
@@ -32,6 +33,8 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/login', builder: (_, _) => const LoginScreen()),
       StatefulShellRoute.indexedStack(
         builder: (_, _, shell) => ShellScreen(navigationShell: shell),
+        // Ordre = index du dock : 0 Accueil, 1 Bibliothèque, 2 Recherche,
+        // 3 Radio, 4 Favoris.
         branches: [
           StatefulShellBranch(routes: [
             GoRoute(path: '/', builder: (_, _) => const HomeScreen()),
@@ -43,10 +46,16 @@ final routerProvider = Provider<GoRouter>((ref) {
             ),
           ]),
           StatefulShellBranch(routes: [
+            GoRoute(path: '/search', builder: (_, _) => const SearchScreen()),
+          ]),
+          StatefulShellBranch(routes: [
             GoRoute(path: '/radio', builder: (_, _) => const RadioScreen()),
           ]),
           StatefulShellBranch(routes: [
-            GoRoute(path: '/search', builder: (_, _) => const SearchScreen()),
+            GoRoute(
+              path: '/favorites',
+              builder: (_, _) => const FavoritesScreen(),
+            ),
           ]),
         ],
       ),

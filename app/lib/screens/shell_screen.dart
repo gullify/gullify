@@ -54,27 +54,32 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       // Le contenu défile sous les barres de verre (elles sont translucides).
       extendBody: true,
       body: navigationShell,
-      bottomNavigationBar: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const MiniPlayer(),
-          GlassTabBar(
-            currentIndex: navigationShell.currentIndex,
-            onSelect: (i) => navigationShell.goBranch(
-              i,
-              initialLocation: i == navigationShell.currentIndex,
-            ),
-          ),
-        ],
+      bottomNavigationBar: HubDock(
+        currentIndex: navigationShell.currentIndex,
+        onSelect: (i) => navigationShell.goBranch(
+          i,
+          initialLocation: i == navigationShell.currentIndex,
+        ),
       ),
     );
   }
 }
 
-/// Barre d'onglets « liquid glass » : pilule de verre, l'onglet actif
-/// s'étend en pilule accent avec libellé, les inactifs en icônes seules.
-class GlassTabBar extends StatelessWidget {
-  const GlassTabBar({
+/// Un onglet satellite du dock : icône (variante remplie/arrondie), teinte
+/// accent + point animé quand actif.
+class _DockDest {
+  const _DockDest(this.branch, this.iconOff, this.iconOn, this.tooltip);
+  final int branch;
+  final IconData iconOff;
+  final IconData iconOn;
+  final String tooltip;
+}
+
+/// Dock de navigation réinventé : mini-lecteur + pilule de verre flottante,
+/// avec un ORBE d'accueil accent surélevé au centre qui fait le pont entre
+/// les deux. Satellites en icônes épurées (sans texte), 2 de chaque côté.
+class HubDock extends StatelessWidget {
+  const HubDock({
     super.key,
     required this.currentIndex,
     required this.onSelect,
@@ -83,36 +88,51 @@ class GlassTabBar extends StatelessWidget {
   final int currentIndex;
   final ValueChanged<int> onSelect;
 
-  static const _tabs = [
-    (Icons.home_outlined, Icons.home, 'Accueil'),
-    (Icons.library_music_outlined, Icons.library_music, 'Bibliothèque'),
-    (Icons.radio_outlined, Icons.radio, 'Radio'),
-    (Icons.search, Icons.search, 'Recherche'),
+  // Branches : 0 Accueil (orbe), 1 Bibliothèque, 2 Recherche, 3 Radio,
+  // 4 Favoris. Disposition : [1][2] (orbe 0) [3][4].
+  static const _left = [
+    _DockDest(1, Icons.library_music_outlined, Icons.library_music_rounded,
+        'Bibliothèque'),
+    _DockDest(2, Icons.search_rounded, Icons.search_rounded, 'Recherche'),
+  ];
+  static const _right = [
+    _DockDest(3, Icons.radio_outlined, Icons.radio_rounded, 'Radio'),
+    _DockDest(
+        4, Icons.favorite_border_rounded, Icons.favorite_rounded, 'Favoris'),
   ];
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+    final pill = Padding(
+      padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
       child: SafeArea(
         top: false,
         child: GlassBox(
-          radius: 22,
-          child: Padding(
-            padding: const EdgeInsets.all(6),
+          radius: 28,
+          child: SizedBox(
+            height: 62,
             child: Row(
               children: [
-                for (final (i, tab) in _tabs.indexed)
+                for (final d in _left)
                   Expanded(
-                    flex: currentIndex == i ? 5 : 2,
-                    child: _TabButton(
-                      icon: currentIndex == i ? tab.$2 : tab.$1,
-                      label: tab.$3,
-                      selected: currentIndex == i,
+                    child: _Satellite(
+                      dest: d,
+                      selected: currentIndex == d.branch,
                       scheme: scheme,
-                      onTap: () => onSelect(i),
+                      onTap: () => onSelect(d.branch),
+                    ),
+                  ),
+                // Emplacement de l'orbe (rendu par-dessus dans le Stack).
+                const Expanded(child: SizedBox.shrink()),
+                for (final d in _right)
+                  Expanded(
+                    child: _Satellite(
+                      dest: d,
+                      selected: currentIndex == d.branch,
+                      scheme: scheme,
+                      onTap: () => onSelect(d.branch),
                     ),
                   ),
               ],
@@ -121,61 +141,129 @@ class GlassTabBar extends StatelessWidget {
         ),
       ),
     );
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const MiniPlayer(),
+        // Stack sans clip : l'orbe déborde vers le haut pour ponter le
+        // mini-lecteur et le dock.
+        Stack(
+          clipBehavior: Clip.none,
+          alignment: Alignment.topCenter,
+          children: [
+            pill,
+            Positioned(
+              top: -20,
+              child: _HomeOrb(
+                selected: currentIndex == 0,
+                scheme: scheme,
+                onTap: () => onSelect(0),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
   }
 }
 
-class _TabButton extends StatelessWidget {
-  const _TabButton({
-    required this.icon,
-    required this.label,
+/// Orbe central « Accueil » : disque accent avec halo, légèrement surélevé.
+class _HomeOrb extends StatelessWidget {
+  const _HomeOrb({
     required this.selected,
     required this.scheme,
     required this.onTap,
   });
 
-  final IconData icon;
-  final String label;
   final bool selected;
   final ColorScheme scheme;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 220),
-      curve: Curves.easeOutCubic,
-      height: 48,
-      margin: const EdgeInsets.symmetric(horizontal: 3),
-      decoration: BoxDecoration(
-        color: selected ? scheme.primary : Colors.transparent,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: onTap,
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              icon,
-              size: 23,
-              color: selected ? scheme.onPrimary : scheme.onSurfaceVariant,
+    final accent = scheme.primary;
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedScale(
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOutBack,
+        scale: selected ? 1.0 : 0.92,
+        child: Container(
+          width: 60,
+          height: 60,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Color.lerp(accent, Colors.white, 0.22)!,
+                accent,
+              ],
             ),
-            if (selected) ...[
-              const SizedBox(width: 8),
-              Flexible(
-                child: Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 14,
-                    color: scheme.onPrimary,
-                  ),
-                ),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.35),
+                width: 1.5),
+            boxShadow: [
+              BoxShadow(
+                color: accent.withValues(alpha: selected ? 0.55 : 0.35),
+                blurRadius: selected ? 22 : 14,
+                offset: const Offset(0, 8),
               ),
             ],
+          ),
+          child: const Icon(Icons.home_rounded, color: Colors.white, size: 28),
+        ),
+      ),
+    );
+  }
+}
+
+class _Satellite extends StatelessWidget {
+  const _Satellite({
+    required this.dest,
+    required this.selected,
+    required this.scheme,
+    required this.onTap,
+  });
+
+  final _DockDest dest;
+  final bool selected;
+  final ColorScheme scheme;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: dest.tooltip,
+      child: InkResponse(
+        onTap: onTap,
+        radius: 34,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            AnimatedScale(
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeOutCubic,
+              scale: selected ? 1.12 : 1.0,
+              child: Icon(
+                selected ? dest.iconOn : dest.iconOff,
+                size: 25,
+                color: selected ? scheme.primary : scheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 5),
+            // Point indicateur animé sous l'onglet actif.
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeOut,
+              width: selected ? 6 : 0,
+              height: 6,
+              decoration: BoxDecoration(
+                color: scheme.primary,
+                shape: BoxShape.circle,
+              ),
+            ),
           ],
         ),
       ),

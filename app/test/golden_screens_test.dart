@@ -251,7 +251,7 @@ Widget _shellWrap(
           mainAxisSize: MainAxisSize.min,
           children: [
             const MiniPlayer(),
-            GlassTabBar(currentIndex: tab, onSelect: (_) {}),
+            HubDock(currentIndex: tab, onSelect: (_) {}),
           ],
         ),
       ),
