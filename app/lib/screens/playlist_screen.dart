@@ -4,7 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../state/player.dart';
 import '../state/playlists.dart';
-import '../widgets/mini_player.dart';
+import 'shell_screen.dart';
 import '../widgets/song_menu.dart';
 import '../widgets/song_tile.dart';
 import '../widgets/mascot_empty.dart';
@@ -25,7 +25,7 @@ class PlaylistScreen extends ConsumerWidget {
     final actions = ref.read(playlistActionsProvider);
 
     return Scaffold(
-      bottomNavigationBar: const SafeArea(top: false, child: MiniPlayer()),
+      bottomNavigationBar: const DetailDock(),
       appBar: AppBar(
         title: Text(name),
         actions: [

@@ -65,6 +65,21 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   }
 }
 
+/// Dock complet (mini-lecteur + navigation) pour les pages de DÉTAIL, hors
+/// du shell : la navigation ramène à l'onglet correspondant. Aucun onglet
+/// n'est actif (currentIndex -1). Rend la barre présente partout.
+class DetailDock extends StatelessWidget {
+  const DetailDock({super.key});
+
+  static const _paths = ['/', '/library', '/search', '/radio', '/favorites'];
+
+  @override
+  Widget build(BuildContext context) => HubDock(
+        currentIndex: -1,
+        onSelect: (i) => context.go(_paths[i]),
+      );
+}
+
 /// Un onglet satellite du dock : icône (variante remplie/arrondie), teinte
 /// accent + point animé quand actif.
 class _DockDest {

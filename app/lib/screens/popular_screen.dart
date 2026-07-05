@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../state/library.dart';
 import '../state/player.dart';
 import '../widgets/glass_kit.dart';
-import '../widgets/mini_player.dart';
+import 'shell_screen.dart';
 import '../widgets/song_menu.dart';
 import '../widgets/song_tile.dart';
 
@@ -19,7 +19,7 @@ class PopularScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Les plus populaires')),
-      bottomNavigationBar: const SafeArea(top: false, child: MiniPlayer()),
+      bottomNavigationBar: const DetailDock(),
       body: popular.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('Erreur: $e')),

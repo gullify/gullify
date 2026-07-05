@@ -10,7 +10,7 @@ import '../state/player.dart';
 import '../state/yt_downloads.dart';
 import '../widgets/artwork.dart';
 import '../widgets/glass_kit.dart';
-import '../widgets/mini_player.dart';
+import 'shell_screen.dart';
 import '../widgets/song_menu.dart';
 import '../widgets/song_tile.dart';
 
@@ -25,7 +25,7 @@ class ArtistScreen extends ConsumerWidget {
     final scheme = Theme.of(context).colorScheme;
 
     return Scaffold(
-      bottomNavigationBar: const SafeArea(top: false, child: MiniPlayer()),
+      bottomNavigationBar: const DetailDock(),
       body: detail.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('Erreur: $e')),

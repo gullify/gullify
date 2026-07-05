@@ -918,7 +918,10 @@ try {
         }
 
     } elseif ($action === 'get_all_albums') {
-        $limit  = max(1, min(200, (int)($_GET['limit'] ?? 48)));
+        // Plafond élevé : l'app mobile charge toute la bibliothèque d'un coup
+        // (index A-Z). L'ancien plafond de 200 tronquait les grandes
+        // bibliothèques (le A-Z ne montrait que les premières lettres).
+        $limit  = max(1, min(10000, (int)($_GET['limit'] ?? 48)));
         $offset = max(0, (int)($_GET['offset'] ?? 0));
         $sort   = in_array($_GET['sort'] ?? '', ['name', 'artist', 'year', 'recent', 'popular']) ? $_GET['sort'] : 'name';
         $search = trim($_GET['search'] ?? '');

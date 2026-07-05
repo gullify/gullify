@@ -5,6 +5,7 @@ import '../models/song.dart';
 import '../state/player.dart';
 import 'artwork.dart';
 import 'glass_kit.dart';
+import 'song_menu.dart';
 
 String formatDuration(int seconds) {
   final m = seconds ~/ 60;
@@ -52,7 +53,9 @@ class SongTile extends ConsumerWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
         onTap: onTap,
-        onLongPress: onLongPress,
+        // Menu par défaut sur appui long : chaque titre, partout, offre les
+        // mêmes actions (favori, playlist, file, téléchargement, navigation).
+        onLongPress: onLongPress ?? () => showSongMenu(context, song),
         child: DecoratedBox(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
@@ -71,7 +74,9 @@ class SongTile extends ConsumerWidget {
             ),
           ),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+            // Espacement confortable au doigt, uniforme dans toutes les
+            // listes (accueil, bibliothèque, album…).
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
             child: Row(
               children: [
                 if (showArtwork)

@@ -1,4 +1,3 @@
-import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -10,7 +9,7 @@ import '../state/offline.dart';
 import '../state/player.dart';
 import '../widgets/artwork.dart';
 import '../widgets/glass_kit.dart';
-import '../widgets/mini_player.dart';
+import 'shell_screen.dart';
 import '../widgets/song_menu.dart';
 import '../widgets/song_tile.dart';
 
@@ -28,7 +27,7 @@ class AlbumScreen extends ConsumerWidget {
         ?.extras?['songId'] as int?;
 
     return Scaffold(
-      bottomNavigationBar: const SafeArea(top: false, child: MiniPlayer()),
+      bottomNavigationBar: const DetailDock(),
       body: detail.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('Erreur: $e')),
@@ -156,35 +155,34 @@ class _AlbumHeader extends StatelessWidget {
     final topInset = MediaQuery.paddingOf(context).top;
 
     return SizedBox(
-      height: 372,
+      height: 440,
       child: Stack(
         fit: StackFit.expand,
         children: [
-          // Pochette floutée en fond, dissoute vers le bas (ShaderMask) →
-          // le vrai dégradé de l'app transparaît, sans couture.
+          // Pochette plein cadre qui se DISSOUT vers le bas (ShaderMask) —
+          // même traitement que la page artiste, sans flou.
           ShaderMask(
             shaderCallback: (rect) => const LinearGradient(
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
-              stops: [0.0, 0.55, 1.0],
+              stops: [0.0, 0.5, 1.0],
               colors: [Colors.white, Colors.white, Colors.transparent],
             ).createShader(rect),
             blendMode: BlendMode.dstIn,
-            child: ImageFiltered(
-              imageFilter: ImageFilter.blur(sigmaX: 34, sigmaY: 34),
-              child: Artwork(url: album.artworkUrl, borderRadius: 0),
-            ),
+            child: Artwork(url: album.artworkUrl, borderRadius: 0),
           ),
-          // Voile léger pour asseoir le contenu (adapté clair/sombre).
-          DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  scheme.surface.withValues(alpha: 0.10),
-                  scheme.surface.withValues(alpha: 0.30),
-                ],
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            height: topInset + 70,
+            child: const DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Color(0x33000000), Color(0x00000000)],
+                ),
               ),
             ),
           ),
@@ -200,84 +198,59 @@ class _AlbumHeader extends StatelessWidget {
           Positioned(
             left: 20,
             right: 20,
-            bottom: 8,
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
+            bottom: 12,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                DecoratedBox(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(18),
-                    boxShadow: const [
-                      BoxShadow(
-                        color: Color(0x59141932),
-                        blurRadius: 34,
-                        offset: Offset(0, 16),
-                      ),
-                    ],
-                  ),
-                  child: Artwork(
-                    url: album.artworkUrl,
-                    size: 132,
-                    borderRadius: 18,
+                Text(
+                  album.name,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 32,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.8,
+                    height: 1.04,
                   ),
                 ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        album.name,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: -0.6,
-                          height: 1.06,
-                        ),
-                      ),
-                      if (album.artistName != null)
-                        InkWell(
-                          onTap: album.artistId != null
-                              ? () => context.push('/artist/${album.artistId}')
-                              : null,
-                          child: Padding(
-                            padding: const EdgeInsets.only(top: 6),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Flexible(
-                                  child: Text(
-                                    album.artistName!,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w700,
-                                      color: scheme.primary,
-                                    ),
-                                  ),
-                                ),
-                                Icon(Icons.chevron_right,
-                                    size: 18, color: scheme.primary),
-                              ],
+                if (album.artistName != null)
+                  InkWell(
+                    onTap: album.artistId != null
+                        ? () => context.push('/artist/${album.artistId}')
+                        : null,
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 6),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Flexible(
+                            child: Text(
+                              album.artistName!,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 14.5,
+                                fontWeight: FontWeight.w700,
+                                color: scheme.primary,
+                              ),
                             ),
                           ),
-                        ),
-                      Text(
-                        [
-                          if (album.year != null) '${album.year}',
-                          '$songCount titre${songCount > 1 ? 's' : ''}',
-                        ].join(' · '),
-                        style: TextStyle(
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w600,
-                          color: scheme.onSurfaceVariant,
-                        ),
+                          Icon(Icons.chevron_right,
+                              size: 18, color: scheme.primary),
+                        ],
                       ),
-                    ],
+                    ),
+                  ),
+                Text(
+                  [
+                    if (album.year != null) '${album.year}',
+                    '$songCount titre${songCount > 1 ? 's' : ''}',
+                  ].join(' · '),
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: scheme.onSurfaceVariant,
                   ),
                 ),
               ],
