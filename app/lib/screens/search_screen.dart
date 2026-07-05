@@ -26,9 +26,17 @@ class SearchScreen extends ConsumerStatefulWidget {
   ConsumerState<SearchScreen> createState() => _SearchScreenState();
 }
 
+/// Où chercher.
+enum _Source { library, youtube }
+
+/// Quoi chercher (le filtre disponible dépend de la source).
+enum _Kind { all, songs, albums, artists }
+
 class _SearchScreenState extends ConsumerState<SearchScreen> {
   Timer? _debounce;
   final _focusNode = FocusNode();
+  _Source _source = _Source.library;
+  _Kind _kind = _Kind.all;
   late final TextEditingController _controller =
       TextEditingController(text: ref.read(searchQueryProvider));
 
@@ -69,14 +77,17 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           .read(ytDownloadsRepositoryProvider)
           .resolveAlbum(album.browseId);
     } catch (e) {
-      if (mounted) Navigator.pop(context);
+      // Le dialogue vit sur le navigateur RACINE; le fermer via le
+      // navigateur de l'onglet dépilait l'écran de recherche lui-même
+      // (« tout disparaît, juste le fond »).
+      if (mounted) Navigator.of(context, rootNavigator: true).pop();
       messenger.showSnackBar(
         SnackBar(content: Text("Impossible de résoudre l'album : $e")),
       );
       return;
     }
     if (!mounted) return;
-    Navigator.pop(context);
+    Navigator.of(context, rootNavigator: true).pop();
 
     final ok = await showDialog<bool>(
       context: context,
@@ -281,22 +292,76 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 ),
               )
             else ...[
-              const SectionTitle(
-                'Ma bibliothèque',
-                padding: EdgeInsets.fromLTRB(20, 10, 20, 4),
+              // Où chercher : bibliothèque locale ou YouTube Music.
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 6, 20, 6),
+                child: SegmentedButton<_Source>(
+                  segments: const [
+                    ButtonSegment(
+                      value: _Source.library,
+                      icon: Icon(Icons.library_music_rounded, size: 20),
+                      label: Text('Ma bibliothèque'),
+                    ),
+                    ButtonSegment(
+                      value: _Source.youtube,
+                      icon: Icon(Icons.play_circle_outline, size: 20),
+                      label: Text('YouTube'),
+                    ),
+                  ],
+                  selected: {_source},
+                  showSelectedIcon: false,
+                  onSelectionChanged: (s) => setState(() {
+                    _source = s.first;
+                    _kind = _Kind.all; // réinitialise le type au changement
+                  }),
+                ),
               ),
-              ..._localResults(),
-              const SectionTitle(
-                'YouTube Music',
-                padding: EdgeInsets.fromLTRB(20, 14, 20, 4),
+              // Quoi chercher : puces de type (dépend de la source).
+              SizedBox(
+                height: 42,
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  children: [
+                    for (final k in _kindsFor(_source))
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        child: ChoiceChip(
+                          label: Text(_kindLabel(k)),
+                          selected: _kind == k,
+                          onSelected: (_) => setState(() => _kind = k),
+                        ),
+                      ),
+                  ],
+                ),
               ),
-              ..._ytResults(query.trim()),
+              const SizedBox(height: 4),
+              if (_source == _Source.library)
+                ..._localResults()
+              else
+                ..._ytResults(query.trim()),
             ],
           ],
         ),
       ),
     );
   }
+
+  // Types disponibles selon la source (YouTube n'a pas d'artistes).
+  List<_Kind> _kindsFor(_Source s) => s == _Source.library
+      ? const [_Kind.all, _Kind.songs, _Kind.albums, _Kind.artists]
+      : const [_Kind.all, _Kind.songs, _Kind.albums];
+
+  String _kindLabel(_Kind k) => switch (k) {
+        _Kind.all => 'Tout',
+        _Kind.songs => 'Titres',
+        _Kind.albums => 'Albums',
+        _Kind.artists => 'Artistes',
+      };
+
+  bool get _showArtists => _kind == _Kind.all || _kind == _Kind.artists;
+  bool get _showAlbums => _kind == _Kind.all || _kind == _Kind.albums;
+  bool get _showSongs => _kind == _Kind.all || _kind == _Kind.songs;
 
   // ─────────────── Résultats « Ma bibliothèque » ───────────────
 
@@ -310,6 +375,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           return const [_MessageRow('Aucun résultat dans votre bibliothèque')];
         }
         return [
+          if (_showArtists)
           for (final artist in r.artists)
             _ResultRow(
               artwork: Artwork(
@@ -324,6 +390,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                   const Icon(Icons.chevron_right, color: Color(0xFFB6BAC1)),
               onTap: () => context.push('/artist/${artist.id}'),
             ),
+          if (_showAlbums)
           for (final album in r.albums)
             _ResultRow(
               artwork:
@@ -334,6 +401,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                   const Icon(Icons.chevron_right, color: Color(0xFFB6BAC1)),
               onTap: () => context.push('/album/${album.id}'),
             ),
+          if (_showSongs)
           for (final (i, song) in r.songs.indexed)
             SongTile(
               song: song,
@@ -412,10 +480,14 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       ],
     );
 
-    if (albumRows.isEmpty && songRows.isEmpty) {
+    final rows = [
+      if (_showSongs) ...songRows,
+      if (_showAlbums) ...albumRows,
+    ];
+    if (rows.isEmpty) {
       return const [_MessageRow('Aucun résultat sur YouTube Music')];
     }
-    return [...songRows, ...albumRows];
+    return rows;
   }
 }
 
