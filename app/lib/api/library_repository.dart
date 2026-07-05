@@ -303,4 +303,24 @@ class LibraryRepository {
       songs: _list(data['songs'], _song),
     );
   }
+
+  // ─────────────── Suppression définitive (fichiers + base) ───────────────
+
+  Future<void> deleteSongs(List<int> songIds) => _client.post(
+        'library.php',
+        query: {'action': 'delete_songs'},
+        body: {'song_ids': songIds},
+      );
+
+  Future<void> deleteAlbum(int albumId) => _client.post(
+        'library.php',
+        query: {'action': 'delete_album'},
+        form: {'album_id': albumId},
+      );
+
+  Future<void> deleteArtist(int artistId) => _client.post(
+        'library.php',
+        query: {'action': 'delete_artist'},
+        form: {'artist_id': artistId},
+      );
 }

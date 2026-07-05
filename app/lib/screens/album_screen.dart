@@ -34,7 +34,11 @@ class AlbumScreen extends ConsumerWidget {
         data: (d) => ListView(
           padding: const EdgeInsets.only(bottom: 24),
           children: [
-            _AlbumHeader(album: d.album, songCount: d.songs.length),
+            _AlbumHeader(
+              album: d.album,
+              songCount: d.songs.length,
+              onMenu: () => _albumMenu(context, ref, d.album),
+            ),
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 8, 20, 6),
               child: Row(
@@ -141,13 +145,65 @@ class _DownloadAlbumButtonState extends ConsumerState<_DownloadAlbumButton> {
   }
 }
 
+/// Menu d'un album : suppression définitive (fichiers + base).
+void _albumMenu(BuildContext context, WidgetRef ref, Album album) {
+  showModalBottomSheet<void>(
+    context: context,
+    builder: (sheetContext) => SafeArea(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ListTile(
+            leading: Icon(Icons.delete_outline,
+                color: Theme.of(sheetContext).colorScheme.error),
+            title: Text(
+              "Supprimer l'album",
+              style:
+                  TextStyle(color: Theme.of(sheetContext).colorScheme.error),
+            ),
+            subtitle: const Text('Tous ses titres'),
+            onTap: () async {
+              final messenger = ScaffoldMessenger.of(context);
+              Navigator.pop(sheetContext);
+              final ok = await confirmDelete(
+                context,
+                'Supprimer « ${album.name} » ?',
+                'Tous les titres de cet album seront effacés du serveur. '
+                    'Action irréversible.',
+              );
+              if (ok != true) return;
+              try {
+                await ref.read(libraryRepositoryProvider).deleteAlbum(album.id);
+                invalidateLibrary(ref);
+                if (context.mounted) {
+                  context.pop();
+                  messenger.showSnackBar(
+                    SnackBar(content: Text('« ${album.name} » supprimé')),
+                  );
+                }
+              } catch (e) {
+                messenger.showSnackBar(SnackBar(content: Text('Échec : $e')));
+              }
+            },
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
 /// En-tête d'album immersif : pochette floutée plein cadre qui se dissout
 /// dans le fond de l'app, pochette nette + titre + artiste en surimpression.
 class _AlbumHeader extends StatelessWidget {
-  const _AlbumHeader({required this.album, required this.songCount});
+  const _AlbumHeader({
+    required this.album,
+    required this.songCount,
+    required this.onMenu,
+  });
 
   final Album album;
   final int songCount;
+  final VoidCallback onMenu;
 
   @override
   Widget build(BuildContext context) {
@@ -193,6 +249,15 @@ class _AlbumHeader extends StatelessWidget {
               icon: Icons.chevron_left,
               tooltip: 'Retour',
               onPressed: () => context.pop(),
+            ),
+          ),
+          Positioned(
+            right: 14,
+            top: topInset + 8,
+            child: GlassIconButton(
+              icon: Icons.more_vert,
+              tooltip: 'Options',
+              onPressed: onMenu,
             ),
           ),
           Positioned(

@@ -38,6 +38,7 @@ class ArtistScreen extends ConsumerWidget {
               imageUrl: d.artist.imageUrl,
               name: d.artist.name,
               albumCount: d.albums.length,
+              onMenu: () => _artistMenu(context, ref, d),
             ),
             const SizedBox(height: 16),
             _ArtistPlayBar(detail: d),
@@ -464,6 +465,55 @@ class _ArtistPlayBarState extends ConsumerState<_ArtistPlayBar> {
   }
 }
 
+/// Menu d'un artiste : suppression définitive (fichiers + base).
+void _artistMenu(BuildContext context, WidgetRef ref, ArtistDetail d) {
+  showModalBottomSheet<void>(
+    context: context,
+    builder: (sheetContext) => SafeArea(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ListTile(
+            leading: Icon(Icons.delete_outline,
+                color: Theme.of(sheetContext).colorScheme.error),
+            title: Text(
+              "Supprimer l'artiste",
+              style:
+                  TextStyle(color: Theme.of(sheetContext).colorScheme.error),
+            ),
+            subtitle: const Text('Tous ses albums et titres'),
+            onTap: () async {
+              final messenger = ScaffoldMessenger.of(context);
+              Navigator.pop(sheetContext);
+              final ok = await confirmDelete(
+                context,
+                'Supprimer « ${d.artist.name} » ?',
+                'Tous les albums et titres de cet artiste seront effacés du '
+                    'serveur. Action irréversible.',
+              );
+              if (ok != true) return;
+              try {
+                await ref
+                    .read(libraryRepositoryProvider)
+                    .deleteArtist(d.artist.id);
+                invalidateLibrary(ref);
+                if (context.mounted) {
+                  context.go('/library');
+                  messenger.showSnackBar(
+                    SnackBar(content: Text('« ${d.artist.name} » supprimé')),
+                  );
+                }
+              } catch (e) {
+                messenger.showSnackBar(SnackBar(content: Text('Échec : $e')));
+              }
+            },
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
 /// En-tête d'artiste : image plein cadre qui se fond dans le fond de l'app,
 /// nom en surimpression bas-gauche, bouton retour en verre.
 class _ArtistHeader extends StatelessWidget {
@@ -471,11 +521,13 @@ class _ArtistHeader extends StatelessWidget {
     required this.imageUrl,
     required this.name,
     required this.albumCount,
+    required this.onMenu,
   });
 
   final String? imageUrl;
   final String name;
   final int albumCount;
+  final VoidCallback onMenu;
 
   @override
   Widget build(BuildContext context) {
@@ -523,6 +575,15 @@ class _ArtistHeader extends StatelessWidget {
               icon: Icons.chevron_left,
               tooltip: 'Retour',
               onPressed: () => context.pop(),
+            ),
+          ),
+          Positioned(
+            right: 14,
+            top: topInset + 8,
+            child: GlassIconButton(
+              icon: Icons.more_vert,
+              tooltip: 'Options',
+              onPressed: onMenu,
             ),
           ),
           Positioned(

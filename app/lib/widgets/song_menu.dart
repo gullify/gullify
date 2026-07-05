@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../models/song.dart';
 import '../state/favorites.dart';
+import '../state/library.dart';
 import '../state/offline.dart';
 import '../state/player.dart';
 import '../state/playlists.dart';
@@ -128,12 +129,82 @@ Future<void> showSongMenu(BuildContext context, Song song) {
                     context.push('/artist/${song.artistId}');
                   },
                 ),
+              const Divider(height: 1),
+              ListTile(
+                leading: Icon(Icons.delete_outline,
+                    color: Theme.of(context).colorScheme.error),
+                title: Text(
+                  'Supprimer définitivement',
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
+                onTap: () async {
+                  final messenger = ScaffoldMessenger.of(context);
+                  Navigator.pop(context);
+                  final ok = await confirmDelete(
+                    context,
+                    'Supprimer « ${song.title} » ?',
+                    'Le fichier et ses données seront effacés du serveur. '
+                        'Action irréversible.',
+                  );
+                  if (ok != true) return;
+                  try {
+                    await ref
+                        .read(libraryRepositoryProvider)
+                        .deleteSongs([song.id]);
+                    invalidateLibrary(ref);
+                    messenger.showSnackBar(
+                      SnackBar(content: Text('« ${song.title} » supprimé')),
+                    );
+                  } catch (e) {
+                    messenger.showSnackBar(
+                      SnackBar(content: Text('Échec : $e')),
+                    );
+                  }
+                },
+              ),
             ],
           ),
         );
       },
     ),
   );
+}
+
+/// Confirmation destructive réutilisable (rouge).
+Future<bool?> confirmDelete(
+  BuildContext context,
+  String title,
+  String message,
+) =>
+    showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(title),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Annuler'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Supprimer'),
+          ),
+        ],
+      ),
+    );
+
+/// Rafraîchit les listes après une suppression.
+void invalidateLibrary(WidgetRef ref) {
+  ref.invalidate(artistsProvider);
+  ref.invalidate(albumsProvider);
+  ref.invalidate(recentAlbumsProvider);
+  ref.invalidate(popularSongsProvider);
+  ref.invalidate(allFavoritesProvider);
+  ref.invalidate(favoriteIdsProvider);
 }
 
 Future<void> _showPlaylistPicker(BuildContext context, Song song) {
