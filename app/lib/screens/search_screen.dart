@@ -28,6 +28,7 @@ class SearchScreen extends ConsumerStatefulWidget {
 
 class _SearchScreenState extends ConsumerState<SearchScreen> {
   Timer? _debounce;
+  final _focusNode = FocusNode();
   late final TextEditingController _controller =
       TextEditingController(text: ref.read(searchQueryProvider));
 
@@ -35,6 +36,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   void dispose() {
     _debounce?.cancel();
     _controller.dispose();
+    _focusNode.dispose();
     super.dispose();
   }
 
@@ -202,6 +204,13 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     final query = ref.watch(searchQueryProvider);
     final hasQuery = query.trim().isNotEmpty;
 
+    // Focus demandé depuis la barre de l'accueil : ouvre le clavier direct.
+    ref.listen(searchFocusRequestProvider, (_, _) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _focusNode.requestFocus();
+      });
+    });
+
     return Scaffold(
       body: SafeArea(
         bottom: false,
@@ -238,6 +247,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               padding: const EdgeInsets.fromLTRB(20, 10, 20, 8),
               child: _SearchField(
                 controller: _controller,
+                focusNode: _focusNode,
                 hasQuery: hasQuery,
                 onChanged: _onChanged,
                 onClear: _clear,
@@ -414,12 +424,14 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 class _SearchField extends StatelessWidget {
   const _SearchField({
     required this.controller,
+    required this.focusNode,
     required this.hasQuery,
     required this.onChanged,
     required this.onClear,
   });
 
   final TextEditingController controller;
+  final FocusNode focusNode;
   final bool hasQuery;
   final ValueChanged<String> onChanged;
   final VoidCallback onClear;
@@ -439,6 +451,7 @@ class _SearchField extends StatelessWidget {
             Expanded(
               child: TextField(
                 controller: controller,
+                focusNode: focusNode,
                 onChanged: onChanged,
                 style: const TextStyle(
                   fontSize: 15,

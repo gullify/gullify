@@ -480,21 +480,25 @@ class _ArtistHeader extends StatelessWidget {
     final topInset = MediaQuery.paddingOf(context).top;
 
     return SizedBox(
-      height: 340,
+      height: 460,
       child: Stack(
         fit: StackFit.expand,
         children: [
           Artwork(url: imageUrl, borderRadius: 0, icon: Icons.person),
-          // Fondu vers le fond de l'app (bas) et voile haut pour le bouton.
+          // Fondu long et progressif vers le fond de l'app : plusieurs
+          // paliers pour éviter la « coupure » nette. Léger voile en haut
+          // pour la lisibilité du bouton retour.
           DecoratedBox(
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
-                stops: const [0, 0.45, 1],
+                stops: const [0, 0.30, 0.62, 0.82, 1],
                 colors: [
-                  Colors.black.withValues(alpha: 0.28),
+                  Colors.black.withValues(alpha: 0.22),
                   bg.withValues(alpha: 0),
+                  bg.withValues(alpha: 0.35),
+                  bg.withValues(alpha: 0.80),
                   bg,
                 ],
               ),

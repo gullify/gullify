@@ -12,6 +12,7 @@ import 'screens/login_screen.dart';
 import 'screens/notifications_screen.dart';
 import 'screens/now_playing_screen.dart';
 import 'screens/playlist_screen.dart';
+import 'screens/popular_screen.dart';
 import 'screens/radio_screen.dart';
 import 'screens/search_screen.dart';
 import 'screens/server_screen.dart';
@@ -105,6 +106,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/stats',
         builder: (_, _) => const StatsScreen(),
+      ),
+      GoRoute(
+        path: '/popular',
+        builder: (_, _) => const PopularScreen(),
       ),
     ],
     redirect: (context, state) {

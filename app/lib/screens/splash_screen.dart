@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 
-/// Écran d'ouverture : identique à l'écran de lancement natif (mascotte sur
-/// fond perle) pour une transition sans rupture — pas d'animation qui
-/// donnerait l'impression d'un deuxième écran.
+/// Écran d'ouverture Flutter : volontairement minimal. L'écran de lancement
+/// natif (mascotte sur perle) fait déjà l'accueil de marque; ici on ne
+/// montre qu'un léger indicateur sur le même fond, le temps de restaurer la
+/// session — pas un « deuxième splash ».
 class SplashScreen extends StatelessWidget {
   const SplashScreen({super.key});
 
@@ -11,20 +12,13 @@ class SplashScreen extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     return Scaffold(
       body: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Image.asset('assets/icon/mascot.png', width: 132),
-            const SizedBox(height: 24),
-            SizedBox(
-              width: 22,
-              height: 22,
-              child: CircularProgressIndicator(
-                strokeWidth: 2.4,
-                color: scheme.primary,
-              ),
-            ),
-          ],
+        child: SizedBox(
+          width: 24,
+          height: 24,
+          child: CircularProgressIndicator(
+            strokeWidth: 2.4,
+            color: scheme.primary,
+          ),
         ),
       ),
     );

@@ -110,7 +110,10 @@ class HomeScreen extends ConsumerWidget {
                   blur: false,
                   child: InkWell(
                     borderRadius: BorderRadius.circular(16),
-                    onTap: () => context.go('/search'),
+                    onTap: () {
+                      ref.read(searchFocusRequestProvider.notifier).request();
+                      context.go('/search');
+                    },
                     child: Padding(
                       padding:
                           const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
@@ -175,13 +178,14 @@ class HomeScreen extends ConsumerWidget {
                 ),
               ),
               // Les plus populaires — masqué tant qu'il n'y a pas d'écoutes.
+              // Titre cliquable → liste complète.
               ...popular.maybeWhen(
                 data: (songs) => songs.isEmpty
                     ? const <Widget>[]
                     : [
-                        const SectionTitle(
-                          'Les plus populaires',
-                          padding: EdgeInsets.fromLTRB(20, 8, 20, 4),
+                        _SectionHeaderLink(
+                          title: 'Les plus populaires',
+                          onTap: () => context.push('/popular'),
                         ),
                         for (final (i, song) in songs.take(5).indexed)
                           SongTile(
@@ -195,7 +199,7 @@ class HomeScreen extends ConsumerWidget {
                 orElse: () => const <Widget>[],
               ),
               // Derniers joués (historique des stats — pas de lecture
-              // directe : ces données n'ont pas de filePath).
+              // directe : ces données n'ont pas de filePath). 5 + « Voir tout ».
               ...stats.maybeWhen(
                 data: (s) => s.recentPlays.isEmpty
                     ? const <Widget>[]
@@ -204,7 +208,10 @@ class HomeScreen extends ConsumerWidget {
                           'Derniers joués',
                           padding: EdgeInsets.fromLTRB(20, 14, 20, 4),
                         ),
-                        for (final p in s.recentPlays) _RecentPlayRow(p: p),
+                        for (final p in s.recentPlays.take(5))
+                          _RecentPlayRow(p: p),
+                        if (s.recentPlays.length > 5)
+                          _ShowMoreTile(onTap: () => context.push('/stats')),
                       ],
                 orElse: () => const <Widget>[],
               ),
@@ -353,6 +360,70 @@ class _RecentPlayRow extends StatelessWidget {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// En-tête de section cliquable (titre + chevron) menant à une vue complète.
+class _SectionHeaderLink extends StatelessWidget {
+  const _SectionHeaderLink({required this.title, required this.onTap});
+
+  final String title;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 8, 16, 4),
+        child: Row(
+          children: [
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 16.5,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(width: 4),
+            Icon(Icons.chevron_right, size: 22, color: scheme.onSurfaceVariant),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Tuile « Voir tout » en bas d'une liste tronquée.
+class _ShowMoreTile extends StatelessWidget {
+  const _ShowMoreTile({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 6, 20, 6),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              'Voir tout',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: scheme.primary,
+              ),
+            ),
+            Icon(Icons.expand_more, size: 20, color: scheme.primary),
+          ],
         ),
       ),
     );

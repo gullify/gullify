@@ -55,6 +55,19 @@ final searchQueryProvider = NotifierProvider<SearchQuery, String>(
   SearchQuery.new,
 );
 
+/// Compteur de « demandes de focus » sur le champ de recherche : la barre
+/// de l'accueil l'incrémente avant d'aller à l'onglet Recherche, qui met
+/// alors le clavier directement (pas de second tap).
+class SearchFocusRequest extends Notifier<int> {
+  @override
+  int build() => 0;
+
+  void request() => state = state + 1;
+}
+
+final searchFocusRequestProvider =
+    NotifierProvider<SearchFocusRequest, int>(SearchFocusRequest.new);
+
 final lyricsProvider = FutureProvider.family<String?, String>(
   (ref, filePath) => ref.watch(libraryRepositoryProvider).lyrics(filePath),
 );
