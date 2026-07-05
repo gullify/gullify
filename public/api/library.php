@@ -820,6 +820,30 @@ try {
             ];
         }
 
+    } elseif ($action === 'set_artist_genre') {
+        // Définit le genre d'un artiste et le propage à tous ses albums, pour
+        // rester cohérent avec le filtre par genre (basé sur albums.genre).
+        $artistId = (int)($_POST['artist_id'] ?? $_GET['artist_id'] ?? 0);
+        $genre    = trim((string)($_POST['genre'] ?? $_GET['genre'] ?? ''));
+        if (!$artistId) {
+            $response['error']   = true;
+            $response['message'] = 'artist_id required';
+        } else {
+            $stmt = $conn->prepare('SELECT id FROM artists WHERE id = ? AND user = ?');
+            $stmt->execute([$artistId, $user]);
+            if (!$stmt->fetch()) {
+                $response['error']   = true;
+                $response['message'] = 'Artist not found or access denied';
+            } else {
+                $g = $genre === '' ? null : mb_substr($genre, 0, 100);
+                $conn->prepare('UPDATE artists SET genre = ? WHERE id = ? AND user = ?')
+                     ->execute([$g, $artistId, $user]);
+                $conn->prepare('UPDATE albums SET genre = ? WHERE artist_id = ?')
+                     ->execute([$g, $artistId]);
+                $response['data'] = ['artist_id' => $artistId, 'genre' => $g];
+            }
+        }
+
     } elseif ($action === 'get_favorites') {
         // Returns [{id: songId}] — format expected by ui.js loadInitialData
         $stmt = $conn->prepare('SELECT song_id FROM favorites WHERE user = ?');

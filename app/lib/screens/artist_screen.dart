@@ -474,6 +474,18 @@ void _artistMenu(BuildContext context, WidgetRef ref, ArtistDetail d) {
         mainAxisSize: MainAxisSize.min,
         children: [
           ListTile(
+            leading: const Icon(Icons.label_outline),
+            title: const Text('Définir le genre'),
+            subtitle: d.artist.genre != null && d.artist.genre!.isNotEmpty
+                ? Text(d.artist.genre!)
+                : null,
+            onTap: () {
+              Navigator.pop(sheetContext);
+              _setGenreDialog(context, ref, d.artist.id, d.artist.genre);
+            },
+          ),
+          const Divider(height: 1),
+          ListTile(
             leading: Icon(Icons.delete_outline,
                 color: Theme.of(sheetContext).colorScheme.error),
             title: Text(
@@ -510,6 +522,82 @@ void _artistMenu(BuildContext context, WidgetRef ref, ArtistDetail d) {
           ),
         ],
       ),
+    ),
+  );
+}
+
+/// Dialogue « Définir le genre » : champ libre + suggestions des genres
+/// déjà présents dans la bibliothèque.
+void _setGenreDialog(
+  BuildContext context,
+  WidgetRef ref,
+  int artistId,
+  String? current,
+) {
+  final controller = TextEditingController(text: current ?? '');
+  showDialog<void>(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      title: const Text('Genre de l\'artiste'),
+      content: Consumer(
+        builder: (context, ref, _) {
+          final genres = ref.watch(genresProvider).value ?? [];
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextField(
+                controller: controller,
+                autofocus: true,
+                decoration: const InputDecoration(
+                  labelText: 'Genre',
+                  hintText: 'Ex. Rock, Jazz, Folk…',
+                ),
+              ),
+              if (genres.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    for (final g in genres.take(12))
+                      ActionChip(
+                        label: Text(g.name),
+                        onPressed: () => controller.text = g.name,
+                      ),
+                  ],
+                ),
+              ],
+            ],
+          );
+        },
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(dialogContext),
+          child: const Text('Annuler'),
+        ),
+        FilledButton(
+          onPressed: () async {
+            final messenger = ScaffoldMessenger.of(context);
+            Navigator.pop(dialogContext);
+            try {
+              await ref
+                  .read(libraryRepositoryProvider)
+                  .setArtistGenre(artistId, controller.text.trim());
+              ref.invalidate(artistDetailProvider(artistId));
+              ref.invalidate(genresProvider);
+              ref.invalidate(artistsProvider);
+              messenger.showSnackBar(
+                const SnackBar(content: Text('Genre mis à jour')),
+              );
+            } catch (e) {
+              messenger.showSnackBar(SnackBar(content: Text('Échec : $e')));
+            }
+          },
+          child: const Text('Enregistrer'),
+        ),
+      ],
     ),
   );
 }

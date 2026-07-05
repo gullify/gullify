@@ -173,24 +173,70 @@ class _SegmentButton extends StatelessWidget {
 
 // ───────────────────────── Vue Artistes ─────────────────────────
 
-class _ArtistsView extends ConsumerWidget {
+class _ArtistsView extends ConsumerStatefulWidget {
   const _ArtistsView();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final artists = ref.watch(artistsProvider);
-    return artists.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e, _) => Center(child: Text('Erreur: $e')),
-      data: (list) => AlphaGrid<Artist>(
-        items: list,
-        nameOf: (a) => a.name,
-        hintText: 'Filtrer les artistes…',
-        trailing: const ShuffleLibraryButton(),
-        rowExtent: 72,
-        onRefresh: () => ref.refresh(artistsProvider.future),
-        itemBuilder: (context, artist) => _ArtistRow(artist: artist),
-      ),
+  ConsumerState<_ArtistsView> createState() => _ArtistsViewState();
+}
+
+class _ArtistsViewState extends ConsumerState<_ArtistsView> {
+  String? _genre; // null = tous
+
+  @override
+  Widget build(BuildContext context) {
+    final genres = ref.watch(genresProvider).value ?? [];
+    final artists = _genre == null
+        ? ref.watch(artistsProvider)
+        : ref.watch(artistsByGenreProvider(_genre!));
+
+    return Column(
+      children: [
+        if (genres.isNotEmpty)
+          SizedBox(
+            height: 44,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 3),
+                  child: ChoiceChip(
+                    label: const Text('Tous'),
+                    selected: _genre == null,
+                    onSelected: (_) => setState(() => _genre = null),
+                  ),
+                ),
+                for (final g in genres)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 3),
+                    child: ChoiceChip(
+                      label: Text('${g.name} (${g.artistCount})'),
+                      selected: _genre == g.name,
+                      onSelected: (_) => setState(() => _genre = g.name),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        Expanded(
+          child: artists.when(
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (e, _) => Center(child: Text('Erreur: $e')),
+            data: (list) => AlphaGrid<Artist>(
+              items: list,
+              nameOf: (a) => a.name,
+              hintText: 'Filtrer les artistes…',
+              trailing: const ShuffleLibraryButton(),
+              rowExtent: 72,
+              onRefresh: () => _genre == null
+                  ? ref.refresh(artistsProvider.future)
+                  : ref.refresh(artistsByGenreProvider(_genre!).future),
+              itemBuilder: (context, artist) => _ArtistRow(artist: artist),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

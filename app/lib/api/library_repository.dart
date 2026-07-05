@@ -323,4 +323,42 @@ class LibraryRepository {
         query: {'action': 'delete_artist'},
         form: {'artist_id': artistId},
       );
+
+  // ─────────────── Genres ───────────────
+
+  /// Définit le genre d'un artiste (propagé à ses albums côté serveur).
+  Future<void> setArtistGenre(int artistId, String genre) => _client.post(
+        'library.php',
+        query: {'action': 'set_artist_genre'},
+        form: {'artist_id': artistId, 'genre': genre},
+      );
+
+  /// Liste des genres présents dans la bibliothèque (nom + nb d'artistes).
+  Future<List<GenreCount>> genres() async {
+    final data = await _client.get('library.php', query: {
+      'action': 'get_genres',
+    }) as Map<String, dynamic>;
+    return _list(
+      data['genres'],
+      (j) => GenreCount(
+        j['name'] as String? ?? '',
+        (j['artistCount'] as num?)?.toInt() ?? 0,
+      ),
+    );
+  }
+
+  Future<List<Artist>> artistsByGenre(String genre) async {
+    final data = await _client.get('library.php', query: {
+      'action': 'get_artists_by_genre',
+      'genre': genre,
+    }) as Map<String, dynamic>;
+    return _list(data['artists'], _artist);
+  }
+}
+
+/// Un genre et le nombre d'artistes qui le portent.
+class GenreCount {
+  const GenreCount(this.name, this.artistCount);
+  final String name;
+  final int artistCount;
 }

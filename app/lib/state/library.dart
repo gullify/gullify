@@ -14,6 +14,16 @@ final artistsProvider = FutureProvider<List<Artist>>(
   (ref) => ref.watch(libraryRepositoryProvider).artists(),
 );
 
+/// Genres présents dans la bibliothèque (pour le filtre).
+final genresProvider = FutureProvider<List<GenreCount>>(
+  (ref) => ref.watch(libraryRepositoryProvider).genres(),
+);
+
+/// Artistes d'un genre donné.
+final artistsByGenreProvider = FutureProvider.family<List<Artist>, String>(
+  (ref, genre) => ref.watch(libraryRepositoryProvider).artistsByGenre(genre),
+);
+
 final albumsProvider = FutureProvider<List<Album>>(
   (ref) => ref.watch(libraryRepositoryProvider).albums(),
 );
