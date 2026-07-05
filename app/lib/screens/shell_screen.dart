@@ -234,37 +234,31 @@ class _Satellite extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Icône centrée verticalement; l'état actif = pastille de verre
+    // accent derrière l'icône (pas de point qui déséquilibre l'alignement).
     return Tooltip(
       message: dest.tooltip,
       child: InkResponse(
         onTap: onTap,
         radius: 34,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            AnimatedScale(
-              duration: const Duration(milliseconds: 200),
-              curve: Curves.easeOutCubic,
-              scale: selected ? 1.12 : 1.0,
-              child: Icon(
-                selected ? dest.iconOn : dest.iconOff,
-                size: 25,
-                color: selected ? scheme.primary : scheme.onSurfaceVariant,
-              ),
+        child: Center(
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeOutCubic,
+            width: 46,
+            height: 40,
+            decoration: BoxDecoration(
+              color: selected
+                  ? scheme.primary.withValues(alpha: 0.16)
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(14),
             ),
-            const SizedBox(height: 5),
-            // Point indicateur animé sous l'onglet actif.
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 220),
-              curve: Curves.easeOut,
-              width: selected ? 6 : 0,
-              height: 6,
-              decoration: BoxDecoration(
-                color: scheme.primary,
-                shape: BoxShape.circle,
-              ),
+            child: Icon(
+              selected ? dest.iconOn : dest.iconOff,
+              size: 25,
+              color: selected ? scheme.primary : scheme.onSurfaceVariant,
             ),
-          ],
+          ),
         ),
       ),
     );

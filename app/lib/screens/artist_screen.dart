@@ -429,31 +429,35 @@ class _ArtistPlayBarState extends ConsumerState<_ArtistPlayBar> {
   @override
   Widget build(BuildContext context) {
     if (widget.detail.albums.isEmpty) return const SizedBox.shrink();
+    // Rangée d'action alignée : « Tout lire » pleine largeur + aléatoire.
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+      padding: const EdgeInsets.fromLTRB(20, 4, 20, 4),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
         children: [
+          Expanded(
+            child: _busy
+                ? const SizedBox(
+                    height: 52,
+                    child: Center(
+                      child: SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    ),
+                  )
+                : AccentPlayButton(
+                    label: 'Tout lire',
+                    onPressed: () => _playAll(shuffle: false),
+                  ),
+          ),
+          const SizedBox(width: 12),
           GlassIconButton(
             icon: Icons.shuffle,
             tooltip: 'Tout lire aléatoirement',
-            size: 48,
+            size: 52,
             onPressed: _busy ? null : () => _playAll(shuffle: true),
           ),
-          const SizedBox(width: 12),
-          _busy
-              ? const SizedBox(
-                  width: 52,
-                  height: 52,
-                  child: Padding(
-                    padding: EdgeInsets.all(15),
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  ),
-                )
-              : AccentPlayButton(
-                  label: 'Tout lire',
-                  onPressed: () => _playAll(shuffle: false),
-                ),
         ],
       ),
     );
@@ -476,31 +480,39 @@ class _ArtistHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final bg = scheme.surface;
     final topInset = MediaQuery.paddingOf(context).top;
 
     return SizedBox(
-      height: 460,
+      height: 440,
       child: Stack(
         fit: StackFit.expand,
         children: [
-          Artwork(url: imageUrl, borderRadius: 0, icon: Icons.person),
-          // Fondu long et progressif vers le fond de l'app : plusieurs
-          // paliers pour éviter la « coupure » nette. Léger voile en haut
-          // pour la lisibilité du bouton retour.
-          DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                stops: const [0, 0.30, 0.62, 0.82, 1],
-                colors: [
-                  Colors.black.withValues(alpha: 0.22),
-                  bg.withValues(alpha: 0),
-                  bg.withValues(alpha: 0.35),
-                  bg.withValues(alpha: 0.80),
-                  bg,
-                ],
+          // L'image se DISSOUT en transparence vers le bas (ShaderMask) :
+          // le vrai dégradé de fond de l'app transparaît en continu, sans
+          // couleur intermédiaire ni couture.
+          ShaderMask(
+            shaderCallback: (rect) => const LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              stops: [0.0, 0.5, 1.0],
+              colors: [Colors.white, Colors.white, Colors.transparent],
+            ).createShader(rect),
+            blendMode: BlendMode.dstIn,
+            child: Artwork(url: imageUrl, borderRadius: 0, icon: Icons.person),
+          ),
+          // Voile sombre discret en haut pour la lisibilité du bouton retour.
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            height: topInset + 70,
+            child: const DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Color(0x33000000), Color(0x00000000)],
+                ),
               ),
             ),
           ),
