@@ -2,7 +2,7 @@ import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:open_filex/open_filex.dart';
+import 'package:flutter/services.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
 
@@ -177,17 +177,17 @@ class AppUpdateNotifier extends Notifier<AppUpdateState> {
 
   /// (Re)lance l'installeur sur l'APK déjà téléchargé — utile si
   /// l'utilisateur a refusé la permission "sources inconnues" au 1er essai.
+  /// Canal natif maison (MainActivity) : FileProvider + intent ACTION_VIEW.
   Future<void> install() async {
     final path = state.apkPath;
     if (path == null) return;
-    final result = await OpenFilex.open(
-      path,
-      type: 'application/vnd.android.package-archive',
-    );
-    if (result.type != ResultType.done) {
+    try {
+      await const MethodChannel('gullify/installer')
+          .invokeMethod<bool>('installApk', {'path': path});
+    } catch (e) {
       state = state.copyWith(
         status: UpdateStatus.error,
-        message: "Impossible de lancer l'installation : ${result.message}",
+        message: "Impossible de lancer l'installation : $e",
       );
     }
   }
