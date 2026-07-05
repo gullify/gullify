@@ -6,6 +6,7 @@ import '../api/radio_repository.dart';
 import '../state/player.dart';
 import '../state/radio.dart';
 import '../widgets/artwork.dart';
+import '../widgets/glass_box.dart';
 import '../widgets/glass_kit.dart';
 import '../widgets/mascot_empty.dart';
 
@@ -22,6 +23,8 @@ class RadioScreen extends ConsumerStatefulWidget {
 class _RadioScreenState extends ConsumerState<RadioScreen> {
   bool _selecting = false;
   final Set<String> _selected = {};
+  String _search = '';
+  String? _genre; // null = tous les genres
 
   void _exitSelection() => setState(() {
         _selecting = false;
@@ -118,6 +121,13 @@ class _RadioScreenState extends ConsumerState<RadioScreen> {
     final stations = ref.watch(radioStationsProvider);
     final currentId = ref.watch(currentMediaItemProvider).value?.id;
 
+    // Genres distincts présents dans les stations (pour le filtre).
+    final allGenres = <String>{
+      for (final s in stations.value ?? const <RadioStation>[])
+        ...s.genres.where((g) => g.trim().isNotEmpty),
+    }.toList()
+      ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+
     return Scaffold(
       floatingActionButton: _selecting && _selected.isNotEmpty
           ? FloatingActionButton.extended(
@@ -180,6 +190,80 @@ class _RadioScreenState extends ConsumerState<RadioScreen> {
                   ],
                 ),
               ),
+              // Recherche par nom.
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 6),
+                child: GlassBox(
+                  radius: 16,
+                  blur: false,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 14),
+                    child: Row(
+                      children: [
+                        Icon(Icons.search,
+                            size: 22,
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onSurfaceVariant),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: TextField(
+                            onChanged: (v) => setState(() => _search = v),
+                            style: const TextStyle(
+                                fontSize: 15, fontWeight: FontWeight.w500),
+                            decoration: const InputDecoration(
+                              hintText: 'Rechercher une radio…',
+                              isDense: true,
+                              border: InputBorder.none,
+                              focusedBorder: InputBorder.none,
+                              contentPadding:
+                                  EdgeInsets.symmetric(vertical: 14),
+                            ),
+                          ),
+                        ),
+                        if (_search.isNotEmpty)
+                          GestureDetector(
+                            onTap: () => setState(() => _search = ''),
+                            child: Icon(Icons.close,
+                                size: 20,
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onSurfaceVariant),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              // Filtre par genre.
+              if (allGenres.isNotEmpty)
+                SizedBox(
+                  height: 42,
+                  child: ListView(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 3),
+                        child: ChoiceChip(
+                          label: const Text('Tous'),
+                          selected: _genre == null,
+                          onSelected: (_) => setState(() => _genre = null),
+                        ),
+                      ),
+                      for (final g in allGenres)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 3),
+                          child: ChoiceChip(
+                            label: Text(g),
+                            selected: _genre == g,
+                            onSelected: (_) => setState(() => _genre = g),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              const SizedBox(height: 4),
               ...stations.when(
                 loading: () => const [
                   Padding(
@@ -205,7 +289,24 @@ class _RadioScreenState extends ConsumerState<RadioScreen> {
                       ),
                     ];
                   }
-                  final sorted = [...list]
+                  final q = _search.trim().toLowerCase();
+                  final filtered = list.where((s) {
+                    final matchName =
+                        q.isEmpty || s.name.toLowerCase().contains(q);
+                    final matchGenre = _genre == null ||
+                        s.genres.any((g) =>
+                            g.toLowerCase() == _genre!.toLowerCase());
+                    return matchName && matchGenre;
+                  }).toList();
+                  if (filtered.isEmpty) {
+                    return const [
+                      Padding(
+                        padding: EdgeInsets.all(24),
+                        child: Center(child: Text('Aucune station trouvée')),
+                      ),
+                    ];
+                  }
+                  final sorted = [...filtered]
                     ..sort((a, b) {
                       if (a.favorite != b.favorite) {
                         return a.favorite ? -1 : 1;
