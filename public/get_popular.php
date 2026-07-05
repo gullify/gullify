@@ -14,7 +14,9 @@ try {
     $db = new Database();
     $conn = $db->getConnection();
 
-    // Check if song_stats has data
+    // « Populaires » = ce que tu écoutes RÉELLEMENT en ce moment : on classe
+    // par nombre d'écoutes récentes (play_history, 90 jours) et non par le
+    // compteur de toujours (song_stats), qu'un vieux pic gonflé dominait à vie.
     $stmt = $conn->prepare('
         SELECT
             s.id,
@@ -26,14 +28,16 @@ try {
             al.name as album_name,
             a.name as artist_name,
             a.id as artist_id,
-            ss.play_count,
-            ss.last_played_at
-        FROM song_stats ss
-        JOIN songs s ON ss.song_id = s.id
+            COUNT(ph.id) AS play_count,
+            MAX(ph.played_at) AS last_played_at
+        FROM play_history ph
+        JOIN songs s   ON ph.song_id = s.id
         JOIN albums al ON s.album_id = al.id
         JOIN artists a ON al.artist_id = a.id
-        WHERE a.user = ? AND ss.play_count > 0
-        ORDER BY ss.play_count DESC
+        WHERE a.user = ?
+          AND ph.played_at >= DATE_SUB(NOW(), INTERVAL 90 DAY)
+        GROUP BY s.id
+        ORDER BY play_count DESC, last_played_at DESC
         LIMIT ?
     ');
     $stmt->execute([$user, $limit]);

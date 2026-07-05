@@ -11,6 +11,7 @@ import '../state/player.dart';
 import '../state/stats.dart';
 import '../widgets/album_card.dart';
 import '../widgets/artwork.dart';
+import '../widgets/glass_box.dart';
 import '../widgets/glass_kit.dart';
 import '../widgets/song_menu.dart';
 import '../widgets/song_tile.dart';
@@ -99,6 +100,39 @@ class HomeScreen extends ConsumerWidget {
                       onPressed: () => context.push('/settings'),
                     ),
                   ],
+                ),
+              ),
+              // Recherche rapide : mène à l'onglet Recherche (local + YouTube).
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 2),
+                child: GlassBox(
+                  radius: 16,
+                  blur: false,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(16),
+                    onTap: () => context.go('/search'),
+                    child: Padding(
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+                      child: Row(
+                        children: [
+                          Icon(Icons.search, color: scheme.onSurfaceVariant),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              'Rechercher — ici ou sur YouTube',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: scheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                 ),
               ),
               // Nouveautés : titre + bouton aléatoire des nouveautés.

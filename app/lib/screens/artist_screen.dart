@@ -32,64 +32,12 @@ class ArtistScreen extends ConsumerWidget {
         data: (d) => ListView(
           padding: const EdgeInsets.only(bottom: 24),
           children: [
-            // Retour : rond de verre, comme le design (pas d'AppBar).
-            SafeArea(
-              bottom: false,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(14, 10, 20, 0),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: GlassIconButton(
-                    icon: Icons.chevron_left,
-                    tooltip: 'Retour',
-                    onPressed: () => context.pop(),
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 14),
-            Center(
-              child: DecoratedBox(
-                decoration: const BoxDecoration(
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: Color(0x59141932),
-                      blurRadius: 40,
-                      offset: Offset(0, 18),
-                    ),
-                  ],
-                ),
-                child: Artwork(
-                  url: d.artist.imageUrl,
-                  size: 118,
-                  borderRadius: 59,
-                  icon: Icons.person,
-                ),
-              ),
-            ),
-            const SizedBox(height: 14),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Text(
-                d.artist.name,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: 26,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.5,
-                ),
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              '${d.albums.length} album${d.albums.length > 1 ? 's' : ''}',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: scheme.onSurfaceVariant,
-              ),
+            // En-tête : image de l'artiste plein cadre, fondu vers le fond,
+            // nom en surimpression, retour en rond de verre.
+            _ArtistHeader(
+              imageUrl: d.artist.imageUrl,
+              name: d.artist.name,
+              albumCount: d.albums.length,
             ),
             const SizedBox(height: 16),
             _ArtistPlayBar(detail: d),
@@ -506,6 +454,91 @@ class _ArtistPlayBarState extends ConsumerState<_ArtistPlayBar> {
                   label: 'Tout lire',
                   onPressed: () => _playAll(shuffle: false),
                 ),
+        ],
+      ),
+    );
+  }
+}
+
+/// En-tête d'artiste : image plein cadre qui se fond dans le fond de l'app,
+/// nom en surimpression bas-gauche, bouton retour en verre.
+class _ArtistHeader extends StatelessWidget {
+  const _ArtistHeader({
+    required this.imageUrl,
+    required this.name,
+    required this.albumCount,
+  });
+
+  final String? imageUrl;
+  final String name;
+  final int albumCount;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final bg = scheme.surface;
+    final topInset = MediaQuery.paddingOf(context).top;
+
+    return SizedBox(
+      height: 340,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          Artwork(url: imageUrl, borderRadius: 0, icon: Icons.person),
+          // Fondu vers le fond de l'app (bas) et voile haut pour le bouton.
+          DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                stops: const [0, 0.45, 1],
+                colors: [
+                  Colors.black.withValues(alpha: 0.28),
+                  bg.withValues(alpha: 0),
+                  bg,
+                ],
+              ),
+            ),
+          ),
+          Positioned(
+            left: 14,
+            top: topInset + 8,
+            child: GlassIconButton(
+              icon: Icons.chevron_left,
+              tooltip: 'Retour',
+              onPressed: () => context.pop(),
+            ),
+          ),
+          Positioned(
+            left: 20,
+            right: 20,
+            bottom: 12,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  name,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 34,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.8,
+                    height: 1.02,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '$albumCount album${albumCount > 1 ? 's' : ''}',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
