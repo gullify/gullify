@@ -216,7 +216,7 @@ Widget _wrap(Widget child, {MediaItem? item, String? searchQuery}) {
       ytArtistAlbumsProvider('Artiste Test').overrideWith((ref) async => []),
     ],
     child: MaterialApp(
-      theme: gullifyGlassTheme(),
+      theme: gullifyThemeFor(GullifyAccent.indigo, dark: false),
       home: Builder(
         builder: (context) {
           final bg = Theme.of(context)

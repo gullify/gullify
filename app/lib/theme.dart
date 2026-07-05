@@ -1,62 +1,52 @@
 import 'package:flutter/material.dart';
 
-/// Gullify "audiophile" dark theme — amber accent on near-black surfaces,
-/// matching the web client's audiophile theme (oklch(0.78 0.14 65)).
-const gullifyAmber = Color(0xFFE3A94F);
-const _surface = Color(0xFF121212);
-const _surfaceContainer = Color(0xFF1C1B18);
+/// Identité Gullify : UNE structure « Liquid Glass » (verre translucide,
+/// images en filigrane, mise en page constante). Seuls changent la COULEUR
+/// d'accent choisie et la base claire/sombre — la personnalité vient de la
+/// structure, pas de la couleur.
 
-// Liquid Glass Player (design de référence) : perle claire, verre blanc,
-// encre #191B21, accent indigo diffusé en halo.
-const glassInk = Color(0xFF191B21);
+/// Accent indigo par défaut (celui du design de référence).
 const glassAccent = Color(0xFF4A5FE8);
 
-/// Styles visuels de l'app. `system` alterne Clair/Audiophile selon l'OS.
-enum GullifyStyle { system, clair, audiophile, amoled, glass }
+/// Ambre de marque (placeholder de pochette, icône de secours).
+const gullifyAmber = Color(0xFFE3A94F);
 
-extension GullifyStyleInfo on GullifyStyle {
-  String get label => switch (this) {
-        GullifyStyle.system => 'Système',
-        GullifyStyle.clair => 'Clair',
-        GullifyStyle.audiophile => 'Audiophile',
-        GullifyStyle.amoled => 'AMOLED',
-        GullifyStyle.glass => 'Liquid Glass',
-      };
+/// Couleurs d'accent proposées. La structure reste identique quelle que
+/// soit la teinte choisie.
+enum GullifyAccent {
+  indigo(Color(0xFF4A5FE8), 'Indigo'),
+  ambre(Color(0xFFE0913A), 'Ambre'),
+  emeraude(Color(0xFF10B981), 'Émeraude'),
+  rose(Color(0xFFEC4899), 'Rose'),
+  violet(Color(0xFF7C6BF5), 'Violet'),
+  ocean(Color(0xFF0EA5E9), 'Océan');
 
-  /// Couleurs d'aperçu (fond, surface, accent) pour le sélecteur.
-  (Color, Color, Color) get preview => switch (this) {
-        GullifyStyle.system => (Colors.white, _surface, gullifyAmber),
-        GullifyStyle.clair =>
-          (Colors.white, const Color(0xFFF3EDE2), const Color(0xFF7A5B1E)),
-        GullifyStyle.audiophile => (_surface, _surfaceContainer, gullifyAmber),
-        GullifyStyle.amoled =>
-          (Colors.black, const Color(0xFF0A0A0A), gullifyAmber),
-        GullifyStyle.glass =>
-          (const Color(0xFFF2F3F7), Colors.white, glassAccent),
-      };
+  const GullifyAccent(this.color, this.label);
+
+  final Color color;
+  final String label;
 }
 
-/// Réglages de rendu propres au style, lus par les widgets (mini-player,
-/// barre de navigation) pour l'effet verre.
+/// Réglages de rendu propres à la structure de verre, lus par les widgets
+/// (mini-lecteur, barre de navigation, en-têtes) pour l'effet.
 class GullifySurfaces extends ThemeExtension<GullifySurfaces> {
   const GullifySurfaces({
-    this.frosted = false,
+    this.frosted = true,
     this.barColor,
     this.background,
     this.accentBlob,
   });
 
-  /// Surfaces givrées : flou réel (BackdropFilter) sous les barres,
-  /// barres flottantes, pochette floutée en fond du lecteur.
+  /// Surfaces givrées : flou réel (BackdropFilter) sous les barres.
   final bool frosted;
 
-  /// Couleur translucide des barres quand [frosted] est actif.
+  /// Couleur translucide des barres.
   final Color? barColor;
 
-  /// Dégradé de fond global (les scaffolds sont alors transparents).
+  /// Dégradé de fond global (les scaffolds sont transparents).
   final Gradient? background;
 
-  /// Halo d'accent diffus en haut de l'écran (design Liquid Glass Player).
+  /// Halo d'accent diffus en haut de l'écran.
   final Color? accentBlob;
 
   @override
@@ -77,33 +67,22 @@ class GullifySurfaces extends ThemeExtension<GullifySurfaces> {
   GullifySurfaces lerp(GullifySurfaces? other, double t) => this;
 }
 
-ThemeData _base(ColorScheme scheme, {GullifySurfaces? surfaces}) => ThemeData(
+ThemeData _base(ColorScheme scheme, GullifySurfaces surfaces) => ThemeData(
       useMaterial3: true,
       colorScheme: scheme,
-      // Police du design (Hanken Grotesk, embarquée) : porte l'identité,
-      // remplace la police système Roboto.
       fontFamily: 'HankenGrotesk',
-      // Style « Liquid Glass Player » : scaffolds transparents, le dégradé
-      // global (main.dart) est visible derrière tout, les barres de verre
-      // floutent le contenu qui défile dessous.
+      // Scaffolds transparents : le dégradé global (main.dart) est visible
+      // derrière tout, les barres de verre floutent le contenu dessous.
       scaffoldBackgroundColor: Colors.transparent,
       appBarTheme: const AppBarTheme(
         backgroundColor: Colors.transparent,
         surfaceTintColor: Colors.transparent,
       ),
       textTheme: const TextTheme(
-        headlineSmall: TextStyle(
-          fontWeight: FontWeight.w800,
-          letterSpacing: -0.6,
-        ),
-        titleLarge: TextStyle(
-          fontWeight: FontWeight.w800,
-          letterSpacing: -0.5,
-        ),
-        titleMedium: TextStyle(
-          fontSize: 16.5,
-          fontWeight: FontWeight.w700,
-        ),
+        headlineSmall:
+            TextStyle(fontWeight: FontWeight.w800, letterSpacing: -0.6),
+        titleLarge: TextStyle(fontWeight: FontWeight.w800, letterSpacing: -0.5),
+        titleMedium: TextStyle(fontSize: 16.5, fontWeight: FontWeight.w700),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
@@ -120,89 +99,36 @@ ThemeData _base(ColorScheme scheme, {GullifySurfaces? surfaces}) => ThemeData(
         style: FilledButton.styleFrom(
           backgroundColor: scheme.primary,
           foregroundColor: scheme.onPrimary,
-          // Jamais Size.fromHeight ici : sa largeur infinie fait exploser le
-          // layout des boutons placés dans un Row (l'arbre ne se peint plus).
+          // Jamais Size.fromHeight : sa largeur infinie casse le layout des
+          // boutons dans un Row.
           minimumSize: const Size(64, 48),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           textStyle: const TextStyle(fontWeight: FontWeight.w600),
         ),
       ),
-      extensions: [surfaces ?? const GullifySurfaces()],
-    );
-
-/// Thème clair — dégradé perle du design Liquid Glass Player.
-ThemeData gullifyLightTheme() => _base(
-      ColorScheme.fromSeed(seedColor: gullifyAmber),
-      surfaces: const GullifySurfaces(
-        background: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFFF6F6F8), Color(0xFFECEEF4), Color(0xFFE6EAF1)],
+      cardTheme: CardThemeData(
+        color: surfaces.barColor,
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(18),
+          side: BorderSide(
+            color: scheme.brightness == Brightness.light
+                ? const Color(0xB3FFFFFF)
+                : const Color(0x26FFFFFF),
+          ),
         ),
       ),
+      extensions: [surfaces],
     );
 
-/// Thème sombre « audiophile » historique.
-ThemeData gullifyTheme() {
-  final scheme = ColorScheme.fromSeed(
-    seedColor: gullifyAmber,
-    brightness: Brightness.dark,
-    surface: _surface,
-  ).copyWith(
-    primary: gullifyAmber,
-    onPrimary: Colors.black,
-    surfaceContainerHighest: _surfaceContainer,
-  );
-  return _base(
-    scheme,
-    surfaces: const GullifySurfaces(
-      barColor: Color(0xC71C1B18),
-      background: LinearGradient(
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-        colors: [Color(0xFF191511), Color(0xFF121212), Color(0xFF141210)],
-      ),
-    ),
-  );
-}
-
-/// Noir pur (écrans OLED) — contraste maximal, accent ambre.
-ThemeData gullifyAmoledTheme() {
-  final scheme = ColorScheme.fromSeed(
-    seedColor: gullifyAmber,
-    brightness: Brightness.dark,
-    surface: Colors.black,
-  ).copyWith(
-    primary: gullifyAmber,
-    onPrimary: Colors.black,
-    surfaceContainerHighest: const Color(0xFF111111),
-    outlineVariant: const Color(0xFF222222),
-  );
-  return _base(
-    scheme,
-    surfaces: const GullifySurfaces(
-      barColor: Color(0xD90A0A0A),
-      background: LinearGradient(
-        colors: [Colors.black, Colors.black],
-      ),
-    ),
-  ).copyWith(
-    cardTheme: const CardThemeData(color: Color(0xFF0A0A0A)),
-    dividerTheme: const DividerThemeData(color: Color(0xFF1A1A1A)),
-  );
-}
-
-/// « Liquid Glass » — reproduction fidèle du design de référence :
-/// dégradé perle, verre blanc, encre #191B21, gris #6B7078/#8A8F98,
-/// accent indigo avec halo diffus en haut d'écran.
-ThemeData gullifyGlassTheme() {
-  final scheme = ColorScheme.fromSeed(seedColor: glassAccent).copyWith(
-    primary: glassAccent,
+/// Base CLAIRE : dégradé perle, verre blanc, encre sombre.
+ThemeData _lightGlass(Color accent) {
+  final scheme = ColorScheme.fromSeed(seedColor: accent).copyWith(
+    primary: accent,
     onPrimary: Colors.white,
     surface: const Color(0xFFF2F3F7),
-    onSurface: glassInk,
+    onSurface: const Color(0xFF191B21),
     onSurfaceVariant: const Color(0xFF6B7078),
     outline: const Color(0xFFA0A4AC),
     outlineVariant: const Color(0xFFD8DCE4),
@@ -210,34 +136,46 @@ ThemeData gullifyGlassTheme() {
   );
   return _base(
     scheme,
-    surfaces: const GullifySurfaces(
-      frosted: true,
-      accentBlob: glassAccent,
-      background: LinearGradient(
+    GullifySurfaces(
+      accentBlob: accent,
+      barColor: const Color(0x8CFFFFFF),
+      background: const LinearGradient(
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
         colors: [Color(0xFFF6F6F8), Color(0xFFECEEF4), Color(0xFFE6EAF1)],
       ),
     ),
+  );
+}
+
+/// Base SOMBRE : verre nuit, même structure, teinté par l'accent.
+ThemeData _darkGlass(Color accent) {
+  final scheme = ColorScheme.fromSeed(
+    seedColor: accent,
+    brightness: Brightness.dark,
   ).copyWith(
-    cardTheme: CardThemeData(
-      color: const Color(0x8CFFFFFF),
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(18),
-        side: const BorderSide(color: Color(0xB3FFFFFF)),
+    primary: accent,
+    onPrimary: Colors.white,
+    surface: const Color(0xFF14161C),
+    onSurface: const Color(0xFFEDEFF3),
+    onSurfaceVariant: const Color(0xFF9BA0AA),
+    outline: const Color(0xFF565A63),
+    outlineVariant: const Color(0xFF2A2D34),
+    surfaceContainerHighest: const Color(0x14FFFFFF),
+  );
+  return _base(
+    scheme,
+    GullifySurfaces(
+      accentBlob: accent,
+      barColor: const Color(0xBF1A1D24),
+      background: const LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [Color(0xFF1A1C22), Color(0xFF111319), Color(0xFF171922)],
       ),
     ),
   );
 }
 
-ThemeData themeFor(GullifyStyle style, Brightness platformBrightness) =>
-    switch (style) {
-      GullifyStyle.system => platformBrightness == Brightness.dark
-          ? gullifyTheme()
-          : gullifyLightTheme(),
-      GullifyStyle.clair => gullifyLightTheme(),
-      GullifyStyle.audiophile => gullifyTheme(),
-      GullifyStyle.amoled => gullifyAmoledTheme(),
-      GullifyStyle.glass => gullifyGlassTheme(),
-    };
+ThemeData gullifyThemeFor(GullifyAccent accent, {required bool dark}) =>
+    dark ? _darkGlass(accent.color) : _lightGlass(accent.color);

@@ -62,7 +62,7 @@ void main() {
         ytArtistAlbumsProvider('1755').overrideWith((ref) async => []),
       ],
       child: MaterialApp(
-        theme: gullifyGlassTheme(),
+        theme: gullifyThemeFor(GullifyAccent.indigo, dark: false),
         home: const ArtistScreen(artistId: 1),
       ),
     ));

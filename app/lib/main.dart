@@ -43,18 +43,13 @@ class GullifyApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final style = ref.watch(themeStyleProvider);
-    final system = style == GullifyStyle.system;
-    final chosen = system ? null : themeFor(style, Brightness.dark);
+    final accent = ref.watch(accentColorProvider);
     return MaterialApp.router(
       title: 'Gullify',
-      theme: chosen ?? gullifyLightTheme(),
-      darkTheme: chosen ?? gullifyTheme(),
-      themeMode: system
-          ? ThemeMode.system
-          : chosen!.brightness == Brightness.dark
-              ? ThemeMode.dark
-              : ThemeMode.light,
+      // Même structure de verre, teintée par l'accent; clair et sombre.
+      theme: gullifyThemeFor(accent, dark: false),
+      darkTheme: gullifyThemeFor(accent, dark: true),
+      themeMode: ref.watch(themeModeProvider),
       routerConfig: ref.watch(routerProvider),
       debugShowCheckedModeBanner: false,
       // Fond en dégradé du thème « verre » : les scaffolds y sont

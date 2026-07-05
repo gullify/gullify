@@ -6,16 +6,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../state/app_theme.dart';
-import '../state/background_playback.dart';
 import '../state/app_update.dart';
-// ignore: unused_import — GullifyStyle et son extension viennent du thème.
-import '../theme.dart';
 import '../state/auth.dart';
+import '../state/background_playback.dart';
 import '../state/equalizer.dart';
 import '../state/offline.dart';
+import '../theme.dart';
 import '../widgets/update_dialog.dart';
 
-const appVersion = '2.17.0';
+const appVersion = '2.18.0';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -82,7 +81,9 @@ class SettingsScreen extends ConsumerWidget {
           if (!kIsWeb && Platform.isAndroid) const _BackgroundPlaybackTile(),
           if (equalizerSupported || offlineSupported) const Divider(),
           const _SectionHeader('Apparence'),
-          const _ThemePicker(),
+          const _ModePicker(),
+          const _AccentPicker(),
+          const SizedBox(height: 8),
           const Divider(),
           const _SectionHeader('À propos'),
           const ListTile(
@@ -181,95 +182,118 @@ class _BackgroundPlaybackTileState extends State<_BackgroundPlaybackTile> {
   }
 }
 
-class _ThemePicker extends ConsumerWidget {
-  const _ThemePicker();
+/// Interrupteur clair / sombre / système (même structure de verre).
+class _ModePicker extends ConsumerWidget {
+  const _ModePicker();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final current = ref.watch(themeStyleProvider);
-    final scheme = Theme.of(context).colorScheme;
+    final mode = ref.watch(themeModeProvider);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+      child: SegmentedButton<ThemeMode>(
+        segments: const [
+          ButtonSegment(
+            value: ThemeMode.system,
+            icon: Icon(Icons.brightness_auto),
+            label: Text('Système'),
+          ),
+          ButtonSegment(
+            value: ThemeMode.light,
+            icon: Icon(Icons.light_mode),
+            label: Text('Clair'),
+          ),
+          ButtonSegment(
+            value: ThemeMode.dark,
+            icon: Icon(Icons.dark_mode),
+            label: Text('Sombre'),
+          ),
+        ],
+        selected: {mode},
+        showSelectedIcon: false,
+        onSelectionChanged: (s) =>
+            ref.read(themeModeProvider.notifier).set(s.first),
+      ),
+    );
+  }
+}
 
-    return SizedBox(
-      height: 118,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+/// Pastilles de couleur d'accent : la teinte change, la structure reste.
+class _AccentPicker extends ConsumerWidget {
+  const _AccentPicker();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final current = ref.watch(accentColorProvider);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+      child: Wrap(
+        spacing: 14,
+        runSpacing: 12,
         children: [
-          for (final style in GullifyStyle.values)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(14),
-                onTap: () =>
-                    ref.read(themeStyleProvider.notifier).set(style),
-                child: Container(
-                  width: 96,
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(
-                      width: 2,
-                      color: current == style
-                          ? scheme.primary
-                          : scheme.outlineVariant,
-                    ),
-                  ),
-                  child: Column(
-                    children: [
-                      // Aperçu : fond + surface + pastille d'accent.
-                      Expanded(
-                        child: Builder(builder: (context) {
-                          final (bg, surface, accent) = style.preview;
-                          return Container(
-                            width: double.infinity,
-                            decoration: BoxDecoration(
-                              color: bg,
-                              borderRadius: BorderRadius.circular(8),
-                              border:
-                                  Border.all(color: scheme.outlineVariant),
-                            ),
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Container(
-                                  width: 44,
-                                  height: 10,
-                                  decoration: BoxDecoration(
-                                    color: surface,
-                                    borderRadius: BorderRadius.circular(3),
-                                  ),
-                                ),
-                                const SizedBox(height: 6),
-                                Container(
-                                  width: 16,
-                                  height: 16,
-                                  decoration: BoxDecoration(
-                                    color: accent,
-                                    shape: BoxShape.circle,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        }),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        style.label,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: current == style
-                              ? FontWeight.w700
-                              : FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+          for (final accent in GullifyAccent.values)
+            _AccentSwatch(
+              accent: accent,
+              selected: accent == current,
+              onTap: () => ref.read(accentColorProvider.notifier).set(accent),
             ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AccentSwatch extends StatelessWidget {
+  const _AccentSwatch({
+    required this.accent,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final GullifyAccent accent;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return InkWell(
+      borderRadius: BorderRadius.circular(24),
+      onTap: onTap,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: accent.color,
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: selected ? scheme.onSurface : Colors.transparent,
+                width: 2.5,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: accent.color.withValues(alpha: 0.4),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: selected
+                ? const Icon(Icons.check, color: Colors.white, size: 22)
+                : null,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            accent.label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+              color: scheme.onSurfaceVariant,
+            ),
+          ),
         ],
       ),
     );
