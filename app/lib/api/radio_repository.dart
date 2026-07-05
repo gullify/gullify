@@ -18,6 +18,9 @@ class RadioStation {
   final List<String> genres;
   final String? logo;
   final bool favorite;
+
+  /// Seules les stations personnalisées sont modifiables/supprimables.
+  bool get isCustom => id.startsWith('custom:');
 }
 
 class RadioRepository {
@@ -33,13 +36,18 @@ class RadioRepository {
         .cast<Map<String, dynamic>>()) {
       final streams = e['streams'] as List<dynamic>? ?? [];
       if (streams.isEmpty) continue;
+      var logo = e['logo'] as String?;
+      // Logos personnalisés stockés en chemin relatif → absolutise.
+      if (logo != null && logo.startsWith('/')) {
+        logo = '${_client.serverUrl()}$logo';
+      }
       stations.add(RadioStation(
         id: e['id'] as String,
         name: e['name'] as String,
         streamUrl: (streams.first as Map<String, dynamic>)['url'] as String,
         country: e['country'] as String?,
         genres: (e['genres'] as List<dynamic>? ?? []).cast<String>(),
-        logo: e['logo'] as String?,
+        logo: logo,
         favorite: e['favorite'] == true,
       ));
     }
@@ -51,4 +59,64 @@ class RadioRepository {
         query: {'action': 'toggle_favorite'},
         body: {'station_id': stationId},
       );
+
+  /// Crée une station personnalisée. Renvoie son id (`custom:N`).
+  Future<String> add({
+    required String name,
+    required String url,
+    String? country,
+    List<String> genres = const [],
+    String? logo,
+  }) async {
+    final data = await _client.post(
+      'web-radio.php',
+      query: {'action': 'add'},
+      body: {
+        'name': name,
+        'url': url,
+        if (country != null && country.isNotEmpty) 'country': country,
+        if (genres.isNotEmpty) 'genres': genres,
+        if (logo != null && logo.isNotEmpty) 'logo': logo,
+      },
+    ) as Map<String, dynamic>;
+    return data['id'] as String? ?? '';
+  }
+
+  /// Modifie une station personnalisée (station_id = `custom:N`).
+  Future<void> update({
+    required String stationId,
+    required String name,
+    required String url,
+    String? country,
+    List<String> genres = const [],
+    String? logo,
+  }) =>
+      _client.post(
+        'web-radio.php',
+        query: {'action': 'update'},
+        body: {
+          'station_id': stationId,
+          'name': name,
+          'url': url,
+          'country': country ?? '',
+          'genres': genres,
+          if (logo != null) 'logo': logo,
+        },
+      );
+
+  Future<void> remove(String stationId) => _client.post(
+        'web-radio.php',
+        query: {'action': 'remove'},
+        body: {'station_id': stationId},
+      );
+
+  Future<void> removeBulk(List<String> stationIds) => _client.post(
+        'web-radio.php',
+        query: {'action': 'remove_bulk'},
+        body: {'station_ids': stationIds},
+      );
+
+  /// Upload d'un logo (URL distante ou fichier local) → URL absolue servie.
+  Future<String> uploadLogo({String? imageUrl, String? filePath}) =>
+      _client.uploadRadioLogo(imageUrl: imageUrl, filePath: filePath);
 }

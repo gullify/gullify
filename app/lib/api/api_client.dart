@@ -114,4 +114,42 @@ class ApiClient {
   /// Absolute URL for a resource served by the legacy endpoints
   /// (images, streams) which live at the server root, not under /api/v2.
   String resourceUrl(String relative) => '${serverUrl()}/$relative';
+
+  /// Envoie un logo de radio (URL distante re-hébergée, ou fichier local) à
+  /// `upload_radio_logo.php` (racine, hors v2). Renvoie l'URL absolue servie.
+  Future<String> uploadRadioLogo({String? imageUrl, String? filePath}) async {
+    final form = FormData();
+    if (imageUrl != null && imageUrl.trim().isNotEmpty) {
+      form.fields.add(MapEntry('url', imageUrl.trim()));
+    } else if (filePath != null) {
+      final ext = filePath.split('.').last.toLowerCase();
+      final subtype = ext == 'png'
+          ? 'png'
+          : ext == 'webp'
+              ? 'webp'
+              : 'jpeg';
+      form.files.add(MapEntry(
+        'logo',
+        await MultipartFile.fromFile(
+          filePath,
+          contentType: DioMediaType('image', subtype),
+        ),
+      ));
+    } else {
+      throw ApiException('upload', 'Aucune image fournie');
+    }
+    final r = await _dio.post<dynamic>(
+      '${serverUrl()}/upload_radio_logo.php',
+      data: form,
+    );
+    final body = r.data;
+    if (body is Map && body['error'] != true && body['url'] != null) {
+      final u = body['url'] as String;
+      return u.startsWith('http') ? u : '${serverUrl()}$u';
+    }
+    throw ApiException(
+      'upload',
+      (body is Map ? body['message'] as String? : null) ?? "Échec de l'upload",
+    );
+  }
 }

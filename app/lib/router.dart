@@ -14,7 +14,9 @@ import 'screens/notifications_screen.dart';
 import 'screens/now_playing_screen.dart';
 import 'screens/playlist_screen.dart';
 import 'screens/popular_screen.dart';
+import 'screens/radio_edit_screen.dart';
 import 'screens/radio_screen.dart';
+import 'api/radio_repository.dart';
 import 'screens/search_screen.dart';
 import 'screens/server_screen.dart';
 import 'screens/settings_screen.dart';
@@ -119,6 +121,11 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/popular',
         builder: (_, _) => const PopularScreen(),
+      ),
+      GoRoute(
+        path: '/radio/edit',
+        builder: (_, state) =>
+            RadioEditScreen(station: state.extra as RadioStation?),
       ),
     ],
     redirect: (context, state) {
