@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../state/offline.dart';
 import '../state/player.dart';
 import '../widgets/song_tile.dart';
+import '../widgets/mascot_empty.dart';
 import 'settings_screen.dart' show formatBytes;
 
 class DownloadsScreen extends ConsumerWidget {
@@ -48,7 +49,10 @@ class DownloadsScreen extends ConsumerWidget {
         ],
       ),
       body: songs.isEmpty
-          ? const Center(child: Text('Aucun titre téléchargé'))
+          ? const MascotEmpty(
+              message: 'Aucun titre téléchargé',
+              hint: 'Télécharge des titres pour les écouter hors-ligne.',
+            )
           : ListView.builder(
               itemCount: songs.length,
               itemBuilder: (context, i) {

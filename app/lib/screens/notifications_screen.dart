@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../state/notifications.dart';
+import '../widgets/mascot_empty.dart';
 
 class NotificationsScreen extends ConsumerWidget {
   const NotificationsScreen({super.key});
@@ -38,7 +39,7 @@ class NotificationsScreen extends ConsumerWidget {
         error: (e, _) => Center(child: Text('Erreur: $e')),
         data: (p) {
           if (p.items.isEmpty) {
-            return const Center(child: Text('Aucune notification'));
+            return const MascotEmpty(message: 'Aucune notification');
           }
           return RefreshIndicator(
             onRefresh: () => ref.refresh(notificationsProvider.future),

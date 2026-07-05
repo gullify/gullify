@@ -80,6 +80,9 @@ class GullifySurfaces extends ThemeExtension<GullifySurfaces> {
 ThemeData _base(ColorScheme scheme, {GullifySurfaces? surfaces}) => ThemeData(
       useMaterial3: true,
       colorScheme: scheme,
+      // Police du design (Hanken Grotesk, embarquée) : porte l'identité,
+      // remplace la police système Roboto.
+      fontFamily: 'HankenGrotesk',
       // Style « Liquid Glass Player » : scaffolds transparents, le dégradé
       // global (main.dart) est visible derrière tout, les barres de verre
       // floutent le contenu qui défile dessous.

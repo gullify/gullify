@@ -7,6 +7,7 @@ import '../state/playlists.dart';
 import '../widgets/mini_player.dart';
 import '../widgets/song_menu.dart';
 import '../widgets/song_tile.dart';
+import '../widgets/mascot_empty.dart';
 
 class PlaylistScreen extends ConsumerWidget {
   const PlaylistScreen({
@@ -58,7 +59,10 @@ class PlaylistScreen extends ConsumerWidget {
         error: (e, _) => Center(child: Text('Erreur: $e')),
         data: (list) {
           if (list.isEmpty) {
-            return const Center(child: Text('Playlist vide'));
+            return const MascotEmpty(
+              message: 'Playlist vide',
+              hint: 'Ajoute des titres depuis leur menu (appui long).',
+            );
           }
           final songs = [for (final e in list) e.song];
           return Column(

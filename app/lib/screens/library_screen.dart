@@ -16,6 +16,7 @@ import '../widgets/glass_kit.dart';
 import '../widgets/shuffle_library_button.dart';
 import '../widgets/song_menu.dart';
 import '../widgets/song_tile.dart';
+import '../widgets/mascot_empty.dart';
 
 /// Vues du contrôle segmenté de la bibliothèque.
 enum _LibView { artistes, albums, favoris, playlists }
@@ -354,7 +355,10 @@ class _FavoritesView extends ConsumerWidget {
       error: (e, _) => Center(child: Text('Erreur: $e')),
       data: (songs) {
         if (songs.isEmpty) {
-          return const Center(child: Text('Aucun favori'));
+          return const MascotEmpty(
+            message: 'Aucun favori pour l\'instant',
+            hint: 'Appuie sur le cœur d\'un titre pour le retrouver ici.',
+          );
         }
         return RefreshIndicator(
           onRefresh: () => ref.refresh(allFavoritesProvider.future),

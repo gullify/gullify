@@ -5,6 +5,7 @@ import '../api/radio_repository.dart';
 import '../state/player.dart';
 import '../state/radio.dart';
 import '../widgets/artwork.dart';
+import '../widgets/mascot_empty.dart';
 
 /// Onglet « Radio » : liste des web radios (lecture au tap, favoris).
 class RadioScreen extends ConsumerWidget {
@@ -56,7 +57,7 @@ class RadioScreen extends ConsumerWidget {
                     return const [
                       Padding(
                         padding: EdgeInsets.all(20),
-                        child: Center(child: Text('Aucune station')),
+                        child: MascotEmpty(message: 'Aucune station'),
                       ),
                     ];
                   }
