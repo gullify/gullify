@@ -47,10 +47,15 @@ register_shutdown_function(function () {
 });
 
 // ── Args ──────────────────────────────────────────────────────────────────────
-$targetUser = null;
-$force      = false;
+$targetUser   = null;
+$force        = false;
+$targetArtist = null; // --artist-id=N : ne traite qu'un artiste (post-DL)
 foreach (array_slice($argv ?? [], 1) as $arg) {
     if ($arg === '--force') $force = true;
+    elseif (str_starts_with($arg, '--artist-id=')) {
+        $targetArtist = (int)substr($arg, strlen('--artist-id='));
+        $force = true; // un artiste fraîchement téléchargé : on (re)tague
+    }
     elseif ($arg !== '--all') $targetUser = $arg;
 }
 
@@ -255,7 +260,10 @@ try {
     echo "Mode: " . ($force ? 'force (overwrite existing genres)' : 'skip already-tagged artists') . "\n\n";
 
     // Artists to process
-    if ($targetUser) {
+    if ($targetArtist) {
+        $stmt = $db->prepare("SELECT id, name, user, genre FROM artists WHERE id = ?");
+        $stmt->execute([$targetArtist]);
+    } elseif ($targetUser) {
         $stmt = $db->prepare("SELECT id, name, user, genre FROM artists WHERE user = ?");
         $stmt->execute([$targetUser]);
     } else {

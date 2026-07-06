@@ -227,9 +227,19 @@ if (is_resource($process)) {
             $scanOutput = shell_exec('curl -sf ' . escapeShellArgUTF8($scanUrl) . ' 2>&1');
             file_put_contents($logFile, "Scan output: $scanOutput\n", FILE_APPEND);
         } else {
+            $realArtistId = $artistId;
             $scanUrl = 'http://localhost/api/scan-artist.php?artist_id=' . urlencode($artistId) . '&user=' . urlencode($user);
             $scanOutput = shell_exec('curl -sf ' . escapeShellArgUTF8($scanUrl) . ' 2>&1');
             file_put_contents($logFile, "Scan output: $scanOutput\n", FILE_APPEND);
+        }
+
+        // Genre automatique (crédible) : ID3 → MusicBrainz pour ce seul artiste.
+        if (!empty($realArtistId)) {
+            $genreScript = AppConfig::getAppRoot() . '/scripts/scan-genres.php';
+            $genreCmd = 'php ' . escapeshellarg($genreScript)
+                . ' --artist-id=' . (int)$realArtistId . ' 2>&1';
+            $genreOut = shell_exec($genreCmd);
+            file_put_contents($logFile, "Genre scan: $genreOut\n", FILE_APPEND);
         }
 
         $finalMsg = ($exitCode === 0)
