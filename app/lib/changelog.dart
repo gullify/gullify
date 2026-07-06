@@ -8,6 +8,9 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('2.42.0', [
+    'Idées : bouton crayon pour modifier le texte d\'une idée existante',
+  ]),
   ReleaseNote('2.41.0', [
     'Idées : bouton « Confier à Claude » — Claude réalise l\'idée sur le '
         'serveur et la coche une fois faite (à activer côté serveur)',

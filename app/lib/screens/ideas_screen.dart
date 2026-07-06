@@ -52,6 +52,43 @@ class _IdeasScreenState extends ConsumerState<IdeasScreen> {
     }
   }
 
+  Future<void> _edit(dynamic idea) async {
+    final controller = TextEditingController(text: idea.text as String);
+    final messenger = ScaffoldMessenger.of(context);
+    final text = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Modifier l\'idée'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          minLines: 1,
+          maxLines: 6,
+          textInputAction: TextInputAction.newline,
+          decoration: const InputDecoration(hintText: 'Ton idée…'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Annuler'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, controller.text.trim()),
+            child: const Text('Enregistrer'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (text == null || text.isEmpty || text == idea.text) return;
+    try {
+      await ref.read(ideasRepositoryProvider).update(idea.id as int, text);
+      ref.invalidate(ideasProvider);
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('Échec : $e')));
+    }
+  }
+
   Future<void> _confier(WidgetRef ref, dynamic idea) async {
     final messenger = ScaffoldMessenger.of(context);
     final ok = await showDialog<bool>(
@@ -213,10 +250,20 @@ class _IdeasScreenState extends ConsumerState<IdeasScreen> {
                                   : null,
                           secondary: (idea.done || idea.pending)
                               ? null
-                              : IconButton(
-                                  tooltip: 'Confier à Claude',
-                                  icon: const Icon(Icons.smart_toy_outlined),
-                                  onPressed: () => _confier(ref, idea),
+                              : Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    IconButton(
+                                      tooltip: 'Modifier',
+                                      icon: const Icon(Icons.edit_outlined),
+                                      onPressed: () => _edit(idea),
+                                    ),
+                                    IconButton(
+                                      tooltip: 'Confier à Claude',
+                                      icon: const Icon(Icons.smart_toy_outlined),
+                                      onPressed: () => _confier(ref, idea),
+                                    ),
+                                  ],
                                 ),
                         ),
                       );
