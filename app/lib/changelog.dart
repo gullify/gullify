@@ -8,9 +8,9 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
-  ReleaseNote('2.35.0', [
-    'Nouvelle icône d\'app : la mascotte plus grande, ancrée en bas '
-        '(fini le goéland qui flottait coupé aux épaules)',
+  ReleaseNote('2.36.0', [
+    'Icône d\'app : mascotte encore agrandie pour bien couvrir la tuile '
+        '(headroom réduit)',
   ]),
   ReleaseNote('2.34.0', [
     'Android Auto : initialisation blindée (le menu ne peut plus rester '
