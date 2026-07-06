@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
 
 import '../api/library_repository.dart';
+import '../api/playlist_repository.dart';
 import '../api/radio_repository.dart';
 import '../api/yt_downloads_repository.dart';
 import '../models/song.dart';
@@ -36,8 +37,10 @@ class BrowseIds {
   static const favorites = 'FAVORITES';
   static const recent = 'RECENT';
   static const radios = 'RADIOS';
+  static const playlists = 'PLAYLISTS';
   static String album(int id) => 'ALBUM_$id';
   static String artist(int id) => 'ARTIST_$id';
+  static String playlist(int id) => 'PLAYLIST_$id';
   static String radio(String id) => 'RADIO_$id';
 }
 
@@ -95,6 +98,13 @@ class GullifyAudioHandler extends BaseAudioHandler
   /// Set after login — repli YouTube pour la recherche vocale (Android Auto)
   /// quand rien n'est trouvé en local : télécharge puis joue.
   YtDownloadsRepository? ytRepository;
+
+  /// Set after login — playlists pour Android Auto.
+  PlaylistRepository? playlistRepository;
+  final _playlistSongsCache = <int, List<Song>>{};
+
+  /// Derniers résultats de recherche AA (pour lecture au tap d'un résultat).
+  List<Song> _searchCache = const [];
 
   /// Journal d'événements Android Auto (dernier en tête), consultable dans
   /// l'app (Paramètres → Diagnostic Android Auto). Permet de diagnostiquer
@@ -389,12 +399,13 @@ class GullifyAudioHandler extends BaseAudioHandler
     logAA('getChildren($parentMediaId)');
     // La racine est statique : toujours répondre, même avant l'auth.
     if (parentMediaId == BrowseIds.root) {
-      logAA('→ racine statique (5 items)');
+      logAA('→ racine statique (6 items)');
       return const [
-        MediaItem(id: BrowseIds.favorites, title: 'Favoris', playable: false),
         MediaItem(id: BrowseIds.recent, title: 'Nouveautés', playable: false),
-        MediaItem(id: BrowseIds.albums, title: 'Albums', playable: false),
+        MediaItem(id: BrowseIds.favorites, title: 'Favoris', playable: false),
+        MediaItem(id: BrowseIds.playlists, title: 'Playlists', playable: false),
         MediaItem(id: BrowseIds.artists, title: 'Artistes', playable: false),
+        MediaItem(id: BrowseIds.albums, title: 'Albums', playable: false),
         MediaItem(id: BrowseIds.radios, title: 'Radios', playable: false),
       ];
     }
@@ -429,6 +440,7 @@ class GullifyAudioHandler extends BaseAudioHandler
       case BrowseIds.recent:
         final albums = await repo.recentAlbums();
         return [
+          ..._playAllItems('RECENT', playLabel: 'Lire les nouveautés'),
           for (final a in albums)
             _browsableAlbum(a.id, a.name, a.artistName, a.artworkUrl),
         ];
@@ -443,11 +455,24 @@ class GullifyAudioHandler extends BaseAudioHandler
       case BrowseIds.artists:
         final artists = await repo.artists();
         return [
+          // « Tout lire / aléatoire » = toute la bibliothèque.
+          ..._playAllItems('ALL', playLabel: 'Tout lire'),
           for (final ar in artists)
             MediaItem(
               id: BrowseIds.artist(ar.id),
               title: ar.name,
               artUri: ar.imageUrl != null ? Uri.parse(ar.imageUrl!) : null,
+              playable: false,
+            ),
+        ];
+
+      case BrowseIds.playlists:
+        final lists = await playlistRepository?.playlists() ?? [];
+        return [
+          for (final p in lists)
+            MediaItem(
+              id: BrowseIds.playlist(p.id),
+              title: p.name,
               playable: false,
             ),
         ];
@@ -489,6 +514,18 @@ class GullifyAudioHandler extends BaseAudioHandler
         ..._playAllItems('ARTIST_$id'),
         for (final a in detail.albums)
           _browsableAlbum(a.id, a.name, detail.artist.name, a.artworkUrl),
+      ];
+    }
+
+    if (parentMediaId.startsWith('PLAYLIST_')) {
+      final id = int.parse(parentMediaId.substring('PLAYLIST_'.length));
+      final entries = await playlistRepository?.songs(id) ?? [];
+      final songs = [for (final e in entries) e.song];
+      _playlistSongsCache[id] = songs;
+      if (songs.isEmpty) return [];
+      return [
+        ..._playAllItems('PLAYLIST_$id', playLabel: 'Lire la playlist'),
+        ..._trackItems('PLAYLIST_$id', songs),
       ];
     }
 
@@ -653,6 +690,48 @@ class GullifyAudioHandler extends BaseAudioHandler
   ]) =>
       playFromSearch(query, extras);
 
+  /// Recherche navigable Android Auto : active le bouton recherche (vocal ou
+  /// clavier) et renvoie titres (jouables), albums et artistes (navigables).
+  @override
+  Future<List<MediaItem>> search(
+    String query, [
+    Map<String, dynamic>? extras,
+  ]) async {
+    logAA('search AA : « $query »');
+    final repo = await _awaitRepository();
+    if (repo == null || query.trim().isEmpty) return [];
+    try {
+      final r = await repo.search(query);
+      _searchCache = r.songs;
+      final items = <MediaItem>[
+        for (final s in r.songs)
+          MediaItem(
+            id: 'SONG_${s.id}',
+            title: s.title,
+            artist: s.artistName,
+            album: s.albumName,
+            duration: Duration(seconds: s.duration),
+            artUri: s.artworkUrl != null ? Uri.parse(s.artworkUrl!) : null,
+            playable: true,
+          ),
+        for (final a in r.albums)
+          _browsableAlbum(a.id, a.name, a.artistName, a.artworkUrl),
+        for (final ar in r.artists)
+          MediaItem(
+            id: BrowseIds.artist(ar.id),
+            title: ar.name,
+            artUri: ar.imageUrl != null ? Uri.parse(ar.imageUrl!) : null,
+            playable: false,
+          ),
+      ];
+      logAA('→ ${items.length} résultats');
+      return items;
+    } catch (e) {
+      logAA('search AA erreur : $e');
+      return [];
+    }
+  }
+
   @override
   Future<void> playFromMediaId(
     String mediaId, [
@@ -669,8 +748,10 @@ class GullifyAudioHandler extends BaseAudioHandler
       playing: false,
     ));
 
-    final m = RegExp(r'^(ALBUM_(\d+)|ARTIST_(\d+)|FAV)(?:_(PLAY|SHUFFLE|TRACK_(\d+)))?$')
-        .firstMatch(mediaId);
+    final m = RegExp(
+      r'^(ALBUM_(\d+)|ARTIST_(\d+)|PLAYLIST_(\d+)|FAV|RECENT|ALL)'
+      r'(?:_(PLAY|SHUFFLE|TRACK_(\d+)))?$',
+    ).firstMatch(mediaId);
 
     try {
       if (mediaId.startsWith('RADIO_')) {
@@ -683,23 +764,48 @@ class GullifyAudioHandler extends BaseAudioHandler
         return;
       }
 
+      // Résultat de recherche AA : joue la liste à partir du titre choisi.
+      if (mediaId.startsWith('SONG_')) {
+        final id = int.parse(mediaId.substring('SONG_'.length));
+        final idx = _searchCache.indexWhere((s) => s.id == id);
+        if (idx >= 0) {
+          await playSongs(_searchCache, startIndex: idx);
+        }
+        return;
+      }
+
       if (m == null) return;
 
+      final prefix = m.group(1)!;
       final List<Song> songs;
       if (m.group(2) != null) {
         songs = await _albumSongs(repo, int.parse(m.group(2)!));
       } else if (m.group(3) != null) {
         songs = await _artistSongs(repo, int.parse(m.group(3)!));
+      } else if (m.group(4) != null) {
+        final pid = int.parse(m.group(4)!);
+        songs = _playlistSongsCache[pid] ??
+            [for (final e in (await playlistRepository?.songs(pid) ?? [])) e.song];
+      } else if (prefix == 'RECENT') {
+        // Toutes les chansons des ~10 albums les plus récents.
+        final albums = await repo.recentAlbums();
+        final all = <Song>[];
+        for (final a in albums.take(10)) {
+          all.addAll(await _albumSongs(repo, a.id));
+        }
+        songs = all;
+      } else if (prefix == 'ALL') {
+        songs = await repo.randomSongs();
       } else {
         songs = await _favorites(repo);
       }
       if (songs.isEmpty) return;
 
-      final action = m.group(4) ?? 'PLAY';
+      final action = m.group(5) ?? 'PLAY';
       if (action == 'SHUFFLE') {
         await playSongs(songs.toList()..shuffle());
       } else if (action.startsWith('TRACK_')) {
-        final index = int.parse(m.group(5)!);
+        final index = int.parse(m.group(6)!);
         await playSongs(songs, startIndex: index.clamp(0, songs.length - 1));
       } else {
         await playSongs(songs);
@@ -742,6 +848,9 @@ class GullifyAudioHandler extends BaseAudioHandler
           MediaAction.seek,
           MediaAction.seekForward,
           MediaAction.seekBackward,
+          // Annonce la recherche (bouton loupe / vocal Android Auto).
+          MediaAction.playFromSearch,
+          MediaAction.playFromMediaId,
         },
         androidCompactActionIndices: const [0, 1, 2],
         processingState: processingState,

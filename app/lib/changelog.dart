@@ -8,6 +8,11 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('2.37.0', [
+    'Android Auto : bouton de recherche (vocal + clavier) avec résultats',
+    'Android Auto : menu réordonné + Playlists, et « Tout lire / aléatoire » '
+        'sur Nouveautés et sur toute la bibliothèque',
+  ]),
   ReleaseNote('2.36.0', [
     'Icône d\'app : mascotte encore agrandie pour bien couvrir la tuile '
         '(headroom réduit)',

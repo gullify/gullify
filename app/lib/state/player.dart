@@ -6,6 +6,7 @@ import '../models/song.dart';
 import 'auth.dart';
 import 'library.dart';
 import 'offline.dart';
+import 'playlists.dart';
 import 'radio.dart';
 import 'yt_downloads.dart';
 
@@ -42,6 +43,12 @@ final audioHandlerBinderProvider = Provider<void>((ref) {
         authenticated ? ref.watch(ytDownloadsRepositoryProvider) : null;
   } catch (e) {
     handler.logAA('ERREUR liaison youtube: $e');
+  }
+  try {
+    handler.playlistRepository =
+        authenticated ? ref.watch(playlistRepositoryProvider) : null;
+  } catch (e) {
+    handler.logAA('ERREUR liaison playlists: $e');
   }
   try {
     handler.offlinePaths = {
