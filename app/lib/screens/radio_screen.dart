@@ -89,6 +89,7 @@ class _RadioScreenState extends ConsumerState<RadioScreen> {
   void _rowMenu(RadioStation s) {
     showModalBottomSheet<void>(
       context: context,
+      useRootNavigator: true,
       builder: (context) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,

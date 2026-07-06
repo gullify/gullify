@@ -267,6 +267,7 @@ class _SleepTimerButton extends ConsumerWidget {
       ),
       onPressed: () => showModalBottomSheet<void>(
         context: context,
+        useRootNavigator: true,
         builder: (context) => Consumer(
           builder: (context, ref, _) {
             final t = ref.watch(sleepTimerProvider);
@@ -453,6 +454,7 @@ void _showLyrics(BuildContext context, WidgetRef ref, MediaItem item) {
   final filePath = item.extras?['filePath'] as String?;
   showModalBottomSheet(
     context: context,
+    useRootNavigator: true,
     isScrollControlled: true,
     builder: (context) => DraggableScrollableSheet(
       expand: false,
@@ -600,6 +602,7 @@ class _LyricsViewState extends ConsumerState<_LyricsView> {
 void _showQueue(BuildContext context) {
   showModalBottomSheet(
     context: context,
+    useRootNavigator: true,
     isScrollControlled: true,
     builder: (context) => DraggableScrollableSheet(
       expand: false,

@@ -149,6 +149,7 @@ class _DownloadAlbumButtonState extends ConsumerState<_DownloadAlbumButton> {
 void _albumMenu(BuildContext context, WidgetRef ref, Album album) {
   showModalBottomSheet<void>(
     context: context,
+    useRootNavigator: true,
     builder: (sheetContext) => SafeArea(
       child: Column(
         mainAxisSize: MainAxisSize.min,

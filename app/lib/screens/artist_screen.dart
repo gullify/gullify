@@ -552,6 +552,7 @@ class _SimilarArtists extends ConsumerWidget {
 void _artistMenu(BuildContext context, WidgetRef ref, ArtistDetail d) {
   showModalBottomSheet<void>(
     context: context,
+    useRootNavigator: true,
     builder: (sheetContext) => SafeArea(
       child: Column(
         mainAxisSize: MainAxisSize.min,

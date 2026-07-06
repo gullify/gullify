@@ -107,6 +107,11 @@ ThemeData _base(ColorScheme scheme, GullifySurfaces surfaces) => ThemeData(
           textStyle: const TextStyle(fontWeight: FontWeight.w600),
         ),
       ),
+      // SnackBars flottantes : elles s'affichent au-dessus du dock/mini-
+      // lecteur au lieu de passer derrière.
+      snackBarTheme: const SnackBarThemeData(
+        behavior: SnackBarBehavior.floating,
+      ),
       cardTheme: CardThemeData(
         color: surfaces.barColor,
         elevation: 0,

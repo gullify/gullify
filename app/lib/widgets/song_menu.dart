@@ -14,6 +14,7 @@ import 'artwork.dart';
 Future<void> showSongMenu(BuildContext context, Song song) {
   return showModalBottomSheet(
     context: context,
+    useRootNavigator: true,
     builder: (context) => Consumer(
       builder: (context, ref, _) {
         final isFavorite =
@@ -210,6 +211,7 @@ void invalidateLibrary(WidgetRef ref) {
 Future<void> _showPlaylistPicker(BuildContext context, Song song) {
   return showModalBottomSheet(
     context: context,
+    useRootNavigator: true,
     builder: (context) => Consumer(
       builder: (context, ref, _) {
         final playlists = ref.watch(playlistsProvider);

@@ -8,6 +8,11 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('2.32.0', [
+    'Correctif : les menus (feuilles) s\'affichent au-dessus du dock et du '
+        'mini-lecteur, plus derrière',
+    'Messages (SnackBars) flottants au-dessus de la barre',
+  ]),
   ReleaseNote('2.31.0', [
     'Accueil : bouton « Aléatoire » (toute la bibliothèque)',
     'Accueil : bouton « Découverte » (titres jamais joués)',
