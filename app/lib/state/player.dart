@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../audio/audio_handler.dart';
 import '../models/song.dart';
 import 'auth.dart';
+import 'favorites.dart';
 import 'library.dart';
 import 'offline.dart';
 import 'playlists.dart';
@@ -56,6 +57,20 @@ final audioHandlerBinderProvider = Provider<void>((ref) {
         o.song.id: o.localPath,
     };
   } catch (_) {}
+  // Cœur (favoris) dans la notification / Android Auto : bascule via l'état
+  // Riverpod et tient l'icône à jour quand les favoris changent.
+  try {
+    if (authenticated) {
+      handler.onToggleFavorite =
+          (id) => ref.read(favoriteIdsProvider.notifier).toggle(id);
+      handler.updateFavorites(ref.watch(favoriteIdsProvider).value ?? const {});
+    } else {
+      handler.onToggleFavorite = null;
+      handler.updateFavorites(const {});
+    }
+  } catch (e) {
+    handler.logAA('ERREUR liaison favoris: $e');
+  }
 });
 
 final currentMediaItemProvider = StreamProvider<MediaItem?>(

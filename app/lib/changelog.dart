@@ -8,6 +8,12 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('2.48.0', [
+    'Notification de lecture et Android Auto : le bouton stop (carré) en bas '
+        'à droite est remplacé par un cœur pour ajouter ou retirer la piste '
+        'de tes favoris d\'un seul geste ; l\'icône se remplit quand le titre '
+        'est en favori',
+  ]),
   ReleaseNote('2.47.0', [
     'Android Auto : les pochettes d\'albums et les images d\'artiste '
         's\'affichent sur les listes d\'albums et d\'artistes ; les longues '

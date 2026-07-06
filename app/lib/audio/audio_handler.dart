@@ -64,6 +64,12 @@ class GullifyAudioHandler extends BaseAudioHandler
       _flushPlay();
       _startTracking(q[index]);
       mediaItem.add(q[index]);
+      // Rafraîchit le cœur (favori) pour la nouvelle piste courante.
+      playbackState.add(
+        playbackState.value.copyWith(
+          controls: _controls(playbackState.value.playing),
+        ),
+      );
     });
     _player.positionStream.listen((pos) {
       if (_trackedSongId != null) _lastPosition = pos;
@@ -137,6 +143,52 @@ class GullifyAudioHandler extends BaseAudioHandler
   /// songId → local file path for downloaded songs (kept in sync by
   /// audioHandlerBinderProvider). Preferred over streaming when present.
   Map<int, String> offlinePaths = const {};
+
+  /// Ids des favoris, tenus à jour par audioHandlerBinderProvider. Sert à
+  /// afficher le cœur plein ou vide dans la notification / Android Auto.
+  Set<int> favoriteIds = const {};
+
+  /// Branché par le binder sur l'état Riverpod des favoris. Appelé quand
+  /// l'utilisateur tape le cœur dans la notification média ou Android Auto.
+  Future<void> Function(int songId)? onToggleFavorite;
+
+  /// Rafraîchit la liste des favoris et rediffuse les contrôles média pour
+  /// que l'icône cœur reflète immédiatement l'état courant.
+  void updateFavorites(Set<int> ids) {
+    favoriteIds = ids;
+    playbackState.add(
+      playbackState.value.copyWith(
+        controls: _controls(playbackState.value.playing),
+      ),
+    );
+  }
+
+  int? get _currentSongId => mediaItem.value?.extras?['songId'] as int?;
+
+  bool get _currentIsFavorite {
+    final id = _currentSongId;
+    return id != null && favoriteIds.contains(id);
+  }
+
+  /// Cœur plein (favori) / vide (non favori) à la place du bouton stop, qui
+  /// n'apportait rien depuis la notification et Android Auto.
+  static final _favoriteControl = MediaControl.custom(
+    androidIcon: 'drawable/ic_heart_outline',
+    label: 'Ajouter aux favoris',
+    name: 'toggleFavorite',
+  );
+  static final _unfavoriteControl = MediaControl.custom(
+    androidIcon: 'drawable/ic_heart_filled',
+    label: 'Retirer des favoris',
+    name: 'toggleFavorite',
+  );
+
+  List<MediaControl> _controls(bool playing) => [
+        MediaControl.skipToPrevious,
+        if (playing) MediaControl.pause else MediaControl.play,
+        MediaControl.skipToNext,
+        _currentIsFavorite ? _unfavoriteControl : _favoriteControl,
+      ];
 
   AudioPlayer get player => _player;
 
@@ -910,6 +962,34 @@ class GullifyAudioHandler extends BaseAudioHandler
     }
   }
 
+  @override
+  Future<dynamic> customAction(String name,
+      [Map<String, dynamic>? extras]) async {
+    if (name == 'toggleFavorite') {
+      final id = _currentSongId;
+      if (id == null) return;
+      final cb = onToggleFavorite;
+      if (cb != null) {
+        // Passe par l'état Riverpod : bascule serveur + mise à jour optimiste,
+        // que le binder répercute dans favoriteIds (donc sur l'icône).
+        try {
+          await cb(id);
+        } catch (_) {}
+      } else if (repository != null) {
+        // Repli si l'app n'est pas liée (rare) : bascule directe via le dépôt.
+        try {
+          final nowFav = await repository!.toggleFavorite(id);
+          updateFavorites({
+            ...favoriteIds.where((e) => e != id),
+            if (nowFav) id,
+          });
+        } catch (_) {}
+      }
+      return;
+    }
+    return super.customAction(name, extras);
+  }
+
   void _broadcastState(PlaybackEvent event) {
     final playing = _player.playing;
     var processingState = switch (_player.processingState) {
@@ -929,12 +1009,7 @@ class GullifyAudioHandler extends BaseAudioHandler
     }
     playbackState.add(
       playbackState.value.copyWith(
-        controls: [
-          MediaControl.skipToPrevious,
-          if (playing) MediaControl.pause else MediaControl.play,
-          MediaControl.skipToNext,
-          MediaControl.stop,
-        ],
+        controls: _controls(playing),
         systemActions: const {
           MediaAction.seek,
           MediaAction.seekForward,

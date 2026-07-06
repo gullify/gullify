@@ -6,4 +6,4 @@
      pas de notification média, pas de service au premier plan, musique
      coupée en veille, et session vide pour Android Auto. -->
 <resources xmlns:tools="http://schemas.android.com/tools"
-    tools:keep="@drawable/audio_service_*,@drawable/ic_notification" />
+    tools:keep="@drawable/audio_service_*,@drawable/ic_notification,@drawable/ic_heart_filled,@drawable/ic_heart_outline" />
