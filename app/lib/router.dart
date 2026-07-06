@@ -8,6 +8,7 @@ import 'screens/changelog_screen.dart';
 import 'screens/downloads_screen.dart';
 import 'screens/equalizer_screen.dart';
 import 'screens/favorites_screen.dart';
+import 'screens/genres_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/ideas_screen.dart';
 import 'screens/library_screen.dart';
@@ -136,6 +137,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/settings/ideas',
         builder: (_, _) => const IdeasScreen(),
+      ),
+      GoRoute(
+        path: '/genres',
+        builder: (_, _) => const GenresScreen(),
       ),
     ],
     redirect: (context, state) {

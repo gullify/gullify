@@ -820,6 +820,40 @@ try {
             ];
         }
 
+    } elseif ($action === 'rename_genre') {
+        // Renomme un genre partout (albums + artistes) pour l'utilisateur.
+        $from = trim((string)($_POST['from'] ?? ''));
+        $to   = trim((string)($_POST['to'] ?? ''));
+        if ($from === '' || $to === '') {
+            $response['error']   = true;
+            $response['message'] = 'from and to required';
+        } else {
+            $to = mb_substr($to, 0, 100);
+            $conn->prepare("
+                UPDATE albums al JOIN artists a ON al.artist_id = a.id
+                SET al.genre = ? WHERE a.user = ? AND al.genre = ?
+            ")->execute([$to, $user, $from]);
+            $conn->prepare("UPDATE artists SET genre = ? WHERE user = ? AND genre = ?")
+                 ->execute([$to, $user, $from]);
+            $response['data'] = ['from' => $from, 'to' => $to];
+        }
+
+    } elseif ($action === 'delete_genre') {
+        // Retire un genre partout (met à NULL) pour l'utilisateur.
+        $genre = trim((string)($_POST['genre'] ?? ''));
+        if ($genre === '') {
+            $response['error']   = true;
+            $response['message'] = 'genre required';
+        } else {
+            $conn->prepare("
+                UPDATE albums al JOIN artists a ON al.artist_id = a.id
+                SET al.genre = NULL WHERE a.user = ? AND al.genre = ?
+            ")->execute([$user, $genre]);
+            $conn->prepare("UPDATE artists SET genre = NULL WHERE user = ? AND genre = ?")
+                 ->execute([$user, $genre]);
+            $response['data'] = ['deleted' => $genre];
+        }
+
     } elseif ($action === 'set_artist_genre') {
         // Définit le genre d'un artiste et le propage à tous ses albums, pour
         // rester cohérent avec le filtre par genre (basé sur albums.genre).

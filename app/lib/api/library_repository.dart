@@ -347,6 +347,18 @@ class LibraryRepository {
     );
   }
 
+  Future<void> renameGenre(String from, String to) => _client.post(
+        'library.php',
+        query: {'action': 'rename_genre'},
+        form: {'from': from, 'to': to},
+      );
+
+  Future<void> deleteGenre(String genre) => _client.post(
+        'library.php',
+        query: {'action': 'delete_genre'},
+        form: {'genre': genre},
+      );
+
   Future<List<Artist>> artistsByGenre(String genre) async {
     final data = await _client.get('library.php', query: {
       'action': 'get_artists_by_genre',

@@ -216,6 +216,14 @@ class _ArtistsViewState extends ConsumerState<_ArtistsView> {
                       onSelected: (_) => setState(() => _genre = g.name),
                     ),
                   ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 3),
+                  child: ActionChip(
+                    avatar: const Icon(Icons.tune, size: 18),
+                    label: const Text('Gérer'),
+                    onPressed: () => context.push('/genres'),
+                  ),
+                ),
               ],
             ),
           ),

@@ -8,6 +8,11 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('2.30.0', [
+    'Attribution du genre avec autocomplétion sur tous les genres',
+    'Écran de gestion des genres : renommer ou supprimer (Bibliothèque → '
+        'Artistes → Gérer)',
+  ]),
   ReleaseNote('2.29.0', [
     'Carnet d\'idées directement dans l\'app (Paramètres → Mes idées)',
     'Synchronisé côté serveur : notées sur mobile, lues par Claude',

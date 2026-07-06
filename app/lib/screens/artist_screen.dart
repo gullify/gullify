@@ -617,41 +617,37 @@ void _setGenreDialog(
   int artistId,
   String? current,
 ) {
-  final controller = TextEditingController(text: current ?? '');
+  // Le champ de saisie de l'Autocomplete; capturé pour lire la valeur.
+  TextEditingController? fieldCtrl;
   showDialog<void>(
     context: context,
     builder: (dialogContext) => AlertDialog(
       title: const Text('Genre de l\'artiste'),
       content: Consumer(
         builder: (context, ref, _) {
-          final genres = ref.watch(genresProvider).value ?? [];
-          return Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              TextField(
+          final genres =
+              (ref.watch(genresProvider).value ?? []).map((g) => g.name);
+          return Autocomplete<String>(
+            initialValue: TextEditingValue(text: current ?? ''),
+            optionsBuilder: (value) {
+              final q = value.text.trim().toLowerCase();
+              if (q.isEmpty) return genres;
+              return genres.where((g) => g.toLowerCase().contains(q));
+            },
+            fieldViewBuilder:
+                (context, controller, focusNode, onFieldSubmitted) {
+              fieldCtrl = controller;
+              return TextField(
                 controller: controller,
+                focusNode: focusNode,
                 autofocus: true,
+                onSubmitted: (_) => onFieldSubmitted(),
                 decoration: const InputDecoration(
                   labelText: 'Genre',
-                  hintText: 'Ex. Rock, Jazz, Folk…',
+                  hintText: 'Tape pour rechercher ou créer…',
                 ),
-              ),
-              if (genres.isNotEmpty) ...[
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 6,
-                  children: [
-                    for (final g in genres.take(12))
-                      ActionChip(
-                        label: Text(g.name),
-                        onPressed: () => controller.text = g.name,
-                      ),
-                  ],
-                ),
-              ],
-            ],
+              );
+            },
           );
         },
       ),
@@ -663,11 +659,12 @@ void _setGenreDialog(
         FilledButton(
           onPressed: () async {
             final messenger = ScaffoldMessenger.of(context);
+            final value = (fieldCtrl?.text ?? current ?? '').trim();
             Navigator.pop(dialogContext);
             try {
               await ref
                   .read(libraryRepositoryProvider)
-                  .setArtistGenre(artistId, controller.text.trim());
+                  .setArtistGenre(artistId, value);
               ref.invalidate(artistDetailProvider(artistId));
               ref.invalidate(genresProvider);
               ref.invalidate(artistsProvider);
