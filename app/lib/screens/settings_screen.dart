@@ -14,7 +14,7 @@ import '../state/offline.dart';
 import '../theme.dart';
 import '../widgets/update_dialog.dart';
 
-const appVersion = '2.28.0';
+const appVersion = '2.29.0';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -84,6 +84,15 @@ class SettingsScreen extends ConsumerWidget {
           const _ModePicker(),
           const _AccentPicker(),
           const SizedBox(height: 8),
+          const Divider(),
+          const _SectionHeader('Développement'),
+          ListTile(
+            leading: const Icon(Icons.lightbulb_outline),
+            title: const Text('Mes idées'),
+            subtitle: const Text('Note tes idées de développement'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.push('/settings/ideas'),
+          ),
           const Divider(),
           const _SectionHeader('À propos'),
           ListTile(

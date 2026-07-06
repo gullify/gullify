@@ -8,6 +8,10 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('2.29.0', [
+    'Carnet d\'idées directement dans l\'app (Paramètres → Mes idées)',
+    'Synchronisé côté serveur : notées sur mobile, lues par Claude',
+  ]),
   ReleaseNote('2.28.0', [
     'Historique des versions dans les Paramètres',
     'Carnet d\'idées de développement (IDEAS.md)',
