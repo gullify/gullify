@@ -41,8 +41,11 @@ class StatsScreen extends ConsumerWidget {
     if (ok != true) return;
     try {
       await ref.read(statsRepositoryProvider).reset();
-      ref.invalidate(statsProvider);
       ref.invalidate(popularSongsProvider);
+      // Rechargement FORCÉ et attendu : garantit l'affichage à jour (une
+      // simple invalidation pouvait laisser des chiffres périmés à l'écran).
+      ref.invalidate(statsProvider);
+      await ref.read(statsProvider.future);
       messenger.showSnackBar(
         const SnackBar(content: Text('Statistiques réinitialisées')),
       );

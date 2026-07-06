@@ -8,6 +8,14 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('2.40.0', [
+    'Android Auto : menu calqué sur l\'app mobile — Accueil (Aléatoire, '
+        'Découverte, Nouveautés, Populaires, Derniers joués), Bibliothèque '
+        '(Artistes, Albums, Favoris, Playlists, Genres), Radios, Favoris',
+    'Correctif : la réinitialisation des statistiques rafraîchit bien les '
+        'chiffres à l\'écran',
+    'Mascotte Gullify sur les écrans de connexion',
+  ]),
   ReleaseNote('2.39.0', [
     'Statistiques : graphiques repensés (barres en dégradé sur piste douce, '
         'plus lisibles et cohérents avec le style)',

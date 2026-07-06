@@ -640,6 +640,42 @@ try {
         }
         $response['data'] = $songs;
 
+    } elseif ($action === 'recent_songs') {
+        // « Derniers joués » : titres récemment écoutés (distincts, jouables),
+        // ordonnés du plus récent. Pour Android Auto notamment.
+        $limit = min(200, max(1, intval($_GET['limit'] ?? 50)));
+        $stmt = $conn->prepare("
+            SELECT s.id, s.title, s.track_number, s.duration, s.file_path,
+                   s.album_id, al.name AS album_name,
+                   a.id AS artist_id, a.name AS artist_name,
+                   MAX(ph.played_at) AS last_played
+            FROM play_history ph
+            JOIN songs s   ON ph.song_id = s.id
+            JOIN albums al ON s.album_id = al.id
+            JOIN artists a ON al.artist_id = a.id
+            WHERE a.user = ?
+            GROUP BY s.id
+            ORDER BY last_played DESC
+            LIMIT $limit
+        ");
+        $stmt->execute([$user]);
+        $songs = [];
+        while ($row = $stmt->fetch()) {
+            $songs[] = [
+                'id' => (int)$row['id'],
+                'title' => $row['title'],
+                'trackNumber' => (int)$row['track_number'],
+                'duration' => (int)$row['duration'],
+                'filePath' => $row['file_path'],
+                'albumId' => (int)$row['album_id'],
+                'albumName' => $row['album_name'],
+                'artworkUrl' => albumArtworkUrl((int)$row['album_id']),
+                'artistId' => (int)$row['artist_id'],
+                'artistName' => $row['artist_name'],
+            ];
+        }
+        $response['data'] = $songs;
+
     } elseif ($action === 'discovery_songs') {
         // « Découverte » : titres jamais joués (absents de play_history),
         // mélangés. Idéal pour redécouvrir sa bibliothèque.

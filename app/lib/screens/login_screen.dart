@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../api/api_client.dart';
 import '../state/auth.dart';
-import '../theme.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -62,8 +61,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Icon(Icons.graphic_eq, size: 64, color: gullifyAmber),
-                const SizedBox(height: 16),
+                Image.asset('assets/icon/mascot.png', width: 96, height: 96),
+                const SizedBox(height: 12),
                 Text(
                   'Connexion',
                   textAlign: TextAlign.center,

@@ -32,15 +32,21 @@ Future<GullifyAudioHandler> initAudioHandler() {
 /// Media IDs used for the Android Auto / media browser tree.
 class BrowseIds {
   static const root = AudioService.browsableRootId;
+  static const home = 'HOME';
+  static const library = 'LIBRARY';
   static const albums = 'ALBUMS';
   static const artists = 'ARTISTS';
   static const favorites = 'FAVORITES';
   static const recent = 'RECENT';
+  static const popular = 'POPULAR';
+  static const recentPlays = 'RECENTPLAYS';
   static const radios = 'RADIOS';
   static const playlists = 'PLAYLISTS';
+  static const genres = 'GENRES';
   static String album(int id) => 'ALBUM_$id';
   static String artist(int id) => 'ARTIST_$id';
   static String playlist(int id) => 'PLAYLIST_$id';
+  static String genre(String name) => 'GENRE_$name';
   static String radio(String id) => 'RADIO_$id';
 }
 
@@ -105,6 +111,9 @@ class GullifyAudioHandler extends BaseAudioHandler
 
   /// Derniers résultats de recherche AA (pour lecture au tap d'un résultat).
   List<Song> _searchCache = const [];
+  // Caches des listes jouables (pour TRACK_i cohérent avec l'affichage).
+  List<Song> _popularCache = const [];
+  List<Song> _recentPlaysCache = const [];
 
   /// Journal d'événements Android Auto (dernier en tête), consultable dans
   /// l'app (Paramètres → Diagnostic Android Auto). Permet de diagnostiquer
@@ -399,14 +408,13 @@ class GullifyAudioHandler extends BaseAudioHandler
     logAA('getChildren($parentMediaId)');
     // La racine est statique : toujours répondre, même avant l'auth.
     if (parentMediaId == BrowseIds.root) {
-      logAA('→ racine statique (6 items)');
+      logAA('→ racine statique (onglets)');
+      // Miroir de l'app mobile : Accueil, Bibliothèque, Radios, Favoris.
       return const [
-        MediaItem(id: BrowseIds.recent, title: 'Nouveautés', playable: false),
-        MediaItem(id: BrowseIds.favorites, title: 'Favoris', playable: false),
-        MediaItem(id: BrowseIds.playlists, title: 'Playlists', playable: false),
-        MediaItem(id: BrowseIds.artists, title: 'Artistes', playable: false),
-        MediaItem(id: BrowseIds.albums, title: 'Albums', playable: false),
+        MediaItem(id: BrowseIds.home, title: 'Accueil', playable: false),
+        MediaItem(id: BrowseIds.library, title: 'Bibliothèque', playable: false),
         MediaItem(id: BrowseIds.radios, title: 'Radios', playable: false),
+        MediaItem(id: BrowseIds.favorites, title: 'Favoris', playable: false),
       ];
     }
 
@@ -430,6 +438,61 @@ class GullifyAudioHandler extends BaseAudioHandler
     LibraryRepository repo,
   ) async {
     switch (parentMediaId) {
+
+      // ── Onglet Accueil ──
+      case BrowseIds.home:
+        return const [
+          MediaItem(id: 'ALL_SHUFFLE', title: 'Lecture aléatoire',
+              playable: true),
+          MediaItem(id: 'DISCOVERY_SHUFFLE', title: 'Découverte',
+              playable: true),
+          MediaItem(id: BrowseIds.recent, title: 'Nouveautés',
+              playable: false),
+          MediaItem(id: BrowseIds.popular, title: 'Les plus populaires',
+              playable: false),
+          MediaItem(id: BrowseIds.recentPlays, title: 'Derniers joués',
+              playable: false),
+        ];
+
+      // ── Onglet Bibliothèque ──
+      case BrowseIds.library:
+        return const [
+          MediaItem(id: BrowseIds.artists, title: 'Artistes', playable: false),
+          MediaItem(id: BrowseIds.albums, title: 'Albums', playable: false),
+          MediaItem(id: BrowseIds.favorites, title: 'Favoris', playable: false),
+          MediaItem(id: BrowseIds.playlists, title: 'Playlists',
+              playable: false),
+          MediaItem(id: BrowseIds.genres, title: 'Genres', playable: false),
+        ];
+
+      case BrowseIds.popular:
+        final songs = await repo.popularSongs(limit: 100);
+        _popularCache = songs;
+        if (songs.isEmpty) return [];
+        return [
+          ..._playAllItems('POPULAR', playLabel: 'Tout lire'),
+          ..._trackItems('POPULAR', songs),
+        ];
+
+      case BrowseIds.recentPlays:
+        final songs = await repo.recentSongs(limit: 50);
+        _recentPlaysCache = songs;
+        if (songs.isEmpty) return [];
+        return [
+          ..._playAllItems('RECENTPLAYS', playLabel: 'Tout lire'),
+          ..._trackItems('RECENTPLAYS', songs),
+        ];
+
+      case BrowseIds.genres:
+        final genres = await repo.genres();
+        return [
+          for (final g in genres)
+            MediaItem(
+              id: BrowseIds.genre(g.name),
+              title: '${g.name} (${g.artistCount})',
+              playable: false,
+            ),
+        ];
 
       case BrowseIds.favorites:
         final songs = await repo.allFavorites();
@@ -526,6 +589,20 @@ class GullifyAudioHandler extends BaseAudioHandler
       return [
         ..._playAllItems('PLAYLIST_$id', playLabel: 'Lire la playlist'),
         ..._trackItems('PLAYLIST_$id', songs),
+      ];
+    }
+
+    if (parentMediaId.startsWith('GENRE_')) {
+      final name = parentMediaId.substring('GENRE_'.length);
+      final artists = await repo.artistsByGenre(name);
+      return [
+        for (final ar in artists)
+          MediaItem(
+            id: BrowseIds.artist(ar.id),
+            title: ar.name,
+            artUri: ar.imageUrl != null ? Uri.parse(ar.imageUrl!) : null,
+            playable: false,
+          ),
       ];
     }
 
@@ -749,7 +826,8 @@ class GullifyAudioHandler extends BaseAudioHandler
     ));
 
     final m = RegExp(
-      r'^(ALBUM_(\d+)|ARTIST_(\d+)|PLAYLIST_(\d+)|FAV|RECENT|ALL)'
+      r'^(ALBUM_(\d+)|ARTIST_(\d+)|PLAYLIST_(\d+)'
+      r'|FAV|RECENT|ALL|DISCOVERY|POPULAR|RECENTPLAYS)'
       r'(?:_(PLAY|SHUFFLE|TRACK_(\d+)))?$',
     ).firstMatch(mediaId);
 
@@ -796,6 +874,16 @@ class GullifyAudioHandler extends BaseAudioHandler
         songs = all;
       } else if (prefix == 'ALL') {
         songs = await repo.randomSongs();
+      } else if (prefix == 'DISCOVERY') {
+        songs = await repo.discoverySongs();
+      } else if (prefix == 'POPULAR') {
+        songs = _popularCache.isNotEmpty
+            ? _popularCache
+            : await repo.popularSongs(limit: 100);
+      } else if (prefix == 'RECENTPLAYS') {
+        songs = _recentPlaysCache.isNotEmpty
+            ? _recentPlaysCache
+            : await repo.recentSongs(limit: 50);
       } else {
         songs = await _favorites(repo);
       }
