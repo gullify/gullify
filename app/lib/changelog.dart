@@ -8,6 +8,11 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('2.34.0', [
+    'Android Auto : initialisation blindée (le menu ne peut plus rester '
+        'vide au démarrage voiture) + journal de diagnostic dans l\'app '
+        '(Paramètres → Diagnostic Android Auto)',
+  ]),
   ReleaseNote('2.33.0', [
     'Android Auto : si la recherche vocale ne trouve rien en local, repli '
         'YouTube — télécharge puis joue',

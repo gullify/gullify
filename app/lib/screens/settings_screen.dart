@@ -14,7 +14,7 @@ import '../state/offline.dart';
 import '../theme.dart';
 import '../widgets/update_dialog.dart';
 
-const appVersion = '2.33.0';
+const appVersion = '2.34.0';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -93,6 +93,14 @@ class SettingsScreen extends ConsumerWidget {
             trailing: const Icon(Icons.chevron_right),
             onTap: () => context.push('/settings/ideas'),
           ),
+          if (!kIsWeb && Platform.isAndroid)
+            ListTile(
+              leading: const Icon(Icons.directions_car_outlined),
+              title: const Text('Diagnostic Android Auto'),
+              subtitle: const Text('Journal en cas de « Aucune sélection »'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => context.push('/settings/aa-diagnostic'),
+            ),
           const Divider(),
           const _SectionHeader('À propos'),
           ListTile(

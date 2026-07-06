@@ -96,6 +96,19 @@ class GullifyAudioHandler extends BaseAudioHandler
   /// quand rien n'est trouvé en local : télécharge puis joue.
   YtDownloadsRepository? ytRepository;
 
+  /// Journal d'événements Android Auto (dernier en tête), consultable dans
+  /// l'app (Paramètres → Diagnostic Android Auto). Permet de diagnostiquer
+  /// « Aucune sélection » sans brancher d'ordinateur.
+  final List<String> aaLog = <String>[];
+
+  void logAA(String msg) {
+    final t = DateTime.now();
+    String two(int n) => n.toString().padLeft(2, '0');
+    aaLog.insert(0, '${two(t.hour)}:${two(t.minute)}:${two(t.second)}  $msg');
+    if (aaLog.length > 80) aaLog.removeRange(80, aaLog.length);
+    if (kDebugMode) debugPrint('[Gullify][AA] $msg');
+  }
+
   // Caches du browse tree : évitent un second aller-réseau entre le
   // listing (getChildren) et la lecture (playFromMediaId).
   final _albumSongsCache = <int, List<Song>>{};
@@ -359,9 +372,12 @@ class GullifyAudioHandler extends BaseAudioHandler
   /// de session prend quelques secondes : on attend le repository plutôt
   /// que de répondre « vide » (AA ne re-demande pas).
   Future<LibraryRepository?> _awaitRepository() async {
-    for (var i = 0; i < 40 && repository == null; i++) {
+    // Attend jusqu'à ~25 s que la session soit restaurée (lancement voiture
+    // sans écran : l'auth se restaure de façon asynchrone).
+    for (var i = 0; i < 100 && repository == null; i++) {
       await Future<void>.delayed(const Duration(milliseconds: 250));
     }
+    if (repository == null) logAA('repository TOUJOURS absent après attente');
     return repository;
   }
 
@@ -370,8 +386,10 @@ class GullifyAudioHandler extends BaseAudioHandler
     String parentMediaId, [
     Map<String, dynamic>? options,
   ]) async {
+    logAA('getChildren($parentMediaId)');
     // La racine est statique : toujours répondre, même avant l'auth.
     if (parentMediaId == BrowseIds.root) {
+      logAA('→ racine statique (5 items)');
       return const [
         MediaItem(id: BrowseIds.favorites, title: 'Favoris', playable: false),
         MediaItem(id: BrowseIds.recent, title: 'Nouveautés', playable: false),
@@ -381,9 +399,25 @@ class GullifyAudioHandler extends BaseAudioHandler
       ];
     }
 
-    final repo = await _awaitRepository();
-    if (repo == null) return [];
+    try {
+      final repo = await _awaitRepository();
+      if (repo == null) {
+        logAA('→ [] (pas de repository)');
+        return [];
+      }
+      final items = await _getCategory(parentMediaId, repo);
+      logAA('→ ${items.length} items');
+      return items;
+    } catch (e) {
+      logAA('ERREUR getChildren: $e');
+      return [];
+    }
+  }
 
+  Future<List<MediaItem>> _getCategory(
+    String parentMediaId,
+    LibraryRepository repo,
+  ) async {
     switch (parentMediaId) {
 
       case BrowseIds.favorites:
@@ -527,8 +561,12 @@ class GullifyAudioHandler extends BaseAudioHandler
     String query, [
     Map<String, dynamic>? extras,
   ]) async {
+    logAA('recherche vocale : « $query »');
     final repo = await _awaitRepository();
-    if (repo == null || query.trim().isEmpty) return;
+    if (repo == null || query.trim().isEmpty) {
+      logAA('→ recherche annulée (repo=${repo == null ? "absent" : "ok"})');
+      return;
+    }
     playbackState.add(playbackState.value.copyWith(
       processingState: AudioProcessingState.loading,
       playing: false,

@@ -20,16 +20,35 @@ final audioHandlerBinderProvider = Provider<void>((ref) {
   final handler = ref.watch(audioHandlerProvider);
   final auth = ref.watch(authProvider);
   final authenticated = auth.status == AuthStatus.authenticated;
-  handler.repository =
-      authenticated ? ref.watch(libraryRepositoryProvider) : null;
-  handler.radioRepository =
-      authenticated ? ref.watch(radioRepositoryProvider) : null;
-  handler.ytRepository =
-      authenticated ? ref.watch(ytDownloadsRepositoryProvider) : null;
-  handler.offlinePaths = {
-    for (final o in (ref.watch(offlineProvider).value ?? {}).values)
-      o.song.id: o.localPath,
-  };
+  handler.logAA('binder: auth=${auth.status.name}');
+  // Chaque liaison est indépendante et protégée : une erreur sur l'une (ex.
+  // client YouTube) ne doit jamais empêcher la bibliothèque de se lier ni
+  // casser l'initialisation sans écran (voiture).
+  try {
+    handler.repository =
+        authenticated ? ref.watch(libraryRepositoryProvider) : null;
+    if (authenticated) handler.logAA('repository lié');
+  } catch (e) {
+    handler.logAA('ERREUR liaison repository: $e');
+  }
+  try {
+    handler.radioRepository =
+        authenticated ? ref.watch(radioRepositoryProvider) : null;
+  } catch (e) {
+    handler.logAA('ERREUR liaison radio: $e');
+  }
+  try {
+    handler.ytRepository =
+        authenticated ? ref.watch(ytDownloadsRepositoryProvider) : null;
+  } catch (e) {
+    handler.logAA('ERREUR liaison youtube: $e');
+  }
+  try {
+    handler.offlinePaths = {
+      for (final o in (ref.watch(offlineProvider).value ?? {}).values)
+        o.song.id: o.localPath,
+    };
+  } catch (_) {}
 });
 
 final currentMediaItemProvider = StreamProvider<MediaItem?>(

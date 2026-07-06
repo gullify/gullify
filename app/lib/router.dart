@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'screens/aa_diagnostic_screen.dart';
 import 'screens/album_screen.dart';
 import 'screens/artist_screen.dart';
 import 'screens/changelog_screen.dart';
@@ -141,6 +142,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/genres',
         builder: (_, _) => const GenresScreen(),
+      ),
+      GoRoute(
+        path: '/settings/aa-diagnostic',
+        builder: (_, _) => const AaDiagnosticScreen(),
       ),
     ],
     redirect: (context, state) {
