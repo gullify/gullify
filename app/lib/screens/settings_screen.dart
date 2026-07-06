@@ -14,7 +14,7 @@ import '../state/offline.dart';
 import '../theme.dart';
 import '../widgets/update_dialog.dart';
 
-const appVersion = '2.27.0';
+const appVersion = '2.28.0';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -86,10 +86,12 @@ class SettingsScreen extends ConsumerWidget {
           const SizedBox(height: 8),
           const Divider(),
           const _SectionHeader('À propos'),
-          const ListTile(
-            leading: Icon(Icons.info_outline),
-            title: Text('Gullify'),
-            subtitle: Text('Version $appVersion'),
+          ListTile(
+            leading: const Icon(Icons.info_outline),
+            title: const Text('Gullify'),
+            subtitle: const Text('Version $appVersion'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.push('/settings/changelog'),
           ),
           const _UpdateTile(),
         ],

@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import 'screens/album_screen.dart';
 import 'screens/artist_screen.dart';
+import 'screens/changelog_screen.dart';
 import 'screens/downloads_screen.dart';
 import 'screens/equalizer_screen.dart';
 import 'screens/favorites_screen.dart';
@@ -126,6 +127,10 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/radio/edit',
         builder: (_, state) =>
             RadioEditScreen(station: state.extra as RadioStation?),
+      ),
+      GoRoute(
+        path: '/settings/changelog',
+        builder: (_, _) => const ChangelogScreen(),
       ),
     ],
     redirect: (context, state) {
