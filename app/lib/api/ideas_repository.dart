@@ -5,18 +5,24 @@ class Idea {
   const Idea({
     required this.id,
     required this.text,
-    required this.done,
+    required this.status,
   });
 
   factory Idea.fromJson(Map<String, dynamic> json) => Idea(
         id: (json['id'] as num?)?.toInt() ?? 0,
         text: json['text'] as String? ?? '',
-        done: (json['status'] as String?) == 'done',
+        status: json['status'] as String? ?? 'todo',
       );
 
   final int id;
   final String text;
-  final bool done;
+
+  /// 'todo' | 'requested' | 'in_progress' | 'needs_review' | 'done'
+  final String status;
+
+  bool get done => status == 'done';
+  bool get pending => status == 'requested' || status == 'in_progress';
+  bool get needsReview => status == 'needs_review';
 }
 
 class IdeasRepository {
@@ -43,6 +49,13 @@ class IdeasRepository {
         'ideas.php',
         query: {'action': 'set_status'},
         body: {'id': id, 'status': done ? 'done' : 'todo'},
+      );
+
+  /// Confie l'idée à Claude (le cron serveur la réalisera).
+  Future<void> request(int id) => _client.post(
+        'ideas.php',
+        query: {'action': 'request'},
+        body: {'id': id},
       );
 
   Future<void> update(int id, String text) => _client.post(

@@ -8,6 +8,10 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('2.41.0', [
+    'Idées : bouton « Confier à Claude » — Claude réalise l\'idée sur le '
+        'serveur et la coche une fois faite (à activer côté serveur)',
+  ]),
   ReleaseNote('2.40.0', [
     'Android Auto : menu calqué sur l\'app mobile — Accueil (Aléatoire, '
         'Découverte, Nouveautés, Populaires, Derniers joués), Bibliothèque '

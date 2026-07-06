@@ -74,6 +74,15 @@ switch ($action) {
         echo json_encode(['success' => true]);
         break;
 
+    case 'request':
+        // Confie l'idée à Claude (traitée par le cron process-ideas.sh).
+        $body = $readBody();
+        $id   = (int)($body['id'] ?? 0);
+        $db->prepare("UPDATE dev_ideas SET status = 'requested' WHERE id = ? AND user = ?")
+           ->execute([$id, $user]);
+        echo json_encode(['success' => true]);
+        break;
+
     case 'update':
         $body = $readBody();
         $id   = (int)($body['id'] ?? 0);

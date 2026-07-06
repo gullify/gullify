@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -15,9 +17,21 @@ class IdeasScreen extends ConsumerStatefulWidget {
 class _IdeasScreenState extends ConsumerState<IdeasScreen> {
   final _controller = TextEditingController();
   bool _adding = false;
+  Timer? _poll;
+
+  @override
+  void initState() {
+    super.initState();
+    // Rafraîchit périodiquement pour voir avancer les idées confiées à Claude.
+    _poll = Timer.periodic(
+      const Duration(seconds: 12),
+      (_) => mounted ? ref.invalidate(ideasProvider) : null,
+    );
+  }
 
   @override
   void dispose() {
+    _poll?.cancel();
     _controller.dispose();
     super.dispose();
   }
@@ -35,6 +49,41 @@ class _IdeasScreenState extends ConsumerState<IdeasScreen> {
       messenger.showSnackBar(SnackBar(content: Text('Échec : $e')));
     } finally {
       if (mounted) setState(() => _adding = false);
+    }
+  }
+
+  Future<void> _confier(WidgetRef ref, dynamic idea) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Confier à Claude ?'),
+        content: Text(
+          'Claude réalisera cette idée sur le serveur puis publiera une '
+          'nouvelle version. Tu la verras cochée ici une fois faite.\n\n'
+          '« ${idea.text} »',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Annuler'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Confier'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      await ref.read(ideasRepositoryProvider).request(idea.id as int);
+      ref.invalidate(ideasProvider);
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Idée confiée à Claude 🤖')),
+      );
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('Échec : $e')));
     }
   }
 
@@ -140,6 +189,35 @@ class _IdeasScreenState extends ConsumerState<IdeasScreen> {
                               color: idea.done ? scheme.onSurfaceVariant : null,
                             ),
                           ),
+                          subtitle: idea.pending
+                              ? Row(
+                                  children: [
+                                    const SizedBox(
+                                      width: 12,
+                                      height: 12,
+                                      child: CircularProgressIndicator(
+                                          strokeWidth: 2),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      idea.status == 'in_progress'
+                                          ? 'Claude travaille dessus…'
+                                          : 'Confié à Claude — en attente',
+                                      style: TextStyle(color: scheme.primary),
+                                    ),
+                                  ],
+                                )
+                              : idea.needsReview
+                                  ? Text('À revoir (ambiguë ou risquée)',
+                                      style: TextStyle(color: scheme.error))
+                                  : null,
+                          secondary: (idea.done || idea.pending)
+                              ? null
+                              : IconButton(
+                                  tooltip: 'Confier à Claude',
+                                  icon: const Icon(Icons.smart_toy_outlined),
+                                  onPressed: () => _confier(ref, idea),
+                                ),
                         ),
                       );
                     },
