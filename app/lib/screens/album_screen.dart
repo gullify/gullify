@@ -76,6 +76,9 @@ class AlbumScreen extends ConsumerWidget {
                 showArtwork: false,
                 leadingNumber: song.trackNumber ?? i + 1,
                 isPlaying: song.id == currentSongId,
+                // Compilation : affiche « Interprète — Titre ».
+                showTrackArtist: (d.album.artistName ?? '').toLowerCase() ==
+                    'various artists',
                 onTap: () => ref
                     .read(playerActionsProvider)
                     .playSongs(d.songs, startIndex: i),

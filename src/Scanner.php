@@ -109,6 +109,9 @@ class Scanner {
         if (!$this->columnExists('albums', 'created_at')) {
             $this->db->exec("ALTER TABLE albums ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP");
         }
+        if (!$this->columnExists('songs', 'track_artist')) {
+            $this->db->exec("ALTER TABLE songs ADD COLUMN track_artist VARCHAR(255) NULL");
+        }
         if (!$this->columnExists('albums', 'is_compilation')) {
             $this->db->exec("ALTER TABLE albums ADD COLUMN is_compilation TINYINT(1) NOT NULL DEFAULT 0");
         }
@@ -850,15 +853,19 @@ class Scanner {
             $albumId = (int) $this->db->lastInsertId();
         }
 
+        // track_artist = interprète ID3 (utile pour l'affichage des
+        // compilations « Artiste — Titre »).
+        $trackArtist = $metadata['artist'] ?? null;
         $stmt = $this->db->prepare('
-            INSERT INTO songs (album_id, title, track_number, duration, file_path, file_hash)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO songs (album_id, title, track_number, duration, file_path, file_hash, track_artist)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             ON DUPLICATE KEY UPDATE
                 album_id = VALUES(album_id),
                 title = VALUES(title),
                 track_number = VALUES(track_number),
                 duration = VALUES(duration),
-                file_hash = VALUES(file_hash)
+                file_hash = VALUES(file_hash),
+                track_artist = VALUES(track_artist)
         ');
         $stmt->execute([
             $albumId,
@@ -867,6 +874,7 @@ class Scanner {
             $metadata['duration'],
             $songData['relative_path'],
             $fileHash,
+            $trackArtist ? mb_substr($trackArtist, 0, 255) : null,
         ]);
 
         // Write back filename-derived tags if needed

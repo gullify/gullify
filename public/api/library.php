@@ -277,7 +277,10 @@ try {
                 'albumId' => $row['album_id'],
                 'artworkUrl' => albumArtworkUrl((int)$row['album_id']),
                 'artistId' => $row['track_artist_id'] ? (int)$row['track_artist_id'] : null,
-                'artistName' => $row['track_artist_name'] ?: null,
+                // Interprète réel de la piste : artiste lié, sinon tag ID3
+                // (colonne track_artist) — utile pour les compilations.
+                'artistName' => $row['track_artist_name']
+                    ?: (($row['track_artist'] ?? '') !== '' ? $row['track_artist'] : null),
                 'playCount' => (int)$row['play_count'],
             ];
         }

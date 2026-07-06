@@ -27,6 +27,7 @@ class SongTile extends ConsumerWidget {
     this.isPlaying = false,
     this.subtitle,
     this.trailing,
+    this.showTrackArtist = false,
   });
 
   final Song song;
@@ -37,6 +38,10 @@ class SongTile extends ConsumerWidget {
   final bool isPlaying;
   final String? subtitle;
   final Widget? trailing;
+
+  /// Préfixe le titre par l'interprète (« Artiste — Titre ») : utile pour
+  /// les compilations Various Artists où chaque piste a un artiste différent.
+  final bool showTrackArtist;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -127,7 +132,9 @@ class SongTile extends ConsumerWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        song.title,
+                        showTrackArtist && song.artistName != null
+                            ? '${song.artistName} — ${song.title}'
+                            : song.title,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(

@@ -8,6 +8,10 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('2.44.0', [
+    'Compilations (Various Artists) : chaque piste affiche « Interprète — '
+        'Titre » (lu depuis les tags), au lieu du seul titre',
+  ]),
   ReleaseNote('2.43.0', [
     'Correctif : les statistiques comptent TES écoutes (les écoutes d\'un '
         'autre utilisateur sur ta bibliothèque ne s\'y ajoutent plus)',
