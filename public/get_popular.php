@@ -34,7 +34,7 @@ try {
         JOIN songs s   ON ph.song_id = s.id
         JOIN albums al ON s.album_id = al.id
         JOIN artists a ON al.artist_id = a.id
-        WHERE a.user = ?
+        WHERE ph.user = ?
           AND ph.played_at >= DATE_SUB(NOW(), INTERVAL 90 DAY)
         GROUP BY s.id
         ORDER BY play_count DESC, last_played_at DESC

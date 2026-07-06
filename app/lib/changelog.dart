@@ -8,6 +8,13 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('2.43.0', [
+    'Correctif : les statistiques comptent TES écoutes (les écoutes d\'un '
+        'autre utilisateur sur ta bibliothèque ne s\'y ajoutent plus)',
+    'Correctif : logo de connexion propre (mascotte détourée sans trous)',
+    'Correctif : télécharger une compilation n\'inonde plus les Nouveautés '
+        'de vieux albums (dates réelles préservées)',
+  ]),
   ReleaseNote('2.42.0', [
     'Idées : bouton crayon pour modifier le texte d\'une idée existante',
   ]),

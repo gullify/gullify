@@ -51,7 +51,7 @@ try {
         JOIN songs s   ON ph.song_id = s.id
         JOIN albums al ON s.album_id = al.id
         JOIN artists a ON al.artist_id = a.id
-        WHERE a.user = ?
+        WHERE ph.user = ?
     ");
     $stmt->execute([$user]);
     $gen = $stmt->fetch();
@@ -90,7 +90,7 @@ try {
         JOIN songs s   ON ph.song_id = s.id
         JOIN albums al ON s.album_id = al.id
         JOIN artists a ON al.artist_id = a.id
-        WHERE a.user = ?
+        WHERE ph.user = ?
         GROUP BY s.id, s.title, s.album_id, al.name, a.id, a.name
         ORDER BY play_count DESC
         LIMIT 20
@@ -117,7 +117,7 @@ try {
         JOIN songs s   ON ph.song_id = s.id
         JOIN albums al ON s.album_id = al.id
         JOIN artists a ON al.artist_id = a.id
-        WHERE a.user = ?
+        WHERE ph.user = ?
         GROUP BY a.id, a.name
         ORDER BY play_count DESC
         LIMIT 12
@@ -141,7 +141,7 @@ try {
         JOIN songs s   ON ph.song_id = s.id
         JOIN albums al ON s.album_id = al.id
         JOIN artists a ON al.artist_id = a.id
-        WHERE a.user = ?
+        WHERE ph.user = ?
         GROUP BY al.id, al.name, a.id, a.name
         ORDER BY play_count DESC
         LIMIT 12
@@ -166,7 +166,7 @@ try {
         JOIN songs s   ON ph.song_id = s.id
         JOIN albums al ON s.album_id = al.id
         JOIN artists a ON al.artist_id = a.id
-        WHERE a.user = ?
+        WHERE ph.user = ?
           AND ph.played_at >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
         GROUP BY DATE(ph.played_at)
         ORDER BY day ASC
@@ -191,7 +191,7 @@ try {
         JOIN songs s   ON ph.song_id = s.id
         JOIN albums al ON s.album_id = al.id
         JOIN artists a ON al.artist_id = a.id
-        WHERE a.user = ?
+        WHERE ph.user = ?
         GROUP BY HOUR(ph.played_at)
     ");
     $stmt->execute([$user]);
@@ -213,7 +213,7 @@ try {
         JOIN songs s   ON ph.song_id = s.id
         JOIN albums al ON s.album_id = al.id
         JOIN artists a ON al.artist_id = a.id
-        WHERE a.user = ?
+        WHERE ph.user = ?
         GROUP BY DAYOFWEEK(ph.played_at)
     ");
     $stmt->execute([$user]);
@@ -332,7 +332,7 @@ try {
         JOIN songs s   ON ph.song_id = s.id
         JOIN albums al ON s.album_id = al.id
         JOIN artists a ON al.artist_id = a.id
-        WHERE a.user = ?
+        WHERE ph.user = ?
         ORDER BY ph.played_at DESC
         LIMIT 20
     ");

@@ -653,7 +653,7 @@ try {
             JOIN songs s   ON ph.song_id = s.id
             JOIN albums al ON s.album_id = al.id
             JOIN artists a ON al.artist_id = a.id
-            WHERE a.user = ?
+            WHERE ph.user = ?
             GROUP BY s.id
             ORDER BY last_played DESC
             LIMIT $limit

@@ -618,8 +618,20 @@ class Scanner {
         // Sync albums
         foreach ($foundAlbums as $name => $data) {
             if (!isset($existingAlbums[$name])) {
-                $stmt = $this->db->prepare('INSERT INTO albums (artist_id, name) VALUES (?, ?)');
-                $stmt->execute([$artistId, $name]);
+                // created_at = date réelle du dossier (mtime), pas NOW : sinon
+                // du contenu ANCIEN re-scané (ex. compilations Various Artists)
+                // inonde les « Nouveautés » avec la date du jour.
+                $mtime = 0;
+                try {
+                    $mtime = (int)($this->storage->stat($data['path'])['mtime'] ?? 0);
+                } catch (\Throwable $e) {}
+                if ($mtime > 0) {
+                    $stmt = $this->db->prepare('INSERT INTO albums (artist_id, name, created_at) VALUES (?, ?, FROM_UNIXTIME(?))');
+                    $stmt->execute([$artistId, $name, $mtime]);
+                } else {
+                    $stmt = $this->db->prepare('INSERT INTO albums (artist_id, name) VALUES (?, ?)');
+                    $stmt->execute([$artistId, $name]);
+                }
                 $changes['new_albums'][] = $name;
             }
         }
