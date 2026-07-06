@@ -138,6 +138,12 @@ class HomeScreen extends ConsumerWidget {
                   ),
                 ),
               ),
+              // Accès rapides : lecture aléatoire de toute la bibliothèque
+              // et « Découverte » (titres jamais joués).
+              const Padding(
+                padding: EdgeInsets.fromLTRB(16, 8, 16, 2),
+                child: _QuickPlayRow(),
+              ),
               // Nouveautés : titre + bouton aléatoire des nouveautés.
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 14, 20, 2),
@@ -424,6 +430,119 @@ class _ShowMoreTile extends StatelessWidget {
             ),
             Icon(Icons.expand_more, size: 20, color: scheme.primary),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Deux accès rapides sur l'accueil : « Aléatoire » (toute la bibliothèque)
+/// et « Découverte » (titres jamais joués). Chacun charge puis lance.
+class _QuickPlayRow extends ConsumerStatefulWidget {
+  const _QuickPlayRow();
+
+  @override
+  ConsumerState<_QuickPlayRow> createState() => _QuickPlayRowState();
+}
+
+class _QuickPlayRowState extends ConsumerState<_QuickPlayRow> {
+  bool _busyRandom = false;
+  bool _busyDiscovery = false;
+
+  Future<void> _play({required bool discovery}) async {
+    setState(() => discovery ? _busyDiscovery = true : _busyRandom = true);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      // Lu au tap (pas dans build) pour ne pas forcer l'ApiClient en test.
+      final repo = ref.read(libraryRepositoryProvider);
+      final songs =
+          await (discovery ? repo.discoverySongs() : repo.randomSongs());
+      if (songs.isEmpty) {
+        messenger.showSnackBar(SnackBar(
+          content: Text(discovery
+              ? 'Aucun titre jamais joué — tout a déjà été écouté !'
+              : 'Bibliothèque vide'),
+        ));
+        return;
+      }
+      await ref.read(playerActionsProvider).playSongs(songs..shuffle());
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('Échec : $e')));
+    } finally {
+      if (mounted) {
+        setState(() => discovery ? _busyDiscovery = false : _busyRandom = false);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: _QuickButton(
+            icon: Icons.shuffle,
+            label: 'Aléatoire',
+            busy: _busyRandom,
+            onTap: () => _play(discovery: false),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: _QuickButton(
+            icon: Icons.auto_awesome,
+            label: 'Découverte',
+            busy: _busyDiscovery,
+            onTap: () => _play(discovery: true),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _QuickButton extends StatelessWidget {
+  const _QuickButton({
+    required this.icon,
+    required this.label,
+    required this.busy,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool busy;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return GlassBox(
+      radius: 16,
+      blur: false,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: busy ? null : onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              busy
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Icon(icon, size: 20, color: scheme.primary),
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: const TextStyle(
+                    fontSize: 14, fontWeight: FontWeight.w700),
+              ),
+            ],
+          ),
         ),
       ),
     );

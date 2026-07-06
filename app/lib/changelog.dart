@@ -8,6 +8,10 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('2.31.0', [
+    'Accueil : bouton « Aléatoire » (toute la bibliothèque)',
+    'Accueil : bouton « Découverte » (titres jamais joués)',
+  ]),
   ReleaseNote('2.30.0', [
     'Attribution du genre avec autocomplétion sur tous les genres',
     'Écran de gestion des genres : renommer ou supprimer (Bibliothèque → '

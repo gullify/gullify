@@ -172,6 +172,15 @@ class LibraryRepository {
     return _list(data, _song);
   }
 
+  /// Titres jamais joués (mode « Découverte »), mélangés.
+  Future<List<Song>> discoverySongs({int limit = 200}) async {
+    final data = await _client.get('library.php', query: {
+      'action': 'discovery_songs',
+      'limit': limit,
+    });
+    return _list(data, _song);
+  }
+
   /// Titres les plus écoutés (song_stats).
   Future<List<Song>> popularSongs({int limit = 20}) async {
     final data = await _client.get('popular.php', query: {'limit': limit});
