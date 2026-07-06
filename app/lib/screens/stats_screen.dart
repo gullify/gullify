@@ -326,9 +326,9 @@ class _ChartCardState extends State<_ChartCard> {
                   ),
               ],
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 14),
             SizedBox(
-              height: 96,
+              height: 116,
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
@@ -339,46 +339,86 @@ class _ChartCardState extends State<_ChartCard> {
                         onTap: () => setState(
                           () => _selected = _selected == i ? null : i,
                         ),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          children: [
-                            if (i == maxIndex && v > 0)
-                              Padding(
-                                padding: const EdgeInsets.only(bottom: 2),
-                                child: Text(
-                                  '$v',
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .labelSmall
-                                      ?.copyWith(
-                                        color: scheme.onSurfaceVariant,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 1.5),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              if ((i == maxIndex || _selected == i) && v > 0)
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 3),
+                                  child: Text(
+                                    '$v',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .labelSmall
+                                        ?.copyWith(
+                                          fontWeight: FontWeight.w700,
+                                          color: _selected == i
+                                              ? scheme.primary
+                                              : scheme.onSurfaceVariant,
+                                        ),
+                                  ),
+                                ),
+                              // Piste de fond + barre en dégradé d'accent.
+                              Expanded(
+                                child: Align(
+                                  alignment: Alignment.bottomCenter,
+                                  child: Stack(
+                                    alignment: Alignment.bottomCenter,
+                                    children: [
+                                      // Piste (hauteur pleine, très douce).
+                                      Container(
+                                        decoration: BoxDecoration(
+                                          color: scheme.onSurface
+                                              .withValues(alpha: 0.05),
+                                          borderRadius:
+                                              BorderRadius.circular(6),
+                                        ),
                                       ),
+                                      FractionallySizedBox(
+                                        heightFactor:
+                                            (v / maxValue).clamp(0.02, 1.0),
+                                        child: Container(
+                                          decoration: BoxDecoration(
+                                            gradient: LinearGradient(
+                                              begin: Alignment.topCenter,
+                                              end: Alignment.bottomCenter,
+                                              colors: v == 0
+                                                  ? [
+                                                      scheme.onSurface
+                                                          .withValues(
+                                                              alpha: 0.08),
+                                                      scheme.onSurface
+                                                          .withValues(
+                                                              alpha: 0.08),
+                                                    ]
+                                                  : [
+                                                      scheme.primary,
+                                                      scheme.primary.withValues(
+                                                          alpha: _selected == i
+                                                              ? 0.85
+                                                              : 0.55),
+                                                    ],
+                                            ),
+                                            borderRadius:
+                                                BorderRadius.circular(6),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
                               ),
-                            Container(
-                              margin:
-                                  const EdgeInsets.symmetric(horizontal: 1),
-                              height: (v / maxValue * 72).clamp(2, 72),
-                              decoration: BoxDecoration(
-                                color: _selected == i
-                                    ? scheme.primary
-                                    : v == 0
-                                        ? scheme.surfaceContainerHighest
-                                        : scheme.primary
-                                            .withValues(alpha: 0.75),
-                                borderRadius: const BorderRadius.vertical(
-                                  top: Radius.circular(4),
-                                ),
-                              ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
                     ),
                 ],
               ),
             ),
-            Divider(height: 8, thickness: 1, color: scheme.outlineVariant),
+            const SizedBox(height: 8),
             Row(
               children: [
                 for (final (i, label) in chart.labels.indexed)
@@ -473,20 +513,37 @@ class _GenresCard extends StatelessWidget {
                   ),
                 ],
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: 5),
               Padding(
-                padding: const EdgeInsets.only(left: 16, bottom: 8),
-                child: FractionallySizedBox(
-                  alignment: Alignment.centerLeft,
-                  widthFactor: (g.count / maxCount).clamp(0.02, 1),
-                  child: Container(
-                    height: 6,
-                    decoration: BoxDecoration(
-                      color: _parse(g.color, scheme.primary)
-                          .withValues(alpha: 0.75),
-                      borderRadius: BorderRadius.circular(3),
+                padding: const EdgeInsets.only(left: 16, bottom: 9),
+                child: Stack(
+                  children: [
+                    // Piste de fond douce.
+                    Container(
+                      height: 7,
+                      decoration: BoxDecoration(
+                        color: scheme.onSurface.withValues(alpha: 0.05),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
                     ),
-                  ),
+                    FractionallySizedBox(
+                      alignment: Alignment.centerLeft,
+                      widthFactor: (g.count / maxCount).clamp(0.03, 1),
+                      child: Container(
+                        height: 7,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              _parse(g.color, scheme.primary),
+                              _parse(g.color, scheme.primary)
+                                  .withValues(alpha: 0.6),
+                            ],
+                          ),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],

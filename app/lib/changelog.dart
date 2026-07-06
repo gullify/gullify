@@ -8,6 +8,10 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('2.39.0', [
+    'Statistiques : graphiques repensés (barres en dégradé sur piste douce, '
+        'plus lisibles et cohérents avec le style)',
+  ]),
   ReleaseNote('2.38.0', [
     'Statistiques : les « Top titres » reflètent enfin tes écoutes réelles '
         '(fini les titres jamais joués en tête)',
