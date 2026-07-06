@@ -8,6 +8,11 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('2.38.0', [
+    'Statistiques : les « Top titres » reflètent enfin tes écoutes réelles '
+        '(fini les titres jamais joués en tête)',
+    'Bouton de réinitialisation des statistiques',
+  ]),
   ReleaseNote('2.37.0', [
     'Android Auto : bouton de recherche (vocal + clavier) avec résultats',
     'Android Auto : menu réordonné + Playlists, et « Tout lire / aléatoire » '

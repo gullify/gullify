@@ -76,19 +76,23 @@ try {
     ];
 
     // ── 2. Top songs (20) ────────────────────────────────────────────────────
+    // Classe par écoutes RÉELLES (play_history), pas par le compteur de
+    // toujours (song_stats), qui contenait des données parasites → des
+    // titres jamais écoutés remontaient en tête.
     $stmt = $conn->prepare("
         SELECT
             s.id, s.title, s.album_id,
             al.name  AS album_name,
             a.id     AS artist_id,
             a.name   AS artist_name,
-            ss.play_count
-        FROM song_stats ss
-        JOIN songs s   ON ss.song_id = s.id
+            COUNT(ph.id) AS play_count
+        FROM play_history ph
+        JOIN songs s   ON ph.song_id = s.id
         JOIN albums al ON s.album_id = al.id
         JOIN artists a ON al.artist_id = a.id
-        WHERE a.user = ? AND ss.play_count > 0
-        ORDER BY ss.play_count DESC
+        WHERE a.user = ?
+        GROUP BY s.id, s.title, s.album_id, al.name, a.id, a.name
+        ORDER BY play_count DESC
         LIMIT 20
     ");
     $stmt->execute([$user]);

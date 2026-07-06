@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../api/stats_repository.dart';
+import '../state/library.dart';
 import '../state/stats.dart';
 import '../widgets/artwork.dart';
 
@@ -12,12 +13,59 @@ import '../widgets/artwork.dart';
 class StatsScreen extends ConsumerWidget {
   const StatsScreen({super.key});
 
+  Future<void> _confirmReset(BuildContext context, WidgetRef ref) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Réinitialiser les statistiques ?'),
+        content: const Text(
+          'Tout ton historique d\'écoute et tes compteurs seront effacés. '
+          'Les titres, albums et favoris ne sont pas touchés. Irréversible.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Annuler'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Réinitialiser'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      await ref.read(statsRepositoryProvider).reset();
+      ref.invalidate(statsProvider);
+      ref.invalidate(popularSongsProvider);
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Statistiques réinitialisées')),
+      );
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('Échec : $e')));
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final stats = ref.watch(statsProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Statistiques')),
+      appBar: AppBar(
+        title: const Text('Statistiques'),
+        actions: [
+          IconButton(
+            tooltip: 'Réinitialiser',
+            icon: const Icon(Icons.restart_alt),
+            onPressed: () => _confirmReset(context, ref),
+          ),
+        ],
+      ),
       body: stats.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('Erreur : $e')),

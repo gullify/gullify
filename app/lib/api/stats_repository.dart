@@ -159,6 +159,12 @@ class StatsRepository {
   String _abs(String relative) =>
       relative.isEmpty ? '' : _client.resourceUrl(relative);
 
+  /// Efface tout l'historique d'écoute et les compteurs.
+  Future<void> reset() => _client.post(
+        'library.php',
+        query: {'action': 'reset_stats'},
+      );
+
   Future<ListeningStats> stats() async {
     final data = await _client.get('stats.php') as Map<String, dynamic>;
 

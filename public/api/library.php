@@ -1680,6 +1680,18 @@ try {
             }
         }
 
+    } elseif ($action === 'reset_stats') {
+        // Efface tout l'historique d'écoute et les compteurs de l'utilisateur.
+        $conn->prepare("DELETE FROM play_history WHERE user = ?")->execute([$user]);
+        $conn->prepare("
+            DELETE ss FROM song_stats ss
+            JOIN songs s   ON ss.song_id = s.id
+            JOIN albums al ON s.album_id = al.id
+            JOIN artists a ON al.artist_id = a.id
+            WHERE a.user = ?
+        ")->execute([$user]);
+        $response['data'] = ['reset' => true];
+
     } elseif ($action === 'delete_artist') {
         $artistId = (int)($_POST['artist_id'] ?? $_GET['artist_id'] ?? 0);
         if (!$artistId) {
