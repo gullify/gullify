@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../state/app_theme.dart';
 import '../state/app_update.dart';
@@ -14,7 +15,7 @@ import '../state/offline.dart';
 import '../theme.dart';
 import '../widgets/update_dialog.dart';
 
-const appVersion = '2.44.0';
+const appVersion = '2.45.0';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -29,11 +30,7 @@ class SettingsScreen extends ConsumerWidget {
       body: ListView(
         children: [
           const _SectionHeader('Compte'),
-          ListTile(
-            leading: const Icon(Icons.person_outline),
-            title: Text(auth.user?.fullName ?? auth.user?.username ?? ''),
-            subtitle: auth.user != null ? Text(auth.user!.username) : null,
-          ),
+          const _ProfilePhotoTile(),
           ListTile(
             leading: const Icon(Icons.dns_outlined),
             title: const Text('Serveur'),
@@ -151,6 +148,115 @@ String formatBytes(int bytes) {
     return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} Mo';
   }
   return '${(bytes / 1024).toStringAsFixed(0)} Ko';
+}
+
+/// Ligne « Compte » avec la photo de profil : tape pour en choisir une
+/// (galerie) ou la supprimer.
+class _ProfilePhotoTile extends ConsumerStatefulWidget {
+  const _ProfilePhotoTile();
+
+  @override
+  ConsumerState<_ProfilePhotoTile> createState() => _ProfilePhotoTileState();
+}
+
+class _ProfilePhotoTileState extends ConsumerState<_ProfilePhotoTile> {
+  bool _busy = false;
+
+  Future<void> _pick() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final picked = await ImagePicker().pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 1024,
+      maxHeight: 1024,
+    );
+    if (picked == null) return;
+    setState(() => _busy = true);
+    try {
+      await ref.read(authProvider.notifier).setAvatar(picked.path);
+    } catch (e) {
+      messenger.showSnackBar(
+        SnackBar(content: Text("Échec de l'envoi : $e")),
+      );
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _remove() async {
+    final messenger = ScaffoldMessenger.of(context);
+    setState(() => _busy = true);
+    try {
+      await ref.read(authProvider.notifier).removeAvatar();
+    } catch (e) {
+      messenger.showSnackBar(
+        SnackBar(content: Text('Échec : $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  void _openMenu(bool hasAvatar) {
+    showModalBottomSheet<void>(
+      context: context,
+      builder: (sheet) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('Choisir une photo'),
+              onTap: () {
+                Navigator.pop(sheet);
+                _pick();
+              },
+            ),
+            if (hasAvatar)
+              ListTile(
+                leading: const Icon(Icons.delete_outline),
+                title: const Text('Supprimer la photo'),
+                onTap: () {
+                  Navigator.pop(sheet);
+                  _remove();
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final user = ref.watch(authProvider).user;
+    final avatarUrl = user?.avatarUrl;
+    final scheme = Theme.of(context).colorScheme;
+
+    return ListTile(
+      onTap: _busy ? null : () => _openMenu(avatarUrl != null),
+      leading: CircleAvatar(
+        radius: 22,
+        backgroundColor: scheme.surfaceContainerHighest,
+        backgroundImage: (avatarUrl != null && avatarUrl.isNotEmpty)
+            ? NetworkImage(avatarUrl)
+            : null,
+        child: (avatarUrl == null || avatarUrl.isEmpty)
+            ? Icon(Icons.person_outline, color: scheme.onSurfaceVariant)
+            : null,
+      ),
+      title: Text(user?.fullName ?? user?.username ?? ''),
+      subtitle: Text(
+        user == null ? '' : '${user.username} · Photo de profil',
+      ),
+      trailing: _busy
+          ? const SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2.5),
+            )
+          : const Icon(Icons.edit_outlined, size: 20),
+    );
+  }
 }
 
 class _BackgroundPlaybackTile extends StatefulWidget {

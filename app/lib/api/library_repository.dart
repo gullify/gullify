@@ -1,5 +1,6 @@
 import '../models/album.dart';
 import '../models/artist.dart';
+import '../models/server_user.dart';
 import '../models/song.dart';
 import 'api_client.dart';
 
@@ -381,6 +382,41 @@ class LibraryRepository {
     final data = await _client.get('library.php', query: {
       'action': 'get_artists_by_genre',
       'genre': genre,
+    }) as Map<String, dynamic>;
+    return _list(data['artists'], _artist);
+  }
+
+  // ─────────────── Découverte des autres utilisateurs ───────────────
+
+  /// Les autres utilisateurs du serveur, du plus grand catalogue au plus
+  /// petit (pour explorer leurs bibliothèques).
+  Future<List<ServerUser>> serverUsers() async {
+    final data = await _client.get('users.php', query: {
+      'action': 'list',
+    }) as Map<String, dynamic>;
+    return [
+      for (final e in data['users'] as List<dynamic>? ?? [])
+        _serverUser(e as Map<String, dynamic>),
+    ];
+  }
+
+  ServerUser _serverUser(Map<String, dynamic> j) => ServerUser(
+        id: (j['id'] as num).toInt(),
+        username: j['username'] as String? ?? '',
+        fullName: j['fullName'] as String?,
+        artistCount: (j['artistCount'] as num?)?.toInt() ?? 0,
+        albumCount: (j['albumCount'] as num?)?.toInt() ?? 0,
+        songCount: (j['songCount'] as num?)?.toInt() ?? 0,
+        avatarUrl: _abs(j['avatarUrl'] as String?),
+      );
+
+  /// La liste des artistes de la bibliothèque d'un autre utilisateur.
+  /// Les détails (artiste/album) et la lecture passent ensuite par les
+  /// endpoints habituels, indexés par id global.
+  Future<List<Artist>> userLibrary(String username) async {
+    final data = await _client.get('users.php', query: {
+      'action': 'library',
+      'user': username,
     }) as Map<String, dynamic>;
     return _list(data['artists'], _artist);
   }

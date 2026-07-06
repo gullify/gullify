@@ -152,4 +152,33 @@ class ApiClient {
       (body is Map ? body['message'] as String? : null) ?? "Échec de l'upload",
     );
   }
+
+  /// Téléverse une photo de profil (`profile.php?action=set_avatar`).
+  /// Renvoie l'URL relative servie (ex. `serve_avatar.php?user_id=…`).
+  Future<String?> uploadAvatar(String filePath) async {
+    final ext = filePath.split('.').last.toLowerCase();
+    final subtype = ext == 'png'
+        ? 'png'
+        : ext == 'webp'
+            ? 'webp'
+            : 'jpeg';
+    final form = FormData();
+    form.files.add(MapEntry(
+      'avatar',
+      await MultipartFile.fromFile(
+        filePath,
+        contentType: DioMediaType('image', subtype),
+      ),
+    ));
+    final data = await post(
+      'profile.php',
+      body: form,
+      query: {'action': 'set_avatar'},
+    ) as Map<String, dynamic>;
+    return data['avatarUrl'] as String?;
+  }
+
+  /// Supprime la photo de profil de l'utilisateur courant.
+  Future<void> removeAvatar() =>
+      post('profile.php', query: {'action': 'remove_avatar'});
 }

@@ -7,15 +7,17 @@
  *   POST /api/v2/auth.php?action=logout   (Bearer) → null
  */
 require_once __DIR__ . '/_v2.php';
+require_once __DIR__ . '/../../../src/Avatar.php';
 
 $action = $_GET['action'] ?? $_POST['action'] ?? '';
 
 function v2_user_payload(array $user): array {
     return [
-        'id'       => (int)$user['id'],
-        'username' => $user['username'],
-        'fullName' => $user['full_name'] ?? null,
-        'isAdmin'  => (bool)($user['is_admin'] ?? false),
+        'id'        => (int)$user['id'],
+        'username'  => $user['username'],
+        'fullName'  => $user['full_name'] ?? null,
+        'isAdmin'   => (bool)($user['is_admin'] ?? false),
+        'avatarUrl' => Avatar::url((int)$user['id']),
     ];
 }
 

@@ -74,8 +74,11 @@ class AuthController extends Notifier<AuthState> {
       final data = await client
           .get('auth.php', query: {'action': 'me'})
           .timeout(const Duration(seconds: 15));
-      final user = User.fromJson(
-        (data as Map<String, dynamic>)['user'] as Map<String, dynamic>,
+      final user = _withAbsoluteAvatar(
+        client,
+        User.fromJson(
+          (data as Map<String, dynamic>)['user'] as Map<String, dynamic>,
+        ),
       );
       state = AuthState(
         status: AuthStatus.authenticated,
@@ -117,7 +120,10 @@ class AuthController extends Notifier<AuthState> {
     ) as Map<String, dynamic>;
 
     final token = data['token'] as String;
-    final user = User.fromJson(data['user'] as Map<String, dynamic>);
+    final user = _withAbsoluteAvatar(
+      client,
+      User.fromJson(data['user'] as Map<String, dynamic>),
+    );
     await _storage.write(key: _kToken, value: token);
     state = AuthState(
       status: AuthStatus.authenticated,
@@ -125,6 +131,35 @@ class AuthController extends Notifier<AuthState> {
       token: token,
       user: user,
     );
+  }
+
+  /// Le serveur renvoie `avatarUrl` relatif (`serve_avatar.php?…`) —
+  /// on le rend absolu pour l'afficher directement.
+  User _withAbsoluteAvatar(ApiClient client, User user) {
+    final a = user.avatarUrl;
+    if (a == null || a.isEmpty || a.startsWith('http')) return user;
+    return user.copyWith(avatarUrl: client.resourceUrl(a));
+  }
+
+  /// Téléverse une nouvelle photo de profil et met l'état à jour.
+  Future<void> setAvatar(String filePath) async {
+    final s = state;
+    if (s.serverUrl == null || s.token == null || s.user == null) return;
+    final client = ApiClient(serverUrl: s.serverUrl!, token: s.token);
+    final rel = await client.uploadAvatar(filePath);
+    final abs = (rel == null || rel.isEmpty)
+        ? null
+        : (rel.startsWith('http') ? rel : client.resourceUrl(rel));
+    state = s.copyWith(user: s.user!.copyWith(avatarUrl: abs));
+  }
+
+  /// Supprime la photo de profil.
+  Future<void> removeAvatar() async {
+    final s = state;
+    if (s.serverUrl == null || s.token == null || s.user == null) return;
+    final client = ApiClient(serverUrl: s.serverUrl!, token: s.token);
+    await client.removeAvatar();
+    state = s.copyWith(user: s.user!.copyWith(avatarUrl: null));
   }
 
   Future<void> logout() async {

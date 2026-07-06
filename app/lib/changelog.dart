@@ -8,6 +8,13 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('2.45.0', [
+    'Découverte : dans Recherche, une section « Autres utilisateurs » '
+        'permet d\'explorer et d\'écouter les bibliothèques des autres '
+        'comptes du serveur',
+    'Photo de profil : dans Paramètres → Compte, choisis (ou supprime) ta '
+        'photo ; elle s\'affiche dans la découverte',
+  ]),
   ReleaseNote('2.44.0', [
     'Compilations (Various Artists) : chaque piste affiche « Interprète — '
         'Titre » (lu depuis les tags), au lieu du seul titre',

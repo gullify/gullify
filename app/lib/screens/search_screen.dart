@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../api/yt_downloads_repository.dart';
+import '../models/server_user.dart';
 import '../models/song.dart';
 import '../state/library.dart';
 import '../state/player.dart';
@@ -264,9 +265,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 onClear: _clear,
               ),
             ),
-            if (!hasQuery)
+            if (!hasQuery) ...[
               Padding(
-                padding: const EdgeInsets.fromLTRB(20, 60, 20, 20),
+                padding: const EdgeInsets.fromLTRB(20, 40, 20, 8),
                 child: Column(
                   children: [
                     Icon(
@@ -290,8 +291,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                     ),
                   ],
                 ),
-              )
-            else ...[
+              ),
+              const _OtherUsersSection(),
+            ] else ...[
               // Où chercher : bibliothèque locale ou YouTube Music.
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 6, 20, 6),
@@ -617,6 +619,68 @@ class _ResultRow extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Découverte : les bibliothèques des autres utilisateurs du serveur.
+/// Affichée dans l'onglet Recherche quand le champ est vide.
+class _OtherUsersSection extends ConsumerWidget {
+  const _OtherUsersSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final users = ref.watch(serverUsersProvider);
+    return users.when(
+      // Discret tant que ça charge / échoue : c'est une section secondaire.
+      loading: () => const SizedBox.shrink(),
+      error: (_, _) => const SizedBox.shrink(),
+      data: (list) {
+        if (list.isEmpty) return const SizedBox.shrink();
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SectionTitle(
+              'Autres utilisateurs',
+              padding: EdgeInsets.fromLTRB(20, 18, 20, 2),
+            ),
+            const Padding(
+              padding: EdgeInsets.fromLTRB(20, 0, 20, 6),
+              child: Text(
+                'Explorez les bibliothèques du serveur',
+                style: TextStyle(fontSize: 12.5, color: Color(0xFF8A8F98)),
+              ),
+            ),
+            for (final u in list) _UserRow(user: u),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _UserRow extends StatelessWidget {
+  const _UserRow({required this.user});
+
+  final ServerUser user;
+
+  @override
+  Widget build(BuildContext context) {
+    final counts = [
+      '${user.artistCount} artiste${user.artistCount > 1 ? 's' : ''}',
+      '${user.songCount} titre${user.songCount > 1 ? 's' : ''}',
+    ].join(' · ');
+    return _ResultRow(
+      artwork: Artwork(
+        url: user.avatarUrl,
+        size: 46,
+        borderRadius: 23,
+        icon: Icons.person,
+      ),
+      title: user.displayName,
+      subtitle: counts,
+      trailing: const Icon(Icons.chevron_right, color: Color(0xFFB6BAC1)),
+      onTap: () => context.push('/user-library', extra: user),
     );
   }
 }

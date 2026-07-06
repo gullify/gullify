@@ -27,7 +27,9 @@ import 'screens/settings_screen.dart';
 import 'screens/shell_screen.dart';
 import 'screens/splash_screen.dart';
 import 'screens/stats_screen.dart';
+import 'screens/user_library_screen.dart';
 import 'screens/yt_downloads_screen.dart';
+import 'models/server_user.dart';
 import 'state/auth.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
@@ -146,6 +148,11 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/settings/aa-diagnostic',
         builder: (_, _) => const AaDiagnosticScreen(),
+      ),
+      GoRoute(
+        path: '/user-library',
+        builder: (_, state) =>
+            UserLibraryScreen(user: state.extra as ServerUser),
       ),
     ],
     redirect: (context, state) {

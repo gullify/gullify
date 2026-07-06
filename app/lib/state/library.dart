@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../api/library_repository.dart';
 import '../models/album.dart';
 import '../models/artist.dart';
+import '../models/server_user.dart';
 import '../models/song.dart';
 import 'auth.dart';
 
@@ -86,3 +87,13 @@ final searchResultsProvider = FutureProvider<SearchResults>((ref) {
   final query = ref.watch(searchQueryProvider);
   return ref.watch(libraryRepositoryProvider).search(query);
 });
+
+/// Les autres utilisateurs du serveur (découverte de leurs bibliothèques).
+final serverUsersProvider = FutureProvider<List<ServerUser>>(
+  (ref) => ref.watch(libraryRepositoryProvider).serverUsers(),
+);
+
+/// La liste des artistes de la bibliothèque d'un autre utilisateur.
+final userLibraryProvider = FutureProvider.family<List<Artist>, String>(
+  (ref, username) => ref.watch(libraryRepositoryProvider).userLibrary(username),
+);
