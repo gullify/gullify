@@ -15,7 +15,7 @@ import '../state/offline.dart';
 import '../theme.dart';
 import '../widgets/update_dialog.dart';
 
-const appVersion = '2.45.0';
+const appVersion = '2.46.0';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -77,6 +77,22 @@ class SettingsScreen extends ConsumerWidget {
             ),
           if (!kIsWeb && Platform.isAndroid) const _BackgroundPlaybackTile(),
           if (equalizerSupported || offlineSupported) const Divider(),
+          const _SectionHeader('Bibliothèque'),
+          ListTile(
+            leading: const Icon(Icons.label_outline),
+            title: const Text('Gérer les genres'),
+            subtitle: const Text('Renommer ou supprimer un genre'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.push('/genres'),
+          ),
+          ListTile(
+            leading: const Icon(Icons.library_music_outlined),
+            title: const Text('Scanner la bibliothèque'),
+            subtitle: const Text('Détecter les nouveaux titres et les genres'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.push('/settings/scan'),
+          ),
+          const Divider(),
           const _SectionHeader('Apparence'),
           const _ModePicker(),
           const _AccentPicker(),

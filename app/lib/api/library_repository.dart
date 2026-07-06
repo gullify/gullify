@@ -386,6 +386,50 @@ class LibraryRepository {
     return _list(data['artists'], _artist);
   }
 
+  // ─────────────── Scan de la bibliothèque ───────────────
+
+  /// Lance un scan complet du dossier musique (nouveaux artistes / albums /
+  /// titres, pochettes régénérées). Le scan tourne côté serveur en arrière-
+  /// plan ; suivre l'avancement via [scanStatus].
+  Future<void> forceScan() =>
+      _client.get('scan.php', query: {'action': 'force_scan'});
+
+  /// Scan rapide : structure seulement, sans (re)extraire les pochettes.
+  Future<void> fastScan() =>
+      _client.get('scan.php', query: {'action': 'fast_scan'});
+
+  /// État du scan de la bibliothèque (en cours ? dernière mise à jour ?).
+  Future<ScanStatus> scanStatus() async {
+    final data = await _client.get('scan.php', query: {
+      'action': 'scan_status',
+    }) as Map<String, dynamic>;
+    return ScanStatus(
+      scanning: data['scanning'] == true,
+      lastUpdate: (data['last_update'] as num?)?.toInt(),
+    );
+  }
+
+  /// Détecte automatiquement le genre des artistes qui n'en ont pas (via
+  /// MusicBrainz). Tourne côté serveur ; suivre via [genreScanStatus].
+  Future<void> genreScan() =>
+      _client.get('scan.php', query: {'action': 'genre_scan'});
+
+  /// État de la détection automatique de genres.
+  Future<GenreScanStatus> genreScanStatus() async {
+    final data = await _client.get('scan.php', query: {
+      'action': 'genre_scan_status',
+    }) as Map<String, dynamic>;
+    final p = data['progress'] as Map<String, dynamic>? ?? const {};
+    return GenreScanStatus(
+      scanning: data['scanning'] == true,
+      status: p['status'] as String? ?? 'idle',
+      processed: (p['processed'] as num?)?.toInt() ?? 0,
+      total: (p['total'] as num?)?.toInt() ?? 0,
+      percent: (p['percent'] as num?)?.toInt() ?? 0,
+      currentArtist: p['current_artist'] as String? ?? '',
+    );
+  }
+
   // ─────────────── Découverte des autres utilisateurs ───────────────
 
   /// Les autres utilisateurs du serveur, du plus grand catalogue au plus
@@ -427,4 +471,37 @@ class GenreCount {
   const GenreCount(this.name, this.artistCount);
   final String name;
   final int artistCount;
+}
+
+/// État d'un scan de la bibliothèque.
+class ScanStatus {
+  const ScanStatus({required this.scanning, this.lastUpdate});
+
+  final bool scanning;
+
+  /// Horodatage Unix (secondes) de la dernière mise à jour, ou null.
+  final int? lastUpdate;
+
+  DateTime? get lastUpdateAt => lastUpdate == null
+      ? null
+      : DateTime.fromMillisecondsSinceEpoch(lastUpdate! * 1000);
+}
+
+/// État de la détection automatique de genres (MusicBrainz).
+class GenreScanStatus {
+  const GenreScanStatus({
+    required this.scanning,
+    required this.status,
+    required this.processed,
+    required this.total,
+    required this.percent,
+    required this.currentArtist,
+  });
+
+  final bool scanning;
+  final String status; // idle | starting | scanning | completed | error
+  final int processed;
+  final int total;
+  final int percent;
+  final String currentArtist;
 }

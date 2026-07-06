@@ -8,6 +8,14 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('2.46.0', [
+    'Paramètres → Bibliothèque : « Gérer les genres » (renommer/supprimer) et '
+        '« Scanner la bibliothèque » sont désormais accessibles depuis les '
+        'réglages',
+    'Scan : lance un scan complet ou rapide du serveur pour détecter les '
+        'nouveaux titres, et une détection automatique des genres manquants, '
+        'avec suivi de l\'avancement',
+  ]),
   ReleaseNote('2.45.0', [
     'Découverte : dans Recherche, une section « Autres utilisateurs » '
         'permet d\'explorer et d\'écouter les bibliothèques des autres '

@@ -12,6 +12,7 @@ import 'screens/favorites_screen.dart';
 import 'screens/genres_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/ideas_screen.dart';
+import 'screens/library_scan_screen.dart';
 import 'screens/library_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/notifications_screen.dart';
@@ -144,6 +145,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/genres',
         builder: (_, _) => const GenresScreen(),
+      ),
+      GoRoute(
+        path: '/settings/scan',
+        builder: (_, _) => const LibraryScanScreen(),
       ),
       GoRoute(
         path: '/settings/aa-diagnostic',
