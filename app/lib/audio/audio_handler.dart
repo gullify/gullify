@@ -374,6 +374,10 @@ class GullifyAudioHandler extends BaseAudioHandler
         ),
       ];
 
+  // Les pochettes/images s'affichent sur les tuiles de navigation (albums,
+  // artistes). Sur les listes de pistes complètes (album, playlist, favoris,
+  // populaires, derniers joués), on n'ajoute PAS de pochette par piste : c'est
+  // redondant (même album) et lourd à charger sur de longues listes en voiture.
   List<MediaItem> _trackItems(String prefix, List<Song> songs) => [
         for (final (i, s) in songs.indexed)
           MediaItem(
@@ -382,7 +386,6 @@ class GullifyAudioHandler extends BaseAudioHandler
             artist: s.artistName,
             album: s.albumName,
             duration: Duration(seconds: s.duration),
-            artUri: s.artworkUrl != null ? Uri.parse(s.artworkUrl!) : null,
             playable: true,
           ),
       ];

@@ -8,6 +8,12 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('2.47.0', [
+    'Android Auto : les pochettes d\'albums et les images d\'artiste '
+        's\'affichent sur les listes d\'albums et d\'artistes ; les longues '
+        'listes de pistes (album, playlist, favoris, populaires) restent '
+        'légères, sans recharger une pochette par titre',
+  ]),
   ReleaseNote('2.46.0', [
     'Paramètres → Bibliothèque : « Gérer les genres » (renommer/supprimer) et '
         '« Scanner la bibliothèque » sont désormais accessibles depuis les '
