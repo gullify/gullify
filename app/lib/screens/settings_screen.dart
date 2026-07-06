@@ -14,7 +14,7 @@ import '../state/offline.dart';
 import '../theme.dart';
 import '../widgets/update_dialog.dart';
 
-const appVersion = '2.32.0';
+const appVersion = '2.33.0';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});

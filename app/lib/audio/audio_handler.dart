@@ -7,6 +7,7 @@ import 'package:just_audio/just_audio.dart';
 
 import '../api/library_repository.dart';
 import '../api/radio_repository.dart';
+import '../api/yt_downloads_repository.dart';
 import '../models/song.dart';
 
 bool get equalizerSupported => !kIsWeb && Platform.isAndroid;
@@ -90,6 +91,10 @@ class GullifyAudioHandler extends BaseAudioHandler
 
   /// Set after login — stations web radio pour Android Auto.
   RadioRepository? radioRepository;
+
+  /// Set after login — repli YouTube pour la recherche vocale (Android Auto)
+  /// quand rien n'est trouvé en local : télécharge puis joue.
+  YtDownloadsRepository? ytRepository;
 
   // Caches du browse tree : évitent un second aller-réseau entre le
   // listing (getChildren) et la lecture (playFromMediaId).
@@ -537,14 +542,69 @@ class GullifyAudioHandler extends BaseAudioHandler
       } else if (r.songs.isNotEmpty) {
         await playSongs(r.songs);
       } else {
-        playbackState.add(playbackState.value.copyWith(
-          processingState: AudioProcessingState.idle,
-        ));
+        // Rien en local → repli YouTube : télécharge puis joue.
+        await _youtubeFallback(repo, query);
       }
     } catch (_) {
       playbackState.add(playbackState.value.copyWith(
         processingState: AudioProcessingState.idle,
       ));
+    }
+  }
+
+  /// Recherche vocale sans résultat local : cherche sur YouTube Music,
+  /// télécharge le meilleur titre, attend la fin, puis le joue. Le temps de
+  /// téléchargement (quelques dizaines de secondes) est couvert par l'état
+  /// « chargement ». Android Auto uniquement, sur choix de l'utilisateur.
+  Future<void> _youtubeFallback(LibraryRepository repo, String query) async {
+    final yt = ytRepository;
+    if (yt == null) {
+      playbackState.add(playbackState.value
+          .copyWith(processingState: AudioProcessingState.idle));
+      return;
+    }
+    try {
+      final songs = await yt.searchSongs(query);
+      if (songs.isEmpty) {
+        playbackState.add(playbackState.value
+            .copyWith(processingState: AudioProcessingState.idle));
+        return;
+      }
+      final pick = songs.first;
+      final downloadId = await yt.start(
+        url: pick.watchUrl,
+        artistName: pick.artist,
+        albumName: pick.album.isEmpty ? 'Singles' : pick.album,
+      );
+      // Attend la fin du téléchargement + scan (max ~120s).
+      var done = false;
+      for (var i = 0; i < 40 && !done; i++) {
+        await Future<void>.delayed(const Duration(seconds: 3));
+        final list = await yt.list();
+        final d = list.where((e) => e.id == downloadId);
+        if (d.isNotEmpty) {
+          if (d.first.isError || d.first.isCancelled) break;
+          done = d.first.isDone;
+        }
+      }
+      if (!done) {
+        playbackState.add(playbackState.value
+            .copyWith(processingState: AudioProcessingState.idle));
+        return;
+      }
+      // Le titre est maintenant dans la bibliothèque : on le retrouve et joue.
+      final after = await repo.search(pick.title);
+      if (after.songs.isNotEmpty) {
+        await playSongs(after.songs);
+      } else if (after.artists.isNotEmpty) {
+        await playSongs(await _artistSongs(repo, after.artists.first.id));
+      } else {
+        playbackState.add(playbackState.value
+            .copyWith(processingState: AudioProcessingState.idle));
+      }
+    } catch (_) {
+      playbackState.add(playbackState.value
+          .copyWith(processingState: AudioProcessingState.idle));
     }
   }
 

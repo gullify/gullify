@@ -8,6 +8,11 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('2.33.0', [
+    'Android Auto : si la recherche vocale ne trouve rien en local, repli '
+        'YouTube — télécharge puis joue',
+    'Le genre s\'affiche sur la page de l\'artiste',
+  ]),
   ReleaseNote('2.32.0', [
     'Correctif : les menus (feuilles) s\'affichent au-dessus du dock et du '
         'mini-lecteur, plus derrière',

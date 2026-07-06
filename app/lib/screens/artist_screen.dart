@@ -38,6 +38,7 @@ class ArtistScreen extends ConsumerWidget {
               imageUrl: d.artist.imageUrl,
               name: d.artist.name,
               albumCount: d.albums.length,
+              genre: d.artist.genre,
               onMenu: () => _artistMenu(context, ref, d),
             ),
             const SizedBox(height: 16),
@@ -690,12 +691,14 @@ class _ArtistHeader extends StatelessWidget {
     required this.imageUrl,
     required this.name,
     required this.albumCount,
+    required this.genre,
     required this.onMenu,
   });
 
   final String? imageUrl;
   final String name;
   final int albumCount;
+  final String? genre;
   final VoidCallback onMenu;
 
   @override
@@ -775,7 +778,10 @@ class _ArtistHeader extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  '$albumCount album${albumCount > 1 ? 's' : ''}',
+                  [
+                    if (genre != null && genre!.isNotEmpty) genre!,
+                    '$albumCount album${albumCount > 1 ? 's' : ''}',
+                  ].join(' · '),
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
