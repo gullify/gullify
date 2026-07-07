@@ -35,6 +35,53 @@ class _YtDownloadsScreenState extends ConsumerState<YtDownloadsScreen>
     });
   }
 
+  Future<void> _downloadLink(String url) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Télécharger ce lien'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(url, style: Theme.of(context).textTheme.bodySmall),
+            const SizedBox(height: 12),
+            const Text(
+              'Le serveur télécharge ce lien (piste, album ou playlist) '
+              'puis l\'ajoute à la bibliothèque. Le nom de l\'artiste et de '
+              'l\'album est détecté automatiquement.',
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Annuler'),
+          ),
+          FilledButton.icon(
+            onPressed: () => Navigator.pop(context, true),
+            icon: const Icon(Icons.download),
+            label: const Text('Télécharger'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+
+    try {
+      await ref.read(ytQueueProvider.notifier).startUrl(url);
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Téléchargement démarré')),
+      );
+      _tabs.animateTo(1);
+    } catch (e) {
+      messenger.showSnackBar(
+        SnackBar(content: Text('Échec du démarrage : $e')),
+      );
+    }
+  }
+
   Future<void> _confirmDownload(YtAlbum album) async {
     final messenger = ScaffoldMessenger.of(context);
     // Résolution du browseId en playlist téléchargeable.
@@ -126,7 +173,11 @@ class _YtDownloadsScreenState extends ConsumerState<YtDownloadsScreen>
       body: TabBarView(
         controller: _tabs,
         children: [
-          _SearchTab(onChanged: _onChanged, onAlbumTap: _confirmDownload),
+          _SearchTab(
+            onChanged: _onChanged,
+            onAlbumTap: _confirmDownload,
+            onLinkTap: _downloadLink,
+          ),
           const _QueueTab(),
         ],
       ),
@@ -134,16 +185,28 @@ class _YtDownloadsScreenState extends ConsumerState<YtDownloadsScreen>
   }
 }
 
+/// Vrai si [s] ressemble à un lien YouTube / YouTube Music collé.
+bool _looksLikeYtUrl(String s) {
+  final t = s.trim();
+  return t.startsWith('http') &&
+      (t.contains('youtube.com') || t.contains('youtu.be'));
+}
+
 class _SearchTab extends ConsumerWidget {
-  const _SearchTab({required this.onChanged, required this.onAlbumTap});
+  const _SearchTab({
+    required this.onChanged,
+    required this.onAlbumTap,
+    required this.onLinkTap,
+  });
 
   final ValueChanged<String> onChanged;
   final ValueChanged<YtAlbum> onAlbumTap;
+  final ValueChanged<String> onLinkTap;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final query = ref.watch(ytSearchQueryProvider);
-    final results = ref.watch(ytSearchResultsProvider);
+    final isLink = _looksLikeYtUrl(query);
 
     return Column(
       children: [
@@ -151,45 +214,122 @@ class _SearchTab extends ConsumerWidget {
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
           child: TextField(
             onChanged: onChanged,
+            keyboardType: TextInputType.url,
             decoration: const InputDecoration(
-              hintText: 'Artiste, album…',
+              hintText: 'Artiste, album ou lien YouTube…',
               prefixIcon: Icon(Icons.search),
               border: OutlineInputBorder(),
             ),
           ),
         ),
         Expanded(
-          child: query.length < 2
-              ? const Center(
-                  child: Text('Recherchez un album sur YouTube Music'),
-                )
-              : results.when(
-                  loading: () =>
-                      const Center(child: CircularProgressIndicator()),
-                  error: (e, _) => Center(child: Text('Erreur : $e')),
-                  data: (albums) => albums.isEmpty
-                      ? const Center(child: Text('Aucun album trouvé'))
-                      : ListView.builder(
-                          itemCount: albums.length,
-                          itemBuilder: (context, i) {
-                            final a = albums[i];
-                            return ListTile(
-                              leading: Artwork(url: a.thumbnail, size: 48),
-                              title: Text(a.title),
-                              subtitle: Text(
-                                [
-                                  a.artist,
-                                  if (a.year.isNotEmpty) a.year,
-                                ].join(' · '),
-                              ),
-                              trailing: const Icon(Icons.download_outlined),
-                              onTap: () => onAlbumTap(a),
-                            );
-                          },
-                        ),
-                ),
+          child: isLink
+              ? _LinkResult(url: query, onLinkTap: onLinkTap)
+              : query.length < 2
+                  ? const Center(
+                      child: Text(
+                        'Recherchez un album sur YouTube Music,\n'
+                        'ou collez un lien YouTube',
+                        textAlign: TextAlign.center,
+                      ),
+                    )
+                  : _AlbumResults(onAlbumTap: onAlbumTap),
         ),
       ],
+    );
+  }
+}
+
+/// Carte proposant de télécharger directement un lien collé.
+class _LinkResult extends StatelessWidget {
+  const _LinkResult({required this.url, required this.onLinkTap});
+
+  final String url;
+  final ValueChanged<String> onLinkTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Card(
+          child: ListTile(
+            leading: const Icon(Icons.link),
+            title: const Text('Télécharger depuis ce lien'),
+            subtitle: Text(url, maxLines: 2, overflow: TextOverflow.ellipsis),
+            trailing: const Icon(Icons.download_outlined),
+            onTap: () => onLinkTap(url),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Liste des albums trouvés, avec un bouton « Charger plus ».
+class _AlbumResults extends ConsumerWidget {
+  const _AlbumResults({required this.onAlbumTap});
+
+  final ValueChanged<YtAlbum> onAlbumTap;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final results = ref.watch(ytSearchResultsProvider);
+    final limit = ref.watch(ytSearchLimitProvider);
+    final albums = results.value;
+
+    // Premier chargement (aucun résultat encore connu).
+    if (albums == null) {
+      return results.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (e, _) => Center(child: Text('Erreur : $e')),
+        data: (_) => const SizedBox.shrink(),
+      );
+    }
+    if (albums.isEmpty) {
+      return const Center(child: Text('Aucun album trouvé'));
+    }
+
+    final loadingMore = results.isLoading;
+    // On propose « Charger plus » tant que le serveur a renvoyé une page pleine
+    // (donc potentiellement d'autres résultats) et qu'on n'a pas atteint le max.
+    final canLoadMore = albums.length >= limit && limit < 50;
+
+    return ListView.builder(
+      itemCount: albums.length + 1,
+      itemBuilder: (context, i) {
+        if (i == albums.length) {
+          if (loadingMore) {
+            return const Padding(
+              padding: EdgeInsets.all(16),
+              child: Center(child: CircularProgressIndicator()),
+            );
+          }
+          if (!canLoadMore) return const SizedBox(height: 8);
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: OutlinedButton.icon(
+              onPressed: () =>
+                  ref.read(ytSearchLimitProvider.notifier).more(),
+              icon: const Icon(Icons.expand_more),
+              label: const Text('Charger plus'),
+            ),
+          );
+        }
+        final a = albums[i];
+        return ListTile(
+          leading: Artwork(url: a.thumbnail, size: 48),
+          title: Text(a.title),
+          subtitle: Text(
+            [
+              a.artist,
+              if (a.year.isNotEmpty) a.year,
+            ].join(' · '),
+          ),
+          trailing: const Icon(Icons.download_outlined),
+          onTap: () => onAlbumTap(a),
+        );
+      },
     );
   }
 }

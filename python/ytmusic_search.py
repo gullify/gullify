@@ -13,11 +13,11 @@ except ImportError:
     print(json.dumps({"error": "ytmusicapi not installed", "results": []}))
     sys.exit(0)
 
-def search_albums(query):
+def search_albums(query, limit=10):
     """Search for albums on YouTube Music"""
     try:
         ytmusic = YTMusic()
-        results = ytmusic.search(query, filter="albums", limit=10)
+        results = ytmusic.search(query, filter="albums", limit=limit)
 
         albums = []
         for item in results:
@@ -34,11 +34,11 @@ def search_albums(query):
     except Exception as e:
         return []
 
-def search_songs(query):
+def search_songs(query, limit=10):
     """Search for songs on YouTube Music"""
     try:
         ytmusic = YTMusic()
-        results = ytmusic.search(query, filter="songs", limit=10)
+        results = ytmusic.search(query, filter="songs", limit=limit)
 
         songs = []
         for item in results:
@@ -137,12 +137,20 @@ def main():
     search_type = sys.argv[1]
     query = sys.argv[2]
 
+    # Optionnel : 3e argument = nombre de résultats souhaités (« charger plus »).
+    limit = 10
+    if len(sys.argv) >= 4:
+        try:
+            limit = max(1, min(50, int(sys.argv[3])))
+        except ValueError:
+            limit = 10
+
     results = []
 
     if search_type == "album":
-        results = search_albums(query)
+        results = search_albums(query, limit)
     elif search_type == "song" or search_type == "track":
-        results = search_songs(query)
+        results = search_songs(query, limit)
     elif search_type == "artist":
         results = search_artists(query)
     elif search_type == "related":

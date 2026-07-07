@@ -8,6 +8,14 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('2.50.0', [
+    'Ajouter de la musique : tu peux maintenant coller un lien YouTube '
+        '(vidéo, album ou playlist) directement dans la recherche pour le '
+        'télécharger — pratique quand le bon groupe n\'apparaît pas dans les '
+        'résultats',
+    'Recherche d\'albums : un bouton « Charger plus » affiche davantage de '
+        'résultats au lieu de se limiter aux 10 premiers',
+  ]),
   ReleaseNote('2.49.0', [
     'Accueil : nouvelle carte « À découvrir » qui te propose un artiste que '
         'tu n\'as pas encore, choisi parmi les artistes similaires suggérés '

@@ -148,10 +148,10 @@ class YtDownloadsRepository {
 
   final ApiClient _client;
 
-  Future<List<YtAlbum>> searchAlbums(String query) async {
+  Future<List<YtAlbum>> searchAlbums(String query, {int limit = 10}) async {
     final data = await _client.get(
       'download.php',
-      query: {'action': 'search_ytmusic', 'query': query},
+      query: {'action': 'search_ytmusic', 'query': query, 'limit': '$limit'},
     ) as Map<String, dynamic>;
     final albums = data['albums'] as List<dynamic>? ?? [];
     return albums
@@ -213,6 +213,18 @@ class YtDownloadsRepository {
         'album_name': albumName,
         'artist_id': 'new',
       },
+    ) as Map<String, dynamic>;
+    return data['download_id'] as String? ?? '';
+  }
+
+  /// Met en file un lien YouTube collé tel quel (vidéo, playlist ou album).
+  /// Sans `artist_name`/`album_name`, le serveur extrait les métadonnées du
+  /// lien via yt-dlp. `artist_id: new` déclenche la création + le scan.
+  Future<String> startUrl(String url) async {
+    final data = await _client.post(
+      'download.php',
+      query: {'action': 'start'},
+      form: {'url': url, 'artist_id': 'new'},
     ) as Map<String, dynamic>;
     return data['download_id'] as String? ?? '';
   }

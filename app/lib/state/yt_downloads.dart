@@ -18,13 +18,40 @@ class _YtSearchQuery extends Notifier<String> {
   @override
   String build() => '';
 
-  void set(String query) => state = query.trim();
+  void set(String query) {
+    final trimmed = query.trim();
+    if (trimmed == state) return;
+    // Nouvelle requête → on repart de la première page de résultats.
+    ref.read(ytSearchLimitProvider.notifier).reset();
+    state = trimmed;
+  }
+}
+
+/// Nombre d'albums demandés pour la requête courante. Grandit via « Charger
+/// plus », se remet à [_kYtPageSize] quand la requête change.
+const int _kYtPageSize = 10;
+
+final ytSearchLimitProvider = NotifierProvider<_YtSearchLimit, int>(
+  _YtSearchLimit.new,
+);
+
+class _YtSearchLimit extends Notifier<int> {
+  @override
+  int build() => _kYtPageSize;
+
+  void more() => state = (state + _kYtPageSize).clamp(_kYtPageSize, 50);
+
+  void reset() => state = _kYtPageSize;
 }
 
 final ytSearchResultsProvider = FutureProvider<List<YtAlbum>>((ref) {
   final query = ref.watch(ytSearchQueryProvider);
   if (query.length < 2) return Future.value(const <YtAlbum>[]);
-  return ref.watch(ytDownloadsRepositoryProvider).searchAlbums(query);
+  final limit = ref.watch(ytSearchLimitProvider);
+  return ref.watch(ytDownloadsRepositoryProvider).searchAlbums(
+        query,
+        limit: limit,
+      );
 });
 
 /// Albums YouTube Music pour une requête (onglet Recherche).
@@ -90,6 +117,13 @@ class YtQueueNotifier extends AsyncNotifier<List<ServerDownload>> {
           artistName: album.artist,
           albumName: album.title,
         );
+    await refresh();
+    return id;
+  }
+
+  /// Met en file un lien YouTube collé (le serveur extrait les métadonnées).
+  Future<String> startUrl(String url) async {
+    final id = await ref.read(ytDownloadsRepositoryProvider).startUrl(url);
     await refresh();
     return id;
   }

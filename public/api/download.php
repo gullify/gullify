@@ -118,10 +118,14 @@ try {
                 echo json_encode(['success' => false, 'error' => 'query required']);
                 break;
             }
+            $limit = (int)($_GET['limit'] ?? 10);
+            if ($limit < 1)  { $limit = 10; }
+            if ($limit > 50) { $limit = 50; }
             $pythonScript = AppConfig::getPythonPath() . '/ytmusic_search.py';
             $pythonBin    = file_exists('/opt/ytdlp/bin/python3') ? '/opt/ytdlp/bin/python3' : 'python3';
             $cmd = $pythonBin . ' ' . escapeshellarg($pythonScript)
-                 . ' album ' . escapeshellarg($query) . ' 2>/dev/null';
+                 . ' album ' . escapeshellarg($query) . ' ' . escapeshellarg((string)$limit)
+                 . ' 2>/dev/null';
             $output = shell_exec($cmd);
             if (!$output) {
                 echo json_encode(['success' => true, 'data' => ['albums' => []]]);
@@ -146,10 +150,14 @@ try {
                 echo json_encode(['success' => false, 'error' => 'query required']);
                 break;
             }
+            $limit = (int)($_GET['limit'] ?? 10);
+            if ($limit < 1)  { $limit = 10; }
+            if ($limit > 50) { $limit = 50; }
             $pythonScript = AppConfig::getPythonPath() . '/ytmusic_search.py';
             $pythonBin    = file_exists('/opt/ytdlp/bin/python3') ? '/opt/ytdlp/bin/python3' : 'python3';
             $cmd = $pythonBin . ' ' . escapeshellarg($pythonScript)
-                 . ' song ' . escapeshellarg($query) . ' 2>/dev/null';
+                 . ' song ' . escapeshellarg($query) . ' ' . escapeshellarg((string)$limit)
+                 . ' 2>/dev/null';
             $output = shell_exec($cmd);
             if (!$output) {
                 echo json_encode(['success' => true, 'data' => ['songs' => []]]);
