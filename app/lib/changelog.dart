@@ -8,6 +8,13 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('2.49.0', [
+    'Accueil : nouvelle carte « À découvrir » qui te propose un artiste que '
+        'tu n\'as pas encore, choisi parmi les artistes similaires suggérés '
+        'par YouTube Music à partir d\'un artiste de ta bibliothèque — avec '
+        'le « parce que tu as … dans ta bibliothèque ». Touche la carte pour '
+        'l\'explorer, ou le bouton pour une autre suggestion',
+  ]),
   ReleaseNote('2.48.0', [
     'Notification de lecture et Android Auto : le bouton stop (carré) en bas '
         'à droite est remplacé par un cœur pour ajouter ou retirer la piste '

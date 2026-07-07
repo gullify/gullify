@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../api/stats_repository.dart';
 import '../models/album.dart';
 import '../state/auth.dart';
+import '../state/discover.dart';
 import '../state/library.dart';
 import '../state/notifications.dart';
 import '../state/player.dart';
@@ -42,6 +43,7 @@ class HomeScreen extends ConsumerWidget {
           onRefresh: () {
             ref.invalidate(popularSongsProvider);
             ref.invalidate(statsProvider);
+            ref.invalidate(discoverArtistProvider);
             return ref.refresh(recentAlbumsProvider.future);
           },
           child: ListView(
@@ -144,6 +146,10 @@ class HomeScreen extends ConsumerWidget {
                 padding: EdgeInsets.fromLTRB(16, 8, 16, 2),
                 child: _QuickPlayRow(),
               ),
+              // À découvrir : un artiste inconnu suggéré par YouTube Music à
+              // partir d'un artiste de la bibliothèque (masqué si rien à
+              // proposer).
+              const _DiscoverArtistCard(),
               // Nouveautés : titre + bouton aléatoire des nouveautés.
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 14, 20, 2),
@@ -432,6 +438,120 @@ class _ShowMoreTile extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Carte « À découvrir » : un artiste que l'utilisateur ne possède pas,
+/// suggéré par YouTube Music à partir d'un artiste de sa bibliothèque. Un tap
+/// lance une recherche sur ce nom (pour l'explorer / le télécharger) ; le
+/// bouton relance un tirage. Masquée tant qu'il n'y a rien à proposer.
+class _DiscoverArtistCard extends ConsumerWidget {
+  const _DiscoverArtistCard();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final discover = ref.watch(discoverArtistProvider);
+    return discover.maybeWhen(
+      data: (d) {
+        if (d == null) return const SizedBox.shrink();
+        final scheme = Theme.of(context).colorScheme;
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 2),
+          child: GlassBox(
+            radius: 20,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(20),
+              onTap: () {
+                ref.read(searchQueryProvider.notifier).set(d.artist.name);
+                context.go('/search');
+              },
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Row(
+                  children: [
+                    DecoratedBox(
+                      decoration: const BoxDecoration(
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Color(0x33000000),
+                            blurRadius: 14,
+                            offset: Offset(0, 6),
+                          ),
+                        ],
+                      ),
+                      child: Artwork(
+                        url: d.artist.thumbnail.isEmpty
+                            ? null
+                            : d.artist.thumbnail,
+                        size: 60,
+                        borderRadius: 30,
+                        icon: Icons.person,
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(Icons.auto_awesome,
+                                  size: 13, color: scheme.primary),
+                              const SizedBox(width: 5),
+                              Text(
+                                'À découvrir',
+                                style: TextStyle(
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: 0.2,
+                                  color: scheme.primary,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            d.artist.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: -0.3,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Parce que vous avez ${d.becauseOf} dans votre '
+                            'bibliothèque',
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 12,
+                              height: 1.15,
+                              color: scheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    GlassIconButton(
+                      icon: Icons.refresh,
+                      tooltip: 'Une autre suggestion',
+                      size: 38,
+                      onPressed: () => ref.invalidate(discoverArtistProvider),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+      orElse: () => const SizedBox.shrink(),
     );
   }
 }
