@@ -161,11 +161,11 @@ class YtDownloadsRepository {
         .toList();
   }
 
-  Future<List<YtSong>> searchSongs(String query) async {
+  Future<List<YtSong>> searchSongs(String query, {int limit = 10}) async {
     // Envelope v2 : {success, data: {songs: [...]}} → data = {songs: [...]}.
     final data = await _client.get(
       'download.php',
-      query: {'action': 'search_songs', 'query': query},
+      query: {'action': 'search_songs', 'query': query, 'limit': '$limit'},
     ) as Map<String, dynamic>;
     final songs = data['songs'] as List<dynamic>? ?? [];
     return songs

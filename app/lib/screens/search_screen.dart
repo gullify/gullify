@@ -369,6 +369,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
   List<Widget> _localResults() {
     final results = ref.watch(searchResultsProvider);
+    final songLimit = ref.watch(searchLocalLimitProvider);
     return results.when(
       loading: () => const [_LoadingRow()],
       error: (e, _) => [_MessageRow('Erreur : $e')],
@@ -376,10 +377,14 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         if (r.isEmpty) {
           return const [_MessageRow('Aucun résultat dans votre bibliothèque')];
         }
-        return [
-          if (_showArtists)
-          for (final artist in r.artists)
-            _ResultRow(
+        // En mode « Tout », on sépare les trois familles par un intertitre.
+        final headers = _kind == _Kind.all;
+        final rows = <Widget>[];
+
+        if (_showArtists && r.artists.isNotEmpty) {
+          if (headers) rows.add(const _SectionHeader('Artistes'));
+          for (final artist in r.artists) {
+            rows.add(_ResultRow(
               artwork: Artwork(
                 url: artist.imageUrl,
                 size: 46,
@@ -391,10 +396,14 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               trailing:
                   const Icon(Icons.chevron_right, color: Color(0xFFB6BAC1)),
               onTap: () => context.push('/artist/${artist.id}'),
-            ),
-          if (_showAlbums)
-          for (final album in r.albums)
-            _ResultRow(
+            ));
+          }
+        }
+
+        if (_showAlbums && r.albums.isNotEmpty) {
+          if (headers) rows.add(const _SectionHeader('Albums'));
+          for (final album in r.albums) {
+            rows.add(_ResultRow(
               artwork:
                   Artwork(url: album.artworkUrl, size: 46, borderRadius: 12),
               title: album.name,
@@ -402,18 +411,35 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               trailing:
                   const Icon(Icons.chevron_right, color: Color(0xFFB6BAC1)),
               onTap: () => context.push('/album/${album.id}'),
-            ),
-          if (_showSongs)
-          for (final (i, song) in r.songs.indexed)
-            SongTile(
+            ));
+          }
+        }
+
+        if (_showSongs && r.songs.isNotEmpty) {
+          if (headers) rows.add(const _SectionHeader('Titres'));
+          // Dévoilement progressif : on affiche les [songLimit] premiers
+          // titres, « Charger plus » en révèle davantage (index alignés sur
+          // r.songs, donc startIndex reste correct).
+          final shown = r.songs.take(songLimit).toList();
+          for (final (i, song) in shown.indexed) {
+            rows.add(SongTile(
               song: song,
               subtitle: _songSubtitle(song),
               onTap: () => ref
                   .read(playerActionsProvider)
                   .playSongs(r.songs, startIndex: i),
               onLongPress: () => showSongMenu(context, song),
-            ),
-        ];
+            ));
+          }
+          if (r.songs.length > shown.length) {
+            rows.add(_LoadMoreButton(
+              onPressed: () =>
+                  ref.read(searchLocalLimitProvider.notifier).more(),
+            ));
+          }
+        }
+
+        return rows;
       },
     );
   }
@@ -432,62 +458,97 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     if (query.length < 2) {
       return const [_MessageRow('Requête trop courte')];
     }
-    final albums = ref.watch(ytAlbumSearchProvider(query));
-    final songs = ref.watch(ytSongSearchProvider(query));
+    final albumsAsync = ref.watch(ytAlbumSearchProvider(query));
+    final songsAsync = ref.watch(ytSongSearchProvider(query));
+    final limit = ref.watch(searchYtLimitProvider);
+    final headers = _kind == _Kind.all;
 
-    final albumRows = albums.when(
-      loading: () => const <Widget>[_LoadingRow()],
-      error: (e, _) => [_MessageRow('Albums : erreur — $e')],
-      data: (list) => [
-        for (final a in list)
-          _ResultRow(
-            artwork: Artwork(
-              url: a.thumbnail.isEmpty ? null : a.thumbnail,
-              size: 46,
-              borderRadius: 12,
-            ),
-            title: a.title,
-            subtitle: [
-              a.artist,
-              if (a.year.isNotEmpty) a.year,
-              'Album',
-            ].join(' · '),
-            trailing: const Icon(Icons.download_outlined),
-            onTap: () => _confirmAlbumDownload(a),
+    // Valeurs déjà connues : conservées pendant un « Charger plus » (le
+    // provider repasse en loading mais garde sa dernière donnée).
+    final songs = _showSongs
+        ? (songsAsync.value ?? const <YtSong>[])
+        : const <YtSong>[];
+    final albums = _showAlbums
+        ? (albumsAsync.value ?? const <YtAlbum>[])
+        : const <YtAlbum>[];
+
+    final loading = (_showSongs && songsAsync.isLoading) ||
+        (_showAlbums && albumsAsync.isLoading);
+    final hasAnyData =
+        (_showSongs && songsAsync.hasValue) || (_showAlbums && albumsAsync.hasValue);
+
+    // Tout premier chargement (rien encore à afficher).
+    if (!hasAnyData && loading) {
+      return const [_LoadingRow()];
+    }
+
+    final rows = <Widget>[];
+
+    if (_showSongs && songsAsync.hasError && songs.isEmpty) {
+      rows.add(_MessageRow('Chansons : erreur — ${songsAsync.error}'));
+    }
+    if (_showAlbums && albumsAsync.hasError && albums.isEmpty) {
+      rows.add(_MessageRow('Albums : erreur — ${albumsAsync.error}'));
+    }
+
+    if (songs.isNotEmpty) {
+      if (headers) rows.add(const _SectionHeader('Titres'));
+      for (final s in songs) {
+        rows.add(_ResultRow(
+          artwork: Artwork(
+            url: s.thumbnail.isEmpty ? null : s.thumbnail,
+            size: 46,
+            borderRadius: 12,
+            icon: Icons.music_note,
           ),
-      ],
-    );
+          title: s.title,
+          subtitle: [
+            s.artist,
+            if (s.album.isNotEmpty) s.album,
+            if (s.duration.isNotEmpty) s.duration,
+          ].join(' · '),
+          trailing: const Icon(Icons.download_outlined),
+          onTap: () => _confirmSongDownload(s),
+        ));
+      }
+    }
 
-    final songRows = songs.when(
-      loading: () => const <Widget>[_LoadingRow()],
-      error: (e, _) => [_MessageRow('Chansons : erreur — $e')],
-      data: (list) => [
-        for (final s in list)
-          _ResultRow(
-            artwork: Artwork(
-              url: s.thumbnail.isEmpty ? null : s.thumbnail,
-              size: 46,
-              borderRadius: 12,
-              icon: Icons.music_note,
-            ),
-            title: s.title,
-            subtitle: [
-              s.artist,
-              if (s.album.isNotEmpty) s.album,
-              if (s.duration.isNotEmpty) s.duration,
-            ].join(' · '),
-            trailing: const Icon(Icons.download_outlined),
-            onTap: () => _confirmSongDownload(s),
+    if (albums.isNotEmpty) {
+      if (headers) rows.add(const _SectionHeader('Albums'));
+      for (final a in albums) {
+        rows.add(_ResultRow(
+          artwork: Artwork(
+            url: a.thumbnail.isEmpty ? null : a.thumbnail,
+            size: 46,
+            borderRadius: 12,
           ),
-      ],
-    );
+          title: a.title,
+          subtitle: [
+            a.artist,
+            if (a.year.isNotEmpty) a.year,
+            'Album',
+          ].join(' · '),
+          trailing: const Icon(Icons.download_outlined),
+          onTap: () => _confirmAlbumDownload(a),
+        ));
+      }
+    }
 
-    final rows = [
-      if (_showSongs) ...songRows,
-      if (_showAlbums) ...albumRows,
-    ];
-    if (rows.isEmpty) {
+    if (rows.isEmpty && !loading) {
       return const [_MessageRow('Aucun résultat sur YouTube Music')];
+    }
+
+    // « Charger plus » tant qu'une des sections demandées a renvoyé une page
+    // pleine (donc potentiellement d'autres résultats) et sous le plafond.
+    final canLoadMore = limit < 50 &&
+        ((_showSongs && songs.length >= limit) ||
+            (_showAlbums && albums.length >= limit));
+    if (loading) {
+      rows.add(const _LoadingRow());
+    } else if (canLoadMore) {
+      rows.add(_LoadMoreButton(
+        onPressed: () => ref.read(searchYtLimitProvider.notifier).more(),
+      ));
     }
     return rows;
   }
@@ -681,6 +742,37 @@ class _UserRow extends StatelessWidget {
       subtitle: counts,
       trailing: const Icon(Icons.chevron_right, color: Color(0xFFB6BAC1)),
       onTap: () => context.push('/user-library', extra: user),
+    );
+  }
+}
+
+/// Intertitre de section (« Artistes », « Albums », « Titres ») en mode Tout.
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return SectionTitle(text, padding: const EdgeInsets.fromLTRB(20, 14, 20, 2));
+  }
+}
+
+/// Bouton « Charger plus » (même langage que l'écran des téléchargements).
+class _LoadMoreButton extends StatelessWidget {
+  const _LoadMoreButton({required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
+      child: OutlinedButton.icon(
+        onPressed: onPressed,
+        icon: const Icon(Icons.expand_more),
+        label: const Text('Charger plus'),
+      ),
     );
   }
 }

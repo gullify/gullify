@@ -88,6 +88,25 @@ final searchResultsProvider = FutureProvider<SearchResults>((ref) {
   return ref.watch(libraryRepositoryProvider).search(query);
 });
 
+/// Nombre de titres locaux affichés dans la recherche. Grandit via « Charger
+/// plus », repart du minimum à chaque nouvelle requête (le serveur renvoie
+/// jusqu'à 100 titres d'un coup ; on les dévoile progressivement).
+const int kSearchPageSize = 20;
+
+class SearchLocalLimit extends Notifier<int> {
+  @override
+  int build() {
+    // Toute nouvelle requête réinitialise la pagination.
+    ref.watch(searchQueryProvider);
+    return kSearchPageSize;
+  }
+
+  void more() => state = state + kSearchPageSize;
+}
+
+final searchLocalLimitProvider =
+    NotifierProvider<SearchLocalLimit, int>(SearchLocalLimit.new);
+
 /// Les autres utilisateurs du serveur (découverte de leurs bibliothèques).
 final serverUsersProvider = FutureProvider<List<ServerUser>>(
   (ref) => ref.watch(libraryRepositoryProvider).serverUsers(),

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../api/yt_downloads_repository.dart';
 import 'auth.dart';
+import 'library.dart';
 
 final ytDownloadsRepositoryProvider = Provider<YtDownloadsRepository>(
   (ref) => YtDownloadsRepository(ref.watch(apiClientProvider)),
@@ -54,14 +55,40 @@ final ytSearchResultsProvider = FutureProvider<List<YtAlbum>>((ref) {
       );
 });
 
+/// Nombre de résultats YouTube demandés dans l'onglet Recherche (albums et
+/// chansons partagent la même page). Grandit via « Charger plus », repart du
+/// minimum à chaque nouvelle requête. Plafonné à 50 côté serveur.
+const int _kSearchYtPageSize = 10;
+
+class _SearchYtLimit extends Notifier<int> {
+  @override
+  int build() {
+    // Toute nouvelle requête réinitialise la pagination.
+    ref.watch(searchQueryProvider);
+    return _kSearchYtPageSize;
+  }
+
+  void more() =>
+      state = (state + _kSearchYtPageSize).clamp(_kSearchYtPageSize, 50);
+}
+
+final searchYtLimitProvider =
+    NotifierProvider<_SearchYtLimit, int>(_SearchYtLimit.new);
+
 /// Albums YouTube Music pour une requête (onglet Recherche).
 final ytAlbumSearchProvider = FutureProvider.family<List<YtAlbum>, String>(
-  (ref, query) => ref.watch(ytDownloadsRepositoryProvider).searchAlbums(query),
+  (ref, query) => ref.watch(ytDownloadsRepositoryProvider).searchAlbums(
+        query,
+        limit: ref.watch(searchYtLimitProvider),
+      ),
 );
 
 /// Chansons seules YouTube Music pour une requête (onglet Recherche).
 final ytSongSearchProvider = FutureProvider.family<List<YtSong>, String>(
-  (ref, query) => ref.watch(ytDownloadsRepositoryProvider).searchSongs(query),
+  (ref, query) => ref.watch(ytDownloadsRepositoryProvider).searchSongs(
+        query,
+        limit: ref.watch(searchYtLimitProvider),
+      ),
 );
 
 /// Albums YouTube Music d'un artiste (suggestions sur sa page).

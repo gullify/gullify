@@ -8,6 +8,14 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('2.51.0', [
+    'Recherche : un bouton « Charger plus » apparaît maintenant aussi bien '
+        'dans ta bibliothèque que sur YouTube Music quand il reste des '
+        'résultats à afficher',
+    'Recherche : en mode « Tout », les résultats sont désormais séparés en '
+        'sections « Artistes », « Albums » et « Titres » pour t\'y retrouver '
+        'plus facilement',
+  ]),
   ReleaseNote('2.50.0', [
     'Ajouter de la musique : tu peux maintenant coller un lien YouTube '
         '(vidéo, album ou playlist) directement dans la recherche pour le '
