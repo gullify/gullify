@@ -75,6 +75,53 @@ def search_artists(query, limit=10):
     except Exception as e:
         return []
 
+def artist_albums(browse_id, limit=50):
+    """Discographie réelle d'un artiste (albums + singles) via son browseId.
+
+    La recherche d'albums par nom mélange d'autres artistes ; passer par
+    get_artist(browseId) donne la vraie discographie de l'artiste choisi.
+    """
+    try:
+        ytmusic = YTMusic()
+        artist = ytmusic.get_artist(browse_id)
+        name = artist.get("name", "")
+        out = []
+        seen = set()
+
+        def add(item, kind):
+            bid = item.get("browseId", "")
+            if not bid or bid in seen:
+                return
+            seen.add(bid)
+            out.append({
+                "title": item.get("title", ""),
+                "artist": name,
+                "year": item.get("year", ""),
+                "browseId": bid,
+                "thumbnail": item.get("thumbnails", [{}])[-1].get("url", "")
+                    if item.get("thumbnails") else "",
+                "type": kind,
+            })
+
+        for kind in ("albums", "singles"):
+            section = artist.get(kind) or {}
+            results = section.get("results", []) or []
+            # Liste complète si YouTube en propose une (params + channelId).
+            if section.get("params") and section.get("browseId"):
+                try:
+                    full = ytmusic.get_artist_albums(
+                        section["browseId"], section["params"])
+                    if full:
+                        results = full
+                except Exception:
+                    pass
+            for item in results:
+                add(item, kind)
+
+        return out[:limit]
+    except Exception:
+        return []
+
 def related_artists(query):
     """Artistes similaires : cherche l'artiste, puis lit ses artistes liés."""
     try:
@@ -153,6 +200,9 @@ def main():
         results = search_songs(query, limit)
     elif search_type == "artist":
         results = search_artists(query, limit)
+    elif search_type == "artist_albums":
+        # query est ici le browseId de l'artiste choisi.
+        results = artist_albums(query, limit)
     elif search_type == "related":
         results = related_artists(query)
     elif search_type == "album_details":

@@ -188,6 +188,25 @@ class YtDownloadsRepository {
         .toList();
   }
 
+  /// Discographie réelle d'un artiste (albums + singles) via son browseId.
+  /// Contrairement à [searchAlbums] par nom, ne renvoie que SES albums.
+  Future<List<YtAlbum>> artistAlbums(String browseId, {int limit = 50}) async {
+    final data = await _client.get(
+      'download.php',
+      query: {
+        'action': 'artist_albums',
+        'browse_id': browseId,
+        'limit': '$limit',
+      },
+    ) as Map<String, dynamic>;
+    final albums = data['albums'] as List<dynamic>? ?? [];
+    return albums
+        .cast<Map<String, dynamic>>()
+        .map(YtAlbum.fromJson)
+        .where((a) => a.browseId.isNotEmpty)
+        .toList();
+  }
+
   /// Artistes similaires (YouTube Music) à partir d'un nom.
   Future<List<YtArtist>> relatedArtists(String name) async {
     final data = await _client.get(

@@ -105,6 +105,15 @@ final ytArtistAlbumsProvider = FutureProvider.family<List<YtAlbum>, String>(
       ref.watch(ytDownloadsRepositoryProvider).searchAlbums(artistName),
 );
 
+/// Discographie réelle d'un artiste YouTube Music (clé = browseId de
+/// l'artiste). Utilisé quand on tape un artiste dans la recherche : affiche
+/// SES albums, pas une recherche d'albums par nom.
+final ytArtistDiscographyProvider =
+    FutureProvider.family<List<YtAlbum>, String>(
+  (ref, browseId) =>
+      ref.watch(ytDownloadsRepositoryProvider).artistAlbums(browseId),
+);
+
 /// Artistes similaires (YouTube Music) pour un nom d'artiste.
 final relatedArtistsProvider = FutureProvider.family<List<YtArtist>, String>(
   (ref, artistName) =>

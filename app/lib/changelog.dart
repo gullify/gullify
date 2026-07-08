@@ -8,6 +8,13 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('2.53.0', [
+    'Recherche YouTube Music : quand tu touches un artiste, l\'app affiche '
+        'maintenant sa vraie discographie (ses propres albums) au lieu d\'une '
+        'simple recherche d\'albums par nom qui mélangeait d\'autres artistes',
+    'Android Auto : plusieurs jaquettes d\'album floues ou manquantes ont été '
+        'récupérées en haute définition (1000×1000) côté serveur',
+  ]),
   ReleaseNote('2.52.0', [
     'Recherche YouTube Music : les artistes apparaissent maintenant dans les '
         'résultats, en plus des titres et des albums. Touche un artiste pour '

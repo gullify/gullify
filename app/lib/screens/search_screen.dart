@@ -38,6 +38,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   final _focusNode = FocusNode();
   _Source _source = _Source.library;
   _Kind _kind = _Kind.all;
+  // Artiste YouTube choisi : on affiche alors SA discographie (via browseId)
+  // plutôt qu'une recherche d'albums par nom. Effacé dès que la requête ou la
+  // source change.
+  YtArtist? _ytArtist;
   late final TextEditingController _controller =
       TextEditingController(text: ref.read(searchQueryProvider));
 
@@ -50,6 +54,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   }
 
   void _onChanged(String value) {
+    // Nouvelle frappe → on quitte la discographie d'un artiste éventuel.
+    if (_ytArtist != null) setState(() => _ytArtist = null);
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 350), () {
       if (mounted) ref.read(searchQueryProvider.notifier).set(value);
@@ -59,6 +65,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   void _clear() {
     _debounce?.cancel();
     _controller.clear();
+    setState(() => _ytArtist = null);
     ref.read(searchQueryProvider.notifier).set('');
   }
 
@@ -315,31 +322,36 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                   onSelectionChanged: (s) => setState(() {
                     _source = s.first;
                     _kind = _Kind.all; // réinitialise le type au changement
+                    _ytArtist = null; // quitte la discographie d'un artiste
                   }),
                 ),
               ),
-              // Quoi chercher : puces de type (dépend de la source).
-              SizedBox(
-                height: 42,
-                child: ListView(
-                  scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  children: [
-                    for (final k in _kindsFor(_source))
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 4),
-                        child: ChoiceChip(
-                          label: Text(_kindLabel(k)),
-                          selected: _kind == k,
-                          onSelected: (_) => setState(() => _kind = k),
+              // Quoi chercher : puces de type (dépend de la source). Masquées
+              // en mode discographie d'un artiste (le type est alors imposé).
+              if (_ytArtist == null)
+                SizedBox(
+                  height: 42,
+                  child: ListView(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    children: [
+                      for (final k in _kindsFor(_source))
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                          child: ChoiceChip(
+                            label: Text(_kindLabel(k)),
+                            selected: _kind == k,
+                            onSelected: (_) => setState(() => _kind = k),
+                          ),
                         ),
-                      ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
               const SizedBox(height: 4),
               if (_source == _Source.library)
                 ..._localResults()
+              else if (_ytArtist != null)
+                ..._ytArtistDiscography(_ytArtist!)
               else
                 ..._ytResults(query.trim()),
             ],
@@ -452,16 +464,56 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     return parts.isEmpty ? null : parts.join(' · ');
   }
 
-  /// Artiste YouTube tapé : ouvre sa discographie (recherche d'albums sur
-  /// son nom, source YouTube), d'où l'utilisateur peut télécharger un album.
+  /// Artiste YouTube tapé : ouvre SA discographie réelle (albums + singles via
+  /// son browseId), d'où l'utilisateur peut télécharger un album.
   void _openYtArtist(YtArtist artist) {
     _debounce?.cancel();
     _controller.text = artist.name;
-    ref.read(searchQueryProvider.notifier).set(artist.name);
     setState(() {
       _source = _Source.youtube;
       _kind = _Kind.albums;
+      _ytArtist = artist;
     });
+  }
+
+  /// Discographie de l'artiste choisi (via browseId), avec un en-tête
+  /// permettant de revenir à la recherche.
+  List<Widget> _ytArtistDiscography(YtArtist artist) {
+    final albumsAsync = ref.watch(ytArtistDiscographyProvider(artist.browseId));
+    final header = _YtArtistHeader(
+      artist: artist,
+      onBack: () => setState(() => _ytArtist = null),
+    );
+    return albumsAsync.when(
+      loading: () => [header, const _LoadingRow()],
+      error: (e, _) => [header, _MessageRow('Erreur : $e')],
+      data: (albums) {
+        if (albums.isEmpty) {
+          return [
+            header,
+            const _MessageRow('Aucun album trouvé pour cet artiste'),
+          ];
+        }
+        return [
+          header,
+          for (final a in albums)
+            _ResultRow(
+              artwork: Artwork(
+                url: a.thumbnail.isEmpty ? null : a.thumbnail,
+                size: 46,
+                borderRadius: 12,
+              ),
+              title: a.title,
+              subtitle: [
+                if (a.year.isNotEmpty) a.year,
+                'Album',
+              ].join(' · '),
+              trailing: const Icon(Icons.download_outlined),
+              onTap: () => _confirmAlbumDownload(a),
+            ),
+        ];
+      },
+    );
   }
 
   // ─────────────── Résultats « YouTube Music » ───────────────
@@ -783,6 +835,64 @@ class _UserRow extends StatelessWidget {
       subtitle: counts,
       trailing: const Icon(Icons.chevron_right, color: Color(0xFFB6BAC1)),
       onTap: () => context.push('/user-library', extra: user),
+    );
+  }
+}
+
+/// En-tête de la discographie d'un artiste YouTube : sa photo, son nom, et
+/// une flèche pour revenir aux résultats de recherche.
+class _YtArtistHeader extends StatelessWidget {
+  const _YtArtistHeader({required this.artist, required this.onBack});
+
+  final YtArtist artist;
+  final VoidCallback onBack;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
+      child: Row(
+        children: [
+          IconButton(
+            tooltip: 'Retour aux résultats',
+            icon: const Icon(Icons.arrow_back),
+            onPressed: onBack,
+          ),
+          const SizedBox(width: 4),
+          Artwork(
+            url: artist.thumbnail.isEmpty ? null : artist.thumbnail,
+            size: 46,
+            borderRadius: 23,
+            icon: Icons.person,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  artist.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.3,
+                  ),
+                ),
+                Text(
+                  'Discographie',
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
