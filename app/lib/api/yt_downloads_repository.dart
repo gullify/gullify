@@ -161,6 +161,13 @@ class YtDownloadsRepository {
         .toList();
   }
 
+  /// URL de pré-écoute d'une chanson YouTube : le serveur proxifie son flux
+  /// audio (yt-dlp) pour l'écouter avant de la télécharger. Endpoint legacy
+  /// (racine, hors v2) car la réponse est binaire, pas une envelope JSON.
+  String previewUrl(String videoId) => _client.resourceUrl(
+        'api/download.php?action=preview&video_id=${Uri.encodeQueryComponent(videoId)}',
+      );
+
   Future<List<YtSong>> searchSongs(String query, {int limit = 10}) async {
     // Envelope v2 : {success, data: {songs: [...]}} → data = {songs: [...]}.
     final data = await _client.get(

@@ -9,6 +9,7 @@ import '../models/server_user.dart';
 import '../models/song.dart';
 import '../state/library.dart';
 import '../state/player.dart';
+import '../state/preview.dart';
 import '../state/yt_downloads.dart';
 import '../widgets/artwork.dart';
 import '../widgets/glass_box.dart';
@@ -586,21 +587,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     if (songs.isNotEmpty) {
       if (headers) rows.add(const _SectionHeader('Titres'));
       for (final s in songs) {
-        rows.add(_ResultRow(
-          artwork: Artwork(
-            url: s.thumbnail.isEmpty ? null : s.thumbnail,
-            size: 46,
-            borderRadius: 12,
-            icon: Icons.music_note,
-          ),
-          title: s.title,
-          subtitle: [
-            s.artist,
-            if (s.album.isNotEmpty) s.album,
-            if (s.duration.isNotEmpty) s.duration,
-          ].join(' · '),
-          trailing: const Icon(Icons.download_outlined),
-          onTap: () => _confirmSongDownload(s),
+        rows.add(_YtSongRow(
+          song: s,
+          onDownload: () => _confirmSongDownload(s),
         ));
       }
     }
@@ -772,6 +761,164 @@ class _ResultRow extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Rangée d'un titre YouTube : pré-écoute avant téléchargement. Un tap sur la
+/// rangée (ou la pochette) lance / met en pause la pré-écoute; le bouton de
+/// droite lance le téléchargement. Le titre en cours affiche une barre de
+/// progression et une pochette « lecture / pause ».
+class _YtSongRow extends ConsumerWidget {
+  const _YtSongRow({required this.song, required this.onDownload});
+
+  final YtSong song;
+  final VoidCallback onDownload;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final scheme = Theme.of(context).colorScheme;
+    final preview = ref.watch(previewPlayerProvider);
+    final active = preview.isActive(song.videoId);
+    final subtitle = [
+      song.artist,
+      if (song.album.isNotEmpty) song.album,
+      if (song.duration.isNotEmpty) song.duration,
+    ].join(' · ');
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 1),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () => ref.read(previewPlayerProvider.notifier).toggle(song),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+          child: Row(
+            children: [
+              _PreviewArtwork(
+                url: song.thumbnail.isEmpty ? null : song.thumbnail,
+                active: active,
+                playing: active && preview.playing,
+                loading: active && preview.loading,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      song.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    Text(
+                      subtitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        color: scheme.onSurfaceVariant,
+                      ),
+                    ),
+                    if (active) ...[
+                      const SizedBox(height: 6),
+                      _PreviewProgress(preview: preview, color: scheme.primary),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(width: 4),
+              IconButton(
+                tooltip: 'Télécharger',
+                icon: const Icon(Icons.download_outlined),
+                onPressed: onDownload,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Pochette d'un titre YouTube avec voile + icône de lecture/pause (ou
+/// indicateur de chargement) signalant la pré-écoute d'un simple tap.
+class _PreviewArtwork extends StatelessWidget {
+  const _PreviewArtwork({
+    required this.url,
+    required this.active,
+    required this.playing,
+    required this.loading,
+  });
+
+  final String? url;
+  final bool active;
+  final bool playing;
+  final bool loading;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 46,
+      height: 46,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          Artwork(url: url, size: 46, borderRadius: 12, icon: Icons.music_note),
+          DecoratedBox(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              color: Colors.black.withValues(alpha: active ? 0.44 : 0.30),
+            ),
+            child: Center(
+              child: loading
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : Icon(
+                      playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                      color: Colors.white,
+                      size: 26,
+                    ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Fine barre de progression de la pré-écoute en cours.
+class _PreviewProgress extends StatelessWidget {
+  const _PreviewProgress({required this.preview, required this.color});
+
+  final PreviewState preview;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final dur = preview.duration;
+    final value = (dur != null && dur.inMilliseconds > 0)
+        ? (preview.position.inMilliseconds / dur.inMilliseconds)
+            .clamp(0.0, 1.0)
+        : null;
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(3),
+      child: LinearProgressIndicator(
+        value: preview.loading ? null : value,
+        minHeight: 3,
+        color: color,
+        backgroundColor: color.withValues(alpha: 0.15),
       ),
     );
   }

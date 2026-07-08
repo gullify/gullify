@@ -58,6 +58,95 @@ function extractMetadata($url) {
     return null;
 }
 
+/**
+ * Résout (et met en cache) l'URL audio directe d'une vidéo YouTube pour la
+ * pré-écoute. Les URLs googlevideo sont liées à l'IP du serveur et expirent
+ * (~6 h) : on les proxifie ensuite, jamais on ne les renvoie au téléphone.
+ */
+function resolvePreviewUrl($videoId) {
+    $cacheDir = AppConfig::getDataPath() . '/cache/preview/';
+    if (!is_dir($cacheDir)) {
+        @mkdir($cacheDir, 0755, true);
+    }
+    $cacheFile = $cacheDir . $videoId . '.txt';
+
+    if (is_file($cacheFile)) {
+        $cached = trim((string)@file_get_contents($cacheFile));
+        if ($cached !== '') {
+            // Réutilisable tant que le paramètre expire= laisse une marge.
+            if (preg_match('/[?&]expire=(\d+)/', $cached, $m)) {
+                if ((int)$m[1] - 120 > time()) {
+                    return $cached;
+                }
+            } elseif (filemtime($cacheFile) > time() - 1800) {
+                return $cached;
+            }
+        }
+    }
+
+    $watchUrl = 'https://music.youtube.com/watch?v=' . $videoId;
+    $ytBin = file_exists('/opt/ytdlp/bin/yt-dlp') ? '/opt/ytdlp/bin/yt-dlp' : 'yt-dlp';
+    // m4a (AAC) de préférence : progressif et seekable, lu partout par ExoPlayer.
+    $cmd = 'timeout 30 ' . escapeshellarg($ytBin)
+         . ' -f ' . escapeshellarg('bestaudio[ext=m4a]/bestaudio')
+         . ' -g ' . escapeshellarg($watchUrl) . ' 2>/dev/null | head -1';
+    $direct = trim((string)shell_exec($cmd));
+    if ($direct !== '' && strpos($direct, 'http') === 0) {
+        @file_put_contents($cacheFile, $direct);
+        @chmod($cacheFile, 0666);
+        return $direct;
+    }
+    return null;
+}
+
+/**
+ * Proxifie le flux audio direct vers le client en relayant les requêtes Range
+ * (le seek fonctionne), sans jamais exposer l'URL googlevideo éphémère.
+ */
+function streamPreview($directUrl) {
+    // Coupe toute compression/bufferisation : on relaie des octets bruts.
+    @ini_set('zlib.output_compression', 'Off');
+    while (ob_get_level() > 0) { @ob_end_clean(); }
+
+    $reqHeaders = ['Accept: */*'];
+    if (!empty($_SERVER['HTTP_RANGE'])) {
+        $reqHeaders[] = 'Range: ' . $_SERVER['HTTP_RANGE'];
+    }
+
+    $ch = curl_init($directUrl);
+    curl_setopt_array($ch, [
+        CURLOPT_HTTPHEADER     => $reqHeaders,
+        CURLOPT_FOLLOWLOCATION => true,
+        CURLOPT_TIMEOUT        => 120,
+        CURLOPT_CONNECTTIMEOUT => 15,
+        CURLOPT_HEADERFUNCTION => function ($ch, $line) {
+            $l = trim($line);
+            if (preg_match('#^HTTP/[\d.]+\s+(\d+)#', $l, $m)) {
+                http_response_code((int)$m[1]);
+            } elseif (
+                stripos($l, 'content-type:') === 0 ||
+                stripos($l, 'content-length:') === 0 ||
+                stripos($l, 'content-range:') === 0 ||
+                stripos($l, 'accept-ranges:') === 0
+            ) {
+                header($l, true);
+            }
+            return strlen($line);
+        },
+        CURLOPT_WRITEFUNCTION => function ($ch, $data) {
+            echo $data;
+            flush();
+            return strlen($data);
+        },
+    ]);
+    // Remplace le Content-Type JSON par défaut si la source n'en fournit pas.
+    header('Content-Type: audio/mp4');
+    header('Accept-Ranges: bytes');
+    header('Cache-Control: no-store');
+    curl_exec($ch);
+    curl_close($ch);
+}
+
 try {
     switch ($action) {
         case 'start':
@@ -110,6 +199,24 @@ try {
                 'download_id' => $downloadId,
                 'message' => 'Telechargement demarre'
             ]);
+            break;
+
+        case 'preview':
+            // Pré-écoute d'une chanson YouTube (avant téléchargement) : on
+            // proxifie son flux audio. Réponse binaire (pas d'envelope JSON).
+            $videoId = trim($_GET['video_id'] ?? '');
+            if (!preg_match('/^[A-Za-z0-9_-]{5,20}$/', $videoId)) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'invalid video_id']);
+                break;
+            }
+            $direct = resolvePreviewUrl($videoId);
+            if (!$direct) {
+                http_response_code(502);
+                echo json_encode(['success' => false, 'error' => 'Failed to resolve preview']);
+                break;
+            }
+            streamPreview($direct);
             break;
 
         case 'search_ytmusic':

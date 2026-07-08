@@ -8,6 +8,12 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('2.54.0', [
+    'Recherche YouTube Music : tu peux maintenant écouter un extrait d\'un '
+        'titre avant de le télécharger — touche la pochette (ou la ligne) '
+        'pour lancer la pré-écoute, une barre de progression apparaît et le '
+        'bouton de téléchargement reste à droite',
+  ]),
   ReleaseNote('2.53.0', [
     'Recherche YouTube Music : quand tu touches un artiste, l\'app affiche '
         'maintenant sa vraie discographie (ses propres albums) au lieu d\'une '
