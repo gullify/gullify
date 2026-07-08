@@ -91,6 +91,14 @@ final ytSongSearchProvider = FutureProvider.family<List<YtSong>, String>(
       ),
 );
 
+/// Artistes YouTube Music pour une requête (onglet Recherche).
+final ytArtistSearchProvider = FutureProvider.family<List<YtArtist>, String>(
+  (ref, query) => ref.watch(ytDownloadsRepositoryProvider).searchArtists(
+        query,
+        limit: ref.watch(searchYtLimitProvider),
+      ),
+);
+
 /// Albums YouTube Music d'un artiste (suggestions sur sa page).
 final ytArtistAlbumsProvider = FutureProvider.family<List<YtAlbum>, String>(
   (ref, artistName) =>

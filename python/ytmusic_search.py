@@ -56,11 +56,11 @@ def search_songs(query, limit=10):
     except Exception as e:
         return []
 
-def search_artists(query):
+def search_artists(query, limit=10):
     """Search for artists on YouTube Music"""
     try:
         ytmusic = YTMusic()
-        results = ytmusic.search(query, filter="artists", limit=10)
+        results = ytmusic.search(query, filter="artists", limit=limit)
 
         artists = []
         for item in results:
@@ -152,7 +152,7 @@ def main():
     elif search_type == "song" or search_type == "track":
         results = search_songs(query, limit)
     elif search_type == "artist":
-        results = search_artists(query)
+        results = search_artists(query, limit)
     elif search_type == "related":
         results = related_artists(query)
     elif search_type == "album_details":

@@ -175,6 +175,19 @@ class YtDownloadsRepository {
         .toList();
   }
 
+  Future<List<YtArtist>> searchArtists(String query, {int limit = 10}) async {
+    final data = await _client.get(
+      'download.php',
+      query: {'action': 'search_artists', 'query': query, 'limit': '$limit'},
+    ) as Map<String, dynamic>;
+    final artists = data['artists'] as List<dynamic>? ?? [];
+    return artists
+        .cast<Map<String, dynamic>>()
+        .map(YtArtist.fromJson)
+        .where((a) => a.name.isNotEmpty)
+        .toList();
+  }
+
   /// Artistes similaires (YouTube Music) à partir d'un nom.
   Future<List<YtArtist>> relatedArtists(String name) async {
     final data = await _client.get(

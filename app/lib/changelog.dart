@@ -8,6 +8,11 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('2.52.0', [
+    'Recherche YouTube Music : les artistes apparaissent maintenant dans les '
+        'résultats, en plus des titres et des albums. Touche un artiste pour '
+        'voir sa discographie et télécharger ses albums',
+  ]),
   ReleaseNote('2.51.0', [
     'Recherche : un bouton « Charger plus » apparaît maintenant aussi bien '
         'dans ta bibliothèque que sur YouTube Music quand il reste des '

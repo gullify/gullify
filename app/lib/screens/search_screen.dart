@@ -349,10 +349,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     );
   }
 
-  // Types disponibles selon la source (YouTube n'a pas d'artistes).
+  // Types disponibles selon la source.
   List<_Kind> _kindsFor(_Source s) => s == _Source.library
       ? const [_Kind.all, _Kind.songs, _Kind.albums, _Kind.artists]
-      : const [_Kind.all, _Kind.songs, _Kind.albums];
+      : const [_Kind.all, _Kind.songs, _Kind.albums, _Kind.artists];
 
   String _kindLabel(_Kind k) => switch (k) {
         _Kind.all => 'Tout',
@@ -452,6 +452,18 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     return parts.isEmpty ? null : parts.join(' · ');
   }
 
+  /// Artiste YouTube tapé : ouvre sa discographie (recherche d'albums sur
+  /// son nom, source YouTube), d'où l'utilisateur peut télécharger un album.
+  void _openYtArtist(YtArtist artist) {
+    _debounce?.cancel();
+    _controller.text = artist.name;
+    ref.read(searchQueryProvider.notifier).set(artist.name);
+    setState(() {
+      _source = _Source.youtube;
+      _kind = _Kind.albums;
+    });
+  }
+
   // ─────────────── Résultats « YouTube Music » ───────────────
 
   List<Widget> _ytResults(String query) {
@@ -460,6 +472,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     }
     final albumsAsync = ref.watch(ytAlbumSearchProvider(query));
     final songsAsync = ref.watch(ytSongSearchProvider(query));
+    final artistsAsync = ref.watch(ytArtistSearchProvider(query));
     final limit = ref.watch(searchYtLimitProvider);
     final headers = _kind == _Kind.all;
 
@@ -471,11 +484,16 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     final albums = _showAlbums
         ? (albumsAsync.value ?? const <YtAlbum>[])
         : const <YtAlbum>[];
+    final artists = _showArtists
+        ? (artistsAsync.value ?? const <YtArtist>[])
+        : const <YtArtist>[];
 
     final loading = (_showSongs && songsAsync.isLoading) ||
-        (_showAlbums && albumsAsync.isLoading);
-    final hasAnyData =
-        (_showSongs && songsAsync.hasValue) || (_showAlbums && albumsAsync.hasValue);
+        (_showAlbums && albumsAsync.isLoading) ||
+        (_showArtists && artistsAsync.isLoading);
+    final hasAnyData = (_showSongs && songsAsync.hasValue) ||
+        (_showAlbums && albumsAsync.hasValue) ||
+        (_showArtists && artistsAsync.hasValue);
 
     // Tout premier chargement (rien encore à afficher).
     if (!hasAnyData && loading) {
@@ -484,11 +502,33 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
     final rows = <Widget>[];
 
+    if (_showArtists && artistsAsync.hasError && artists.isEmpty) {
+      rows.add(_MessageRow('Artistes : erreur — ${artistsAsync.error}'));
+    }
     if (_showSongs && songsAsync.hasError && songs.isEmpty) {
       rows.add(_MessageRow('Chansons : erreur — ${songsAsync.error}'));
     }
     if (_showAlbums && albumsAsync.hasError && albums.isEmpty) {
       rows.add(_MessageRow('Albums : erreur — ${albumsAsync.error}'));
+    }
+
+    if (artists.isNotEmpty) {
+      if (headers) rows.add(const _SectionHeader('Artistes'));
+      for (final a in artists) {
+        rows.add(_ResultRow(
+          artwork: Artwork(
+            url: a.thumbnail.isEmpty ? null : a.thumbnail,
+            size: 46,
+            borderRadius: 23,
+            icon: Icons.person,
+          ),
+          title: a.name,
+          subtitle: 'Artiste',
+          trailing:
+              const Icon(Icons.chevron_right, color: Color(0xFFB6BAC1)),
+          onTap: () => _openYtArtist(a),
+        ));
+      }
     }
 
     if (songs.isNotEmpty) {
@@ -542,7 +582,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     // pleine (donc potentiellement d'autres résultats) et sous le plafond.
     final canLoadMore = limit < 50 &&
         ((_showSongs && songs.length >= limit) ||
-            (_showAlbums && albums.length >= limit));
+            (_showAlbums && albums.length >= limit) ||
+            (_showArtists && artists.length >= limit));
     if (loading) {
       rows.add(const _LoadingRow());
     } else if (canLoadMore) {
