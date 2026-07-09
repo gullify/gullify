@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 
 import '../api/yt_downloads_repository.dart';
 import 'player.dart';
@@ -56,6 +57,19 @@ class PreviewPlayer extends Notifier<PreviewState> {
   AudioPlayer? _player;
   final List<StreamSubscription<dynamic>> _subs = [];
 
+  // Le lecteur de pré-écoute est un just_audio brut, hors foreground service :
+  // sans lui, Android suspend le process et coupe le son dès que le téléphone
+  // tombe en veille. On maintient l'appareil éveillé tant que la pré-écoute
+  // joue, et on relâche dès qu'elle est en pause / arrêtée.
+  bool _awake = false;
+  Future<void> _keepAwake(bool on) async {
+    if (_awake == on) return;
+    _awake = on;
+    try {
+      await WakelockPlus.toggle(enable: on);
+    } catch (_) {}
+  }
+
   @override
   PreviewState build() {
     ref.onDispose(_dispose);
@@ -74,11 +88,13 @@ class PreviewPlayer extends Notifier<PreviewState> {
     final p = AudioPlayer();
     _subs.add(p.playerStateStream.listen((s) {
       final atEnd = s.processingState == ProcessingState.completed;
+      final playing = s.playing && !atEnd;
       state = state.copyWith(
-        playing: s.playing && !atEnd,
+        playing: playing,
         loading: s.processingState == ProcessingState.loading ||
             s.processingState == ProcessingState.buffering,
       );
+      _keepAwake(playing);
       if (atEnd) {
         // Fin du titre : on revient au début, prêt à ré-écouter.
         p.pause();
@@ -127,11 +143,13 @@ class PreviewPlayer extends Notifier<PreviewState> {
 
   /// Arrête toute pré-écoute et remet l'état à zéro.
   Future<void> stop() async {
+    await _keepAwake(false);
     await _player?.stop();
     state = const PreviewState();
   }
 
   void _dispose() {
+    _keepAwake(false);
     for (final s in _subs) {
       s.cancel();
     }

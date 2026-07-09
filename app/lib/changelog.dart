@@ -8,6 +8,12 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('2.55.0', [
+    'Pré-écoute YouTube Music : l\'écran ne s\'éteint plus pendant qu\'un '
+        'extrait joue, donc la lecture ne se coupe plus quand le téléphone '
+        'tombait en veille — l\'appareil se remet en veille normalement dès '
+        'que tu mets en pause ou que tu arrêtes la pré-écoute',
+  ]),
   ReleaseNote('2.54.0', [
     'Recherche YouTube Music : tu peux maintenant écouter un extrait d\'un '
         'titre avant de le télécharger — touche la pochette (ou la ligne) '
