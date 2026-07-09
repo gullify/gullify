@@ -8,6 +8,12 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('2.56.0', [
+    'Apparence : quatre nouvelles couleurs d\'accent à choisir dans les '
+        'Paramètres — Turquoise, Fuchsia, Rubis et Graphite — en plus des '
+        'teintes existantes, et les pastilles sont réordonnées en un dégradé '
+        'plus naturel',
+  ]),
   ReleaseNote('2.55.0', [
     'Pré-écoute YouTube Music : l\'écran ne s\'éteint plus pendant qu\'un '
         'extrait joue, donc la lecture ne se coupe plus quand le téléphone '

@@ -17,9 +17,13 @@ enum GullifyAccent {
   indigo(Color(0xFF4A5FE8), 'Indigo'),
   ambre(Color(0xFFE0913A), 'Ambre'),
   emeraude(Color(0xFF10B981), 'Émeraude'),
-  rose(Color(0xFFEC4899), 'Rose'),
+  turquoise(Color(0xFF14B8A6), 'Turquoise'),
+  ocean(Color(0xFF0EA5E9), 'Océan'),
   violet(Color(0xFF7C6BF5), 'Violet'),
-  ocean(Color(0xFF0EA5E9), 'Océan');
+  fuchsia(Color(0xFFC026D3), 'Fuchsia'),
+  rose(Color(0xFFEC4899), 'Rose'),
+  rubis(Color(0xFFE5484D), 'Rubis'),
+  graphite(Color(0xFF64748B), 'Graphite');
 
   const GullifyAccent(this.color, this.label);
 
