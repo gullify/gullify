@@ -8,6 +8,12 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('2.57.0', [
+    'Android Auto : quand la voiture perd le signal et affiche « Aucun '
+        'élément », l\'app réessaie maintenant toute seule en arrière-plan et '
+        'recharge la catégorie dès que le réseau revient — plus besoin de '
+        'ressortir et rentrer dans le menu',
+  ]),
   ReleaseNote('2.56.0', [
     'Apparence : quatre nouvelles couleurs d\'accent à choisir dans les '
         'Paramètres — Turquoise, Fuchsia, Rubis et Graphite — en plus des '

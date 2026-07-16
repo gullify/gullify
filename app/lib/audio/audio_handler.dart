@@ -134,6 +134,11 @@ class GullifyAudioHandler extends BaseAudioHandler
     if (kDebugMode) debugPrint('[Gullify][AA] $msg');
   }
 
+  // Catégories du browse tree dont un chargement réseau a échoué (hors
+  // ligne) : un réessai est en cours en arrière-plan. Évite de lancer
+  // plusieurs boucles de réessai pour la même catégorie.
+  final _reloading = <String>{};
+
   // Caches du browse tree : évitent un second aller-réseau entre le
   // listing (getChildren) et la lecture (playFromMediaId).
   final _albumSongsCache = <int, List<Song>>{};
@@ -477,15 +482,58 @@ class GullifyAudioHandler extends BaseAudioHandler
       final repo = await _awaitRepository();
       if (repo == null) {
         logAA('→ [] (pas de repository)');
+        _scheduleReload(parentMediaId);
         return [];
       }
       final items = await _getCategory(parentMediaId, repo);
       logAA('→ ${items.length} items');
       return items;
     } catch (e) {
+      // Pas de signal (le fetch réseau lève) : on renvoie vide pour l'instant
+      // mais on réessaie en arrière-plan, sinon Android Auto reste bloqué sur
+      // « Aucun élément » même quand le réseau revient (il ne re-demande pas).
       logAA('ERREUR getChildren: $e');
+      _scheduleReload(parentMediaId);
       return [];
     }
+  }
+
+  /// Un chargement de catégorie a échoué (hors ligne). On réessaie en
+  /// arrière-plan avec un intervalle croissant ; dès qu'un essai aboutit, on
+  /// prévient Android Auto que les enfants ont changé pour qu'il rappelle
+  /// [getChildren] et remplace « Aucun élément » par la vraie liste (au lieu
+  /// de rester figé, faute de nouvelle demande spontanée). Miroir du
+  /// comportement de YouTube Music qui se recomplète au retour du signal.
+  void _scheduleReload(String parentMediaId) {
+    if (parentMediaId == BrowseIds.root) return;
+    if (!_reloading.add(parentMediaId)) return; // réessai déjà en cours
+    unawaited(() async {
+      const delays = [
+        Duration(seconds: 3),
+        Duration(seconds: 6),
+        Duration(seconds: 12),
+        Duration(seconds: 20),
+        Duration(seconds: 30),
+        Duration(seconds: 60),
+      ];
+      for (final d in delays) {
+        await Future<void>.delayed(d);
+        final repo = repository;
+        if (repo == null) continue; // session pas encore restaurée
+        try {
+          await _getCategory(parentMediaId, repo);
+        } catch (e) {
+          logAA('réessai $parentMediaId échoué: $e');
+          continue; // toujours hors ligne : essai suivant
+        }
+        logAA('réessai $parentMediaId réussi → rechargement Android Auto');
+        // Demande à Android Auto de recharger cette catégorie.
+        // ignore: deprecated_member_use
+        await AudioServiceBackground.notifyChildrenChanged(parentMediaId);
+        break;
+      }
+      _reloading.remove(parentMediaId);
+    }());
   }
 
   Future<List<MediaItem>> _getCategory(
