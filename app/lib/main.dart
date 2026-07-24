@@ -63,14 +63,17 @@ class _GullifyAppState extends ConsumerState<GullifyApp>
   // pour les corréler à un éventuel arrêt de la musique écran éteint.
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    // On ne journalise que les transitions utiles au diagnostic : écran
+    // allumé / éteint / arrêt de l'app. « inactive » et « hidden » arrivent en
+    // rafale (trois lignes par bascule d'écran) et noieraient les événements
+    // vraiment importants — pause spontanée, erreur, débranchement.
     final label = switch (state) {
       AppLifecycleState.resumed => 'premier plan (écran allumé)',
-      AppLifecycleState.inactive => 'inactif',
       AppLifecycleState.paused => 'arrière-plan (écran éteint ?)',
-      AppLifecycleState.detached => 'détaché',
-      AppLifecycleState.hidden => 'masqué',
+      AppLifecycleState.detached => 'détaché (arrêt de l\'app)',
+      AppLifecycleState.inactive || AppLifecycleState.hidden => null,
     };
-    ref.read(audioHandlerProvider).logLifecycle(label);
+    if (label != null) ref.read(audioHandlerProvider).logLifecycle(label);
   }
 
   @override

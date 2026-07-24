@@ -40,7 +40,9 @@ class _PlaybackDiagnosticScreenState
 
   @override
   Widget build(BuildContext context) {
-    final log = ref.read(audioHandlerProvider).playbackLog;
+    final handler = ref.read(audioHandlerProvider);
+    final log = handler.playbackLog;
+    final snapshot = handler.diagnosticSnapshot();
     final scheme = Theme.of(context).colorScheme;
 
     return Scaffold(
@@ -68,13 +70,72 @@ class _PlaybackDiagnosticScreenState
       ),
       body: Column(
         children: [
+          // État courant du lecteur : le journal ci-dessous ne montre que les
+          // *changements*, cet en-tête dit ce que fait la lecture à l'instant t.
+          Container(
+            width: double.infinity,
+            margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: scheme.surfaceContainerHighest.withValues(alpha: 0.5),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'État actuel',
+                  style: TextStyle(
+                    color: scheme.onSurfaceVariant,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                for (final (label, value) in snapshot)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 1.5),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SizedBox(
+                          width: 84,
+                          child: Text(
+                            label,
+                            style: TextStyle(
+                              color: scheme.onSurfaceVariant,
+                              fontSize: 12.5,
+                            ),
+                          ),
+                        ),
+                        Expanded(
+                          child: Text(
+                            value,
+                            style: TextStyle(
+                              color: scheme.onSurface,
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w600,
+                              fontFeatures: const [
+                                FontFeature.tabularFigures()
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
             child: Text(
               'Quand la musique s\'arrête toute seule écran éteint, reviens '
               'ici : les dernières lignes montrent ce qui s\'est passé juste '
               'avant (pause, erreur de flux, interruption audio, mise en '
-              'veille). Copie-les et envoie-les à Claude.',
+              'veille). Un « — démarrage de l\'app — » veut dire qu\'Android a '
+              'tué puis relancé l\'app. Copie-les et envoie-les à Claude.',
               style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 13),
             ),
           ),
@@ -98,6 +159,8 @@ class _PlaybackDiagnosticScreenState
                           line.contains('indisponible');
                       final isNotable = line.contains('interruption') ||
                           line.contains('débranchée') ||
+                          line.contains('démarrage') ||
+                          line.contains('détaché') ||
                           line.contains('⏸') ||
                           line.contains('tampon');
                       final Color color;

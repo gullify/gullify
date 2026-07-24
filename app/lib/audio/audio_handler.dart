@@ -54,6 +54,11 @@ class BrowseIds {
 class GullifyAudioHandler extends BaseAudioHandler
     with QueueHandler, SeekHandler {
   GullifyAudioHandler() {
+    // Marqueur de démarrage : si Android tue le process en veille (Doze /
+    // optimisation batterie) puis le relance, le journal repart d'ici — c'est
+    // LE signal d'un arrêt « écran éteint » causé par le système, pas par la
+    // lecture elle-même.
+    logPlayback('— démarrage de l\'app —');
     _player.playbackEventStream.listen(
       _broadcastState,
       // Une erreur du lecteur (flux coupé en veille, source injoignable…) est
@@ -67,9 +72,13 @@ class GullifyAudioHandler extends BaseAudioHandler
     _player.playerStateStream.listen((s) {
       if (s.playing == _lastLoggedPlaying) return;
       _lastLoggedPlaying = s.playing;
+      // Le titre courant permet de savoir quelle piste s'est arrêtée (utile
+      // quand l'arrêt suit un changement de source ou une piste précise).
+      final title = mediaItem.value?.title;
+      final suffix = title != null ? ' : « $title »' : '';
       logPlayback(s.playing
-          ? '▶ lecture'
-          : '⏸ pause à ${_fmtPos(_player.position)}');
+          ? '▶ lecture$suffix'
+          : '⏸ pause à ${_fmtPos(_player.position)}$suffix');
     });
     // Transitions du cycle de lecture (mise en tampon = stall réseau, etc.).
     _player.processingStateStream.listen((s) {
@@ -194,6 +203,33 @@ class GullifyAudioHandler extends BaseAudioHandler
         ProcessingState.ready => 'prêt',
         ProcessingState.completed => 'piste terminée',
       };
+
+  /// Instantané de l'état courant du lecteur, pour l'en-tête du diagnostic :
+  /// le journal ne montre que les *changements*, pas l'état à l'instant t. Sans
+  /// ça, impossible de dire « la musique joue-t-elle vraiment maintenant ? »
+  /// après un incident. Renvoie une liste (libellé, valeur) prête à afficher.
+  List<(String, String)> diagnosticSnapshot() {
+    final item = mediaItem.value;
+    final dur = item?.duration ?? _player.duration ?? Duration.zero;
+    return [
+      ('État', _player.playing ? '▶ lecture' : '⏸ en pause'),
+      ('Traitement', _processingLabel(_player.processingState)),
+      if (item != null)
+        (
+          'Piste',
+          item.artist != null && item.artist!.isNotEmpty
+              ? '${item.title} — ${item.artist}'
+              : item.title,
+        ),
+      (
+        'Position',
+        dur > Duration.zero
+            ? '${_fmtPos(_player.position)} / ${_fmtPos(dur)}'
+            : _fmtPos(_player.position),
+      ),
+      ('Tampon', _fmtPos(_player.bufferedPosition)),
+    ];
+  }
 
   /// Journalise les interruptions audio (perte de focus : appel, autre appli,
   /// assistant vocal…) et le débranchement de la sortie (« becoming noisy »).

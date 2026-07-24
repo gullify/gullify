@@ -8,6 +8,15 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('2.59.0', [
+    'Diagnostic de lecture enrichi : un en-tête « État actuel » montre en '
+        'direct ce que fait le lecteur (lecture ou pause, piste, position et '
+        'tampon) — le journal, lui, ne notait que les changements. L\'app note '
+        'aussi désormais un « démarrage de l\'app », signe qu\'Android l\'a '
+        'tuée puis relancée en veille (la cause n°1 des arrêts écran éteint), '
+        'affiche le titre de la piste sur chaque pause / reprise, et n\'inonde '
+        'plus le journal des passages « inactif / masqué » sans intérêt',
+  ]),
   ReleaseNote('2.58.0', [
     'Nouveau « Diagnostic de lecture » dans Paramètres → Développement : un '
         'journal consultable directement dans l\'app qui note tout ce qui '
