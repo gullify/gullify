@@ -38,11 +38,43 @@ Future<void> main() async {
   );
 }
 
-class GullifyApp extends ConsumerWidget {
+class GullifyApp extends ConsumerStatefulWidget {
   const GullifyApp({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<GullifyApp> createState() => _GullifyAppState();
+}
+
+class _GullifyAppState extends ConsumerState<GullifyApp>
+    with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  // Trace les passages en arrière-plan / veille dans le journal de lecture,
+  // pour les corréler à un éventuel arrêt de la musique écran éteint.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final label = switch (state) {
+      AppLifecycleState.resumed => 'premier plan (écran allumé)',
+      AppLifecycleState.inactive => 'inactif',
+      AppLifecycleState.paused => 'arrière-plan (écran éteint ?)',
+      AppLifecycleState.detached => 'détaché',
+      AppLifecycleState.hidden => 'masqué',
+    };
+    ref.read(audioHandlerProvider).logLifecycle(label);
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final accent = ref.watch(accentColorProvider);
     return MaterialApp.router(
       title: 'Gullify',

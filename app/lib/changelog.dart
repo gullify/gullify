@@ -8,6 +8,15 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('2.58.0', [
+    'Nouveau « Diagnostic de lecture » dans Paramètres → Développement : un '
+        'journal consultable directement dans l\'app qui note tout ce qui '
+        'touche la lecture — pauses, coupures de flux, interruptions audio, '
+        'mises en tampon réseau et passages en veille. Quand la musique '
+        's\'arrête toute seule écran éteint, ouvre cet écran, copie les '
+        'dernières lignes et envoie-les : on pourra enfin voir ce qui s\'est '
+        'passé juste avant',
+  ]),
   ReleaseNote('2.57.0', [
     'Android Auto : quand la voiture perd le signal et affiche « Aucun '
         'élément », l\'app réessaie maintenant toute seule en arrière-plan et '

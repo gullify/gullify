@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:audio_service/audio_service.dart';
+import 'package:audio_session/audio_session.dart';
 import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
 
@@ -53,7 +54,31 @@ class BrowseIds {
 class GullifyAudioHandler extends BaseAudioHandler
     with QueueHandler, SeekHandler {
   GullifyAudioHandler() {
-    _player.playbackEventStream.listen(_broadcastState);
+    _player.playbackEventStream.listen(
+      _broadcastState,
+      // Une erreur du lecteur (flux coupé en veille, source injoignable…) est
+      // la cause typique d'un arrêt écran éteint : on la journalise.
+      onError: (Object e, StackTrace _) =>
+          logPlayback('ERREUR lecteur : $e'),
+    );
+    // Changement d'état « joue / ne joue pas ». Capte AUSSI les pauses
+    // spontanées (perte de focus audio, coupure système) qui ne passent pas
+    // par notre pause() — exactement le symptôme à diagnostiquer en veille.
+    _player.playerStateStream.listen((s) {
+      if (s.playing == _lastLoggedPlaying) return;
+      _lastLoggedPlaying = s.playing;
+      logPlayback(s.playing
+          ? '▶ lecture'
+          : '⏸ pause à ${_fmtPos(_player.position)}');
+    });
+    // Transitions du cycle de lecture (mise en tampon = stall réseau, etc.).
+    _player.processingStateStream.listen((s) {
+      if (s != _lastLoggedProcessing) {
+        _lastLoggedProcessing = s;
+        logPlayback('état : ${_processingLabel(s)}');
+      }
+    });
+    _watchAudioSession();
     _player.currentIndexStream.listen((index) {
       final q = queue.value;
       if (index == null || index < 0 || index >= q.length) return;
@@ -133,6 +158,71 @@ class GullifyAudioHandler extends BaseAudioHandler
     if (aaLog.length > 80) aaLog.removeRange(80, aaLog.length);
     if (kDebugMode) debugPrint('[Gullify][AA] $msg');
   }
+
+  /// Journal des événements de lecture (dernier en tête), consultable dans
+  /// l'app (Paramètres → Diagnostic de lecture). Sert à comprendre pourquoi
+  /// la musique s'arrête parfois écran éteint : on y voit l'enchaînement
+  /// pause spontanée / erreur de flux / interruption audio / passage en veille
+  /// juste avant l'arrêt, sans avoir à brancher un ordinateur.
+  final List<String> playbackLog = <String>[];
+
+  bool? _lastLoggedPlaying;
+  ProcessingState? _lastLoggedProcessing;
+
+  void logPlayback(String msg) {
+    final t = DateTime.now();
+    String two(int n) => n.toString().padLeft(2, '0');
+    playbackLog.insert(
+      0,
+      '${two(t.hour)}:${two(t.minute)}:${two(t.second)}  $msg',
+    );
+    if (playbackLog.length > 120) {
+      playbackLog.removeRange(120, playbackLog.length);
+    }
+    if (kDebugMode) debugPrint('[Gullify][Lecture] $msg');
+  }
+
+  static String _fmtPos(Duration d) {
+    String two(int n) => n.toString().padLeft(2, '0');
+    return '${two(d.inMinutes)}:${two(d.inSeconds % 60)}';
+  }
+
+  static String _processingLabel(ProcessingState s) => switch (s) {
+        ProcessingState.idle => 'inactif',
+        ProcessingState.loading => 'chargement',
+        ProcessingState.buffering => 'mise en tampon (réseau ?)',
+        ProcessingState.ready => 'prêt',
+        ProcessingState.completed => 'piste terminée',
+      };
+
+  /// Journalise les interruptions audio (perte de focus : appel, autre appli,
+  /// assistant vocal…) et le débranchement de la sortie (« becoming noisy »).
+  /// Ce sont des causes fréquentes d'un arrêt en veille — audio_service a déjà
+  /// configuré la session, on se contente d'écouter, sans la reconfigurer.
+  Future<void> _watchAudioSession() async {
+    try {
+      final session = await AudioSession.instance;
+      session.interruptionEventStream.listen((e) {
+        final type = switch (e.type) {
+          AudioInterruptionType.duck => 'atténuation',
+          AudioInterruptionType.pause => 'pause',
+          AudioInterruptionType.unknown => 'inconnue',
+        };
+        logPlayback(e.begin
+            ? 'interruption audio — début ($type)'
+            : 'interruption audio — fin ($type)');
+      });
+      session.becomingNoisyEventStream.listen(
+        (_) => logPlayback('sortie audio débranchée (casque/BT)'),
+      );
+    } catch (e) {
+      logPlayback('écoute session audio indisponible : $e');
+    }
+  }
+
+  /// Appelé par l'observateur du cycle de vie de l'app (main.dart) : trace les
+  /// passages en arrière-plan / veille, à corréler avec un éventuel arrêt.
+  void logLifecycle(String state) => logPlayback('app : $state');
 
   // Catégories du browse tree dont un chargement réseau a échoué (hors
   // ligne) : un réessai est en cours en arrière-plan. Évite de lancer

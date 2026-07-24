@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'screens/aa_diagnostic_screen.dart';
+import 'screens/playback_diagnostic_screen.dart';
 import 'screens/album_screen.dart';
 import 'screens/artist_screen.dart';
 import 'screens/changelog_screen.dart';
@@ -153,6 +154,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/settings/aa-diagnostic',
         builder: (_, _) => const AaDiagnosticScreen(),
+      ),
+      GoRoute(
+        path: '/settings/playback-diagnostic',
+        builder: (_, _) => const PlaybackDiagnosticScreen(),
       ),
       GoRoute(
         path: '/user-library',

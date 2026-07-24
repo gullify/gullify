@@ -15,7 +15,7 @@ import '../state/offline.dart';
 import '../theme.dart';
 import '../widgets/update_dialog.dart';
 
-const appVersion = '2.57.0';
+const appVersion = '2.58.0';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -114,6 +114,13 @@ class SettingsScreen extends ConsumerWidget {
               trailing: const Icon(Icons.chevron_right),
               onTap: () => context.push('/settings/aa-diagnostic'),
             ),
+          ListTile(
+            leading: const Icon(Icons.troubleshoot),
+            title: const Text('Diagnostic de lecture'),
+            subtitle: const Text('Journal si la musique s\'arrête en veille'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.push('/settings/playback-diagnostic'),
+          ),
           const Divider(),
           const _SectionHeader('À propos'),
           ListTile(
