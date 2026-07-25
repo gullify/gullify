@@ -11,6 +11,7 @@ import '../api/playlist_repository.dart';
 import '../api/radio_repository.dart';
 import '../api/yt_downloads_repository.dart';
 import '../models/song.dart';
+import 'net_lock.dart';
 
 bool get equalizerSupported => !kIsWeb && Platform.isAndroid;
 
@@ -72,6 +73,15 @@ class GullifyAudioHandler extends BaseAudioHandler
     _player.playerStateStream.listen((s) {
       if (s.playing == _lastLoggedPlaying) return;
       _lastLoggedPlaying = s.playing;
+      // Verrou réseau tenu uniquement pendant la lecture : garde la radio Wi-Fi
+      // et le CPU actifs écran éteint pour que le flux ne cale pas en veille
+      // (cause racine des « mise en tampon » diagnostiquées). Relâché dès la
+      // pause pour ne pas grever la batterie hors lecture.
+      if (s.playing) {
+        acquireNetworkLock();
+      } else {
+        releaseNetworkLock();
+      }
       // Le titre courant permet de savoir quelle piste s'est arrêtée (utile
       // quand l'arrêt suit un changement de source ou une piste précise).
       final title = mediaItem.value?.title;
@@ -532,6 +542,9 @@ class GullifyAudioHandler extends BaseAudioHandler
   Future<void> stop() async {
     _flushPlay();
     _switchingSource = false;
+    // Sûreté : relâche le verrou réseau même si aucune transition « playing »
+    // ne suit l'arrêt (fin de file, coupure).
+    releaseNetworkLock();
     await _player.stop();
     await super.stop();
   }

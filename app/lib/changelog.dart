@@ -8,6 +8,15 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('2.60.0', [
+    'La musique ne cale plus toute seule quand l\'écran est éteint : Gullify '
+        'maintient désormais actifs le Wi-Fi et le processeur pendant la '
+        'lecture (comme le font Spotify ou YouTube Music). Sans cela, la radio '
+        'Wi-Fi se mettait en veille écran éteint et le flux se figeait en '
+        '« mise en tampon » au bout de quelques minutes, pour ne repartir '
+        'qu\'au réveil du téléphone. Ces protections ne sont tenues que pendant '
+        'la lecture et relâchées dès la pause pour préserver la batterie',
+  ]),
   ReleaseNote('2.59.0', [
     'Diagnostic de lecture enrichi : un en-tête « État actuel » montre en '
         'direct ce que fait le lecteur (lecture ou pause, piste, position et '
