@@ -8,6 +8,15 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('2.61.0', [
+    'Android Auto : les pochettes d\'album qui s\'affichaient toutes petites, '
+        'entourées de bandes noires, remplissent maintenant correctement leur '
+        'tuile. En cause : beaucoup de jaquettes récupérées sur le web sont des '
+        'vignettes non carrées (format 16:9). L\'app les recadrait déjà en carré '
+        'à l\'écran, mais Android Auto affichait l\'image brute. Le serveur '
+        'fournit désormais une version carrée recadrée (centrée) pour Android '
+        'Auto et la notification système, sans changer l\'affichage dans l\'app',
+  ]),
   ReleaseNote('2.60.0', [
     'La musique ne cale plus toute seule quand l\'écran est éteint : Gullify '
         'maintient désormais actifs le Wi-Fi et le processeur pendant la '

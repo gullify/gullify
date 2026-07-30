@@ -14,7 +14,21 @@ try {
     $artistId = $_GET['artist_id'] ?? null;
     $cachePath = AppConfig::getDataPath() . '/cache/artwork';
 
+    // Redimensionnement carré optionnel (Android Auto / notification système) :
+    // ?size=NNN renvoie l'image recadrée en carré centré de NNN px de côté,
+    // comme le fait `BoxFit.cover` dans l'app. La version web/mobile qui ne
+    // passe pas `size` continue de recevoir la source telle quelle.
+    $reqSize = isset($_GET['size']) ? (int)$_GET['size'] : 0;
+    if ($reqSize > 0) $reqSize = max(96, min(1024, $reqSize));
+    $GLOBALS['reqSize'] = $reqSize;
+
     if ($albumId) {
+        // 0. Version carrée déjà générée pour cette taille : la servir telle quelle.
+        if ($reqSize > 0) {
+            $GLOBALS['sqCacheFile'] = $cachePath . '/album_' . $albumId . '_sq' . $reqSize . '.jpg';
+            if (file_exists($GLOBALS['sqCacheFile'])) serveResizedCache($GLOBALS['sqCacheFile']);
+        }
+
         // 1. Try local cache
         $cachedFile = $cachePath . '/album_' . $albumId . '.jpg';
         if (file_exists($cachedFile)) {
@@ -80,6 +94,12 @@ try {
             }
         }
     } elseif ($artistId) {
+        // 0. Version carrée déjà générée pour cette taille : la servir telle quelle.
+        if ($reqSize > 0) {
+            $GLOBALS['sqCacheFile'] = $cachePath . '/artist_' . $artistId . '_sq' . $reqSize . '.jpg';
+            if (file_exists($GLOBALS['sqCacheFile'])) serveResizedCache($GLOBALS['sqCacheFile']);
+        }
+
         // 1. Try local cache
         $cachedFile = $cachePath . '/artist_' . $artistId . '.jpg';
         if (file_exists($cachedFile)) {
@@ -144,27 +164,23 @@ function servePlaceholder() {
 }
 
 function serveLocalFile($path) {
-    $mime = 'image/jpeg';
-    if (str_ends_with($path, '.png')) $mime = 'image/png';
-    $mtime = (int)filemtime($path);
-    $etag  = '"' . $mtime . '"';
+    $bin = @file_get_contents($path);
+    if ($bin === false) servePlaceholder();
+    $mime = str_ends_with($path, '.png') ? 'image/png' : 'image/jpeg';
+    emit($bin, $mime);
+}
 
-    // no-cache forces the browser to revalidate; the 304 path makes that cheap.
+/// Sert une version carrée déjà mise en cache : pas de re-traitement.
+function serveResizedCache($path) {
+    $bin = @file_get_contents($path);
+    if ($bin === false) return; // fichier disparu : on retombe sur la génération normale
+    $etag = '"' . substr(md5($bin), 0, 16) . '"';
+    header('Content-Type: image/jpeg');
     header('Cache-Control: no-cache');
-    header('Last-Modified: ' . gmdate('D, d M Y H:i:s', $mtime) . ' GMT');
     header('ETag: ' . $etag);
-
-    $ifNoneMatch = trim($_SERVER['HTTP_IF_NONE_MATCH'] ?? '');
-    $ifModSince  = $_SERVER['HTTP_IF_MODIFIED_SINCE'] ?? '';
-
-    if ($ifNoneMatch === $etag || ($ifModSince && strtotime($ifModSince) >= $mtime)) {
-        http_response_code(304);
-        exit;
-    }
-
-    header('Content-Type: ' . $mime);
-    header('Content-Length: ' . filesize($path));
-    readfile($path);
+    if (trim($_SERVER['HTTP_IF_NONE_MATCH'] ?? '') === $etag) { http_response_code(304); exit; }
+    header('Content-Length: ' . strlen($bin));
+    echo $bin;
     exit;
 }
 
@@ -172,10 +188,32 @@ function serveBase64($data) {
     $mime = 'image/jpeg';
     if (str_starts_with($data, 'iVBORw0KGgo')) $mime = 'image/png';
     $bin = base64_decode($data);
-    serveBinary($bin, $mime);
+    emit($bin, $mime);
 }
 
 function serveBinary($bin, $mime = 'image/jpeg') {
+    emit($bin, $mime);
+}
+
+/// Sortie commune : applique le recadrage carré si `?size` est demandé, puis
+/// émet avec un ETag basé sur le contenu (revalidation 304 bon marché).
+function emit($bin, $mime = 'image/jpeg') {
+    $size = $GLOBALS['reqSize'] ?? 0;
+    if ($size > 0) {
+        $square = squareCrop($bin, $size);
+        if ($square !== null) {
+            $bin = $square;
+            $mime = 'image/jpeg';
+            // Mémorise la version carrée pour éviter de retraiter à chaque requête
+            // (Android Auto redemande souvent la même pochette).
+            $sqFile = $GLOBALS['sqCacheFile'] ?? '';
+            if ($sqFile) {
+                $dir = dirname($sqFile);
+                if (!is_dir($dir)) @mkdir($dir, 0775, true);
+                @file_put_contents($sqFile, $bin);
+            }
+        }
+    }
     // Use the content hash as ETag so updates invalidate the browser cache.
     // no-cache here is "must revalidate" — when the data hasn't changed the
     // browser gets a fast 304 (no body); when it has, it gets the new bytes.
@@ -191,4 +229,26 @@ function serveBinary($bin, $mime = 'image/jpeg') {
     header('Content-Length: ' . strlen($bin));
     echo $bin;
     exit;
+}
+
+/// Recadre l'image en carré centré de `$size` px de côté (équivalent
+/// `BoxFit.cover`). Renvoie un JPEG binaire, ou null si GD/décodage échoue.
+function squareCrop($bin, $size) {
+    if (!function_exists('imagecreatefromstring')) return null;
+    $src = @imagecreatefromstring($bin);
+    if (!$src) return null;
+    $w = imagesx($src);
+    $h = imagesy($src);
+    if ($w < 1 || $h < 1) { imagedestroy($src); return null; }
+    $side = min($w, $h);
+    $sx = (int)(($w - $side) / 2);
+    $sy = (int)(($h - $side) / 2);
+    $dst = imagecreatetruecolor($size, $size);
+    imagecopyresampled($dst, $src, 0, 0, $sx, $sy, $size, $size, $side, $side);
+    ob_start();
+    imagejpeg($dst, null, 88);
+    $out = ob_get_clean();
+    imagedestroy($src);
+    imagedestroy($dst);
+    return ($out !== false && $out !== '') ? $out : null;
 }

@@ -369,6 +369,25 @@ class GullifyAudioHandler extends BaseAudioHandler
         .catchError((_) {});
   }
 
+  /// Côté maison (`serve_image.php`), la source n'est pas redimensionnée : bon
+  /// nombre de pochettes sont des vignettes non carrées (miniatures 16:9). Dans
+  /// l'app c'est masqué par `BoxFit.cover`, mais Android Auto et la notification
+  /// système affichent l'image brute → petit et cadré de bandes. On demande donc
+  /// au serveur une version carrée recadrée (`size=`) pour toute l'artwork
+  /// exposée au système. Les URLs externes (logos radio, images Deezer) passent
+  /// inchangées.
+  static const int _sysArtSize = 512;
+  Uri? _artUri(String? url) {
+    if (url == null || url.isEmpty) return null;
+    final uri = Uri.tryParse(url);
+    if (uri == null) return null;
+    if (!uri.path.endsWith('serve_image.php')) return uri;
+    return uri.replace(queryParameters: {
+      ...uri.queryParameters,
+      'size': '$_sysArtSize',
+    });
+  }
+
   MediaItem _toMediaItem(Song s) => MediaItem(
         id: offlinePaths.containsKey(s.id)
             ? Uri.file(offlinePaths[s.id]!).toString()
@@ -377,7 +396,7 @@ class GullifyAudioHandler extends BaseAudioHandler
         artist: s.artistName,
         album: s.albumName,
         duration: Duration(seconds: s.duration),
-        artUri: s.artworkUrl != null ? Uri.parse(s.artworkUrl!) : null,
+        artUri: _artUri(s.artworkUrl),
         extras: {'songId': s.id, 'filePath': s.filePath},
       );
 
@@ -410,7 +429,7 @@ class GullifyAudioHandler extends BaseAudioHandler
       title: title,
       artist: 'Radio',
       isLive: true,
-      artUri: logo != null ? Uri.parse(logo) : null,
+      artUri: _artUri(logo),
       extras: const {'radio': true},
     );
     queue.add([item]);
@@ -556,7 +575,7 @@ class GullifyAudioHandler extends BaseAudioHandler
         id: BrowseIds.album(id),
         title: name,
         artist: artist,
-        artUri: art != null ? Uri.parse(art) : null,
+        artUri: _artUri(art),
         playable: false,
       );
 
@@ -766,7 +785,7 @@ class GullifyAudioHandler extends BaseAudioHandler
             MediaItem(
               id: BrowseIds.artist(ar.id),
               title: ar.name,
-              artUri: ar.imageUrl != null ? Uri.parse(ar.imageUrl!) : null,
+              artUri: _artUri(ar.imageUrl),
               playable: false,
             ),
         ];
@@ -796,7 +815,7 @@ class GullifyAudioHandler extends BaseAudioHandler
               id: BrowseIds.radio(s.id),
               title: s.name,
               artist: s.genres.isNotEmpty ? s.genres.join(', ') : s.country,
-              artUri: s.logo != null ? Uri.parse(s.logo!) : null,
+              artUri: _artUri(s.logo),
               playable: true,
             ),
         ];
@@ -842,7 +861,7 @@ class GullifyAudioHandler extends BaseAudioHandler
           MediaItem(
             id: BrowseIds.artist(ar.id),
             title: ar.name,
-            artUri: ar.imageUrl != null ? Uri.parse(ar.imageUrl!) : null,
+            artUri: _artUri(ar.imageUrl),
             playable: false,
           ),
       ];
@@ -903,7 +922,7 @@ class GullifyAudioHandler extends BaseAudioHandler
         title: s.name,
         artist: 'Radio',
         isLive: true,
-        artUri: s.logo != null ? Uri.parse(s.logo!) : null,
+        artUri: _artUri(s.logo),
       );
     }
     // File de lecture courante (ids = URL de flux).
@@ -1030,7 +1049,7 @@ class GullifyAudioHandler extends BaseAudioHandler
             artist: s.artistName,
             album: s.albumName,
             duration: Duration(seconds: s.duration),
-            artUri: s.artworkUrl != null ? Uri.parse(s.artworkUrl!) : null,
+            artUri: _artUri(s.artworkUrl),
             playable: true,
           ),
         for (final a in r.albums)
