@@ -132,13 +132,54 @@ try {
     }
 
     // ----------------------------------------------------------------
-    // Step 3: Musixmatch Python fallback (if module is installed)
+    // Step 3: YouTube Music fallback (ytmusicapi, no API key). Serves plain
+    // and often time-synced (LRC) lyrics for a large catalogue, and stays
+    // reachable when LRClib.net is down — which is what this step is for.
+    // ----------------------------------------------------------------
+    if ($artist && $title) {
+        $ytScript = AppConfig::getPythonPath() . '/fetch_lyrics_ytmusic.py';
+        if (file_exists($ytScript)) {
+            // Use the venv interpreter by its REAL path: the /usr/local/bin
+            // symlink resolves sys.prefix to /usr (system python) and can't see
+            // the venv-installed packages (ytmusicapi, musicxmatch-api).
+            $python = is_executable('/opt/ytdlp/bin/python3') ? '/opt/ytdlp/bin/python3'
+                : (is_executable('/usr/local/bin/python3-venv') ? 'python3-venv' : 'python3');
+            $cmd    = sprintf('timeout 25 %s %s %s %s 2>/dev/null',
+                $python,
+                escapeshellarg($ytScript),
+                escapeshellarg($artist),
+                escapeshellarg($title)
+            );
+            $output = shell_exec($cmd);
+            $result = json_decode($output, true);
+
+            if ($result && !empty($result['success']) && (!empty($result['lyrics']) || !empty($result['syncedLyrics']))) {
+                $synced = $result['syncedLyrics'] ?? null;
+                echo json_encode([
+                    'success'        => true,
+                    'lyrics'         => $result['lyrics'] ?: ($synced ? trim(preg_replace('/^\[\d+:\d+[.:]\d+\]\s?/m', '', $synced)) : ''),
+                    'syncedLyrics'   => $synced ?: null,
+                    'source'         => 'ytmusic',
+                    'matched_artist' => $result['matched_artist'] ?? '',
+                    'matched_title'  => $result['matched_title']  ?? '',
+                ]);
+                exit;
+            }
+        }
+    }
+
+    // ----------------------------------------------------------------
+    // Step 4: Musixmatch Python fallback (if module is installed)
     // ----------------------------------------------------------------
     if ($artist && $title) {
         $pythonScript = AppConfig::getPythonPath() . '/fetch_lyrics_musixmatch.py';
         if (file_exists($pythonScript)) {
             // Prefer venv python (has musicxmatch-api installed) over system python
-            $python = is_executable('/usr/local/bin/python3-venv') ? 'python3-venv' : 'python3';
+            // Use the venv interpreter by its REAL path: the /usr/local/bin
+            // symlink resolves sys.prefix to /usr (system python) and can't see
+            // the venv-installed packages (ytmusicapi, musicxmatch-api).
+            $python = is_executable('/opt/ytdlp/bin/python3') ? '/opt/ytdlp/bin/python3'
+                : (is_executable('/usr/local/bin/python3-venv') ? 'python3-venv' : 'python3');
             $cmd    = sprintf('%s %s %s %s 2>/dev/null',
                 $python,
                 escapeshellarg($pythonScript),

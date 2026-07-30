@@ -8,6 +8,15 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('2.62.0', [
+    'Les paroles reviennent : depuis quelques temps, plus aucune chanson ne '
+        'trouvait ses paroles. En cause, une panne du service LRClib.net '
+        '(utilisé jusque-là) qui ne répondait plus, et la source de secours '
+        'Musixmatch était elle aussi hors service. Gullify va désormais aussi '
+        'chercher les paroles sur YouTube Music quand LRClib ne répond pas — '
+        'souvent avec la synchronisation ligne par ligne en prime. Aucune '
+        'action de votre part : les paroles réapparaissent automatiquement',
+  ]),
   ReleaseNote('2.61.0', [
     'Android Auto : les pochettes d\'album qui s\'affichaient toutes petites, '
         'entourées de bandes noires, remplissent maintenant correctement leur '
