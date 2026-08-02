@@ -643,6 +643,78 @@ try {
         }
         $response['data'] = $songs;
 
+    } elseif ($action === 'game_pool') {
+        // Matière première des jeux (onglet « Jeux ») :
+        //  - tracks : un titre par album daté ET pochetté, mélangé — sert au
+        //    jeu « Chrono » (placer le titre sur la frise) et au « Duel
+        //    d'années ». Un seul titre par album pour éviter les doublons de
+        //    millésime dans une même partie.
+        //  - albums : albums pochettés, mélangés — sert à « Pochette mystère ».
+        // Les années absurdes sont écartées (tags parfois farfelus).
+        $limit = min(300, max(1, intval($_GET['limit'] ?? 150)));
+        $stmt = $conn->prepare("
+            SELECT s.id, s.title, s.track_number, s.duration, s.file_path,
+                   s.album_id, al.name AS album_name, al.year,
+                   a.id AS artist_id, a.name AS artist_name
+            FROM songs s
+            JOIN (
+                SELECT MIN(s2.id) AS song_id
+                FROM songs s2
+                JOIN albums al2 ON s2.album_id = al2.id
+                JOIN artists a2 ON al2.artist_id = a2.id
+                WHERE a2.user = ?
+                  AND al2.year BETWEEN 1900 AND 2100
+                  AND al2.artwork IS NOT NULL AND al2.artwork <> ''
+                GROUP BY s2.album_id
+            ) pick ON pick.song_id = s.id
+            JOIN albums al ON s.album_id = al.id
+            JOIN artists a ON al.artist_id = a.id
+            ORDER BY RAND()
+            LIMIT $limit
+        ");
+        $stmt->execute([$user]);
+        $tracks = [];
+        while ($row = $stmt->fetch()) {
+            $tracks[] = [
+                'id' => (int)$row['id'],
+                'title' => $row['title'],
+                'trackNumber' => (int)$row['track_number'],
+                'duration' => (int)$row['duration'],
+                'filePath' => $row['file_path'],
+                'albumId' => (int)$row['album_id'],
+                'albumName' => $row['album_name'],
+                'artworkUrl' => albumArtworkUrl((int)$row['album_id']),
+                'artistId' => (int)$row['artist_id'],
+                'artistName' => $row['artist_name'],
+                'year' => (int)$row['year'],
+            ];
+        }
+
+        $stmt = $conn->prepare("
+            SELECT al.id, al.name, al.year,
+                   a.id AS artist_id, a.name AS artist_name
+            FROM albums al
+            JOIN artists a ON al.artist_id = a.id
+            WHERE a.user = ?
+              AND al.artwork IS NOT NULL AND al.artwork <> ''
+            ORDER BY RAND()
+            LIMIT $limit
+        ");
+        $stmt->execute([$user]);
+        $albums = [];
+        while ($row = $stmt->fetch()) {
+            $albums[] = [
+                'id' => (int)$row['id'],
+                'name' => $row['name'],
+                'year' => $row['year'] !== null ? (int)$row['year'] : null,
+                'artworkUrl' => albumArtworkUrl((int)$row['id']),
+                'artistId' => (int)$row['artist_id'],
+                'artistName' => $row['artist_name'],
+            ];
+        }
+
+        $response['data'] = ['tracks' => $tracks, 'albums' => $albums];
+
     } elseif ($action === 'recent_songs') {
         // « Derniers joués » : titres récemment écoutés (distincts, jouables),
         // ordonnés du plus récent. Pour Android Auto notamment.

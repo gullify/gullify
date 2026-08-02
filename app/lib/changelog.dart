@@ -8,6 +8,26 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('2.63.0', [
+    'Nouvel onglet « Jeux » dans la barre du bas : quatre jeux musicaux qui '
+        'se jouent entièrement avec votre propre bibliothèque. Les règles et '
+        'le but s\'affichent à la première ouverture de chaque jeu, puis ne '
+        'reviennent plus (le bouton « ? » en haut les rappelle à tout moment). '
+        'Chaque jeu garde votre meilleur score',
+    '« Chrono » : le principe de Hitster, en solo. Un extrait mystère est '
+        'joué — aucun titre, aucune pochette — et il faut le glisser au bon '
+        'endroit de votre frise chronologique. Bien placé, il rejoint la '
+        'frise ; mal placé, vous perdez une vie sur trois',
+    '« Blind test » : dix extraits, quatre réponses, quinze secondes par '
+        'manche. Plus vous répondez vite, plus vous marquez',
+    '« Pochette mystère » : une pochette très floue se précise seconde après '
+        'seconde, à vous de reconnaître l\'album le plus tôt possible',
+    '« Duel d\'années » : deux albums s\'affrontent, désignez le plus ancien '
+        'et enchaînez la plus longue série possible',
+    'Les extraits des jeux sont joués à part, sans notification ni '
+        'mini-lecteur, pour ne jamais dévoiler la réponse — et la lecture en '
+        'cours se met en pause quand une partie commence',
+  ]),
   ReleaseNote('2.62.0', [
     'Les paroles reviennent : depuis quelques temps, plus aucune chanson ne '
         'trouvait ses paroles. En cause, une panne du service LRClib.net '

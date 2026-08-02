@@ -43,3 +43,6 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Artefacts de comparaison des goldens (générés par `flutter test` en échec)
+test/failures/

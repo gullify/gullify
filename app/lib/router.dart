@@ -10,6 +10,11 @@ import 'screens/changelog_screen.dart';
 import 'screens/downloads_screen.dart';
 import 'screens/equalizer_screen.dart';
 import 'screens/favorites_screen.dart';
+import 'screens/games/blind_test_game_screen.dart';
+import 'screens/games/chrono_game_screen.dart';
+import 'screens/games/cover_game_screen.dart';
+import 'screens/games/duel_game_screen.dart';
+import 'screens/games_screen.dart';
 import 'screens/genres_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/ideas_screen.dart';
@@ -44,7 +49,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       StatefulShellRoute.indexedStack(
         builder: (_, _, shell) => ShellScreen(navigationShell: shell),
         // Ordre = index du dock : 0 Accueil, 1 Bibliothèque, 2 Recherche,
-        // 3 Radio, 4 Favoris.
+        // 3 Radio, 4 Favoris, 5 Jeux.
         branches: [
           StatefulShellBranch(routes: [
             GoRoute(path: '/', builder: (_, _) => const HomeScreen()),
@@ -67,7 +72,28 @@ final routerProvider = Provider<GoRouter>((ref) {
               builder: (_, _) => const FavoritesScreen(),
             ),
           ]),
+          StatefulShellBranch(routes: [
+            GoRoute(path: '/games', builder: (_, _) => const GamesScreen()),
+          ]),
         ],
+      ),
+      // Les parties se jouent hors du shell : plein écran, sans dock ni
+      // mini-lecteur (qui dévoilerait le titre en cours de manche).
+      GoRoute(
+        path: '/games/chrono',
+        builder: (_, _) => const ChronoGameScreen(),
+      ),
+      GoRoute(
+        path: '/games/blind',
+        builder: (_, _) => const BlindTestGameScreen(),
+      ),
+      GoRoute(
+        path: '/games/cover',
+        builder: (_, _) => const CoverGameScreen(),
+      ),
+      GoRoute(
+        path: '/games/duel',
+        builder: (_, _) => const DuelGameScreen(),
       ),
       GoRoute(
         path: '/artist/:id',

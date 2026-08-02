@@ -1,5 +1,6 @@
 import '../models/album.dart';
 import '../models/artist.dart';
+import '../models/game_track.dart';
 import '../models/server_user.dart';
 import '../models/song.dart';
 import 'api_client.dart';
@@ -69,6 +70,15 @@ class Suggestions {
   final List<Song> songs;
 
   bool get isEmpty => artists.isEmpty && albums.isEmpty && songs.isEmpty;
+}
+
+/// Matière première des jeux : titres datés (frise chronologique, duel) et
+/// albums pochettés (pochette mystère). Servi en un appel.
+class GamePool {
+  const GamePool({this.tracks = const [], this.albums = const []});
+
+  final List<GameTrack> tracks;
+  final List<Album> albums;
 }
 
 class SearchResults {
@@ -171,6 +181,23 @@ class LibraryRepository {
       'limit': limit,
     });
     return _list(data, _song);
+  }
+
+  /// Matière première des jeux : un titre par album daté et pochetté, plus
+  /// des albums pochettés, le tout mélangé côté serveur.
+  Future<GamePool> gamePool({int limit = 150}) async {
+    final data = await _client.get('library.php', query: {
+      'action': 'game_pool',
+      'limit': limit,
+    }) as Map<String, dynamic>;
+    return GamePool(
+      tracks: [
+        for (final e in data['tracks'] as List<dynamic>? ?? [])
+          if (((e as Map<String, dynamic>)['year'] as num?) != null)
+            GameTrack(song: _song(e), year: (e['year'] as num).toInt()),
+      ],
+      albums: _list(data['albums'], _album),
+    );
   }
 
   /// Titres récemment écoutés (distincts), du plus récent au plus ancien.

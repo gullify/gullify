@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -71,13 +73,18 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
 class DetailDock extends StatelessWidget {
   const DetailDock({super.key});
 
-  static const _paths = ['/', '/library', '/search', '/radio', '/favorites'];
+  static const _paths = [
+    '/',
+    '/library',
+    '/search',
+    '/radio',
+    '/favorites',
+    '/games',
+  ];
 
   @override
-  Widget build(BuildContext context) => HubDock(
-        currentIndex: -1,
-        onSelect: (i) => context.go(_paths[i]),
-      );
+  Widget build(BuildContext context) =>
+      HubDock(currentIndex: -1, onSelect: (i) => context.go(_paths[i]));
 }
 
 /// Un onglet satellite du dock : icône (variante remplie/arrondie), teinte
@@ -104,17 +111,45 @@ class HubDock extends StatelessWidget {
   final ValueChanged<int> onSelect;
 
   // Branches : 0 Accueil (orbe), 1 Bibliothèque, 2 Recherche, 3 Radio,
-  // 4 Favoris. Disposition : [1][2] (orbe 0) [3][4].
+  // 4 Favoris, 5 Jeux. Disposition : [1][2] (orbe 0) [3][4][5].
   static const _left = [
-    _DockDest(1, Icons.library_music_outlined, Icons.library_music_rounded,
-        'Bibliothèque'),
+    _DockDest(
+      1,
+      Icons.library_music_outlined,
+      Icons.library_music_rounded,
+      'Bibliothèque',
+    ),
     _DockDest(2, Icons.search_rounded, Icons.search_rounded, 'Recherche'),
   ];
   static const _right = [
     _DockDest(3, Icons.radio_outlined, Icons.radio_rounded, 'Radio'),
     _DockDest(
-        4, Icons.favorite_border_rounded, Icons.favorite_rounded, 'Favoris'),
+      4,
+      Icons.favorite_border_rounded,
+      Icons.favorite_rounded,
+      'Favoris',
+    ),
+    _DockDest(
+      5,
+      Icons.sports_esports_outlined,
+      Icons.sports_esports_rounded,
+      'Jeux',
+    ),
   ];
+
+  Widget _satellites(List<_DockDest> dests, ColorScheme scheme) => Row(
+    children: [
+      for (final d in dests)
+        Expanded(
+          child: _Satellite(
+            dest: d,
+            selected: currentIndex == d.branch,
+            scheme: scheme,
+            onTap: () => onSelect(d.branch),
+          ),
+        ),
+    ],
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -129,27 +164,14 @@ class HubDock extends StatelessWidget {
           child: SizedBox(
             height: 62,
             child: Row(
+              // Les deux moitiés ont la MÊME largeur (même si elles n'ont pas
+              // le même nombre d'icônes) : c'est ce qui garde l'orbe
+              // exactement au centre de la pilule.
               children: [
-                for (final d in _left)
-                  Expanded(
-                    child: _Satellite(
-                      dest: d,
-                      selected: currentIndex == d.branch,
-                      scheme: scheme,
-                      onTap: () => onSelect(d.branch),
-                    ),
-                  ),
+                Expanded(child: _satellites(_left, scheme)),
                 // Emplacement de l'orbe (rendu par-dessus dans le Stack).
-                const Expanded(child: SizedBox.shrink()),
-                for (final d in _right)
-                  Expanded(
-                    child: _Satellite(
-                      dest: d,
-                      selected: currentIndex == d.branch,
-                      scheme: scheme,
-                      onTap: () => onSelect(d.branch),
-                    ),
-                  ),
+                const SizedBox(width: 64),
+                Expanded(child: _satellites(_right, scheme)),
               ],
             ),
           ),
@@ -212,13 +234,12 @@ class _HomeOrb extends StatelessWidget {
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [
-                Color.lerp(accent, Colors.white, 0.22)!,
-                accent,
-              ],
+              colors: [Color.lerp(accent, Colors.white, 0.22)!, accent],
             ),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.35),
-                width: 1.5),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.35),
+              width: 1.5,
+            ),
             boxShadow: [
               BoxShadow(
                 color: accent.withValues(alpha: selected ? 0.55 : 0.35),
@@ -257,21 +278,25 @@ class _Satellite extends StatelessWidget {
         onTap: onTap,
         radius: 34,
         child: Center(
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 220),
-            curve: Curves.easeOutCubic,
-            width: 46,
-            height: 40,
-            decoration: BoxDecoration(
-              color: selected
-                  ? scheme.primary.withValues(alpha: 0.16)
-                  : Colors.transparent,
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Icon(
-              selected ? dest.iconOn : dest.iconOff,
-              size: 25,
-              color: selected ? scheme.primary : scheme.onSurfaceVariant,
+          // La pastille ne dépasse jamais la place disponible : avec trois
+          // satellites d'un côté, les écrans étroits sont vite à l'étroit.
+          child: LayoutBuilder(
+            builder: (context, constraints) => AnimatedContainer(
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeOutCubic,
+              width: math.min(46, constraints.maxWidth),
+              height: 40,
+              decoration: BoxDecoration(
+                color: selected
+                    ? scheme.primary.withValues(alpha: 0.16)
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Icon(
+                selected ? dest.iconOn : dest.iconOff,
+                size: 25,
+                color: selected ? scheme.primary : scheme.onSurfaceVariant,
+              ),
             ),
           ),
         ),

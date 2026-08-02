@@ -16,6 +16,7 @@ import 'package:gullify/models/artist.dart';
 import 'package:gullify/models/song.dart';
 import 'package:gullify/screens/album_screen.dart';
 import 'package:gullify/screens/artist_screen.dart';
+import 'package:gullify/screens/games_screen.dart';
 import 'package:gullify/screens/home_screen.dart';
 import 'package:gullify/screens/library_screen.dart';
 import 'package:gullify/screens/radio_screen.dart';
@@ -338,6 +339,14 @@ void main() {
     await expectLater(
       find.byKey(const Key('golden-root')),
       matchesGoldenFile('goldens/radio_screen.png'),
+    );
+  });
+
+  testWidgets('games screen renders', (tester) async {
+    await pumpScreen(tester, _shellWrap(const GamesScreen(), tab: 5));
+    await expectLater(
+      find.byKey(const Key('golden-root')),
+      matchesGoldenFile('goldens/games_screen.png'),
     );
   });
 
