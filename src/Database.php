@@ -3,6 +3,7 @@
  * Gullify - MySQL Database class for Music Library
  */
 require_once __DIR__ . '/AppConfig.php';
+require_once __DIR__ . '/TrackArtist.php';
 
 class Database {
     private $db;
@@ -364,14 +365,15 @@ class Database {
                 s.*,
                 al.name as album_name,
                 al.id as album_id,
-                a.name as artist_name,
-                a.id as artist_id,
+                ' . TRACK_ARTIST_NAME . ' as artist_name,
+                ' . TRACK_ARTIST_ID . ' as artist_id,
                 ps.id as playlist_song_id,
                 ps.track_order
             FROM playlist_songs ps
             JOIN songs s ON ps.song_id = s.id
             JOIN albums al ON s.album_id = al.id
             JOIN artists a ON al.artist_id = a.id
+            ' . TRACK_ARTIST_JOIN . '
             WHERE ps.playlist_id = ?
             ORDER BY ps.track_order ASC, s.title ASC
         ');

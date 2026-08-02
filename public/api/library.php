@@ -17,6 +17,7 @@ header('Content-Type: application/json');
 require_once __DIR__ . '/../../src/AppConfig.php';
 require_once __DIR__ . '/../../src/Database.php';
 require_once __DIR__ . '/../../src/PathHelper.php';
+require_once __DIR__ . '/../../src/TrackArtist.php';
 
 /**
  * Build an artworkUrl for an album that busts the browser cache when the
@@ -153,9 +154,13 @@ try {
         $topStmt = $conn->prepare('
             SELECT s.id, s.title, s.duration, s.file_path, s.album_id,
                    al.name AS album_name, al.year,
+                   ' . TRACK_ARTIST_NAME . ' AS artist_name,
+                   ' . TRACK_ARTIST_ID . ' AS artist_id,
                    COALESCE(ss.play_count, 0) AS play_count
             FROM songs s
             JOIN albums al ON s.album_id = al.id
+            JOIN artists a ON al.artist_id = a.id
+            ' . TRACK_ARTIST_JOIN . '
             LEFT JOIN song_stats ss ON ss.song_id = s.id
             WHERE al.artist_id = ?
             ORDER BY play_count DESC, s.title ASC
@@ -174,6 +179,8 @@ try {
                 'albumYear'  => $row['year'],
                 'playCount'  => (int)$row['play_count'],
                 'artworkUrl' => albumArtworkUrl((int)$row['album_id']),
+                'artistId'   => $row['artist_id'] !== null ? (int)$row['artist_id'] : null,
+                'artistName' => $row['artist_name'],
             ];
         }
 
@@ -268,6 +275,12 @@ try {
 
         $songs = [];
         while ($row = $stmt->fetch()) {
+            // Interprète réel de la piste : artiste lié, sinon tag ID3
+            // (colonne track_artist) — utile pour les compilations. Sans
+            // rien de plus précis, la piste hérite de l'artiste de l'album
+            // (le lecteur doit toujours afficher un interprète).
+            $trackArtist = $row['track_artist_name']
+                ?: (($row['track_artist'] ?? '') !== '' ? $row['track_artist'] : null);
             $songs[] = [
                 'id' => $row['id'],
                 'title' => $row['title'],
@@ -275,12 +288,16 @@ try {
                 'duration' => (int)$row['duration'],
                 'filePath' => $row['file_path'],
                 'albumId' => $row['album_id'],
+                'albumName' => $album['name'],
                 'artworkUrl' => albumArtworkUrl((int)$row['album_id']),
-                'artistId' => $row['track_artist_id'] ? (int)$row['track_artist_id'] : null,
-                // Interprète réel de la piste : artiste lié, sinon tag ID3
-                // (colonne track_artist) — utile pour les compilations.
-                'artistName' => $row['track_artist_name']
-                    ?: (($row['track_artist'] ?? '') !== '' ? $row['track_artist'] : null),
+                // Pas d'identifiant quand le nom ne vient que du tag ID3 :
+                // aucune fiche artiste ne lui correspond.
+                'artistId' => $row['track_artist_id']
+                    ? (int)$row['track_artist_id']
+                    : (($trackArtist === null
+                        || strcasecmp($trackArtist, (string)$album['artist_name']) === 0)
+                        ? (int)$album['artist_id'] : null),
+                'artistName' => $trackArtist ?: $album['artist_name'],
                 'playCount' => (int)$row['play_count'],
             ];
         }
@@ -617,10 +634,12 @@ try {
         $stmt = $conn->prepare("
             SELECT s.id, s.title, s.track_number, s.duration, s.file_path,
                    s.album_id, al.name AS album_name,
-                   a.id AS artist_id, a.name AS artist_name
+                   " . TRACK_ARTIST_ID . " AS artist_id,
+                   " . TRACK_ARTIST_NAME . " AS artist_name
             FROM songs s
             JOIN albums al ON s.album_id = al.id
             JOIN artists a ON al.artist_id = a.id
+            " . TRACK_ARTIST_JOIN . "
             WHERE a.user = ?
             ORDER BY RAND()
             LIMIT $limit
@@ -637,7 +656,7 @@ try {
                 'albumId' => (int)$row['album_id'],
                 'albumName' => $row['album_name'],
                 'artworkUrl' => albumArtworkUrl((int)$row['album_id']),
-                'artistId' => (int)$row['artist_id'],
+                'artistId' => $row['artist_id'] !== null ? (int)$row['artist_id'] : null,
                 'artistName' => $row['artist_name'],
             ];
         }
@@ -655,7 +674,8 @@ try {
         $stmt = $conn->prepare("
             SELECT s.id, s.title, s.track_number, s.duration, s.file_path,
                    s.album_id, al.name AS album_name, al.year,
-                   a.id AS artist_id, a.name AS artist_name
+                   " . TRACK_ARTIST_ID . " AS artist_id,
+                   " . TRACK_ARTIST_NAME . " AS artist_name
             FROM songs s
             JOIN (
                 SELECT MIN(s2.id) AS song_id
@@ -669,6 +689,7 @@ try {
             ) pick ON pick.song_id = s.id
             JOIN albums al ON s.album_id = al.id
             JOIN artists a ON al.artist_id = a.id
+            " . TRACK_ARTIST_JOIN . "
             ORDER BY RAND()
             LIMIT $limit
         ");
@@ -684,7 +705,7 @@ try {
                 'albumId' => (int)$row['album_id'],
                 'albumName' => $row['album_name'],
                 'artworkUrl' => albumArtworkUrl((int)$row['album_id']),
-                'artistId' => (int)$row['artist_id'],
+                'artistId' => $row['artist_id'] !== null ? (int)$row['artist_id'] : null,
                 'artistName' => $row['artist_name'],
                 'year' => (int)$row['year'],
             ];
@@ -722,12 +743,14 @@ try {
         $stmt = $conn->prepare("
             SELECT s.id, s.title, s.track_number, s.duration, s.file_path,
                    s.album_id, al.name AS album_name,
-                   a.id AS artist_id, a.name AS artist_name,
+                   " . TRACK_ARTIST_ID . " AS artist_id,
+                   " . TRACK_ARTIST_NAME . " AS artist_name,
                    MAX(ph.played_at) AS last_played
             FROM play_history ph
             JOIN songs s   ON ph.song_id = s.id
             JOIN albums al ON s.album_id = al.id
             JOIN artists a ON al.artist_id = a.id
+            " . TRACK_ARTIST_JOIN . "
             WHERE ph.user = ?
             GROUP BY s.id
             ORDER BY last_played DESC
@@ -745,7 +768,7 @@ try {
                 'albumId' => (int)$row['album_id'],
                 'albumName' => $row['album_name'],
                 'artworkUrl' => albumArtworkUrl((int)$row['album_id']),
-                'artistId' => (int)$row['artist_id'],
+                'artistId' => $row['artist_id'] !== null ? (int)$row['artist_id'] : null,
                 'artistName' => $row['artist_name'],
             ];
         }
@@ -758,10 +781,12 @@ try {
         $stmt = $conn->prepare("
             SELECT s.id, s.title, s.track_number, s.duration, s.file_path,
                    s.album_id, al.name AS album_name,
-                   a.id AS artist_id, a.name AS artist_name
+                   " . TRACK_ARTIST_ID . " AS artist_id,
+                   " . TRACK_ARTIST_NAME . " AS artist_name
             FROM songs s
             JOIN albums al ON s.album_id = al.id
             JOIN artists a ON al.artist_id = a.id
+            " . TRACK_ARTIST_JOIN . "
             LEFT JOIN play_history ph
                 ON ph.song_id = s.id AND ph.user = ?
             WHERE a.user = ? AND ph.id IS NULL
@@ -780,7 +805,7 @@ try {
                 'albumId' => (int)$row['album_id'],
                 'albumName' => $row['album_name'],
                 'artworkUrl' => albumArtworkUrl((int)$row['album_id']),
-                'artistId' => (int)$row['artist_id'],
+                'artistId' => $row['artist_id'] !== null ? (int)$row['artist_id'] : null,
                 'artistName' => $row['artist_name'],
             ];
         }
@@ -800,21 +825,24 @@ try {
                 s.file_path,
                 s.album_id,
                 al.name as album_name,
-                a.name as artist_name,
-                a.id as artist_id
+                ' . TRACK_ARTIST_NAME . ' as artist_name,
+                ' . TRACK_ARTIST_ID . ' as artist_id
             FROM songs s
             JOIN albums al ON s.album_id = al.id
             JOIN artists a ON al.artist_id = a.id
+            ' . TRACK_ARTIST_JOIN . '
             WHERE a.user = ?
             AND (
                 s.title LIKE ? OR
                 a.name LIKE ? OR
-                al.name LIKE ?
+                al.name LIKE ? OR
+                ta.name LIKE ? OR
+                s.track_artist LIKE ?
             )
             ORDER BY a.name ASC, al.name ASC, s.track_number ASC
             LIMIT 100
         ');
-        $stmt->execute([$user, $searchTerm, $searchTerm, $searchTerm]);
+        $stmt->execute([$user, $searchTerm, $searchTerm, $searchTerm, $searchTerm, $searchTerm]);
 
         $songs = [];
         while ($row = $stmt->fetch()) {
@@ -827,7 +855,7 @@ try {
                 'albumId' => $row['album_id'],
                 'albumName' => $row['album_name'],
                 'artworkUrl' => albumArtworkUrl((int)$row['album_id']),
-                'artistId' => $row['artist_id'],
+                'artistId' => $row['artist_id'] !== null ? (int)$row['artist_id'] : null,
                 'artistName' => $row['artist_name']
             ];
         }
@@ -1037,11 +1065,13 @@ try {
             SELECT s.id, s.title, s.file_path, s.duration,
                    al.id AS album_id, al.name AS album_name, al.year,
                    a.id  AS artist_id, a.name AS artist_name,
+                   ' . TRACK_ARTIST_NAME . ' AS track_artist_name,
                    (al.artwork IS NOT NULL AND al.artwork != "") AS has_artwork
             FROM favorites f
             JOIN songs   s  ON f.song_id    = s.id
             JOIN albums  al ON s.album_id   = al.id
             JOIN artists a  ON al.artist_id = a.id
+            ' . TRACK_ARTIST_JOIN . '
             WHERE f.user = ?
             ORDER BY s.title ASC
         ');
@@ -1058,7 +1088,10 @@ try {
             $songs[] = [
                 'id'         => (int)$row['id'],
                 'title'      => $row['title'],
-                'artist'     => $row['artist_name'],
+                // Interprète de la piste (compilations) ; les sections
+                // « artistes »/« albums » ci-dessous gardent, elles,
+                // l'artiste de l'album.
+                'artist'     => $row['track_artist_name'],
                 'album'      => $row['album_name'],
                 'filePath'   => $row['file_path'],
                 'duration'   => $row['duration'],

@@ -8,6 +8,17 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('2.64.0', [
+    'Compilations (Various Artists) : le lecteur affiche enfin l\'interprète '
+        'de la chanson en cours — dans le mini-lecteur, l\'écran de lecture, '
+        'la notification et Android Auto — au lieu de « Various Artists ». '
+        'Vaut aussi pour les titres joués depuis les favoris, une playlist, '
+        'la recherche, les populaires ou la lecture aléatoire',
+    'Recherche : les titres de compilations se trouvent maintenant par le '
+        'nom de leur interprète',
+    'Page album : les rangées de titres sont plus compactes (l\'artiste '
+        'n\'est plus répété sous chaque piste, l\'entête le donne déjà)',
+  ]),
   ReleaseNote('2.63.0', [
     'Nouvel onglet « Jeux » dans la barre du bas : quatre jeux musicaux qui '
         'se jouent entièrement avec votre propre bibliothèque. Les règles et '

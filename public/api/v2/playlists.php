@@ -41,7 +41,7 @@ try {
                 'trackNumber'    => isset($s['track_number']) ? (int)$s['track_number'] : null,
                 'albumId'        => (int)$s['album_id'],
                 'albumName'      => $s['album_name'],
-                'artistId'       => (int)$s['artist_id'],
+                'artistId'       => $s['artist_id'] !== null ? (int)$s['artist_id'] : null,
                 'artistName'     => $s['artist_name'],
                 'artworkUrl'     => $s['artworkUrl'],
                 'playlistSongId' => (int)$s['playlist_song_id'],

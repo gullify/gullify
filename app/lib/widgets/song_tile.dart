@@ -28,6 +28,7 @@ class SongTile extends ConsumerWidget {
     this.subtitle,
     this.trailing,
     this.showTrackArtist = false,
+    this.showArtist = true,
   });
 
   final Song song;
@@ -43,9 +44,16 @@ class SongTile extends ConsumerWidget {
   /// les compilations Various Artists où chaque piste a un artiste différent.
   final bool showTrackArtist;
 
+  /// Ligne secondaire avec l'interprète. À couper là où il est déjà donné
+  /// par le contexte (page album : l'entête l'affiche déjà).
+  final bool showArtist;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final scheme = Theme.of(context).colorScheme;
+    // Interprète en préfixe du titre : inutile de le répéter en dessous.
+    final secondary =
+        subtitle ?? (showArtist && !showTrackArtist ? song.artistName : null);
     // Détecte la piste en cours même si l'appelant ne le précise pas.
     final currentId =
         ref.watch(currentMediaItemProvider).value?.extras?['songId'] as int?;
@@ -143,9 +151,9 @@ class SongTile extends ConsumerWidget {
                           color: isCurrent ? scheme.primary : null,
                         ),
                       ),
-                      if ((subtitle ?? song.artistName) != null)
+                      if (secondary != null)
                         Text(
-                          subtitle ?? song.artistName!,
+                          secondary,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
