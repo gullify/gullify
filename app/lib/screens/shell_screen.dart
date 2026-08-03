@@ -81,6 +81,7 @@ class DetailDock extends StatelessWidget {
     '/radio',
     '/favorites',
     '/games',
+    '/videos',
   ];
 
   @override
@@ -112,7 +113,7 @@ class HubDock extends StatelessWidget {
   final ValueChanged<int> onSelect;
 
   // Branches : 0 Accueil (orbe), 1 Bibliothèque, 2 Recherche, 3 Radio,
-  // 4 Favoris, 5 Jeux. Disposition : [1][2] (orbe 0) [3][4][5].
+  // 4 Favoris, 5 Jeux, 6 Vidéos. Disposition : [1][2][6] (orbe 0) [3][4][5].
   static const _left = [
     _DockDest(
       1,
@@ -121,6 +122,7 @@ class HubDock extends StatelessWidget {
       'Bibliothèque',
     ),
     _DockDest(2, Icons.search_rounded, Icons.search_rounded, 'Recherche'),
+    _DockDest(6, Icons.movie_outlined, Icons.movie_rounded, 'Vidéos'),
   ];
   static const _right = [
     _DockDest(3, Icons.radio_outlined, Icons.radio_rounded, 'Radio'),

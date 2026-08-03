@@ -8,6 +8,19 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('2.66.0', [
+    'Nouvel onglet « Vidéos » dans la barre du bas : cherchez des clips, des '
+        'concerts et des lives sur YouTube et regardez-les directement dans '
+        'l\'app. Le serveur relaie le flux (les liens YouTube ne sont valables '
+        'que depuis la machine qui les demande)',
+    'Chaque vidéo peut être gardée sur le serveur : le téléchargement se fait '
+        'en pleine qualité (jusqu\'en 1080p, image et son fusionnés) et la '
+        'vidéo se relit ensuite depuis le serveur, sans repasser par YouTube. '
+        'La progression du téléchargement s\'affiche dans la liste',
+    'Lecteur vidéo plein écran : commandes qui s\'effacent, barre de '
+        'progression, bascule en mode paysage et écran maintenu allumé. La '
+        'musique en cours se met en pause à l\'ouverture d\'une vidéo',
+  ]),
   ReleaseNote('2.65.0', [
     'Correction du bug de la « bande vide » en bas de l\'écran : l\'espace du '
         'clavier restait parfois réservé alors que le clavier avait disparu — '

@@ -35,6 +35,8 @@ import 'screens/shell_screen.dart';
 import 'screens/splash_screen.dart';
 import 'screens/stats_screen.dart';
 import 'screens/user_library_screen.dart';
+import 'screens/video_watch_screen.dart';
+import 'screens/videos_screen.dart';
 import 'screens/yt_downloads_screen.dart';
 import 'models/server_user.dart';
 import 'state/auth.dart';
@@ -53,33 +55,57 @@ final routerProvider = Provider<GoRouter>((ref) {
       StatefulShellRoute.indexedStack(
         builder: (_, _, shell) => ShellScreen(navigationShell: shell),
         // Ordre = index du dock : 0 Accueil, 1 Bibliothèque, 2 Recherche,
-        // 3 Radio, 4 Favoris, 5 Jeux.
+        // 3 Radio, 4 Favoris, 5 Jeux, 6 Vidéos.
         branches: [
-          StatefulShellBranch(routes: [
-            GoRoute(path: '/', builder: (_, _) => const HomeScreen()),
-          ]),
-          StatefulShellBranch(routes: [
-            GoRoute(
-              path: '/library',
-              builder: (_, _) => const LibraryScreen(),
-            ),
-          ]),
-          StatefulShellBranch(routes: [
-            GoRoute(path: '/search', builder: (_, _) => const SearchScreen()),
-          ]),
-          StatefulShellBranch(routes: [
-            GoRoute(path: '/radio', builder: (_, _) => const RadioScreen()),
-          ]),
-          StatefulShellBranch(routes: [
-            GoRoute(
-              path: '/favorites',
-              builder: (_, _) => const FavoritesScreen(),
-            ),
-          ]),
-          StatefulShellBranch(routes: [
-            GoRoute(path: '/games', builder: (_, _) => const GamesScreen()),
-          ]),
+          StatefulShellBranch(
+            routes: [GoRoute(path: '/', builder: (_, _) => const HomeScreen())],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/library',
+                builder: (_, _) => const LibraryScreen(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(path: '/search', builder: (_, _) => const SearchScreen()),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(path: '/radio', builder: (_, _) => const RadioScreen()),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/favorites',
+                builder: (_, _) => const FavoritesScreen(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(path: '/games', builder: (_, _) => const GamesScreen()),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(path: '/videos', builder: (_, _) => const VideosScreen()),
+            ],
+          ),
         ],
+      ),
+      // La lecture vidéo se fait hors du shell : plein écran, sans dock ni
+      // mini-lecteur (et le paysage doit pouvoir tout prendre).
+      GoRoute(
+        path: '/videos/watch/:id',
+        builder: (_, state) => VideoWatchScreen(
+          videoId: state.pathParameters['id']!,
+          title: state.uri.queryParameters['title'] ?? 'Vidéo',
+        ),
       ),
       // Les parties se jouent hors du shell : plein écran, sans dock ni
       // mini-lecteur (qui dévoilerait le titre en cours de manche).
@@ -91,14 +117,8 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/games/blind',
         builder: (_, _) => const BlindTestGameScreen(),
       ),
-      GoRoute(
-        path: '/games/cover',
-        builder: (_, _) => const CoverGameScreen(),
-      ),
-      GoRoute(
-        path: '/games/duel',
-        builder: (_, _) => const DuelGameScreen(),
-      ),
+      GoRoute(path: '/games/cover', builder: (_, _) => const CoverGameScreen()),
+      GoRoute(path: '/games/duel', builder: (_, _) => const DuelGameScreen()),
       GoRoute(
         path: '/artist/:id',
         builder: (_, state) =>
@@ -125,8 +145,10 @@ final routerProvider = Provider<GoRouter>((ref) {
           transitionDuration: const Duration(milliseconds: 250),
           transitionsBuilder: (_, animation, _, child) => SlideTransition(
             position: animation.drive(
-              Tween(begin: const Offset(0, 1), end: Offset.zero)
-                  .chain(CurveTween(curve: Curves.easeOutCubic)),
+              Tween(
+                begin: const Offset(0, 1),
+                end: Offset.zero,
+              ).chain(CurveTween(curve: Curves.easeOutCubic)),
             ),
             child: child,
           ),
@@ -136,10 +158,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/notifications',
         builder: (_, _) => const NotificationsScreen(),
       ),
-      GoRoute(
-        path: '/settings',
-        builder: (_, _) => const SettingsScreen(),
-      ),
+      GoRoute(path: '/settings', builder: (_, _) => const SettingsScreen()),
       GoRoute(
         path: '/settings/equalizer',
         builder: (_, _) => const EqualizerScreen(),
@@ -152,14 +171,8 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/yt-downloads',
         builder: (_, _) => const YtDownloadsScreen(),
       ),
-      GoRoute(
-        path: '/stats',
-        builder: (_, _) => const StatsScreen(),
-      ),
-      GoRoute(
-        path: '/popular',
-        builder: (_, _) => const PopularScreen(),
-      ),
+      GoRoute(path: '/stats', builder: (_, _) => const StatsScreen()),
+      GoRoute(path: '/popular', builder: (_, _) => const PopularScreen()),
       GoRoute(
         path: '/radio/edit',
         builder: (_, state) =>
@@ -169,14 +182,8 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/settings/changelog',
         builder: (_, _) => const ChangelogScreen(),
       ),
-      GoRoute(
-        path: '/settings/ideas',
-        builder: (_, _) => const IdeasScreen(),
-      ),
-      GoRoute(
-        path: '/genres',
-        builder: (_, _) => const GenresScreen(),
-      ),
+      GoRoute(path: '/settings/ideas', builder: (_, _) => const IdeasScreen()),
+      GoRoute(path: '/genres', builder: (_, _) => const GenresScreen()),
       GoRoute(
         path: '/settings/scan',
         builder: (_, _) => const LibraryScanScreen(),

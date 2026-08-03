@@ -18,7 +18,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # of the product and file versions while build-number is used as the build suffix.
 # versionCode : doit rester supérieur à 26 (dernier code de l'ancienne app
 # pixelplay) pour que son auto-updater propose la migration vers la v2.
-version: 2.65.0+99
+version: 2.66.0+100
 
 environment:
   sdk: ^3.12.2
@@ -53,6 +53,8 @@ dependencies:
   permission_handler: ^12.0.3
   image_picker: ^1.1.2
   wakelock_plus: ^1.6.1
+  # Onglet « Vidéos » : lecture des concerts/clips relayés par le serveur.
+  video_player: ^2.9.2
 
 dev_dependencies:
   flutter_test:
