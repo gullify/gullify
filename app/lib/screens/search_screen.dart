@@ -235,6 +235,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       body: SafeArea(
         bottom: false,
         child: ListView(
+          // Faire défiler les résultats referme le clavier : il masquait la
+          // moitié de la liste et laissait sa bande réservée.
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
           padding: EdgeInsets.only(
             bottom: MediaQuery.paddingOf(context).bottom + 18,
           ),

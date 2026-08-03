@@ -9,6 +9,7 @@ import '../state/background_playback.dart';
 import '../state/home_widget_sync.dart';
 import '../state/player.dart';
 import '../widgets/glass_box.dart';
+import '../widgets/keyboard_guard.dart';
 import '../widgets/mini_player.dart';
 import '../widgets/update_dialog.dart';
 
@@ -137,6 +138,14 @@ class HubDock extends StatelessWidget {
     ),
   ];
 
+  /// Changer d'onglet ferme d'abord le clavier : un champ resté focalisé dans
+  /// l'onglet qu'on quitte (il survit, masqué) laissait l'inset du clavier
+  /// appliqué — d'où une bande vide en bas de l'onglet suivant.
+  void _select(int branch) {
+    dismissKeyboard();
+    onSelect(branch);
+  }
+
   Widget _satellites(List<_DockDest> dests, ColorScheme scheme) => Row(
     children: [
       for (final d in dests)
@@ -145,7 +154,7 @@ class HubDock extends StatelessWidget {
             dest: d,
             selected: currentIndex == d.branch,
             scheme: scheme,
-            onTap: () => onSelect(d.branch),
+            onTap: () => _select(d.branch),
           ),
         ),
     ],
@@ -195,7 +204,7 @@ class HubDock extends StatelessWidget {
               child: _HomeOrb(
                 selected: currentIndex == 0,
                 scheme: scheme,
-                onTap: () => onSelect(0),
+                onTap: () => _select(0),
               ),
             ),
           ],

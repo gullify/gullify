@@ -8,6 +8,16 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('2.65.0', [
+    'Correction du bug de la « bande vide » en bas de l\'écran : l\'espace du '
+        'clavier restait parfois réservé alors que le clavier avait disparu — '
+        'plus rien ne s\'affichait dans cette zone, seule la barre du bas '
+        'paraissait normale. L\'app referme maintenant le clavier quand on '
+        'change d\'onglet ou d\'écran, et rattrape automatiquement l\'espace '
+        'resté réservé sans clavier',
+    'Recherche et filtres de la bibliothèque : faire défiler la liste referme '
+        'le clavier, qui masquait la moitié des résultats',
+  ]),
   ReleaseNote('2.64.0', [
     'Compilations (Various Artists) : le lecteur affiche enfin l\'interprète '
         'de la chanson en cours — dans le mini-lecteur, l\'écran de lecture, '

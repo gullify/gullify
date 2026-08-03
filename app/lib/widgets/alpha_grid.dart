@@ -118,6 +118,9 @@ class _AlphaGridState<T> extends State<AlphaGrid<T>> {
     final scrollView = CustomScrollView(
       controller: _scroll,
       physics: const AlwaysScrollableScrollPhysics(),
+      // Défiler referme le clavier du filtre (sinon il reste ouvert par-dessus
+      // la grille et sa bande reste réservée en bas).
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       slivers: [
         SliverToBoxAdapter(
           child: Column(

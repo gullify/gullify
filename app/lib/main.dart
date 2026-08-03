@@ -9,6 +9,7 @@ import 'state/app_theme.dart';
 import 'state/equalizer.dart';
 import 'state/player.dart';
 import 'theme.dart';
+import 'widgets/keyboard_guard.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -31,10 +32,7 @@ Future<void> main() async {
   );
 
   runApp(
-    UncontrolledProviderScope(
-      container: container,
-      child: const GullifyApp(),
-    ),
+    UncontrolledProviderScope(container: container, child: const GullifyApp()),
   );
 }
 
@@ -93,31 +91,35 @@ class _GullifyAppState extends ConsumerState<GullifyApp>
         final surfaces = Theme.of(context).extension<GullifySurfaces>();
         final bg = surfaces?.background;
         if (bg == null || child == null) return child ?? const SizedBox();
-        return DecoratedBox(
-          decoration: BoxDecoration(gradient: bg),
-          child: Stack(
-            children: [
-              // Halo d'accent diffus (design) : lueur douce en haut d'écran.
-              if (surfaces?.accentBlob != null)
-                Positioned(
-                  top: -140,
-                  left: -60,
-                  child: Container(
-                    width: 420,
-                    height: 420,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: RadialGradient(
-                        colors: [
-                          surfaces!.accentBlob!.withValues(alpha: 0.16),
-                          surfaces.accentBlob!.withValues(alpha: 0.0),
-                        ],
+        // Le garde vit au-dessus du navigateur : il doit survivre aux
+        // changements d'écran pour rattraper un inset de clavier resté collé.
+        return KeyboardInsetGuard(
+          child: DecoratedBox(
+            decoration: BoxDecoration(gradient: bg),
+            child: Stack(
+              children: [
+                // Halo d'accent diffus (design) : lueur douce en haut d'écran.
+                if (surfaces?.accentBlob != null)
+                  Positioned(
+                    top: -140,
+                    left: -60,
+                    child: Container(
+                      width: 420,
+                      height: 420,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: RadialGradient(
+                          colors: [
+                            surfaces!.accentBlob!.withValues(alpha: 0.16),
+                            surfaces.accentBlob!.withValues(alpha: 0.0),
+                          ],
+                        ),
                       ),
                     ),
                   ),
-                ),
-              child,
-            ],
+                child,
+              ],
+            ),
           ),
         );
       },

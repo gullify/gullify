@@ -38,10 +38,14 @@ import 'screens/user_library_screen.dart';
 import 'screens/yt_downloads_screen.dart';
 import 'models/server_user.dart';
 import 'state/auth.dart';
+import 'widgets/keyboard_guard.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   final router = GoRouter(
     initialLocation: '/splash',
+    // Le clavier ne suit jamais l'écran suivant (et ne laisse pas sa bande
+    // vide derrière lui) : voir KeyboardDismissObserver.
+    observers: [KeyboardDismissObserver()],
     routes: [
       GoRoute(path: '/splash', builder: (_, _) => const SplashScreen()),
       GoRoute(path: '/server', builder: (_, _) => const ServerScreen()),
