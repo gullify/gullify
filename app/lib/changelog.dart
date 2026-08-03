@@ -8,6 +8,22 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('2.68.0', [
+    'On peut se parler pendant une partie à plusieurs : une barre « talkie-'
+        'walkie » apparaît en bas de l\'écran. Maintenez le bouton, parlez, '
+        'relâchez — votre message part et les autres joueurs l\'entendent '
+        'aussitôt, où qu\'ils soient',
+    'Les invités ont le même bouton dans leur navigateur : aucun compte ni '
+        'installation, juste l\'autorisation du micro demandée au premier '
+        'appui. Chacun peut couper les voix de son côté avec l\'icône '
+        'haut-parleur',
+    'L\'extrait de la manche se met tout seul en sourdine pendant qu\'on parle '
+        'ou qu\'on écoute quelqu\'un : la voix passe devant la musique. Les '
+        'messages s\'enchaînent dans l\'ordre où ils ont été dits',
+    'Un message dure quinze secondes au plus, n\'est écoutable qu\'une minute '
+        'et demie, et disparaît du serveur avec la partie — rien n\'est '
+        'conservé après le salon',
+  ]),
   ReleaseNote('2.67.0', [
     'Les quatre jeux se jouent maintenant à plusieurs. Depuis l\'onglet '
         '« Jeux », créez un salon : Gullify génère un code court et un lien '

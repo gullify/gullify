@@ -12,6 +12,8 @@
  *   POST ?action=leave    {code,token}
  *   POST ?action=close    {code,token}            → hôte seulement
  *   GET  ?action=snippet&code=…&token=…&round=N   → OCTETS mp3 (pas de JSON)
+ *   POST ?action=voice    {code,token,audio,mime,ms} → message vocal (base64)
+ *   GET  ?action=voiceclip&code=…&token=…&id=N    → OCTETS audio (pas de JSON)
  *
  * Une seule action exige un compte : `create`. Tout le reste s'authentifie
  * avec le jeton remis en rejoignant le salon — c'est ce qui permet à des
@@ -21,6 +23,11 @@
  * `snippet` est le seul accès audio ouvert aux invités : il ne rend pas un
  * fichier de la bibliothèque mais un extrait mp3 transcodé, borné à la manche
  * en cours. Impossible d'y demander autre chose que le morceau du moment.
+ *
+ * Le talkie-walkie (`voice` / `voiceclip`) est du même bois : un message part
+ * en entier, le salon le récupère au sondage suivant. Il n'y a pas de flux
+ * permanent — sans serveur de relais temps réel, un canal ouvert en continu ne
+ * tiendrait pas ; un message poussé, lui, arrive toujours.
  */
 declare(strict_types=1);
 
@@ -59,6 +66,12 @@ function p_message(string $code): string {
         'not_your_turn'    => "Ce n'est pas ton tour.",
         'too_late'         => 'Temps écoulé.',
         'no_round'         => 'Manche introuvable.',
+        'voice_format'     => "Ce format de message vocal n'est pas accepté.",
+        'voice_empty'      => 'Message vocal vide.',
+        'voice_too_big'    => 'Message vocal trop long.',
+        'voice_too_fast'   => 'Laisse une seconde entre deux messages.',
+        'voice_failed'     => "Le message vocal n'a pas pu être enregistré.",
+        'voice_not_found'  => 'Ce message vocal a expiré.',
     ][$code] ?? $code;
 }
 
@@ -200,6 +213,39 @@ try {
             party_snippet($party, $round);
         }
 
+        // ── Talkie-walkie : envoyer la voix, puis l'écouter ────────────────
+        case 'voice': {
+            // Pas de tick ici : parler ne doit pas faire avancer une manche.
+            $ctx = p_auth(false);
+            $bytes = base64_decode(p_in('audio'), true);
+            if ($bytes === false) v2_fail('voice_format', p_message('voice_format'), 400);
+            try {
+                $id = Party::sendVoice(
+                    $ctx['party'],
+                    $ctx['player'],
+                    $bytes,
+                    p_in('mime'),
+                    (int)p_in('ms', '0')
+                );
+            } catch (RuntimeException $e) {
+                v2_fail($e->getMessage(), p_message($e->getMessage()), 400);
+            }
+            v2_ok(['id' => $id]);
+        }
+
+        case 'voiceclip': {
+            $ctx  = p_auth(false);
+            $clip = Party::voiceClip((int)$ctx['party']['id'], (int)p_in('id', '0'));
+            if (!$clip) v2_fail('voice_not_found', p_message('voice_not_found'), 404);
+            $file = Party::voicePath(
+                (int)$ctx['party']['id'],
+                (int)$clip['id'],
+                (string)$clip['mime']
+            );
+            if (!is_file($file)) v2_fail('voice_not_found', p_message('voice_not_found'), 404);
+            party_send_audio($file, (string)$clip['mime']);
+        }
+
         default:
             v2_fail('invalid_request', 'Action inconnue', 400);
     }
@@ -220,6 +266,9 @@ function party_cache_dir(): string {
 function party_clear_cache(int $partyId): void {
     foreach (glob(party_cache_dir() . "/p{$partyId}_*.mp3") ?: [] as $f) @unlink($f);
     foreach (glob(party_cache_dir() . "/p{$partyId}_*.lock") ?: [] as $f) @unlink($f);
+    // Les messages vocaux sont effacés par Party::close(), mais un fichier
+    // orphelin (fiche perdue) ne doit pas rester là non plus.
+    foreach (glob(party_cache_dir() . "/v{$partyId}_*") ?: [] as $f) @unlink($f);
 }
 
 /**
@@ -297,8 +346,8 @@ function party_transcode(string $user, string $relativePath, int $start, int $se
     }
 }
 
-/** Envoie le mp3, requêtes Range comprises (Safari les exige). */
-function party_send_audio(string $file): never {
+/** Envoie le fichier audio, requêtes Range comprises (Safari les exige). */
+function party_send_audio(string $file, string $type = 'audio/mpeg'): never {
     $size = (int)filesize($file);
     $begin = 0;
     $end = $size - 1;
@@ -309,7 +358,7 @@ function party_send_audio(string $file): never {
     }
     $length = max(0, $end - $begin + 1);
 
-    header('Content-Type: audio/mpeg');
+    header('Content-Type: ' . $type);
     header('Accept-Ranges: bytes');
     header('Cache-Control: no-store');
     if (isset($_SERVER['HTTP_RANGE'])) {

@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'api_client.dart';
 
 /// Client des parties multijoueur (`/api/v2/party.php`).
@@ -79,6 +81,40 @@ class PartyCard {
         year: (j['year'] as num?)?.toInt() ?? 0,
         artist: j['artist'] as String?,
         artworkUrl: abs(j['artworkUrl'] as String?),
+      );
+}
+
+/// Un message vocal du talkie-walkie, tel que le serveur l'annonce.
+///
+/// Le son n'est pas dans l'état : on ne reçoit que la fiche, et on va chercher
+/// les octets si (et seulement si) on décide de l'écouter.
+class PartyVoiceClip {
+  const PartyVoiceClip({
+    required this.id,
+    required this.playerId,
+    required this.name,
+    required this.ms,
+    required this.at,
+  });
+
+  final int id;
+  final int playerId;
+
+  /// Prénom de celui qui parle.
+  final String name;
+
+  /// Durée du message, en millisecondes.
+  final int ms;
+
+  /// Horodatage serveur de l'envoi.
+  final int at;
+
+  static PartyVoiceClip fromJson(Map<String, dynamic> j) => PartyVoiceClip(
+        id: (j['id'] as num?)?.toInt() ?? 0,
+        playerId: (j['playerId'] as num?)?.toInt() ?? 0,
+        name: j['name'] as String? ?? '',
+        ms: (j['ms'] as num?)?.toInt() ?? 0,
+        at: (j['at'] as num?)?.toInt() ?? 0,
       );
 }
 
@@ -223,6 +259,9 @@ class PartyState {
     this.meIsHost = false,
     this.round,
     this.receivedAt,
+    this.voiceClips = const [],
+    this.voiceMaxMs = 15000,
+    this.voiceMinMs = 350,
   });
 
   final String code;
@@ -260,6 +299,13 @@ class PartyState {
 
   /// Horloge locale à la réception, pour recaler le décompte sans réseau.
   final DateTime? receivedAt;
+
+  /// Les messages vocaux encore écoutables, du plus ancien au plus récent.
+  final List<PartyVoiceClip> voiceClips;
+
+  /// Bornes du talkie-walkie, dictées par le serveur.
+  final int voiceMaxMs;
+  final int voiceMinMs;
 
   bool get isLobby => status == 'lobby';
   bool get isPlaying => status == 'playing';
@@ -304,6 +350,7 @@ class PartyState {
 
   static PartyState fromJson(Map<String, dynamic> j, String? Function(String?) abs) {
     final me = j['me'] as Map<String, dynamic>?;
+    final voice = j['voice'] as Map<String, dynamic>?;
     return PartyState(
       code: j['code'] as String? ?? '',
       game: j['game'] as String? ?? '',
@@ -330,6 +377,12 @@ class PartyState {
           ? null
           : PartyRound.fromJson(j['round'] as Map<String, dynamic>, abs),
       receivedAt: DateTime.now(),
+      voiceClips: [
+        for (final c in voice?['clips'] as List<dynamic>? ?? [])
+          PartyVoiceClip.fromJson(c as Map<String, dynamic>),
+      ],
+      voiceMaxMs: (voice?['maxMs'] as num?)?.toInt() ?? 15000,
+      voiceMinMs: (voice?['minMs'] as num?)?.toInt() ?? 350,
     );
   }
 }
@@ -423,6 +476,39 @@ class PartyRepository {
           query: {'action': 'skip'},
           body: {'code': code, 'token': token},
         ),
+      );
+
+  /// Envoie un message vocal au salon et renvoie son identifiant.
+  ///
+  /// Le son part en une fois, encodé en base64 : c'est un message, pas un flux
+  /// — les autres joueurs l'entendront à leur prochain sondage.
+  Future<int> sendVoice(
+    String code,
+    String token, {
+    required List<int> bytes,
+    required String mime,
+    required int ms,
+  }) async {
+    final data = await _client.post(
+      'party.php',
+      query: {'action': 'voice'},
+      body: {
+        'code': code,
+        'token': token,
+        'audio': base64Encode(bytes),
+        'mime': mime,
+        'ms': ms,
+      },
+    ) as Map<String, dynamic>;
+    return (data['id'] as num?)?.toInt() ?? 0;
+  }
+
+  /// L'adresse d'écoute d'un message vocal (le jeton de partie fait l'accès).
+  String voiceClipUrl(String code, String token, int id) => _client.resourceUrl(
+        'api/v2/party.php?action=voiceclip'
+        '&code=${Uri.encodeQueryComponent(code)}'
+        '&token=${Uri.encodeQueryComponent(token)}'
+        '&id=$id',
       );
 
   /// Ferme le salon : le lien envoyé par SMS ne répond plus.

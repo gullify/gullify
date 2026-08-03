@@ -48,6 +48,39 @@ class Party
     /** Joueurs simultanés dans un salon (hôte compris). */
     public const MAX_PLAYERS = 12;
 
+    // ───────────────────────────────────────────────────── talkie-walkie ──
+
+    /** Durée maximale d'un message vocal. */
+    public const VOICE_MAX_MS = 15000;
+
+    /** Un appui plus court que ça est un faux départ, pas un message. */
+    public const VOICE_MIN_MS = 350;
+
+    /** Poids maximal accepté (15 s d'opus ≈ 30 Ko : on laisse large). */
+    public const VOICE_MAX_BYTES = 500000;
+
+    /** Un message reste écoutable une minute et demie, puis disparaît. */
+    public const VOICE_KEEP_MS = 90000;
+
+    /** Messages gardés par salon, quoi qu'il arrive. */
+    private const VOICE_KEEP_COUNT = 24;
+
+    /** Anti-spam : deux messages collés seraient inaudibles de toute façon. */
+    private const VOICE_MIN_GAP_MS = 600;
+
+    /**
+     * Formats acceptés : le client enregistre avec ce que son système sait
+     * faire (opus dans WebM ou Ogg sur Android/Chrome, AAC dans MP4 sur iOS et
+     * dans l'app), le serveur ne fait que vérifier et ranger.
+     */
+    public const VOICE_MIMES = [
+        'audio/webm' => 'webm',
+        'audio/ogg'  => 'ogg',
+        'audio/mp4'  => 'm4a',
+        'audio/aac'  => 'aac',
+        'audio/mpeg' => 'mp3',
+    ];
+
     // ─────────────────────────────────────────────────────────── schéma ──
 
     /** Création des tables — idempotent, une fois par requête. */
@@ -107,6 +140,20 @@ class Party
                     points INT NOT NULL DEFAULT 0,
                     UNIQUE KEY uniq_answer (party_id, round_index, player_id),
                     INDEX idx_answer_round (party_id, round_index)
+                ) DEFAULT CHARSET=utf8mb4
+            ");
+            // Talkie-walkie : seules les métadonnées vivent en base, le son
+            // lui-même est un fichier du cache (voir voicePath()).
+            $db->exec("
+                CREATE TABLE IF NOT EXISTS game_party_voice (
+                    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                    party_id BIGINT UNSIGNED NOT NULL,
+                    player_id BIGINT UNSIGNED NOT NULL,
+                    mime VARCHAR(32) NOT NULL,
+                    ms INT NOT NULL DEFAULT 0,
+                    created_ms BIGINT UNSIGNED NOT NULL,
+                    INDEX idx_voice_party (party_id, id),
+                    INDEX idx_voice_player (player_id, created_ms)
                 ) DEFAULT CHARSET=utf8mb4
             ");
         } catch (\Throwable $e) {
@@ -230,6 +277,7 @@ class Party
         }
         $db->prepare('DELETE FROM game_party_players WHERE id = ?')->execute([$player['id']]);
         $db->prepare('DELETE FROM game_party_answers WHERE player_id = ?')->execute([$player['id']]);
+        self::dropVoiceOf((int)$party['id'], (int)$player['id']);
         self::bump((int)$party['id']);
     }
 
@@ -237,6 +285,7 @@ class Party
     public static function close(int $partyId): void
     {
         $db = AppConfig::getDB();
+        self::dropVoice($partyId);
         $db->prepare('DELETE FROM game_party_answers WHERE party_id = ?')->execute([$partyId]);
         $db->prepare('DELETE FROM game_party_players WHERE party_id = ?')->execute([$partyId]);
         $db->prepare('DELETE FROM game_parties WHERE id = ?')->execute([$partyId]);
@@ -858,6 +907,159 @@ class Party
         return self::answer($party, $player, '');
     }
 
+    // ────────────────────────────────────────────────────── talkie-walkie ──
+
+    /**
+     * Les messages vocaux ne transitent pas par la base : elle n'en garde que
+     * la fiche, le son vit dans le cache à côté des extraits de manche. Un
+     * salon fermé (ou purgé) emporte les deux.
+     */
+    public static function voiceDir(): string
+    {
+        $dir = AppConfig::getDataPath() . '/cache/party';
+        if (!is_dir($dir)) @mkdir($dir, 0775, true);
+        return $dir;
+    }
+
+    public static function voicePath(int $partyId, int $id, string $mime): string
+    {
+        return self::voiceDir() . '/v' . $partyId . '_' . $id . '.'
+            . (self::VOICE_MIMES[$mime] ?? 'bin');
+    }
+
+    /** Type MIME annoncé par le client (« audio/webm;codecs=opus » → base). */
+    public static function voiceMime(string $raw): ?string
+    {
+        $mime = strtolower(trim(explode(';', $raw)[0]));
+        return isset(self::VOICE_MIMES[$mime]) ? $mime : null;
+    }
+
+    /**
+     * Range un message vocal et renvoie son identifiant. Le message est vu par
+     * tout le salon au prochain sondage : c'est le seul canal de discussion,
+     * il n'y a pas de flux permanent (voir la note d'en-tête de l'API).
+     */
+    public static function sendVoice(array $party, array $player, string $bytes, string $mime, int $ms): int
+    {
+        self::ensureTables();
+        $mime = self::voiceMime($mime);
+        if ($mime === null) throw new RuntimeException('voice_format');
+        if ($bytes === '') throw new RuntimeException('voice_empty');
+        if (strlen($bytes) > self::VOICE_MAX_BYTES) throw new RuntimeException('voice_too_big');
+        $ms = max(0, min($ms, self::VOICE_MAX_MS));
+
+        $db = AppConfig::getDB();
+        $now = self::now();
+        $stmt = $db->prepare('SELECT MAX(created_ms) FROM game_party_voice WHERE player_id = ?');
+        $stmt->execute([$player['id']]);
+        $last = (int)$stmt->fetchColumn();
+        if ($last > 0 && $now - $last < self::VOICE_MIN_GAP_MS) {
+            throw new RuntimeException('voice_too_fast');
+        }
+
+        $stmt = $db->prepare(
+            'INSERT INTO game_party_voice (party_id, player_id, mime, ms, created_ms)
+             VALUES (?, ?, ?, ?, ?)'
+        );
+        $stmt->execute([$party['id'], $player['id'], $mime, $ms, $now]);
+        $id = (int)$db->lastInsertId();
+
+        // Le son n'est publiable qu'une fois écrit : si le disque refuse, on
+        // retire la fiche plutôt que de laisser un message muet dans le salon.
+        $path = self::voicePath((int)$party['id'], $id, $mime);
+        if (@file_put_contents($path, $bytes) !== strlen($bytes)) {
+            @unlink($path);
+            $db->prepare('DELETE FROM game_party_voice WHERE id = ?')->execute([$id]);
+            throw new RuntimeException('voice_failed');
+        }
+
+        self::pruneVoice((int)$party['id']);
+        return $id;
+    }
+
+    /** Les messages encore écoutables du salon, du plus ancien au plus récent. */
+    public static function voiceClips(int $partyId): array
+    {
+        $db = AppConfig::getDB();
+        $stmt = $db->prepare(
+            'SELECT id, player_id, mime, ms, created_ms
+               FROM game_party_voice
+              WHERE party_id = ? AND created_ms >= ?
+              ORDER BY id'
+        );
+        $stmt->execute([$partyId, self::now() - self::VOICE_KEEP_MS]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /** Une fiche de message, si elle appartient bien à ce salon. */
+    public static function voiceClip(int $partyId, int $id): ?array
+    {
+        $db = AppConfig::getDB();
+        $stmt = $db->prepare('SELECT * FROM game_party_voice WHERE id = ? AND party_id = ?');
+        $stmt->execute([$id, $partyId]);
+        return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    }
+
+    /** Efface les messages périmés (et le surplus) d'un salon. */
+    private static function pruneVoice(int $partyId): void
+    {
+        $db = AppConfig::getDB();
+        $stmt = $db->prepare(
+            'SELECT id, mime FROM game_party_voice
+              WHERE party_id = ? AND created_ms < ?'
+        );
+        $stmt->execute([$partyId, self::now() - self::VOICE_KEEP_MS]);
+        $old = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        // Ceinture et bretelles : un salon très bavard ne doit pas remplir le
+        // cache même si l'horloge fait des siennes.
+        $stmt = $db->prepare(
+            'SELECT id, mime FROM game_party_voice WHERE party_id = ?
+              ORDER BY id DESC LIMIT 500 OFFSET ' . self::VOICE_KEEP_COUNT
+        );
+        $stmt->execute([$partyId]);
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) $old[] = $row;
+
+        self::deleteVoiceRows($partyId, $old);
+    }
+
+    /** Tous les messages d'un salon (fermeture, purge). */
+    private static function dropVoice(int $partyId): void
+    {
+        try {
+            $db = AppConfig::getDB();
+            $stmt = $db->prepare('SELECT id, mime FROM game_party_voice WHERE party_id = ?');
+            $stmt->execute([$partyId]);
+            self::deleteVoiceRows($partyId, $stmt->fetchAll(PDO::FETCH_ASSOC));
+        } catch (\Throwable $e) {
+            // Table pas encore créée (salon d'avant le talkie-walkie).
+        }
+    }
+
+    /** Les messages d'un joueur qui quitte le salon. */
+    private static function dropVoiceOf(int $partyId, int $playerId): void
+    {
+        try {
+            $db = AppConfig::getDB();
+            $stmt = $db->prepare('SELECT id, mime FROM game_party_voice WHERE party_id = ? AND player_id = ?');
+            $stmt->execute([$partyId, $playerId]);
+            self::deleteVoiceRows($partyId, $stmt->fetchAll(PDO::FETCH_ASSOC));
+        } catch (\Throwable $e) {
+            // Idem : rien à effacer.
+        }
+    }
+
+    private static function deleteVoiceRows(int $partyId, array $rows): void
+    {
+        if (!$rows) return;
+        $db = AppConfig::getDB();
+        $del = $db->prepare('DELETE FROM game_party_voice WHERE id = ?');
+        foreach ($rows as $row) {
+            @unlink(self::voicePath($partyId, (int)$row['id'], (string)$row['mime']));
+            $del->execute([$row['id']]);
+        }
+    }
+
     // ──────────────────────────────────────────────────────────────── état ──
 
     /**
@@ -907,6 +1109,7 @@ class Party
             ],
             'players'    => [],
             'round'      => null,
+            'voice'      => self::voiceState($partyId, $players),
         ];
 
         foreach ($players as $p) {
@@ -939,6 +1142,38 @@ class Party
         }
 
         return $out;
+    }
+
+    /**
+     * Les messages vocaux à disposition des clients. Un pépin de base ne doit
+     * jamais emporter l'état de la partie : au pire le salon est muet.
+     */
+    private static function voiceState(int $partyId, array $players): array
+    {
+        $names = [];
+        foreach ($players as $p) $names[(int)$p['id']] = $p['name'];
+
+        $clips = [];
+        try {
+            foreach (self::voiceClips($partyId) as $c) {
+                $pid = (int)$c['player_id'];
+                $clips[] = [
+                    'id'       => (int)$c['id'],
+                    'playerId' => $pid,
+                    'name'     => $names[$pid] ?? '',
+                    'ms'       => (int)$c['ms'],
+                    'at'       => (int)$c['created_ms'],
+                ];
+            }
+        } catch (\Throwable $e) {
+            error_log('Party::voiceState failed: ' . $e->getMessage());
+        }
+
+        return [
+            'maxMs' => self::VOICE_MAX_MS,
+            'minMs' => self::VOICE_MIN_MS,
+            'clips' => $clips,
+        ];
     }
 
     /** La manche telle qu'un client a le droit de la voir. */

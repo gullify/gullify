@@ -5,6 +5,9 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"/>
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <!-- Talkie-walkie des parties multijoueur : se parler pendant un jeu.
+         Demandée à la volée, au premier appui sur le bouton « parler ». -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
     <!-- Auto-update : lancement de l'installeur d'APK téléchargé -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
     <!-- Lecture continue écran éteint : sans cette exemption, Android coupe

@@ -57,6 +57,14 @@ class SnippetPlayer {
     } catch (_) {}
   }
 
+  /// Met l'extrait en sourdine pendant qu'on parle ou qu'on écoute quelqu'un
+  /// (talkie-walkie des parties) : la voix doit passer devant la musique.
+  Future<void> duck(bool quiet) async {
+    try {
+      await _player.setVolume(quiet ? 0.18 : 1);
+    } catch (_) {}
+  }
+
   Future<void> dispose() async {
     try {
       await _player.dispose();

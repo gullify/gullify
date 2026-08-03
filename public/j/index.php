@@ -55,7 +55,9 @@ if (strlen($code) > 8) $code = substr($code, 0, 8);
       radial-gradient(60vw 60vw at 12% 4%, rgba(108,123,255,.28), transparent 62%),
       radial-gradient(52vw 52vw at 92% 96%, rgba(224,163,46,.16), transparent 60%);
   }
+  /* La barre du talkie-walkie flotte au-dessus : on lui garde sa place. */
   .wrap { max-width: 620px; margin: 0 auto; padding: 18px 16px 40px; }
+  body.talking .wrap { padding-bottom: 104px; }
   .glass {
     background: var(--glass);
     border: 1px solid var(--line);
@@ -171,6 +173,29 @@ if (strlen($code) > 8) $code = substr($code, 0, 8);
   .big { font-size: 42px; font-weight: 800; letter-spacing: -1.5px; color: var(--accent); }
   .err { color: var(--ko); font-size: 14px; min-height: 18px; }
 
+  /* Talkie-walkie : une barre fixe, toujours à portée de pouce. */
+  .talkbar {
+    position: fixed; z-index: 20;
+    left: 50%; transform: translateX(-50%);
+    bottom: calc(12px + env(safe-area-inset-bottom));
+    width: min(620px, calc(100% - 24px));
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px; border-radius: 22px;
+  }
+  .talkbar[hidden] { display: none; }
+  .talkbar .ptt {
+    flex: 1 1 auto; min-width: 0; padding: 13px 10px; font-size: 15px;
+    touch-action: none; user-select: none; -webkit-user-select: none;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .talkbar .ptt.rec {
+    background: var(--ko); border-color: transparent; color: #fff;
+    box-shadow: 0 8px 22px rgba(229,72,77,.4);
+  }
+  .talkbar .ptt.hear { background: rgba(108,123,255,.22); border-color: var(--accent); }
+  .talkbar .icon { flex: 0 0 50px; width: 50px; padding: 13px 0; font-size: 18px; }
+  .talkbar .icon.off { opacity: .4; }
+
   @media (prefers-reduced-motion: reduce) { .eq.on i { animation: none; } }
 </style>
 </head>
@@ -184,7 +209,13 @@ if (strlen($code) > 8) $code = substr($code, 0, 8);
   <main id="app" class="stack"></main>
 </div>
 
+<div class="talkbar glass" id="talkbar" hidden>
+  <button type="button" class="ptt" id="pttBtn">🎙️ <span id="pttLabel">Maintiens pour parler</span></button>
+  <button type="button" class="icon" id="spkBtn" title="Entendre les autres">🔊</button>
+</div>
+
 <audio id="snippet" preload="auto" playsinline></audio>
+<audio id="voice" preload="auto" playsinline></audio>
 
 <script>
 (function () {
@@ -194,6 +225,11 @@ if (strlen($code) > 8) $code = substr($code, 0, 8);
   var CODE = <?= json_encode($code) ?>;
   var app = document.getElementById('app');
   var audio = document.getElementById('snippet');
+  var voice = document.getElementById('voice');
+  var talkbar = document.getElementById('talkbar');
+  var pttBtn = document.getElementById('pttBtn');
+  var pttLabel = document.getElementById('pttLabel');
+  var spkBtn = document.getElementById('spkBtn');
 
   var token = null;
   var state = null;          // dernier état reçu du serveur
@@ -255,6 +291,7 @@ if (strlen($code) > 8) $code = substr($code, 0, 8);
     clockOffset = s.serverNow - Date.now();
     errorMsg = '';
     syncAudio();
+    syncVoice();
     render();
   }
 
@@ -267,6 +304,7 @@ if (strlen($code) > 8) $code = substr($code, 0, 8);
         state = null;
         renderedKey = null;
         errorMsg = e.message;
+        stopVoice();
         render();
       }
     }).then(function () { polling = false; });
@@ -358,6 +396,7 @@ if (strlen($code) > 8) $code = substr($code, 0, 8);
       forgetToken();
       state = null;
       renderedKey = null;
+      stopVoice();
       loadInfo();
     });
   }
@@ -403,6 +442,9 @@ if (strlen($code) > 8) $code = substr($code, 0, 8);
       app.innerHTML = '';
       build();
     }
+    // La barre du talkie-walkie vit hors du DOM reconstruit : un appui sur le
+    // micro ne doit pas être annulé par l'arrivée d'un autre joueur.
+    renderTalk();
     tickVisuals();
   }
 
@@ -508,17 +550,29 @@ if (strlen($code) > 8) $code = substr($code, 0, 8);
   }
 
   /**
-   * Débloque l'audio pendant le tap « Rejoindre ». Les navigateurs mobiles
-   * n'autorisent la lecture qu'après un geste : on joue un silence maintenant
-   * pour que les extraits puissent partir tout seuls ensuite.
+   * Débloque l'audio au premier geste de l'invité (le tap « Rejoindre », ou
+   * n'importe quel autre s'il revient avec son jeton en poche). Les navigateurs
+   * mobiles n'autorisent la lecture qu'après un geste : on joue un silence
+   * maintenant pour que les extraits — et les messages vocaux — puissent partir
+   * tout seuls ensuite.
    */
   var SILENCE = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAgD4AAIA+AAABAAgAZGF0YQAAAAA=';
-  function unlockAudio() {
+  var unlocked = false;
+
+  function unlockEl(el) {
     try {
-      audio.src = SILENCE;
-      var p = audio.play();
+      // Ne jamais écraser une lecture en cours : on ne débloque que le vide.
+      if (!el.getAttribute('src')) el.src = SILENCE;
+      var p = el.play();
       if (p && p.catch) p.catch(function () {});
     } catch (e) { /* navigateur sans audio : la partie reste jouable */ }
+  }
+
+  function unlockAudio() {
+    if (unlocked) return;
+    unlocked = true;
+    unlockEl(audio);
+    unlockEl(voice);
   }
 
   function viewMessage(msg) {
@@ -836,6 +890,271 @@ if (strlen($code) > 8) $code = substr($code, 0, 8);
     }
   }
 
+  // ─────────────────────────────────────────────────────── talkie-walkie ──
+  //
+  // On ne tient pas un canal ouvert en permanence : on s'envoie des messages.
+  // L'invité maintient le bouton, parle, relâche — le message part en entier et
+  // les autres l'entendent au sondage suivant (une seconde plus tard au pire).
+  // C'est ce qui permet de se parler sans rien installer, depuis un simple lien.
+
+  var micOk = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder);
+  var VOICE_MAX_MS = 15000;      // bornes rappelées par le serveur à chaque état
+  var VOICE_MIN_MS = 350;
+  var VOICE_MAX_BYTES = 500000;
+
+  var recorder = null, recStream = null, recChunks = [], recStartedAt = 0, recTimer = null;
+  var recording = false, arming = false, releasedEarly = false;
+  var speakerOn = true;
+  var talkMsg = '', talkMsgAt = 0;
+
+  var voiceQueue = [], voicePlaying = false, voiceDone = null;
+  var lastVoiceId = 0, voicePrimed = false;
+
+  /** Sourdine de l'extrait pendant qu'on parle ou qu'on écoute quelqu'un. */
+  var ducks = 0;
+  function duck(on) {
+    ducks = Math.max(0, ducks + (on ? 1 : -1));
+    try { audio.volume = ducks > 0 ? 0.18 : 1; } catch (e) {}
+  }
+
+  function talkStatus(msg) {
+    talkMsg = msg;
+    talkMsgAt = Date.now();
+    renderTalk();
+  }
+
+  // ── parler ──
+
+  /** Le meilleur format que sache produire ce navigateur, parmi ceux acceptés. */
+  function pickMime() {
+    var candidates = [
+      'audio/webm;codecs=opus', 'audio/webm',
+      'audio/ogg;codecs=opus', 'audio/ogg',
+      'audio/mp4', 'audio/aac'
+    ];
+    for (var i = 0; i < candidates.length; i++) {
+      if (window.MediaRecorder.isTypeSupported &&
+          MediaRecorder.isTypeSupported(candidates[i])) return candidates[i];
+    }
+    return '';
+  }
+
+  function stopStream(stream) {
+    if (!stream) return;
+    try { stream.getTracks().forEach(function (t) { t.stop(); }); } catch (e) {}
+  }
+
+  function startTalk() {
+    if (!micOk || !token || recording || arming) return;
+    unlockAudio();
+    arming = true;
+    releasedEarly = false;
+    talkStatus('Micro…');
+    // Le micro n'est ouvert que le temps du message : pas de voyant rouge qui
+    // traîne dans la barre du navigateur entre deux prises de parole.
+    navigator.mediaDevices.getUserMedia({ audio: true }).then(function (stream) {
+      arming = false;
+      if (releasedEarly) { stopStream(stream); talkStatus(''); return; }
+      recStream = stream;
+      recChunks = [];
+      var mime = pickMime();
+      try {
+        recorder = mime
+          ? new MediaRecorder(stream, { mimeType: mime, audioBitsPerSecond: 32000 })
+          : new MediaRecorder(stream);
+      } catch (e) {
+        recorder = new MediaRecorder(stream);
+      }
+      recorder.ondataavailable = function (e) { if (e.data && e.data.size) recChunks.push(e.data); };
+      recorder.onstop = finishTalk;
+      recorder.start();
+      recording = true;
+      recStartedAt = Date.now();
+      duck(true);
+      // Filet : un bouton resté enfoncé (ou un doigt oublié) ne bloque rien.
+      recTimer = setTimeout(stopTalk, VOICE_MAX_MS);
+      talkStatus('');
+    }).catch(function () {
+      arming = false;
+      talkStatus('Micro refusé');
+    });
+  }
+
+  function stopTalk() {
+    if (recTimer) { clearTimeout(recTimer); recTimer = null; }
+    if (arming) { releasedEarly = true; return; }
+    if (!recording) return;
+    recording = false;
+    renderTalk();
+    try { recorder.stop(); } catch (e) { finishTalk(); }
+  }
+
+  /** Le micro est refermé : on emballe ce qui a été capté et on l'envoie. */
+  function finishTalk() {
+    var ms = Date.now() - recStartedAt;
+    var chunks = recChunks;
+    var mime = (recorder && recorder.mimeType) || 'audio/webm';
+    recChunks = [];
+    recording = false;
+    stopStream(recStream);
+    recStream = null;
+    recorder = null;
+    duck(false);
+
+    if (!chunks.length || ms < VOICE_MIN_MS) { talkStatus(''); return; }
+    var blob = new Blob(chunks, { type: mime });
+    if (blob.size > VOICE_MAX_BYTES) { talkStatus('Message trop lourd'); return; }
+
+    talkStatus('Envoi…');
+    blobToBase64(blob).then(function (b64) {
+      return call('voice', {
+        code: CODE, token: token, audio: b64, mime: mime, ms: ms
+      }, 'POST');
+    }).then(function () {
+      talkStatus('Envoyé ✓');
+    }).catch(function (e) {
+      talkStatus(e.message || 'Message non envoyé');
+    });
+  }
+
+  function blobToBase64(blob) {
+    return new Promise(function (resolve, reject) {
+      var r = new FileReader();
+      r.onload = function () { resolve(String(r.result).split(',')[1] || ''); };
+      r.onerror = function () { reject(new Error('Message illisible')); };
+      r.readAsDataURL(blob);
+    });
+  }
+
+  // ── écouter ──
+
+  /**
+   * Repère les messages arrivés depuis le dernier état. Le tout premier état
+   * sert de point de départ : on ne rejoue jamais l'historique du salon à
+   * quelqu'un qui vient d'arriver (ou qui rafraîchit sa page).
+   */
+  function syncVoice() {
+    if (!state) return;
+    var v = state.voice || {};
+    if (v.maxMs) VOICE_MAX_MS = v.maxMs;
+    if (v.minMs) VOICE_MIN_MS = v.minMs;
+
+    var clips = v.clips || [];
+    var maxId = lastVoiceId;
+    for (var i = 0; i < clips.length; i++) {
+      var c = clips[i];
+      if (c.id > maxId) maxId = c.id;
+      if (!voicePrimed || c.id <= lastVoiceId) continue;
+      if (state.me && c.playerId === state.me.id) continue;  // on ne se réécoute pas
+      if (!speakerOn) continue;
+      voiceQueue.push(c);
+    }
+    lastVoiceId = maxId;
+    voicePrimed = true;
+    playNextVoice();
+  }
+
+  function playNextVoice() {
+    if (voicePlaying || !speakerOn || !voiceQueue.length || !token) return;
+    var c = voiceQueue.shift();
+    var finished = false;
+    voicePlaying = true;
+    duck(true);
+    talkStatus('🔊 ' + (c.name || 'Quelqu’un') + '…');
+
+    var done = function () {
+      if (finished) return;
+      finished = true;
+      voicePlaying = false;
+      voiceDone = null;
+      voice.onended = null;
+      voice.onerror = null;
+      duck(false);
+      if (talkMsg.charAt(0) === '🔊') talkStatus('');
+      playNextVoice();
+    };
+    voiceDone = done;
+    voice.onended = done;
+    voice.onerror = done;
+
+    voice.src = API + '?action=voiceclip&code=' + encodeURIComponent(CODE) +
+                '&token=' + encodeURIComponent(token) + '&id=' + c.id;
+    try {
+      var p = voice.play();
+      if (p && p.catch) p.catch(done);
+    } catch (e) { done(); return; }
+    // Si le navigateur ne rend jamais la main (lecture refusée en silence),
+    // le message suivant ne doit pas rester bloqué derrière.
+    setTimeout(done, (c.ms || 3000) + 5000);
+  }
+
+  /** Coupe l'écoute en cours et jette la file (haut-parleur off, salon perdu). */
+  function stopVoice() {
+    voiceQueue = [];
+    try { voice.pause(); } catch (e) {}
+    if (voiceDone) voiceDone();
+    renderTalk();
+  }
+
+  function toggleSpeaker() {
+    speakerOn = !speakerOn;
+    if (!speakerOn) stopVoice(); else renderTalk();
+  }
+
+  // ── la barre ──
+
+  function renderTalk() {
+    var show = !!(token && state);
+    talkbar.hidden = !show;
+    document.body.classList.toggle('talking', show);
+    if (!show) return;
+
+    pttBtn.disabled = !micOk;
+    pttBtn.className = 'ptt' + (recording ? ' rec' : (voicePlaying ? ' hear' : ''));
+    spkBtn.className = 'icon' + (speakerOn ? '' : ' off');
+    spkBtn.textContent = speakerOn ? '🔊' : '🔇';
+    spkBtn.title = speakerOn ? 'Couper les voix' : 'Entendre les autres';
+
+    if (!micOk) {
+      pttLabel.textContent = 'Micro indisponible ici';
+    } else if (recording) {
+      var s = Math.min(VOICE_MAX_MS, Date.now() - recStartedAt) / 1000;
+      pttLabel.textContent = 'Relâche pour envoyer · ' + s.toFixed(1) + ' s';
+    } else if (arming) {
+      pttLabel.textContent = 'Micro…';
+    } else if (talkMsg) {
+      pttLabel.textContent = talkMsg;
+    } else {
+      pttLabel.textContent = 'Maintiens pour parler';
+    }
+  }
+
+  /** Le compteur d'enregistrement, et l'effacement des messages passagers. */
+  function tickTalk() {
+    if (talkbar.hidden) return;
+    if (recording) { renderTalk(); return; }
+    if (talkMsg && talkMsg.charAt(0) !== '🔊' && Date.now() - talkMsgAt > 2200) {
+      talkStatus('');
+    }
+  }
+
+  if (window.PointerEvent) {
+    pttBtn.addEventListener('pointerdown', function (e) { e.preventDefault(); startTalk(); });
+    pttBtn.addEventListener('pointerup', function (e) { e.preventDefault(); stopTalk(); });
+    pttBtn.addEventListener('pointercancel', stopTalk);
+    pttBtn.addEventListener('pointerleave', stopTalk);
+  } else {
+    pttBtn.addEventListener('touchstart', function (e) { e.preventDefault(); startTalk(); });
+    pttBtn.addEventListener('touchend', function (e) { e.preventDefault(); stopTalk(); });
+    pttBtn.addEventListener('mousedown', startTalk);
+    pttBtn.addEventListener('mouseup', stopTalk);
+    pttBtn.addEventListener('mouseleave', stopTalk);
+  }
+  spkBtn.addEventListener('click', toggleSpeaker);
+  // Relâcher en dehors du bouton doit couper le micro comme un relâchement.
+  window.addEventListener('pointerup', function () { if (recording || arming) stopTalk(); });
+  window.addEventListener('blur', function () { if (recording || arming) stopTalk(); });
+
   // ────────────────────────────────────── rafraîchissements légers (60 Hz) ──
 
   function tickVisuals() {
@@ -886,7 +1205,12 @@ if (strlen($code) > 8) $code = substr($code, 0, 8);
   // Un sondage par seconde suffit : c'est aussi lui qui fait avancer les
   // manches côté serveur (il n'y a pas de tâche de fond).
   setInterval(function () { if (token) poll(); else if (!info || info.status === 'lobby') loadInfo(); }, 1000);
-  (function loopVisuals() { tickVisuals(); requestAnimationFrame(loopVisuals); })();
+  (function loopVisuals() { tickVisuals(); tickTalk(); requestAnimationFrame(loopVisuals); })();
+
+  // Un invité qui revient avec son jeton en poche ne passe pas par « Rejoindre » :
+  // son premier geste, quel qu'il soit, débloque l'audio du navigateur.
+  document.addEventListener('pointerdown', unlockAudio, { once: true });
+  document.addEventListener('touchstart', unlockAudio, { once: true });
 
   document.addEventListener('visibilitychange', function () {
     if (!document.hidden) { lastRoundKey = null; poll(); }

@@ -9,11 +9,13 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../api/party_repository.dart';
 import '../../state/games.dart';
 import '../../state/party.dart';
+import '../../state/party_voice.dart';
 import '../../state/player.dart';
 import '../../widgets/glass_box.dart';
 import '../../widgets/glass_kit.dart';
 import 'game_kit.dart';
 import 'party_round.dart';
+import 'party_talk.dart';
 
 /// Écran unique du multijoueur : réglages du salon tant qu'aucune partie n'est
 /// ouverte, puis salon d'attente, manches et classement final.
@@ -118,6 +120,15 @@ class _PartyScreenState extends ConsumerState<PartyScreen> {
     final party = session.state;
     _syncAudio(party);
 
+    // Quand quelqu'un parle (ou qu'on parle), l'extrait passe en sourdine :
+    // la voix doit rester intelligible par-dessus la musique.
+    ref.listen<PartyVoiceState>(partyVoiceProvider, (previous, next) {
+      final quiet = next.listening || next.busy;
+      if (quiet != ((previous?.listening ?? false) || (previous?.busy ?? false))) {
+        _snippet.duck(quiet);
+      }
+    });
+
     final title = party == null
         ? 'Jouer à plusieurs'
         : (gameById(party.game)?.name ?? 'Partie');
@@ -159,6 +170,8 @@ class _PartyScreenState extends ConsumerState<PartyScreen> {
                 ),
               ),
               Expanded(child: _body(session)),
+              if (session.active && party != null)
+                PartyTalkBar(maxMs: party.voiceMaxMs),
             ],
           ),
         ),
@@ -508,6 +521,12 @@ class _Lobby extends ConsumerWidget {
               ? 'Chacun écoutera l\'extrait sur son propre appareil.'
               : 'L\'audio ne sortira que de cet appareil : monte le son et '
                   'pose le téléphone au milieu.',
+          style: TextStyle(fontSize: 12.5, color: scheme.onSurfaceVariant),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          'Pour vous parler : maintiens le bouton du bas et parle. Les invités '
+          'ont le même dans leur navigateur.',
           style: TextStyle(fontSize: 12.5, color: scheme.onSurfaceVariant),
         ),
         const SizedBox(height: 20),
