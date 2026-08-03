@@ -38,9 +38,14 @@ class GamesScreen extends ConsumerWidget {
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
               child: Text(
-                'Quatre façons de jouer avec ta propre bibliothèque.',
+                'Quatre façons de jouer avec ta propre bibliothèque — '
+                'seul ou à plusieurs.',
                 style: TextStyle(fontSize: 14, color: scheme.onSurfaceVariant),
               ),
+            ),
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 6, 16, 6),
+              child: _PartyCard(),
             ),
             for (final game in kGames)
               Padding(
@@ -48,6 +53,85 @@ class GamesScreen extends ConsumerWidget {
                 child: _GameCard(game: game, best: stats.best[game.id]),
               ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// L'entrée du multijoueur, en tête de l'onglet : un salon, un lien par SMS,
+/// et chacun joue depuis son propre téléphone.
+class _PartyCard extends StatelessWidget {
+  const _PartyCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(22),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            scheme.primary.withValues(alpha: 0.30),
+            scheme.primary.withValues(alpha: 0.10),
+          ],
+        ),
+        border: Border.all(color: scheme.primary.withValues(alpha: 0.45)),
+        boxShadow: [
+          BoxShadow(
+            color: scheme.primary.withValues(alpha: 0.22),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(22),
+          onTap: () => context.push('/games/party'),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 15, 14, 15),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.groups_rounded,
+                  size: 30,
+                  color: scheme.onSurface,
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text(
+                        'Jouer à plusieurs',
+                        style: TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.3,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Envoie un lien par SMS : tes invités jouent depuis '
+                        'leur téléphone, sans rien installer.',
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          height: 1.25,
+                          color: scheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(Icons.chevron_right_rounded, color: scheme.onSurfaceVariant),
+              ],
+            ),
+          ),
         ),
       ),
     );

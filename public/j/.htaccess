@@ -1,0 +1,7 @@
+# gullify.app/j/K7M2 → index.php?code=K7M2
+# Le code de partie n'est pas un fichier : tout ce qui n'existe pas sur le
+# disque est confié à la page invité, qui décidera si le salon est encore là.
+RewriteEngine On
+RewriteBase /j/
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteRule ^([A-Za-z0-9]{3,8})/?$ index.php?code=$1 [QSA,L]

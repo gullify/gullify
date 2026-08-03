@@ -8,6 +8,26 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('2.67.0', [
+    'Les quatre jeux se jouent maintenant à plusieurs. Depuis l\'onglet '
+        '« Jeux », créez un salon : Gullify génère un code court et un lien '
+        '(gullify.app/j/XXXX) que vous envoyez par SMS. Vos invités l\'ouvrent '
+        'dans leur navigateur, donnent leur prénom et jouent — sans compte, '
+        'sans rien installer',
+    'Deux façons d\'écouter, au choix à la création : « ensemble » (les '
+        'extraits ne sortent que de votre appareil, les invités ne font que '
+        'répondre) ou « chacun sur son appareil », pour jouer à distance — '
+        'chaque invité reçoit alors l\'extrait dans son navigateur',
+    'Le serveur mène la partie : c\'est lui qui tire les manches, tient le '
+        'chrono et compte les points, identiquement pour tout le monde. '
+        'Personne ne reçoit la bonne réponse avant la révélation, et les '
+        'points du blind test, de la pochette mystère et du duel récompensent '
+        'la rapidité',
+    'Chrono à plusieurs : chacun sa frise et ses trois vies, chacun son tour, '
+        'et la partie s\'arrête dès qu\'un joueur place sa dixième carte',
+    'Le lien meurt avec la partie : dès que vous la fermez il ne répond plus, '
+        'et un salon oublié est supprimé au bout de six heures',
+  ]),
   ReleaseNote('2.66.0', [
     'Nouvel onglet « Vidéos » dans la barre du bas : cherchez des clips, des '
         'concerts et des lives sur YouTube et regardez-les directement dans '

@@ -119,6 +119,15 @@ const kDuelGame = GameInfo(
 /// Le catalogue affiché dans l'onglet « Jeux » (ordre d'affichage).
 const kGames = <GameInfo>[kChronoGame, kBlindGame, kCoverGame, kDuelGame];
 
+/// La fiche d'un jeu à partir de son identifiant (celui qu'emploie le
+/// serveur pour les parties multijoueur).
+GameInfo? gameById(String id) {
+  for (final game in kGames) {
+    if (game.id == id) return game;
+  }
+  return null;
+}
+
 /// Matière première des jeux (titres datés + albums pochettés). Rechargée à
 /// chaque partie via `ref.refresh` pour ne pas rejouer le même tirage.
 final gamePoolProvider = FutureProvider<GamePool>(

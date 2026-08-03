@@ -14,6 +14,7 @@ import 'screens/games/blind_test_game_screen.dart';
 import 'screens/games/chrono_game_screen.dart';
 import 'screens/games/cover_game_screen.dart';
 import 'screens/games/duel_game_screen.dart';
+import 'screens/games/party_screen.dart';
 import 'screens/games_screen.dart';
 import 'screens/genres_screen.dart';
 import 'screens/home_screen.dart';
@@ -119,6 +120,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(path: '/games/cover', builder: (_, _) => const CoverGameScreen()),
       GoRoute(path: '/games/duel', builder: (_, _) => const DuelGameScreen()),
+      GoRoute(path: '/games/party', builder: (_, _) => const PartyScreen()),
       GoRoute(
         path: '/artist/:id',
         builder: (_, state) =>
