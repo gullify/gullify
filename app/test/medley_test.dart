@@ -114,15 +114,17 @@ ProviderContainer _container(
       // ici il ne joue jamais. (audioHandlerProvider, lui, n'est pas fourni :
       // le medley encaisse déjà son absence.)
       playbackStateProvider.overrideWith((ref) => const Stream.empty()),
-      artistDetailProvider(1).overrideWith((ref) async => ArtistDetail(
-            artist: Artist(
-              id: 1,
-              name: 'Artiste Test',
-              albumCount: albums.length,
-            ),
-            albums: albums,
-            topTracks: const [],
-          )),
+      // Deux artistes : on enchaîne de l'un à l'autre en rangeant par séries.
+      for (final id in [1, 2])
+        artistDetailProvider(id).overrideWith((ref) async => ArtistDetail(
+              artist: Artist(
+                id: id,
+                name: 'Artiste $id',
+                albumCount: albums.length,
+              ),
+              albums: albums,
+              topTracks: const [],
+            )),
     ],
   );
   addTearDown(container.dispose);
@@ -403,6 +405,59 @@ void main() {
       expect(kMedleyExcerpt.inSeconds, greaterThanOrEqualTo(24));
       // Et il reste du plein volume entre les deux fondus.
       expect(kMedleyExcerpt, greaterThan(kMedleyFadeIn + kMedleyFadeOut));
+    });
+  });
+
+  // ── Un medley par artiste (idée #56) ────────────────────────────────────
+  // Le dialogue lance le medley tout seul et le coupe en se fermant. En
+  // enchaînant sur l'artiste suivant, le dialogue précédent se défait *après*
+  // que le suivant a lancé le sien : il ne doit couper que le sien.
+  group('à qui appartient le medley', () {
+    testWidgets('une fermeture ne coupe pas le medley d\'un autre artiste',
+        (tester) async {
+      final bench = _Bench();
+      final container = _container(bench);
+      final medley = container.read(medleyPlayerProvider.notifier);
+
+      unawaited(medley.start(1));
+      await tester.pump();
+      expect(bench.playing, isTrue);
+
+      // Le dialogue d'un autre artiste se ferme : rien ne bouge.
+      await medley.stopFor(2);
+      expect(bench.playing, isTrue);
+      expect(container.read(medleyPlayerProvider).active, isTrue);
+
+      // Le sien, en revanche, l'arrête.
+      await medley.stopFor(1);
+      expect(bench.playing, isFalse);
+      expect(container.read(medleyPlayerProvider).active, isFalse);
+
+      await tester.pump(const Duration(milliseconds: 200));
+    });
+
+    testWidgets('enchaîner passe la main à l\'artiste suivant', (tester) async {
+      final bench = _Bench();
+      final container = _container(bench);
+      final medley = container.read(medleyPlayerProvider.notifier);
+
+      unawaited(medley.start(1));
+      await tester.pump();
+      final entendus = bench.urls.length;
+
+      // Le suivant prend l'antenne…
+      unawaited(medley.start(2));
+      await tester.pump();
+      expect(bench.urls.length, entendus + 1);
+      expect(bench.playing, isTrue);
+
+      // … et la fermeture du dialogue précédent ne l'interrompt pas.
+      await medley.stopFor(1);
+      expect(bench.playing, isTrue);
+      expect(container.read(medleyPlayerProvider).active, isTrue);
+
+      await medley.stop();
+      await tester.pump(const Duration(milliseconds: 200));
     });
   });
 }

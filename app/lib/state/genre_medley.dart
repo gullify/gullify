@@ -180,6 +180,12 @@ class MedleyPlayer extends Notifier<MedleyState> {
   Timer? _next;
   List<Song> _queue = const [];
 
+  /// L'artiste dont on fait entendre le medley, s'il y en a un. En enchaînant
+  /// d'un artiste au suivant (« Enregistrer et suivant »), le dialogue qu'on
+  /// vient de fermer se défait *après* que le suivant a lancé son medley : sans
+  /// savoir à qui il appartient, sa fermeture coupait le son du suivant.
+  int? _artistId;
+
   /// Titres illisibles enchaînés : au-delà d'une file entière, il n'y a rien à
   /// faire écouter, et on arrête plutôt que de tourner en rond.
   int _misses = 0;
@@ -232,8 +238,14 @@ class MedleyPlayer extends Notifier<MedleyState> {
   /// Lance le medley d'un artiste (ou l'arrête s'il tourne déjà).
   Future<void> toggle(int artistId) async {
     if (state.active) return stop();
+    return start(artistId);
+  }
 
+  /// Lance le medley d'un artiste, en remplaçant celui qui tourne s'il y en a
+  /// un.
+  Future<void> start(int artistId) async {
     final gen = ++_gen;
+    _artistId = artistId;
     state = const MedleyState(loading: true);
 
     // Le lecteur principal se tait : on écoute pour choisir, pas pour écouter.
@@ -387,12 +399,23 @@ class MedleyPlayer extends Notifier<MedleyState> {
     _queue = const [];
     _live = null;
     _misses = 0;
+    _artistId = null;
     if (ref.mounted) state = const MedleyState();
     for (final player in _players) {
       try {
         await player.stop();
       } catch (_) {}
     }
+  }
+
+  /// Arrête le medley, mais seulement s'il est encore celui de cet artiste :
+  /// un dialogue qui se ferme ne doit couper que le sien. Sans quoi, en
+  /// enchaînant sur l'artiste suivant, la fermeture du dialogue précédent —
+  /// qui vient après l'ouverture du suivant — faisait taire le medley qui
+  /// venait de partir.
+  Future<void> stopFor(int artistId) async {
+    if (_artistId != artistId) return;
+    await stop();
   }
 
   void _dispose() {

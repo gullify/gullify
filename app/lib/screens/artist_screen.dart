@@ -619,14 +619,23 @@ void _artistMenu(BuildContext context, WidgetRef ref, ArtistDetail d) {
   );
 }
 
+/// Ce que rend le dialogue : le genre choisi, et s'il faut enchaîner sur
+/// l'artiste suivant qui n'a pas de genre.
+class _GenreChoice {
+  const _GenreChoice(this.genre, {this.next = false});
+
+  final String genre;
+  final bool next;
+}
+
 /// Dialogue « Définir le genre » : une suggestion tirée de MusicBrainz, les
 /// genres principaux à choisir d'un tap, un champ libre pour ce qui n'y rentre
-/// pas — et, le temps de se décider, un medley de l'artiste en fond.
+/// pas — et, le temps de se décider, un medley de l'artiste qui part tout seul.
 ///
-/// Le dialogue ne fait que choisir : c'est ici qu'on enregistre, puis qu'on
-/// propose d'enchaîner sur l'artiste suivant qui n'a pas de genre (ranger une
-/// bibliothèque se fait par séries, et rouvrir le dialogue sur place évite
-/// l'aller-retour par la bibliothèque).
+/// Le dialogue ne fait que choisir : c'est ici qu'on enregistre, et qu'on
+/// rouvre le choix sur l'artiste suivant quand on a demandé à enchaîner
+/// (ranger une bibliothèque se fait par séries, et rouvrir le dialogue sur
+/// place évite l'aller-retour par la bibliothèque).
 Future<void> _setGenreDialog(
   BuildContext context,
   int artistId,
@@ -639,7 +648,7 @@ Future<void> _setGenreDialog(
   final messenger = ScaffoldMessenger.of(context);
   final container = ProviderScope.containerOf(context, listen: false);
 
-  final genre = await showDialog<String>(
+  final choice = await showDialog<_GenreChoice>(
     context: context,
     builder: (_) => _GenreDialog(
       artistId: artistId,
@@ -647,7 +656,8 @@ Future<void> _setGenreDialog(
       artistName: artistName,
     ),
   );
-  if (genre == null) return; // Annulé : rien à enregistrer.
+  if (choice == null) return; // Annulé : rien à enregistrer.
+  final genre = choice.genre;
 
   try {
     await container
@@ -669,14 +679,20 @@ Future<void> _setGenreDialog(
     return;
   }
 
+  // « Enregistrer » s'arrête là : on n'enchaîne que si on l'a demandé.
+  if (!choice.next) {
+    messenger.showSnackBar(const SnackBar(content: Text('Genre mis à jour')));
+    return;
+  }
+
   final untagged = await _untaggedArtists(container);
   final next = untagged?.next(exceptId: artistId);
-  if (next == null) {
+  if (next == null || !context.mounted) {
     messenger.showSnackBar(
       SnackBar(
         content: Text(
           // Sans liste (réseau), on ne prétend pas que tout est rangé.
-          untagged == null
+          untagged == null || next != null
               ? 'Genre mis à jour'
               : 'Genre mis à jour · plus aucun artiste sans genre',
         ),
@@ -685,20 +701,9 @@ Future<void> _setGenreDialog(
     return;
   }
 
-  messenger.showSnackBar(
-    SnackBar(
-      duration: const Duration(seconds: 8),
-      content: Text('Genre mis à jour · suivant : ${next.name}'),
-      action: SnackBarAction(
-        label: 'Ranger',
-        onPressed: () {
-          if (!context.mounted) return;
-          messenger.hideCurrentSnackBar();
-          _setGenreDialog(context, next.id, null, artistName: next.name);
-        },
-      ),
-    ),
-  );
+  // La série continue d'elle-même : le dialogue rouvre sur le suivant, qui
+  // dit son nom en titre.
+  await _setGenreDialog(context, next.id, null, artistName: next.name);
 }
 
 /// Les artistes sans genre, ou null si le serveur n'a pas répondu — le genre
@@ -711,6 +716,16 @@ Future<UntaggedArtists?> _untaggedArtists(ProviderContainer container) async {
     return null;
   }
 }
+
+/// Des boutons serrés : le dialogue en compte jusqu'à quatre, et « Enregistrer
+/// et suivant » est long à lui seul.
+const _compactAction = ButtonStyle(
+  padding: WidgetStatePropertyAll(EdgeInsets.symmetric(horizontal: 10)),
+  textStyle: WidgetStatePropertyAll(
+    TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+  ),
+  visualDensity: VisualDensity.compact,
+);
 
 class _GenreDialog extends ConsumerStatefulWidget {
   const _GenreDialog({
@@ -744,6 +759,11 @@ class _GenreDialogState extends ConsumerState<_GenreDialog> {
   void initState() {
     super.initState();
     _medley = ref.read(medleyPlayerProvider.notifier);
+    // Le medley part tout seul : entendre l'artiste est ce qui aide le plus à
+    // le ranger, et le demander à chaque fois faisait un tap de trop sur une
+    // série entière (idée #56). Une microtâche : toucher à un provider en
+    // plein initState, Riverpod n'en veut pas.
+    scheduleMicrotask(() => _medley.start(widget.artistId));
   }
 
   @override
@@ -752,7 +772,10 @@ class _GenreDialogState extends ConsumerState<_GenreDialog> {
     // widget : le medley se coupe juste après la fermeture. Une microtâche,
     // et non un Future — une minuterie en suspens ferait échouer les tests
     // qui démontent l'arbre, et le son doit s'arrêter au plus vite.
-    scheduleMicrotask(_medley.stop);
+    //
+    // Et seulement le sien : en enchaînant sur l'artiste suivant, ce dialogue
+    // se défait après que le suivant a lancé le sien.
+    scheduleMicrotask(() => _medley.stopFor(widget.artistId));
     _customCtrl.dispose();
     super.dispose();
   }
@@ -761,7 +784,15 @@ class _GenreDialogState extends ConsumerState<_GenreDialog> {
   /// se poursuit chez l'appelant — le serveur répond souvent bien après, et
   /// `ref` appartiendrait alors à un widget démonté (« Using "ref" when a
   /// widget is about to or has been unmounted is unsafe »).
-  void _save(String genre) => Navigator.pop(context, genre);
+  void _save(String genre, {bool next = false}) =>
+      Navigator.pop(context, _GenreChoice(genre, next: next));
+
+  /// Le genre à enregistrer : ce qu'on a tapé à la main s'il y en a, sinon la
+  /// tuile choisie.
+  String get _chosen {
+    final custom = _customCtrl.text.trim();
+    return custom.isNotEmpty ? custom : (_selected ?? '');
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -849,22 +880,32 @@ class _GenreDialogState extends ConsumerState<_GenreDialog> {
           ],
         ),
       ),
+      // Quatre boutons tiennent mal sur une ligne : on les serre. Ce qui
+      // dépasse, l'OverflowBar le range en colonne.
+      actionsPadding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
       actions: [
         if ((widget.current ?? '').isNotEmpty)
           TextButton(
+            style: _compactAction,
             onPressed: () => _save(''),
             child: const Text('Retirer'),
           ),
         TextButton(
+          style: _compactAction,
           onPressed: () => Navigator.pop(context),
           child: const Text('Annuler'),
         ),
-        FilledButton(
-          onPressed: () {
-            final custom = _customCtrl.text.trim();
-            _save(custom.isNotEmpty ? custom : (_selected ?? ''));
-          },
+        TextButton(
+          style: _compactAction,
+          onPressed: () => _save(_chosen),
           child: const Text('Enregistrer'),
+        ),
+        // Ranger se fait par séries : enregistrer et passer au suivant d'un
+        // seul tap, sans repasser par une proposition à attraper (idée #56).
+        FilledButton(
+          style: _compactAction,
+          onPressed: () => _save(_chosen, next: true),
+          child: const Text('Enregistrer et suivant'),
         ),
       ],
     );

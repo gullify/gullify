@@ -8,6 +8,17 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('2.86.0', [
+    'Ranger les genres se fait maintenant à la chaîne. Le dialogue offre deux '
+        'boutons : « Enregistrer », qui range et referme, et « Enregistrer et '
+        'suivant », qui range et rouvre aussitôt le choix sur l\'artiste '
+        'suivant sans genre — plus de proposition à attraper au vol avant '
+        'qu\'elle ne disparaisse',
+    'Et le medley part tout seul à l\'ouverture : entendre l\'artiste est ce '
+        'qui aide le plus à le ranger, et le demander à chaque fois faisait un '
+        'tap de trop sur une série entière. En enchaînant, il passe à '
+        'l\'artiste suivant sans un instant de silence',
+  ]),
   ReleaseNote('2.85.0', [
     'Le medley enchaîne enfin ses extraits. Les fondus ne s\'entendaient pas : '
         'ils ne laissaient qu\'un blanc entre chaque titre. Gullify tient '
