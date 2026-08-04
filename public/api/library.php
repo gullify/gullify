@@ -35,6 +35,57 @@ function albumArtworkUrl(int $albumId): string {
     return 'serve_image.php?album_id=' . $albumId . ($v ? '&v=' . $v : '');
 }
 
+/**
+ * La table des genres ajoutés à la main. La liste principale
+ * (GenreTaxonomy::ALL) est fermée et la même pour tout le monde ; ce qu'on y
+ * ajoute appartient à l'utilisateur, comme le reste de son rangement.
+ */
+function customGenresTable(PDO $conn): void {
+    static $ready = false;
+    if ($ready) return;
+    $ready = true;
+    $conn->exec("
+        CREATE TABLE IF NOT EXISTS custom_genres (
+            id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            user VARCHAR(50) NOT NULL,
+            name VARCHAR(100) NOT NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE KEY uniq_custom_genre (user, name)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    ");
+}
+
+/**
+ * Les genres qu'un utilisateur a ajoutés lui-même, par ordre alphabétique.
+ * Ceux qui ne se distinguent de la liste principale que par la casse ou les
+ * accents sont écartés : le choix du genre ne doit jamais proposer deux fois
+ * le même.
+ *
+ * @return string[]
+ */
+function customGenres(PDO $conn, string $user): array {
+    customGenresTable($conn);
+    $stmt = $conn->prepare(
+        'SELECT name FROM custom_genres WHERE user = ? ORDER BY name ASC'
+    );
+    $stmt->execute([$user]);
+
+    $seen = [];
+    foreach (GenreTaxonomy::ALL as $g) {
+        $seen[GenreTaxonomy::normalize($g)] = true;
+    }
+
+    $custom = [];
+    foreach ($stmt->fetchAll(PDO::FETCH_COLUMN) as $name) {
+        $n = GenreTaxonomy::normalize((string)$name);
+        if ($n === '' || isset($seen[$n])) continue;
+        $seen[$n] = true;
+        $custom[] = (string)$name;
+    }
+
+    return $custom;
+}
+
 try {
     // Get parameters
     $user = $_GET['user'] ?? $_POST['user'] ?? '';
@@ -1078,10 +1129,47 @@ try {
         $response['data'] = ['genres' => $genres];
 
     } elseif ($action === 'get_genre_taxonomy') {
-        // La liste fermée des genres principaux, telle que la propose le
-        // choix du genre d'un artiste. Elle ne dépend ni de l'utilisateur ni
-        // de ce que contient déjà la bibliothèque.
-        $response['data'] = ['genres' => GenreTaxonomy::ALL];
+        // Ce que propose le choix du genre d'un artiste : la liste principale
+        // d'abord (fermée, elle ne dépend ni de l'utilisateur ni de ce que
+        // contient déjà la bibliothèque), puis les genres que l'utilisateur a
+        // ajoutés lui-même, à la fin — la liste principale garde son ordre.
+        $custom = customGenres($conn, $user);
+        $response['data'] = [
+            'genres' => array_merge(GenreTaxonomy::ALL, $custom),
+            'custom' => $custom,
+        ];
+
+    } elseif ($action === 'add_genre') {
+        // Ajoute un genre à la liste proposée, pour ce que la liste
+        // principale ne couvre pas. Il vaut ensuite les autres : il se choisit
+        // d'un tap et se renomme ou se supprime depuis « Gérer les genres ».
+        $name = trim(preg_replace('/\s+/u', ' ', (string)($_POST['name'] ?? $_GET['name'] ?? '')));
+        $normalized = GenreTaxonomy::normalize($name);
+        $existing = null;
+        if ($normalized !== '') {
+            foreach (array_merge(GenreTaxonomy::ALL, customGenres($conn, $user)) as $g) {
+                if (GenreTaxonomy::normalize($g) === $normalized) {
+                    $existing = $g;
+                    break;
+                }
+            }
+        }
+
+        if ($name === '' || $normalized === '') {
+            $response['error']   = true;
+            $response['message'] = 'Il faut un nom de genre.';
+        } elseif (mb_strlen($name) > 100) {
+            $response['error']   = true;
+            $response['message'] = 'Nom de genre trop long (100 caractères).';
+        } elseif ($existing !== null) {
+            $response['error']   = true;
+            $response['message'] = "« {$existing} » est déjà dans la liste.";
+        } else {
+            customGenresTable($conn);
+            $conn->prepare('INSERT INTO custom_genres (user, name) VALUES (?, ?)')
+                 ->execute([$user, $name]);
+            $response['data'] = ['genre' => $name];
+        }
 
     } elseif ($action === 'suggest_artist_genre') {
         // Ce que MusicBrainz sait de l'artiste, ramené à la liste fermée : le
@@ -1261,6 +1349,24 @@ try {
             ")->execute([$to, $user, $from]);
             $conn->prepare("UPDATE artists SET genre = ? WHERE user = ? AND genre = ?")
                  ->execute([$to, $user, $from]);
+
+            // Un genre ajouté à la main suit son nom. S'il arrive sur un genre
+            // qui existe déjà (liste principale ou autre ajout), les deux n'en
+            // font plus qu'un : la ligne de départ n'a plus lieu d'être.
+            customGenresTable($conn);
+            $sameName = GenreTaxonomy::normalize($from) === GenreTaxonomy::normalize($to);
+            if (!$sameName) {
+                $conn->prepare('DELETE FROM custom_genres WHERE user = ? AND name = ?')
+                     ->execute([$user, $to]);
+            }
+            if (GenreTaxonomy::isCanonical($to)) {
+                $conn->prepare('DELETE FROM custom_genres WHERE user = ? AND name = ?')
+                     ->execute([$user, $from]);
+            } else {
+                $conn->prepare('UPDATE custom_genres SET name = ? WHERE user = ? AND name = ?')
+                     ->execute([$to, $user, $from]);
+            }
+
             $response['data'] = ['from' => $from, 'to' => $to];
         }
 
@@ -1277,6 +1383,13 @@ try {
             ")->execute([$user, $genre]);
             $conn->prepare("UPDATE artists SET genre = NULL WHERE user = ? AND genre = ?")
                  ->execute([$user, $genre]);
+
+            // Retirer un genre partout et le laisser dans les choix n'aurait
+            // pas de sens : un genre ajouté à la main s'en va avec.
+            customGenresTable($conn);
+            $conn->prepare('DELETE FROM custom_genres WHERE user = ? AND name = ?')
+                 ->execute([$user, $genre]);
+
             $response['data'] = ['deleted' => $genre];
         }
 

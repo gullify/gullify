@@ -446,17 +446,31 @@ class LibraryRepository {
     );
   }
 
-  /// La liste fermée des genres principaux proposée par le serveur (elle ne
-  /// dépend pas de ce que contient la bibliothèque).
-  Future<List<String>> genreTaxonomy() async {
+  /// Les genres que le serveur propose (ils ne dépendent pas de ce que
+  /// contient la bibliothèque) : la liste principale, puis ceux ajoutés à la
+  /// main.
+  Future<GenreTaxonomy> genreTaxonomy() async {
     final data = await _client.get('library.php', query: {
       'action': 'get_genre_taxonomy',
     }) as Map<String, dynamic>;
-    return [
-      for (final g in data['genres'] as List<dynamic>? ?? [])
-        if (g is String && g.isNotEmpty) g,
-    ];
+    List<String> names(Object? raw) => [
+          for (final g in raw as List<dynamic>? ?? [])
+            if (g is String && g.isNotEmpty) g,
+        ];
+    return GenreTaxonomy(
+      genres: names(data['genres']),
+      custom: names(data['custom']),
+    );
   }
+
+  /// Ajoute un genre à la liste proposée. Le serveur refuse un nom vide ou un
+  /// genre déjà là (à la casse et aux accents près) : le message qu'il rend
+  /// est fait pour être montré tel quel.
+  Future<void> addGenre(String name) => _client.post(
+        'library.php',
+        query: {'action': 'add_genre'},
+        form: {'name': name},
+      );
 
   /// Le genre que MusicBrainz suggère pour un artiste, ramené à la liste
   /// fermée. `genre` est nul quand rien de fiable n'en sort — mieux vaut
@@ -601,6 +615,16 @@ class GenreSuggestion {
   final List<String> tags;
 
   bool get isEmpty => genre == null && tags.isEmpty;
+}
+
+/// Les genres proposés au moment de ranger un artiste : [genres] les donne
+/// tous, dans l'ordre d'affichage voulu ; [custom] rappelle lesquels ont été
+/// ajoutés à la main (ils figurent aussi dans [genres], à la fin).
+class GenreTaxonomy {
+  const GenreTaxonomy({this.genres = const [], this.custom = const []});
+
+  final List<String> genres;
+  final List<String> custom;
 }
 
 /// Les artistes qu'il reste à ranger : un début de liste (plafonnée) et le

@@ -210,6 +210,17 @@ SELECT name, NULL FROM (
 ) AS g(name)
 WHERE (SELECT COUNT(*) FROM genres) = 0;
 
+-- Genres ajoutés à la main depuis l'app, en plus de la liste principale
+-- (src/GenreTaxonomy.php) : ils appartiennent à l'utilisateur, comme le reste
+-- de son rangement.
+CREATE TABLE IF NOT EXISTS custom_genres (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    user VARCHAR(50) NOT NULL,
+    name VARCHAR(100) NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uniq_custom_genre (user, name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- Notifications: per-user system messages (scan complete, downloads, etc.)
 CREATE TABLE IF NOT EXISTS notifications (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,

@@ -20,9 +20,10 @@ final genresProvider = FutureProvider<List<GenreCount>>(
   (ref) => ref.watch(libraryRepositoryProvider).genres(),
 );
 
-/// Les genres principaux proposés par le serveur, qu'ils soient déjà utilisés
-/// dans la bibliothèque ou non (pour choisir le genre d'un artiste).
-final genreTaxonomyProvider = FutureProvider<List<String>>(
+/// Les genres proposés par le serveur, qu'ils soient déjà utilisés dans la
+/// bibliothèque ou non (pour choisir le genre d'un artiste) : la liste
+/// principale, plus ceux ajoutés à la main.
+final genreTaxonomyProvider = FutureProvider<GenreTaxonomy>(
   (ref) => ref.watch(libraryRepositoryProvider).genreTaxonomy(),
 );
 

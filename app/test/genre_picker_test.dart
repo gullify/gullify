@@ -56,7 +56,13 @@ Widget _wrap(
   return ProviderScope(
     overrides: [
       libraryRepositoryProvider.overrideWithValue(repo),
-      genreTaxonomyProvider.overrideWith((ref) async => _taxonomy),
+      genreTaxonomyProvider.overrideWith(
+        // Un genre ajouté à la main vient à la suite de la liste principale.
+        (ref) async => const GenreTaxonomy(
+          genres: [..._taxonomy, 'Musique de fanfare'],
+          custom: ['Musique de fanfare'],
+        ),
+      ),
       genresProvider.overrideWith((ref) async => const [
             GenreCount('Punk', 4, albumCount: 9),
             // Un genre déjà en base qui ne fait pas partie de la liste : il
@@ -118,6 +124,8 @@ void main() {
       expect(find.widgetWithText(ChoiceChip, g), findsOneWidget, reason: g);
     }
     expect(find.widgetWithText(ChoiceChip, 'Ska-punk maison'), findsOneWidget);
+    // Et ceux qu'on a ajoutés soi-même, même sans artiste qui les porte.
+    expect(find.widgetWithText(ChoiceChip, 'Musique de fanfare'), findsOneWidget);
   });
 
   testWidgets('taper un genre puis enregistrer l\'envoie tel quel',

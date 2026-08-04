@@ -8,6 +8,16 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('2.83.0', [
+    'On peut enfin ajouter des genres. « Gérer les genres » (Paramètres) a un '
+        'bouton « Ajouter » : le genre créé rejoint la liste proposée au '
+        'moment de ranger un artiste, et se choisit d\'un tap comme les 21 '
+        'autres — plus besoin de le retaper à chaque fois pour ce que la '
+        'liste ne couvre pas',
+    'Un genre ajouté reste dans la liste même si personne ne le porte encore. '
+        'Il apparaît alors avec « Aucun artiste », et se renomme ou se '
+        'supprime comme les autres',
+  ]),
   ReleaseNote('2.82.0', [
     'Le medley s\'entend enfin. Il avait tout l\'air de tourner — le titre '
         'défilait, les barres bougeaient — mais pas une note n\'en sortait : '

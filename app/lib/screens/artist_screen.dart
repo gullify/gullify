@@ -765,9 +765,11 @@ class _GenreDialogState extends ConsumerState<_GenreDialog> {
 
   @override
   Widget build(BuildContext context) {
-    // Les genres principaux, plus ceux que la bibliothèque contient déjà sans
-    // qu'ils en fassent partie (un genre saisi à la main, par exemple).
-    final taxonomy = ref.watch(genreTaxonomyProvider).value ?? const <String>[];
+    // Les genres proposés par le serveur (liste principale + ceux ajoutés à
+    // la main), plus ceux que la bibliothèque contient déjà sans qu'ils en
+    // fassent partie (un genre saisi au champ libre, par exemple).
+    final taxonomy =
+        ref.watch(genreTaxonomyProvider).value?.genres ?? const <String>[];
     final extras = [
       for (final g in ref.watch(genresProvider).value ?? [])
         if (g.name.isNotEmpty && !taxonomy.contains(g.name)) g.name,
