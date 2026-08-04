@@ -458,6 +458,25 @@ class LibraryRepository {
     ];
   }
 
+  /// Le genre que MusicBrainz suggère pour un artiste, ramené à la liste
+  /// fermée. `genre` est nul quand rien de fiable n'en sort — mieux vaut
+  /// aucune suggestion qu'une fausse.
+  Future<GenreSuggestion> suggestArtistGenre(int artistId) async {
+    final data = await _client.get('library.php', query: {
+      'action': 'suggest_artist_genre',
+      'artist_id': artistId,
+    }) as Map<String, dynamic>;
+    return GenreSuggestion(
+      genre: (data['genre'] as String?)?.trim().isEmpty ?? true
+          ? null
+          : data['genre'] as String,
+      tags: [
+        for (final t in data['tags'] as List<dynamic>? ?? [])
+          if (t is String && t.isNotEmpty) t,
+      ],
+    );
+  }
+
   Future<void> renameGenre(String from, String to) => _client.post(
         'library.php',
         query: {'action': 'rename_genre'},
@@ -556,6 +575,18 @@ class LibraryRepository {
     }) as Map<String, dynamic>;
     return _list(data['artists'], _artist);
   }
+}
+
+/// Ce que MusicBrainz dit d'un artiste : un genre de la liste fermée (nul si
+/// rien de fiable n'en sort) et les étiquettes qui y ont mené — elles se
+/// montrent, pour que le choix reste éclairé plutôt qu'imposé.
+class GenreSuggestion {
+  const GenreSuggestion({this.genre, this.tags = const []});
+
+  final String? genre;
+  final List<String> tags;
+
+  bool get isEmpty => genre == null && tags.isEmpty;
 }
 
 /// Un genre, ce qu'il pèse dans la bibliothèque et un aperçu de ses

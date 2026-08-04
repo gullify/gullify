@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -5,6 +7,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../api/library_repository.dart';
 import '../api/yt_downloads_repository.dart';
+import '../state/genre_medley.dart';
 import '../state/library.dart';
 import '../state/player.dart';
 import '../state/yt_downloads.dart';
@@ -611,8 +614,9 @@ void _artistMenu(BuildContext context, WidgetRef ref, ArtistDetail d) {
   );
 }
 
-/// Dialogue « Définir le genre » : les genres principaux à choisir d'un tap,
-/// et un champ libre en dessous pour ce qui n'y rentre pas.
+/// Dialogue « Définir le genre » : une suggestion tirée de MusicBrainz, les
+/// genres principaux à choisir d'un tap, un champ libre pour ce qui n'y rentre
+/// pas — et, le temps de se décider, un medley de l'artiste en fond.
 void _setGenreDialog(
   BuildContext context,
   WidgetRef ref,
@@ -639,8 +643,25 @@ class _GenreDialogState extends ConsumerState<_GenreDialog> {
   late String? _selected = widget.current;
   final _customCtrl = TextEditingController();
 
+  /// Saisi à l'ouverture, jamais plus tard : passé la fermeture, `ref`
+  /// appartient à un widget démonté (« Using "ref" when a widget is about to
+  /// or has been unmounted is unsafe ») — et il faut pourtant couper le
+  /// medley.
+  late final MedleyPlayer _medley;
+
+  @override
+  void initState() {
+    super.initState();
+    _medley = ref.read(medleyPlayerProvider.notifier);
+  }
+
   @override
   void dispose() {
+    // Riverpod refuse qu'on touche à un provider pendant un cycle de vie du
+    // widget : le medley se coupe juste après la fermeture. Une microtâche,
+    // et non un Future — une minuterie en suspens ferait échouer les tests
+    // qui démontent l'arbre, et le son doit s'arrêter au plus vite.
+    scheduleMicrotask(_medley.stop);
     _customCtrl.dispose();
     super.dispose();
   }
@@ -688,6 +709,15 @@ class _GenreDialogState extends ConsumerState<_GenreDialog> {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
+              _Suggestion(
+                artistId: widget.artistId,
+                selected: _selected,
+                onPick: (genre) => setState(() {
+                  _selected = genre;
+                  _customCtrl.clear();
+                }),
+              ),
+              const SizedBox(height: 12),
               if (choices.isEmpty)
                 const Padding(
                   padding: EdgeInsets.only(bottom: 12),
@@ -722,6 +752,8 @@ class _GenreDialogState extends ConsumerState<_GenreDialog> {
                   }
                 },
               ),
+              const SizedBox(height: 12),
+              _MedleyButton(artistId: widget.artistId),
             ],
           ),
         ),
@@ -743,6 +775,149 @@ class _GenreDialogState extends ConsumerState<_GenreDialog> {
           },
           child: const Text('Enregistrer'),
         ),
+      ],
+    );
+  }
+}
+
+/// La suggestion de MusicBrainz, en tête du dialogue : un genre à prendre d'un
+/// tap, et les étiquettes qui l'ont dicté. Elle ne choisit jamais à la place —
+/// elle propose, et se tait quand elle n'a rien de sûr.
+class _Suggestion extends ConsumerWidget {
+  const _Suggestion({
+    required this.artistId,
+    required this.selected,
+    required this.onPick,
+  });
+
+  final int artistId;
+  final String? selected;
+  final ValueChanged<String> onPick;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final scheme = Theme.of(context).colorScheme;
+    final suggestion = ref.watch(genreSuggestionProvider(artistId));
+    final faint = TextStyle(fontSize: 12, color: scheme.onSurfaceVariant);
+
+    return suggestion.when(
+      loading: () => Row(
+        children: [
+          const SizedBox(
+            width: 13,
+            height: 13,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+          const SizedBox(width: 8),
+          Text('Recherche d\'une suggestion…', style: faint),
+        ],
+      ),
+      // Une suggestion qui manque n'est pas une panne : le dialogue marche
+      // très bien sans, on n'affiche pas d'erreur en travers.
+      error: (_, _) => Text(
+        'Suggestion indisponible (MusicBrainz)',
+        style: faint,
+      ),
+      data: (s) {
+        if (s.genre == null) {
+          return Text(
+            s.tags.isEmpty
+                ? 'MusicBrainz ne dit rien de cet artiste'
+                : 'Rien de net chez MusicBrainz (${s.tags.take(3).join(', ')})',
+            style: faint,
+          );
+        }
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.auto_awesome, size: 16, color: scheme.primary),
+                const SizedBox(width: 6),
+                Text(
+                  'Suggestion',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: scheme.primary,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            ChoiceChip(
+              label: Text(s.genre!),
+              selected: selected == s.genre,
+              onSelected: (_) => onPick(s.genre!),
+            ),
+            if (s.tags.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Text('d\'après MusicBrainz : ${s.tags.take(4).join(', ')}',
+                  style: faint),
+            ],
+          ],
+        );
+      },
+    );
+  }
+}
+
+/// Le medley : quelques extraits pris sur plusieurs albums, en fondu, pendant
+/// qu'on hésite. Il tourne en boucle et s'arrête tout seul à la fermeture du
+/// dialogue.
+class _MedleyButton extends ConsumerWidget {
+  const _MedleyButton({required this.artistId});
+
+  final int artistId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final scheme = Theme.of(context).colorScheme;
+    final medley = ref.watch(medleyPlayerProvider);
+    final song = medley.current;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        OutlinedButton.icon(
+          onPressed: () =>
+              ref.read(medleyPlayerProvider.notifier).toggle(artistId),
+          icon: Icon(
+            medley.active ? Icons.stop_circle_outlined : Icons.graphic_eq,
+            size: 18,
+          ),
+          label: Text(medley.active ? 'Arrêter le medley' : 'Écouter un medley'),
+        ),
+        if (medley.error)
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Text(
+              'Rien à faire écouter pour cet artiste',
+              style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+            ),
+          ),
+        if (song != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Row(
+              children: [
+                EqBars(color: scheme.primary, height: 12),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    '${song.title}${song.albumName != null ? ' · ${song.albumName}' : ''}'
+                    '  (${medley.index}/${medley.total})',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
       ],
     );
   }

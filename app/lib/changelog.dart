@@ -8,6 +8,17 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('2.80.0', [
+    'Choisir le genre d\'un artiste commence par une suggestion : Gullify '
+        'demande à MusicBrainz ce qu\'on sait de lui, la ramène à la liste des '
+        '21 genres et la propose d\'un tap, en montrant les étiquettes qui '
+        'l\'ont dictée. Elle ne décide rien — le choix reste entier, et quand '
+        'rien n\'est sûr elle le dit plutôt que de ranger de travers',
+    'Le temps de se décider, un medley : quelques extraits pris sur plusieurs '
+        'albums de l\'artiste, enchaînés en fondu, en boucle. Il s\'arrête '
+        'tout seul en refermant le dialogue, et laisse la lecture en cours '
+        'reprendre sa place',
+  ]),
   ReleaseNote('2.79.0', [
     'Une idée confiée à Claude prévient quand elle est faite : la cloche de '
         'l\'accueil s\'allume, la notification rappelle l\'idée et la version '

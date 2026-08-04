@@ -1083,6 +1083,62 @@ try {
         // de ce que contient déjà la bibliothèque.
         $response['data'] = ['genres' => GenreTaxonomy::ALL];
 
+    } elseif ($action === 'suggest_artist_genre') {
+        // Ce que MusicBrainz sait de l'artiste, ramené à la liste fermée : le
+        // choix manuel part ainsi de la même source que la détection
+        // automatique. Rien n'est écrit — c'est une suggestion, on garde la
+        // main.
+        $artistId = (int)($_GET['artist_id'] ?? $_POST['artist_id'] ?? 0);
+        $stmt = $conn->prepare('SELECT name FROM artists WHERE id = ? AND user = ?');
+        $stmt->execute([$artistId, $user]);
+        $artistName = $artistId ? (string)($stmt->fetchColumn() ?: '') : '';
+
+        if ($artistName === '') {
+            $response['error']   = true;
+            $response['message'] = 'Artist not found or access denied';
+        } else {
+            // Deux allers-retours réseau par artiste : on garde la réponse un
+            // mois sur le disque, sinon rouvrir le dialogue refait attendre
+            // pour un genre qui, lui, ne bouge pas. Une réponse VIDE ne tient
+            // qu'un jour : elle vient aussi bien d'un artiste inconnu au
+            // bataillon que d'un refus de passage de MusicBrainz, et on ne va
+            // pas s'en tenir là un mois durant.
+            $cacheFile = AppConfig::getDataPath() . '/cache/genre-suggest-'
+                . md5(mb_strtolower($artistName, 'UTF-8')) . '.json';
+            $cached = @filemtime($cacheFile)
+                ? json_decode((string)@file_get_contents($cacheFile), true)
+                : null;
+            if (is_array($cached)) {
+                $age    = time() - filemtime($cacheFile);
+                $isThin = ($cached['genre'] ?? null) === null && empty($cached['tags']);
+                if ($age > ($isThin ? 86400 : 30 * 86400)) $cached = null;
+            }
+
+            if (is_array($cached)) {
+                $suggestion = $cached;
+            } else {
+                require_once __DIR__ . '/../../src/MusicBrainz.php';
+                // Quelqu'un attend devant son téléphone : des appels courts,
+                // et une seule reprise — mieux vaut « aucune suggestion »
+                // qu'une minute d'attente.
+                $tags = function_exists('curl_init')
+                    ? MusicBrainz::tags($artistName, 4, 2)
+                    : [];
+                // Les étiquettes les plus votées d'abord : elles disent d'où
+                // vient la suggestion, et aident à trancher quand la taxonomie
+                // ne trouve rien.
+                usort($tags, fn($a, $b) => $b['count'] <=> $a['count']);
+                $suggestion = [
+                    'genre'  => GenreTaxonomy::pickFromTags($tags),
+                    'tags'   => array_slice(array_column($tags, 'name'), 0, 6),
+                    'source' => 'musicbrainz',
+                ];
+                @file_put_contents($cacheFile, json_encode($suggestion, JSON_UNESCAPED_UNICODE));
+            }
+
+            $response['data'] = $suggestion + ['artist_id' => $artistId, 'artist' => $artistName];
+        }
+
     } elseif ($action === 'recent_albums') {
         $days = isset($_GET['days']) ? intval($_GET['days']) : 30;
         

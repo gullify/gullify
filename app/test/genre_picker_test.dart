@@ -40,7 +40,11 @@ class _FakeLibraryRepo extends Fake implements LibraryRepository {
   }
 }
 
-Widget _wrap(_FakeLibraryRepo repo, {String? genre}) {
+Widget _wrap(
+  _FakeLibraryRepo repo, {
+  String? genre,
+  GenreSuggestion suggestion = const GenreSuggestion(),
+}) {
   return ProviderScope(
     overrides: [
       libraryRepositoryProvider.overrideWithValue(repo),
@@ -52,6 +56,9 @@ Widget _wrap(_FakeLibraryRepo repo, {String? genre}) {
             GenreCount('Ska-punk maison', 1, albumCount: 1),
           ]),
       artistsProvider.overrideWith((ref) async => const <Artist>[]),
+      // La suggestion part sur le réseau (MusicBrainz, côté serveur) : par
+      // défaut le test n'en donne aucune, le dialogue doit marcher sans.
+      genreSuggestionProvider(1).overrideWith((ref) async => suggestion),
       artistExtrasProvider('Artiste Test')
           .overrideWith((ref) async => const ArtistExtras()),
       // Sans ça, la fiche interroge YouTube — donc le client HTTP, donc la
@@ -74,12 +81,16 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  Future<void> pump(WidgetTester tester, _FakeLibraryRepo repo,
-      {String? genre}) async {
+  Future<void> pump(
+    WidgetTester tester,
+    _FakeLibraryRepo repo, {
+    String? genre,
+    GenreSuggestion suggestion = const GenreSuggestion(),
+  }) async {
     tester.view.physicalSize = const Size(412, 892);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
-    await tester.pumpWidget(_wrap(repo, genre: genre));
+    await tester.pumpWidget(_wrap(repo, genre: genre, suggestion: suggestion));
     await tester.pumpAndSettle();
     // Le dialogue s'ouvre depuis le menu de l'artiste.
     await tester.tap(find.byIcon(Icons.more_vert).first);
@@ -161,5 +172,76 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(repo.savedGenre, 'Punk');
     expect(find.text('Genre mis à jour'), findsOneWidget);
+  });
+
+  // ── La suggestion (MusicBrainz) ─────────────────────────────────────────
+  testWidgets('la suggestion se montre, avec les étiquettes qui l\'ont dictée',
+      (tester) async {
+    await pump(
+      tester,
+      _FakeLibraryRepo(),
+      suggestion: const GenreSuggestion(
+        genre: 'Métal',
+        tags: ['heavy metal', 'québécois'],
+      ),
+    );
+
+    expect(find.text('Suggestion'), findsOneWidget);
+    expect(find.text('d\'après MusicBrainz : heavy metal, québécois'),
+        findsOneWidget);
+    // Le genre suggéré fait partie de la liste : il apparaît deux fois, en
+    // suggestion et dans les choix.
+    expect(find.widgetWithText(ChoiceChip, 'Métal'), findsNWidgets(2));
+  });
+
+  testWidgets('taper la suggestion la choisit, sans rien enregistrer seule',
+      (tester) async {
+    final repo = _FakeLibraryRepo();
+    await pump(
+      tester,
+      repo,
+      suggestion: const GenreSuggestion(genre: 'Métal', tags: ['heavy metal']),
+    );
+
+    // Rien n'est parti tant qu'on n'a pas enregistré : la suggestion propose.
+    expect(repo.savedGenre, isNull);
+
+    await tester.tap(find.widgetWithText(ChoiceChip, 'Métal').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Enregistrer'));
+    await tester.pumpAndSettle();
+
+    expect(repo.savedGenre, 'Métal');
+  });
+
+  testWidgets('sans rien de sûr, la suggestion se tait poliment',
+      (tester) async {
+    await pump(tester, _FakeLibraryRepo());
+
+    expect(find.text('MusicBrainz ne dit rien de cet artiste'), findsOneWidget);
+    expect(find.text('Suggestion'), findsNothing);
+    // Le reste du dialogue marche comme avant.
+    expect(find.widgetWithText(ChoiceChip, 'Punk'), findsOneWidget);
+  });
+
+  testWidgets('des étiquettes sans genre net le disent, sans rien imposer',
+      (tester) async {
+    await pump(
+      tester,
+      _FakeLibraryRepo(),
+      suggestion: const GenreSuggestion(tags: ['seen live', 'canadian']),
+    );
+
+    expect(find.text('Rien de net chez MusicBrainz (seen live, canadian)'),
+        findsOneWidget);
+  });
+
+  // ── Le medley ───────────────────────────────────────────────────────────
+  testWidgets('le medley se propose, sans jouer tant qu\'on ne le demande pas',
+      (tester) async {
+    await pump(tester, _FakeLibraryRepo());
+
+    expect(find.text('Écouter un medley'), findsOneWidget);
+    expect(find.text('Arrêter le medley'), findsNothing);
   });
 }

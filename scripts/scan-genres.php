@@ -79,184 +79,14 @@ function updateProgress(array $data): void {
 
 require_once __DIR__ . '/../src/PathHelper.php';
 require_once __DIR__ . '/../src/GenreTaxonomy.php';
+require_once __DIR__ . '/../src/MusicBrainz.php';
 require_once AppConfig::getVendorPath() . '/getid3/getid3.php';
 
-// ── MusicBrainz helper ────────────────────────────────────────────────────────
-/**
- * Escape a string for use inside a Lucene quoted phrase.
- * Backslash-escapes the characters that are special inside quotes: \ and "
- */
-function luceneEscape(string $s): string {
-    return str_replace(['\\', '"'], ['\\\\', '\\"'], $s);
-}
-
-/**
- * Strip the Lucene operators for the unquoted (loose) search. Left in place,
- * a name like "(50 First Dates) UB-40" is read as a grouping expression and
- * brings back an unrelated artist.
- */
-function luceneStrip(string $s): string {
-    $s = str_replace(
-        ['+', '-', '&&', '||', '!', '(', ')', '{', '}', '[', ']', '^', '"', '~', '*', '?', ':', '\\', '/'],
-        ' ',
-        $s
-    );
-    return trim(preg_replace('/\s+/', ' ', $s));
-}
-
-/**
- * Guard against the loose search bringing back somebody else entirely: the
- * name found must look like the one asked for, or the match must be one
- * MusicBrainz itself is confident about. A missing genre beats a wrong one.
- */
-function mbNameMatches(string $wanted, string $found, int $score): bool {
-    $a = GenreTaxonomy::normalize($wanted);
-    $b = GenreTaxonomy::normalize($found);
-    if ($a === '' || $b === '') return false;
-    if ($a === $b) return true;
-    if (str_contains($a, $b) || str_contains($b, $a)) return true;
-
-    return $score >= 90;
-}
-
-/**
- * Perform a single MusicBrainz curl GET and return decoded JSON array or null.
- * Enforces the 1 req/sec rate limit via the $lastCall static.
- *
- * Sur une longue série, MusicBrainz refuse ponctuellement une requête (503) même
- * en respectant la cadence : sans reprise, l'artiste repartait sans genre pour
- * une simple contrariété de passage. On repasse donc jusqu'à deux fois, en
- * laissant le serveur souffler.
- */
-function mbGet(string $url, float &$lastCall): ?array {
-    for ($attempt = 0; $attempt < 3; $attempt++) {
-        $elapsed = microtime(true) - $lastCall;
-        $wait    = 1.05 + ($attempt * 2.0);   // 1 s, puis 3 s, puis 5 s
-        if ($elapsed < $wait) usleep((int)(($wait - $elapsed) * 1_000_000));
-        $lastCall = microtime(true);
-
-        $ch = curl_init($url);
-        curl_setopt_array($ch, [
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT        => 10,
-            CURLOPT_USERAGENT      => 'Gullify/1.0 (self-hosted; https://github.com/gullify)',
-            CURLOPT_HTTPHEADER     => ['Accept: application/json'],
-            CURLOPT_FOLLOWLOCATION => true,
-        ]);
-        $body   = curl_exec($ch);
-        $status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-
-        if ($status === 200 && $body) return json_decode($body, true) ?: null;
-        // 503 = cadence refusée, 0 = réseau : ça vaut la peine de réessayer.
-        if ($status !== 503 && $status !== 0) return null;
-    }
-
-    return null;
-}
-
-/**
- * Look an artist up on MusicBrainz and return its MBID, or null.
- *
- * Tries the exact quoted search first, then an unquoted one for the names that
- * don't match character for character (punctuation, "UB-40" vs "UB40").
- */
-function mbFindArtistId(string $name, float &$lastCall): ?string {
-    $nameLower = strtolower(trim($name));
-
-    foreach (['quoted', 'loose'] as $mode) {
-        $term = $mode === 'quoted'
-            ? '"' . luceneEscape($name) . '"'
-            : luceneStrip($name);
-        if (trim($term, '" ') === '') continue;
-
-        $searchUrl = 'https://musicbrainz.org/ws/2/artist/?' . http_build_query([
-            'query' => 'artist:' . $term,
-            'fmt'   => 'json',
-            'limit' => '5',
-        ]);
-
-        $data = mbGet($searchUrl, $lastCall);
-        if (empty($data['artists'])) continue;
-
-        // Prefer an exact name match; otherwise the first result that still
-        // looks like the artist we asked for.
-        $best = null;
-        foreach ($data['artists'] as $a) {
-            if (strtolower($a['name'] ?? '') === $nameLower) { $best = $a; break; }
-        }
-        if (!$best) {
-            foreach ($data['artists'] as $a) {
-                if (mbNameMatches($name, (string)($a['name'] ?? ''), (int)($a['score'] ?? 0))) {
-                    $best = $a;
-                    break;
-                }
-            }
-        }
-
-        if ($best && !empty($best['id'])) return (string)$best['id'];
-    }
-
-    return null;
-}
-
-/**
- * Query MusicBrainz for an artist's weighted tags (curated genres + user tags,
- * merged by name, best vote count kept).
- *
- * The taxonomy decides which of them wins — a single "top tag" is a poor
- * signal, since the most-voted tag is often not a genre at all ("seen live",
- * "canadian") or too broad ("folk") next to a far more telling one further
- * down the list ("néo-trad").
- *
- * Falls back to an unquoted loose search when the exact search finds nothing.
- * Rate-limited to 1 req/sec (MusicBrainz policy).
- *
- * @return array<array{name: string, count: int}>
- */
-function musicbrainzTags(string $artistName): array {
-    static $lastCall = 0.0;
-
-    // ── Step 1: Search ────────────────────────────────────────────────────────
-    // Beaucoup de noms traînent le titre du film ou de la compilation dont ils
-    // viennent : « (50 First Dates) Bob Marley ». Tel quel, rien ne sort ; sans
-    // le préfixe, l'artiste se trouve du premier coup.
-    $mbid     = null;
-    $stripped = trim(preg_replace('/^\s*\([^)]*\)\s*/', '', $artistName));
-    foreach ([$artistName, $stripped] as $candidate) {
-        if ($candidate === '' || ($candidate !== $artistName && $candidate === trim($artistName))) {
-            continue;
-        }
-        $mbid = mbFindArtistId($candidate, $lastCall);
-        if ($mbid) break;
-    }
-
-    if (!$mbid) return [];
-
-    // ── Step 2: Fetch tags + curated genres ───────────────────────────────────
-    $detail = mbGet(
-        "https://musicbrainz.org/ws/2/artist/{$mbid}?inc=tags+genres&fmt=json",
-        $lastCall
-    );
-    if (!$detail) return [];
-
-    // Curated genres first: same names as the tags, but vetted. A name seen in
-    // both keeps its best count.
-    $merged = [];
-    foreach ([$detail['genres'] ?? [], $detail['tags'] ?? []] as $list) {
-        foreach ($list as $entry) {
-            $name = trim($entry['name'] ?? '');
-            if ($name === '') continue;
-            $count = max(0, (int)($entry['count'] ?? 0));
-            $key   = mb_strtolower($name, 'UTF-8');
-            if (!isset($merged[$key]) || $count > $merged[$key]['count']) {
-                $merged[$key] = ['name' => $name, 'count' => $count];
-            }
-        }
-    }
-
-    return array_values($merged);
-}
+// ── MusicBrainz ───────────────────────────────────────────────────────────
+// La recherche d'artiste et ses étiquettes vivent dans src/MusicBrainz.php :
+// le choix manuel du genre, dans l'app, interroge ainsi la même source que
+// ce scan — ce qui range tout seul est ce qui est proposé quand on range à
+// la main.
 
 // ── Extract genre from ID3 tags for a list of files ───────────────────────────
 /**
@@ -379,7 +209,7 @@ try {
 
         // ── Step 2: MusicBrainz fallback ─────────────────────────────────────
         if (!$genre && function_exists('curl_init')) {
-            $mbGenre = GenreTaxonomy::pickFromTags(musicbrainzTags($artistName));
+            $mbGenre = GenreTaxonomy::pickFromTags(MusicBrainz::tags($artistName));
             if ($mbGenre) {
                 $genre  = $mbGenre;
                 $source = 'musicbrainz';
