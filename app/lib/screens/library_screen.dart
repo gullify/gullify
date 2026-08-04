@@ -2,15 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../api/library_repository.dart' show GenreCount;
 import '../models/album.dart';
 import '../models/artist.dart';
 import '../state/favorites.dart';
 import '../state/library.dart';
 import '../state/player.dart';
 import '../state/playlists.dart';
-import '../widgets/album_card.dart' show kArtShadow;
+import '../widgets/album_card.dart';
 import '../widgets/alpha_grid.dart';
+import '../widgets/artist_row.dart';
 import '../widgets/artwork.dart';
+import '../widgets/genre_mosaic.dart';
 import '../widgets/glass_box.dart';
 import '../widgets/glass_kit.dart';
 import '../widgets/shuffle_library_button.dart';
@@ -19,11 +22,11 @@ import '../widgets/song_tile.dart';
 import '../widgets/mascot_empty.dart';
 
 /// Vues du contrôle segmenté de la bibliothèque.
-enum _LibView { artistes, albums, favoris, playlists }
+enum _LibView { artistes, albums, genres, favoris, playlists }
 
 /// Onglet « Bibliothèque » : titre + bouton d'ajout, contrôle segmenté en
-/// verre Artistes / Albums / Favoris / Playlists. Filtre instantané,
-/// barre A-Z et aléatoire global conservés sur Artistes et Albums.
+/// verre Artistes / Albums / Genres / Favoris / Playlists. Filtre instantané,
+/// barre A-Z et aléatoire global conservés sur Artistes, Albums et Genres.
 class LibraryScreen extends ConsumerStatefulWidget {
   const LibraryScreen({super.key});
 
@@ -76,6 +79,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
               child: switch (_view) {
                 _LibView.artistes => const _ArtistsView(),
                 _LibView.albums => const _AlbumsView(),
+                _LibView.genres => const _GenresView(),
                 _LibView.favoris => const _FavoritesView(),
                 _LibView.playlists => const _PlaylistsView(),
               },
@@ -98,6 +102,7 @@ class _SegmentedControl extends StatelessWidget {
   static const _labels = {
     _LibView.artistes: 'Artistes',
     _LibView.albums: 'Albums',
+    _LibView.genres: 'Genres',
     _LibView.favoris: 'Favoris',
     _LibView.playlists: 'Playlists',
   };
@@ -154,15 +159,19 @@ class _SegmentButton extends StatelessWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
         onTap: onTap,
+        // À cinq segments, l'étiquette la plus longue déborde sur les
+        // petits écrans : on la rétrécit plutôt que de la tronquer.
         child: Center(
-          child: Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: 13.5,
-              fontWeight: FontWeight.w700,
-              color: selected ? scheme.onPrimary : scheme.onSurfaceVariant,
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              label,
+              maxLines: 1,
+              style: TextStyle(
+                fontSize: 13.5,
+                fontWeight: FontWeight.w700,
+                color: selected ? scheme.onPrimary : scheme.onSurfaceVariant,
+              ),
             ),
           ),
         ),
@@ -240,80 +249,11 @@ class _ArtistsViewState extends ConsumerState<_ArtistsView> {
               onRefresh: () => _genre == null
                   ? ref.refresh(artistsProvider.future)
                   : ref.refresh(artistsByGenreProvider(_genre!).future),
-              itemBuilder: (context, artist) => _ArtistRow(artist: artist),
+              itemBuilder: (context, artist) => ArtistRow(artist: artist),
             ),
           ),
         ),
       ],
-    );
-  }
-}
-
-/// Rangée d'artiste (design) : avatar rond 54 + ombre, nom 15.5/700,
-/// « N albums » 12.5 gris, chevron.
-class _ArtistRow extends StatelessWidget {
-  const _ArtistRow({required this.artist});
-
-  final Artist artist;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return InkWell(
-      borderRadius: BorderRadius.circular(16),
-      onTap: () => context.push('/artist/${artist.id}'),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
-        child: Row(
-          children: [
-            DecoratedBox(
-              decoration: const BoxDecoration(
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: Color(0x29000000),
-                    blurRadius: 12,
-                    offset: Offset(0, 5),
-                  ),
-                ],
-              ),
-              child: Artwork(
-                url: artist.imageUrl,
-                size: 54,
-                borderRadius: 27,
-                icon: Icons.person,
-              ),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    artist.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 15.5,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  Text(
-                    '${artist.albumCount} album'
-                    '${artist.albumCount > 1 ? 's' : ''}',
-                    style: TextStyle(
-                      fontSize: 12.5,
-                      color: scheme.onSurfaceVariant,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const Icon(Icons.chevron_right, size: 24, color: Color(0xFFB6BAC1)),
-          ],
-        ),
-      ),
     );
   }
 }
@@ -338,30 +278,75 @@ class _AlbumsView extends ConsumerWidget {
         maxCrossAxisExtent: 200,
         childAspectRatio: 0.75,
         onRefresh: () => ref.refresh(albumsProvider.future),
-        itemBuilder: (context, album) => _AlbumGridCard(album: album),
+        itemBuilder: (context, album) => AlbumGridCard(album: album),
       ),
     );
   }
 }
 
-/// Carte d'album de la grille (design) : pochette carrée radius 20 + ombre,
-/// nom 14/700, « artiste · année » 12 gris.
-class _AlbumGridCard extends StatelessWidget {
-  const _AlbumGridCard({required this.album});
+// ───────────────────────── Vue Genres ─────────────────────────
 
-  final Album album;
+/// Les genres de la bibliothèque en grille : mosaïque des pochettes, nom et
+/// contenu. Un genre s'ouvre sur sa page (albums + artistes).
+class _GenresView extends ConsumerWidget {
+  const _GenresView();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final genres = ref.watch(genresProvider);
+    return genres.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (e, _) => Center(child: Text('Erreur: $e')),
+      data: (list) {
+        if (list.isEmpty) {
+          return const MascotEmpty(
+            message: 'Aucun genre pour l\'instant',
+            hint: 'Assigne un genre depuis la fiche d\'un artiste, ou lance '
+                'la détection automatique dans Paramètres → Bibliothèque.',
+          );
+        }
+        return AlphaGrid<GenreCount>(
+          items: list,
+          nameOf: (g) => g.name,
+          hintText: 'Filtrer les genres…',
+          trailing: IconButton.filledTonal(
+            tooltip: 'Gérer les genres',
+            icon: const Icon(Icons.tune),
+            onPressed: () => context.push('/genres'),
+          ),
+          // Mêmes proportions que la grille d'albums : vignette carrée
+          // + deux lignes de texte.
+          maxCrossAxisExtent: 200,
+          childAspectRatio: 0.75,
+          onRefresh: () => ref.refresh(genresProvider.future),
+          itemBuilder: (context, genre) => _GenreCard(genre: genre),
+        );
+      },
+    );
+  }
+}
+
+/// Carte de genre : mosaïque des pochettes radius 20 + ombre, nom 14/700,
+/// « N artistes · N albums » 12 gris.
+class _GenreCard extends StatelessWidget {
+  const _GenreCard({required this.genre});
+
+  final GenreCount genre;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final subtitle = [
-      if (album.artistName != null) album.artistName!,
-      if (album.year != null) '${album.year}',
+      '${genre.artistCount} artiste${genre.artistCount > 1 ? 's' : ''}',
+      if (genre.albumCount > 0)
+        '${genre.albumCount} album${genre.albumCount > 1 ? 's' : ''}',
     ].join(' · ');
 
     return InkWell(
       borderRadius: BorderRadius.circular(20),
-      onTap: () => context.push('/album/${album.id}'),
+      onTap: () => context.push(
+        '/genre?name=${Uri.encodeQueryComponent(genre.name)}',
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -372,23 +357,22 @@ class _AlbumGridCard extends StatelessWidget {
                 borderRadius: BorderRadius.circular(20),
                 boxShadow: const [kArtShadow],
               ),
-              child: Artwork(url: album.artworkUrl, borderRadius: 20),
+              child: GenreMosaic(urls: genre.artworkUrls),
             ),
           ),
           const SizedBox(height: 9),
           Text(
-            album.name,
+            genre.name,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
           ),
-          if (subtitle.isNotEmpty)
-            Text(
-              subtitle,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
-            ),
+          Text(
+            subtitle,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+          ),
         ],
       ),
     );

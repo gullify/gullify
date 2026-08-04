@@ -17,6 +17,7 @@ import 'package:gullify/models/song.dart';
 import 'package:gullify/screens/album_screen.dart';
 import 'package:gullify/screens/artist_screen.dart';
 import 'package:gullify/screens/games_screen.dart';
+import 'package:gullify/screens/genre_screen.dart';
 import 'package:gullify/screens/home_screen.dart';
 import 'package:gullify/screens/library_screen.dart';
 import 'package:gullify/screens/radio_screen.dart';
@@ -68,6 +69,13 @@ const _artists = [
   Artist(id: 4, name: 'Elian Vos', albumCount: 2, songCount: 5),
   Artist(id: 5, name: 'Naïa', albumCount: 2, songCount: 5),
   Artist(id: 6, name: 'Tom Brise', albumCount: 1, songCount: 3),
+];
+
+const _genres = [
+  GenreCount('Chanson française', 3, albumCount: 5),
+  GenreCount('Électro', 2, albumCount: 3),
+  GenreCount('Jazz', 1, albumCount: 1),
+  GenreCount('Rock', 4, albumCount: 9),
 ];
 
 const _playlists = [
@@ -184,6 +192,9 @@ Widget _wrap(Widget child, {MediaItem? item, String? searchQuery}) {
       popularSongsProvider.overrideWith((ref) async => _songs),
       artistsProvider.overrideWith((ref) async => _artists),
       albumsProvider.overrideWith((ref) async => _albums),
+      genresProvider.overrideWith((ref) async => _genres),
+      albumsByGenreProvider('Rock').overrideWith((ref) async => _albums),
+      artistsByGenreProvider('Rock').overrideWith((ref) async => _artists),
       allFavoritesProvider.overrideWith((ref) async => _songs),
       statsProvider.overrideWith((ref) async => _stats()),
       notificationsProvider.overrideWith((ref) async =>
@@ -320,6 +331,25 @@ void main() {
     await expectLater(
       find.byKey(const Key('golden-root')),
       matchesGoldenFile('goldens/library_albums.png'),
+    );
+  });
+
+  testWidgets('library genres view renders', (tester) async {
+    await pumpScreen(tester, _shellWrap(const LibraryScreen(), tab: 1));
+    await tester.tap(find.text('Genres'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    await expectLater(
+      find.byKey(const Key('golden-root')),
+      matchesGoldenFile('goldens/library_genres.png'),
+    );
+  });
+
+  testWidgets('genre screen renders', (tester) async {
+    await pumpScreen(tester, _wrap(const GenreScreen(genre: 'Rock')));
+    await expectLater(
+      find.byType(GenreScreen),
+      matchesGoldenFile('goldens/genre_screen.png'),
     );
   });
 

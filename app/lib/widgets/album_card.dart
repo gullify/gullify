@@ -12,6 +12,57 @@ const kArtShadow = BoxShadow(
   spreadRadius: -10,
 );
 
+/// Carte d'album des grilles (bibliothèque, genre) : pochette carrée
+/// radius 20 + ombre, nom 14/700, « artiste · année » 12 gris.
+class AlbumGridCard extends StatelessWidget {
+  const AlbumGridCard({super.key, required this.album});
+
+  final Album album;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final subtitle = [
+      if (album.artistName != null) album.artistName!,
+      if (album.year != null) '${album.year}',
+    ].join(' · ');
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(20),
+      onTap: () => context.push('/album/${album.id}'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          AspectRatio(
+            aspectRatio: 1,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: const [kArtShadow],
+              ),
+              child: Artwork(url: album.artworkUrl, borderRadius: 20),
+            ),
+          ),
+          const SizedBox(height: 9),
+          Text(
+            album.name,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+          ),
+          if (subtitle.isNotEmpty)
+            Text(
+              subtitle,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
 /// Carte d'album des carrousels (design) : pochette carrée arrondie avec
 /// ombre portée, nom 13.5/700, artiste 12 gris.
 class AlbumCard extends StatelessWidget {

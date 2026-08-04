@@ -154,11 +154,18 @@ class LibraryRepository {
     return _list(data['artists'], _artist);
   }
 
-  Future<List<Album>> albums({int limit = 5000, int offset = 0}) async {
+  /// Les albums de la bibliothèque, éventuellement restreints à un [genre]
+  /// (porté par l'album ou, à défaut, par son artiste).
+  Future<List<Album>> albums({
+    int limit = 5000,
+    int offset = 0,
+    String? genre,
+  }) async {
     final data = await _client.get('library.php', query: {
       'action': 'get_all_albums',
       'limit': limit,
       'offset': offset,
+      'genre': ?genre,
     }) as Map<String, dynamic>;
     return _list(data['albums'], _album);
   }
@@ -430,6 +437,11 @@ class LibraryRepository {
       (j) => GenreCount(
         j['name'] as String? ?? '',
         (j['artistCount'] as num?)?.toInt() ?? 0,
+        albumCount: (j['albumCount'] as num?)?.toInt() ?? 0,
+        artworkUrls: [
+          for (final u in j['artworkUrls'] as List<dynamic>? ?? [])
+            ?_abs(u as String?),
+        ],
       ),
     );
   }
@@ -534,11 +546,22 @@ class LibraryRepository {
   }
 }
 
-/// Un genre et le nombre d'artistes qui le portent.
+/// Un genre, ce qu'il pèse dans la bibliothèque et un aperçu de ses
+/// pochettes (mosaïque de la vue « Genres »).
 class GenreCount {
-  const GenreCount(this.name, this.artistCount);
+  const GenreCount(
+    this.name,
+    this.artistCount, {
+    this.albumCount = 0,
+    this.artworkUrls = const [],
+  });
+
   final String name;
   final int artistCount;
+  final int albumCount;
+
+  /// Jusqu'à 4 pochettes d'albums du genre (les plus récentes).
+  final List<String> artworkUrls;
 }
 
 /// État d'un scan de la bibliothèque.

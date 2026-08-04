@@ -1042,13 +1042,36 @@ try {
             ORDER BY al.genre ASC
         ');
         $stmt->execute([$user]);
+        $rows = $stmt->fetchAll();
+
+        // Aperçu : jusqu'à 4 pochettes par genre (les albums les plus
+        // récents), pour la mosaïque de la vue « Genres » de l'app.
+        $covers = [];
+        $coverStmt = $conn->prepare('
+            SELECT t.genre, t.id FROM (
+                SELECT al.genre AS genre, al.id AS id,
+                       ROW_NUMBER() OVER (
+                           PARTITION BY al.genre ORDER BY al.id DESC
+                       ) AS rn
+                FROM albums al
+                JOIN artists a ON al.artist_id = a.id
+                WHERE a.user = ? AND al.genre IS NOT NULL AND al.genre != ""
+                  AND al.artwork IS NOT NULL AND al.artwork != ""
+            ) t
+            WHERE t.rn <= 4
+        ');
+        $coverStmt->execute([$user]);
+        while ($cover = $coverStmt->fetch()) {
+            $covers[$cover['genre']][] = albumArtworkUrl((int)$cover['id']);
+        }
 
         $genres = [];
-        while ($row = $stmt->fetch()) {
+        foreach ($rows as $row) {
             $genres[] = [
                 'name' => $row['genre'],
                 'artistCount' => (int)$row['artist_count'],
-                'albumCount' => (int)$row['album_count']
+                'albumCount' => (int)$row['album_count'],
+                'artworkUrls' => $covers[$row['genre']] ?? []
             ];
         }
         $response['data'] = ['genres' => $genres];

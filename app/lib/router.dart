@@ -17,6 +17,7 @@ import 'screens/games/duel_game_screen.dart';
 import 'screens/games/party_screen.dart';
 import 'screens/games/swipe_game_screen.dart';
 import 'screens/games_screen.dart';
+import 'screens/genre_screen.dart';
 import 'screens/genres_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/ideas_screen.dart';
@@ -196,6 +197,12 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(path: '/settings/ideas', builder: (_, _) => const IdeasScreen()),
       GoRoute(path: '/genres', builder: (_, _) => const GenresScreen()),
+      // Le nom passe en query : un genre peut contenir « / ».
+      GoRoute(
+        path: '/genre',
+        builder: (_, state) =>
+            GenreScreen(genre: state.uri.queryParameters['name'] ?? ''),
+      ),
       GoRoute(
         path: '/settings/scan',
         builder: (_, _) => const LibraryScanScreen(),

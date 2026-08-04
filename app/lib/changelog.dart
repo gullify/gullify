@@ -8,6 +8,17 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('2.75.0', [
+    'La bibliothèque a un nouvel onglet « Genres » : tous les genres en '
+        'grille, chacun avec une mosaïque de quatre pochettes, son nombre '
+        'd\'artistes et d\'albums, le filtre instantané et la barre A-Z '
+        'comme pour les artistes et les albums',
+    'Un genre s\'ouvre maintenant sur sa propre page : lecture aléatoire du '
+        'genre en un geste, puis tous ses albums en grille et tous ses '
+        'artistes en liste',
+    'Le bouton « Gérer » (renommer, supprimer un genre) est à portée de main '
+        'depuis le nouvel onglet',
+  ]),
   ReleaseNote('2.74.0', [
     'Nouvel écran « Infos du serveur » (Paramètres → Compte) : l\'espace '
         'disque restant s\'affiche en gros, avec une jauge qui passe à '

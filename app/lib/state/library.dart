@@ -25,6 +25,11 @@ final artistsByGenreProvider = FutureProvider.family<List<Artist>, String>(
   (ref, genre) => ref.watch(libraryRepositoryProvider).artistsByGenre(genre),
 );
 
+/// Albums d'un genre donné.
+final albumsByGenreProvider = FutureProvider.family<List<Album>, String>(
+  (ref, genre) => ref.watch(libraryRepositoryProvider).albums(genre: genre),
+);
+
 final albumsProvider = FutureProvider<List<Album>>(
   (ref) => ref.watch(libraryRepositoryProvider).albums(),
 );
