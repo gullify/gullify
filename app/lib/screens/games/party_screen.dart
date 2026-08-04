@@ -14,6 +14,7 @@ import '../../state/player.dart';
 import '../../widgets/glass_box.dart';
 import '../../widgets/glass_kit.dart';
 import 'game_kit.dart';
+import 'game_source_sheet.dart';
 import 'party_round.dart';
 import 'party_talk.dart';
 
@@ -260,7 +261,7 @@ class _SetupState extends ConsumerState<_Setup> {
         for (final game in kGames)
           Padding(
             padding: const EdgeInsets.only(bottom: 8),
-            child: _PickTile(
+            child: GamePickTile(
               icon: game.icon,
               title: game.name,
               subtitle: game.tagline,
@@ -269,8 +270,21 @@ class _SetupState extends ConsumerState<_Setup> {
             ),
           ),
         const SizedBox(height: 14),
+        const SectionTitle('Le vivier', padding: EdgeInsets.fromLTRB(2, 4, 2, 8)),
+        GameSourceTile(
+          source: ref.watch(gameSourceProvider),
+          onChanged: (source) =>
+              ref.read(gameSourceProvider.notifier).set(source),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          'Les manches sont tirées de ta bibliothèque : ce réglage est le '
+          'même qu\'en solo.',
+          style: TextStyle(fontSize: 12.5, color: scheme.onSurfaceVariant),
+        ),
+        const SizedBox(height: 14),
         const SectionTitle('L\'écoute', padding: EdgeInsets.fromLTRB(2, 4, 2, 8)),
-        _PickTile(
+        GamePickTile(
           icon: Icons.speaker_rounded,
           title: 'Ensemble, sur mon appareil',
           subtitle:
@@ -280,7 +294,7 @@ class _SetupState extends ConsumerState<_Setup> {
           onTap: () => setState(() => _audioMode = 'host'),
         ),
         const SizedBox(height: 8),
-        _PickTile(
+        GamePickTile(
           icon: Icons.headphones_rounded,
           title: 'Chacun sur son appareil',
           subtitle:
@@ -303,9 +317,11 @@ class _SetupState extends ConsumerState<_Setup> {
           expand: true,
           onPressed: busy
               ? null
-              : () => ref
-                  .read(partyProvider.notifier)
-                  .create(game: _game, audioMode: _audioMode),
+              : () => ref.read(partyProvider.notifier).create(
+                  game: _game,
+                  audioMode: _audioMode,
+                  source: ref.read(gameSourceProvider),
+                ),
         ),
         const SizedBox(height: 10),
         Text(
@@ -315,82 +331,6 @@ class _SetupState extends ConsumerState<_Setup> {
           style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
         ),
       ],
-    );
-  }
-}
-
-class _PickTile extends StatelessWidget {
-  const _PickTile({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(18),
-        border: selected
-            ? Border.all(color: scheme.primary.withValues(alpha: 0.9), width: 1.6)
-            : null,
-        color: selected ? scheme.primary.withValues(alpha: 0.12) : null,
-      ),
-      child: GlassBox(
-        radius: 18,
-        blur: false,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(18),
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            child: Row(
-              children: [
-                Icon(
-                  icon,
-                  color: selected ? scheme.primary : scheme.onSurfaceVariant,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        title,
-                        style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      const SizedBox(height: 1),
-                      Text(
-                        subtitle,
-                        style: TextStyle(
-                          fontSize: 12.5,
-                          height: 1.25,
-                          color: scheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                if (selected)
-                  Icon(Icons.check_circle_rounded, color: scheme.primary),
-              ],
-            ),
-          ),
-        ),
-      ),
     );
   }
 }

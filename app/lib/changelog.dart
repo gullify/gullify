@@ -8,6 +8,18 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('2.69.0', [
+    'Les jeux ne piochent plus forcément dans toute la bibliothèque : on '
+        'choisit désormais le vivier depuis l\'onglet « Jeux » — tout, un ou '
+        'plusieurs genres, une ou plusieurs playlists, ou les favoris',
+    'Le réglage vaut pour les quatre jeux et se garde d\'une partie à '
+        'l\'autre. En cours de partie, le bouton en haut de l\'écran permet '
+        'd\'en changer : la partie repart aussitôt sur la nouvelle matière',
+    'Les parties à plusieurs suivent le même réglage : les manches sont '
+        'tirées du vivier choisi par l\'hôte au moment de créer le salon',
+    'Quand le vivier retenu ne suffit pas à un jeu, l\'écran le dit '
+        'clairement au lieu de laisser croire que la bibliothèque est vide',
+  ]),
   ReleaseNote('2.68.0', [
     'On peut se parler pendant une partie à plusieurs : une barre « talkie-'
         'walkie » apparaît en bas de l\'écran. Maintenez le bouton, parlez, '

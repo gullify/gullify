@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import '../api/library_repository.dart';
+import '../models/game_source.dart';
 import '../models/song.dart';
 import 'library.dart';
 
@@ -131,13 +132,17 @@ GameInfo? gameById(String id) {
 /// Matière première des jeux (titres datés + albums pochettés). Rechargée à
 /// chaque partie via `ref.refresh` pour ne pas rejouer le même tirage.
 final gamePoolProvider = FutureProvider<GamePool>(
-  (ref) => ref.watch(libraryRepositoryProvider).gamePool(),
+  (ref) => ref
+      .watch(libraryRepositoryProvider)
+      .gamePool(source: ref.watch(gameSourceProvider)),
 );
 
 /// Vivier du blind test : n'importe quel titre de la bibliothèque (pas
 /// besoin d'année ni de pochette).
 final blindPoolProvider = FutureProvider<List<Song>>(
-  (ref) => ref.watch(libraryRepositoryProvider).randomSongs(limit: 120),
+  (ref) => ref
+      .watch(libraryRepositoryProvider)
+      .randomSongs(limit: 120, source: ref.watch(gameSourceProvider)),
 );
 
 /// Vrai si glisser un titre de l'année [year] dans le trou n° [gap] de la
@@ -222,4 +227,50 @@ class GameStats extends Notifier<GameStatsState> {
 
 final gameStatsProvider = NotifierProvider<GameStats, GameStatsState>(
   GameStats.new,
+);
+
+/// Le vivier des jeux, retenu d'une partie à l'autre : c'est un réglage, pas
+/// un choix à refaire à chaque lancement.
+class GameSourceController extends Notifier<GameSource> {
+  static const _key = 'game_source';
+
+  bool _alive = true;
+  final Completer<void> _ready = Completer<void>();
+
+  /// Résolu quand le réglage a été relu du stockage. Borné, comme pour les
+  /// records : un stockage muet ne doit jamais retarder une partie.
+  Future<void> get ready =>
+      _ready.future.timeout(const Duration(seconds: 2), onTimeout: () {});
+
+  @override
+  GameSource build() {
+    ref.onDispose(() => _alive = false);
+    _restore();
+    return GameSource.all;
+  }
+
+  Future<void> _restore() async {
+    try {
+      final raw = await _storage.read(key: _key);
+      final source = GameSource.decode(raw);
+      if (_alive && source != state) state = source;
+    } catch (_) {
+      // Stockage indisponible (tests, plateforme sans plugin) : on joue avec
+      // toute la bibliothèque.
+    } finally {
+      if (!_ready.isCompleted) _ready.complete();
+    }
+  }
+
+  Future<void> set(GameSource source) async {
+    if (source == state) return;
+    state = source;
+    try {
+      await _storage.write(key: _key, value: source.encode());
+    } catch (_) {}
+  }
+}
+
+final gameSourceProvider = NotifierProvider<GameSourceController, GameSource>(
+  GameSourceController.new,
 );

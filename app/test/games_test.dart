@@ -1,6 +1,9 @@
 // Règles de placement du jeu « Chrono » : la seule logique de jeu qui peut
 // silencieusement se tromper (et fausser une partie entière).
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
+import 'package:gullify/models/game_source.dart';
 import 'package:gullify/state/games.dart';
 
 void main() {
@@ -33,6 +36,63 @@ void main() {
       expect(chronoPlacementIsCorrect(timeline, 2, 1995), isTrue);
       expect(chronoPlacementIsCorrect(timeline, 0, 1995), isFalse);
       expect(chronoPlacementIsCorrect(timeline, 3, 1995), isFalse);
+    });
+  });
+
+  group('GameSource', () {
+    test('toute la bibliothèque n\'ajoute aucun paramètre', () {
+      expect(GameSource.all.isAll, isTrue);
+      expect(GameSource.all.query, isEmpty);
+      expect(GameSource.all.label, 'Toute la bibliothèque');
+    });
+
+    test('une sélection vide retombe sur « tout »', () {
+      // Sans quoi le jeu n'aurait plus rien à tirer.
+      const genres = GameSource(mode: GameSourceMode.genres);
+      expect(genres.isAll, isTrue);
+      expect(genres.query, isEmpty);
+      const playlists = GameSource(mode: GameSourceMode.playlists);
+      expect(playlists.isAll, isTrue);
+    });
+
+    test('le vivier part au serveur en un seul paramètre JSON', () {
+      // Un nom de genre peut contenir une virgule : pas de liste séparée.
+      const source = GameSource(
+        mode: GameSourceMode.genres,
+        genres: ['Rock, Pop', 'Jazz'],
+      );
+      final sent = jsonDecode(source.query['source']!) as Map<String, dynamic>;
+      expect(sent['mode'], 'genres');
+      expect(sent['genres'], ['Rock, Pop', 'Jazz']);
+      expect(sent['playlists'], isEmpty);
+    });
+
+    test('les playlists ne partent que par leur identifiant', () {
+      const source = GameSource(
+        mode: GameSourceMode.playlists,
+        playlists: [GameSourcePlaylist(id: 7, name: 'Focus')],
+      );
+      expect(source.toApi()['playlists'], [7]);
+      expect(source.label, 'Focus');
+    });
+
+    test('le réglage stocké se relit à l\'identique, noms compris', () {
+      const source = GameSource(
+        mode: GameSourceMode.playlists,
+        playlists: [
+          GameSourcePlaylist(id: 7, name: 'Focus'),
+          GameSourcePlaylist(id: 9, name: 'Route de nuit'),
+        ],
+      );
+      expect(GameSource.decode(source.encode()), source);
+      expect(GameSource.decode(source.encode()).label, '2 playlists');
+    });
+
+    test('un réglage illisible ne bloque jamais une partie', () {
+      expect(GameSource.decode(null), GameSource.all);
+      expect(GameSource.decode(''), GameSource.all);
+      expect(GameSource.decode('{pas du json'), GameSource.all);
+      expect(GameSource.decode('{"mode":"nawak"}'), GameSource.all);
     });
   });
 

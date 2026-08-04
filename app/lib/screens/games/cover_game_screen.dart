@@ -176,6 +176,7 @@ class _CoverGameScreenState extends ConsumerState<CoverGameScreen> {
     return GameScaffold(
       game: kCoverGame,
       onQuit: () => _timer?.cancel(),
+      onSourceChanged: () => _load(),
       status: !playable
           ? null
           : GameStatusBar(

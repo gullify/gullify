@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import '../models/game_source.dart';
 import 'api_client.dart';
 
 /// Client des parties multijoueur (`/api/v2/party.php`).
@@ -420,10 +421,13 @@ class PartyRepository {
   PartyState _state(dynamic data) =>
       PartyState.fromJson(data as Map<String, dynamic>, _abs);
 
-  /// Crée un salon. `audioMode` : `host` ou `guests`.
+  /// Crée un salon. `audioMode` : `host` ou `guests`. `source` restreint le
+  /// vivier des manches à la bibliothèque de l'hôte (genres, playlists,
+  /// favoris) — c'est elle qui fournit la musique de la partie.
   Future<PartyTicket> create({
     required String game,
     required String audioMode,
+    GameSource source = GameSource.all,
     String? name,
   }) async {
     final data = await _client.post(
@@ -432,6 +436,7 @@ class PartyRepository {
       body: {
         'game': game,
         'audioMode': audioMode,
+        'source': source.toApi(),
         if (name != null && name.trim().isNotEmpty) 'name': name.trim(),
       },
     ) as Map<String, dynamic>;

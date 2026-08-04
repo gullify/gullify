@@ -199,6 +199,7 @@ class _BlindTestGameScreenState extends ConsumerState<BlindTestGameScreen> {
 
     return GameScaffold(
       game: kBlindGame,
+      onSourceChanged: () => _load(),
       onQuit: () {
         _timer?.cancel();
         _snippet.stop();

@@ -1,5 +1,6 @@
 import '../models/album.dart';
 import '../models/artist.dart';
+import '../models/game_source.dart';
 import '../models/game_track.dart';
 import '../models/server_user.dart';
 import '../models/song.dart';
@@ -173,22 +174,31 @@ class LibraryRepository {
     );
   }
 
-  /// Échantillon aléatoire de toute la bibliothèque (mélangé côté serveur).
-  Future<List<Song>> randomSongs({int limit = 200}) async {
+  /// Échantillon aléatoire de la bibliothèque (mélangé côté serveur).
+  /// [source] restreint le vivier (genres, playlists, favoris) pour les jeux.
+  Future<List<Song>> randomSongs({
+    int limit = 200,
+    GameSource source = GameSource.all,
+  }) async {
     final data =
         await _client.get('library.php', query: {
       'action': 'random_songs',
       'limit': limit,
+      ...source.query,
     });
     return _list(data, _song);
   }
 
   /// Matière première des jeux : un titre par album daté et pochetté, plus
   /// des albums pochettés, le tout mélangé côté serveur.
-  Future<GamePool> gamePool({int limit = 150}) async {
+  Future<GamePool> gamePool({
+    int limit = 150,
+    GameSource source = GameSource.all,
+  }) async {
     final data = await _client.get('library.php', query: {
       'action': 'game_pool',
       'limit': limit,
+      ...source.query,
     }) as Map<String, dynamic>;
     return GamePool(
       tracks: [

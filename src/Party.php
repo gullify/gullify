@@ -20,6 +20,7 @@
  */
 
 require_once __DIR__ . '/AppConfig.php';
+require_once __DIR__ . '/GameSource.php';
 require_once __DIR__ . '/TrackArtist.php';
 
 class Party
@@ -98,6 +99,7 @@ class Party
                     host_user VARCHAR(100) NOT NULL,
                     game VARCHAR(16) NOT NULL,
                     audio_mode ENUM('host','guests') NOT NULL DEFAULT 'host',
+                    source JSON NULL,
                     status ENUM('lobby','playing','finished') NOT NULL DEFAULT 'lobby',
                     rounds JSON NULL,
                     round_index INT NOT NULL DEFAULT 0,
@@ -159,6 +161,16 @@ class Party
         } catch (\Throwable $e) {
             error_log('Party::ensureTables failed: ' . $e->getMessage());
         }
+        // Colonne ajoutée après coup (vivier des manches : genres, playlists,
+        // favoris). Les salons d'avant la mise à jour n'en ont pas — la
+        // colonne reste NULL et vaut « toute la bibliothèque ».
+        try {
+            AppConfig::getDB()->exec(
+                "ALTER TABLE game_parties ADD COLUMN source JSON NULL AFTER audio_mode"
+            );
+        } catch (\Throwable $e) {
+            // Déjà là : rien à faire.
+        }
     }
 
     /** Horloge de référence du serveur, en millisecondes. */
@@ -171,10 +183,18 @@ class Party
 
     /**
      * Crée un salon et y installe l'hôte comme premier joueur.
+     *
+     * `$source` restreint le vivier des manches à un ou plusieurs genres, une
+     * ou plusieurs playlists, ou aux favoris de l'hôte (voir GameSource).
      * @return array{party: array, player: array}
      */
-    public static function create(string $hostUser, string $game, string $audioMode, string $hostName): array
-    {
+    public static function create(
+        string $hostUser,
+        string $game,
+        string $audioMode,
+        string $hostName,
+        mixed $source = null
+    ): array {
         self::ensureTables();
         self::purgeExpired();
         if (!in_array($game, self::GAMES, true)) {
@@ -189,10 +209,16 @@ class Party
 
         $code = self::freshCode($db);
         $stmt = $db->prepare(
-            'INSERT INTO game_parties (code, host_user, game, audio_mode, expires_at)
-             VALUES (?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL ' . self::TTL_HOURS . ' HOUR))'
+            'INSERT INTO game_parties (code, host_user, game, audio_mode, source, expires_at)
+             VALUES (?, ?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL ' . self::TTL_HOURS . ' HOUR))'
         );
-        $stmt->execute([$code, $hostUser, $game, $audioMode]);
+        $stmt->execute([
+            $code,
+            $hostUser,
+            $game,
+            $audioMode,
+            json_encode(GameSource::normalize($source), JSON_UNESCAPED_UNICODE),
+        ]);
         $partyId = (int)$db->lastInsertId();
 
         $player = self::addPlayer($partyId, $hostName, true);
@@ -395,7 +421,7 @@ class Party
         if (count($players) < 2) throw new RuntimeException('need_two_players');
         if ($party['status'] !== 'lobby') throw new RuntimeException('already_started');
 
-        $rounds = self::buildRounds($party['host_user'], $party['game']);
+        $rounds = self::buildRounds($party['host_user'], $party['game'], self::source($party));
         if (count($rounds) === 0) throw new RuntimeException('library_too_small');
 
         $db = AppConfig::getDB();
@@ -427,35 +453,51 @@ class Party
         return self::byId($partyId);
     }
 
+    /** Le vivier choisi par l'hôte à la création du salon. */
+    public static function source(array $party): array
+    {
+        return GameSource::normalize($party['source'] ?? null);
+    }
+
     /** Toutes les manches d'une partie, prêtes à jouer. */
-    private static function buildRounds(string $user, string $game): array
+    private static function buildRounds(string $user, string $game, array $source): array
     {
         return match ($game) {
-            'blind'  => self::buildBlind($user),
-            'cover'  => self::buildCover($user),
-            'duel'   => self::buildDuel($user),
-            'chrono' => self::buildChrono($user),
+            'blind'  => self::buildBlind($user, $source),
+            'cover'  => self::buildCover($user, $source),
+            'duel'   => self::buildDuel($user, $source),
+            'chrono' => self::buildChrono($user, $source),
             default  => [],
         };
     }
 
     /** Titres quelconques de la bibliothèque (blind test). */
-    private static function songPool(string $user, int $limit, bool $datedOnly): array
+    private static function songPool(string $user, int $limit, bool $datedOnly, array $source): array
     {
         $db = AppConfig::getDB();
         $where = $datedOnly
             ? "AND al.year BETWEEN 1900 AND 2100 AND al.artwork IS NOT NULL AND al.artwork <> ''"
             : '';
+        $params = [];
         // Un seul titre par album quand on a besoin de millésimes distincts :
-        // deux pistes du même album auraient la même année.
-        $pick = $datedOnly
-            ? 'JOIN (SELECT MIN(s2.id) AS song_id FROM songs s2
+        // deux pistes du même album auraient la même année. Le vivier se
+        // filtre alors DANS la sous-requête, pour que le titre retenu par
+        // album en fasse lui-même partie.
+        $pick = '';
+        if ($datedOnly) {
+            [$pickSrc, $pickParams] = GameSource::songWhere($user, $source, 's2', 'al2', 'a2');
+            $pick = 'JOIN (SELECT MIN(s2.id) AS song_id FROM songs s2
                      JOIN albums al2 ON s2.album_id = al2.id
                      JOIN artists a2 ON al2.artist_id = a2.id
                      WHERE a2.user = ? AND al2.year BETWEEN 1900 AND 2100
                        AND al2.artwork IS NOT NULL AND al2.artwork <> \'\'
-                     GROUP BY s2.album_id) pick ON pick.song_id = s.id'
-            : '';
+                       ' . $pickSrc . '
+                     GROUP BY s2.album_id) pick ON pick.song_id = s.id';
+            $params = array_merge($params, [$user], $pickParams);
+        }
+        [$srcSql, $srcParams] = $datedOnly
+            ? ['', []]
+            : GameSource::songWhere($user, $source);
         $sql = "SELECT s.id, s.title, s.duration, s.file_path, s.album_id,
                        al.name AS album_name, al.year,
                        " . TRACK_ARTIST_NAME . " AS artist_name
@@ -464,23 +506,25 @@ class Party
                 JOIN albums al ON s.album_id = al.id
                 JOIN artists a ON al.artist_id = a.id
                 " . TRACK_ARTIST_JOIN . "
-                WHERE a.user = ? AND s.duration > 30 $where
+                WHERE a.user = ? AND s.duration > 30 $where $srcSql
                 ORDER BY RAND() LIMIT " . (int)$limit;
         $stmt = $db->prepare($sql);
-        $stmt->execute($datedOnly ? [$user, $user] : [$user]);
+        $stmt->execute(array_merge($params, [$user], $srcParams));
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    private static function albumPool(string $user, int $limit): array
+    private static function albumPool(string $user, int $limit, array $source): array
     {
         $db = AppConfig::getDB();
+        [$srcSql, $srcParams] = GameSource::albumWhere($user, $source);
         $stmt = $db->prepare(
             "SELECT al.id, al.name, al.year, a.name AS artist_name
              FROM albums al JOIN artists a ON al.artist_id = a.id
              WHERE a.user = ? AND al.artwork IS NOT NULL AND al.artwork <> ''
+             $srcSql
              ORDER BY RAND() LIMIT " . (int)$limit
         );
-        $stmt->execute([$user]);
+        $stmt->execute(array_merge([$user], $srcParams));
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
@@ -501,9 +545,9 @@ class Party
         return $low + random_int(0, max(1, $high - $low));
     }
 
-    private static function buildBlind(string $user): array
+    private static function buildBlind(string $user, array $source): array
     {
-        $pool = self::songPool($user, 120, false);
+        $pool = self::songPool($user, 120, false, $source);
         if (count($pool) < 8) return [];
         $targets = array_slice($pool, 0, self::ROUNDS['blind']);
         $rounds = [];
@@ -525,9 +569,9 @@ class Party
         return $rounds;
     }
 
-    private static function buildCover(string $user): array
+    private static function buildCover(string $user, array $source): array
     {
-        $pool = self::albumPool($user, 120);
+        $pool = self::albumPool($user, 120, $source);
         if (count($pool) < 8) return [];
         $targets = array_slice($pool, 0, self::ROUNDS['cover']);
         $rounds = [];
@@ -578,9 +622,9 @@ class Party
         return $options;
     }
 
-    private static function buildDuel(string $user): array
+    private static function buildDuel(string $user, array $source): array
     {
-        $pool = self::songPool($user, 120, true);
+        $pool = self::songPool($user, 120, true, $source);
         // Un duel n'est décidable qu'entre deux millésimes différents.
         $byYear = [];
         foreach ($pool as $t) $byYear[(int)$t['year']][] = $t;
@@ -622,9 +666,9 @@ class Party
         ];
     }
 
-    private static function buildChrono(string $user): array
+    private static function buildChrono(string $user, array $source): array
     {
-        $pool = self::songPool($user, self::ROUNDS['chrono'] + 6, true);
+        $pool = self::songPool($user, self::ROUNDS['chrono'] + 6, true, $source);
         if (count($pool) < 8) return [];
         $rounds = [];
         foreach ($pool as $i => $t) {

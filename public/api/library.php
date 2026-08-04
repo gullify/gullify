@@ -16,6 +16,7 @@ header('Content-Type: application/json');
 
 require_once __DIR__ . '/../../src/AppConfig.php';
 require_once __DIR__ . '/../../src/Database.php';
+require_once __DIR__ . '/../../src/GameSource.php';
 require_once __DIR__ . '/../../src/PathHelper.php';
 require_once __DIR__ . '/../../src/TrackArtist.php';
 
@@ -629,8 +630,10 @@ try {
 
     } elseif ($action === 'random_songs') {
         // Lecture aléatoire de toute la bibliothèque : échantillon mélangé
-        // côté SQL (borné pour garder une file raisonnable).
+        // côté SQL (borné pour garder une file raisonnable). Les jeux peuvent
+        // restreindre le vivier (genres, playlists, favoris) — voir GameSource.
         $limit = min(500, max(1, intval($_GET['limit'] ?? 200)));
+        [$srcSql, $srcParams] = GameSource::songWhere($user, GameSource::fromRequest());
         $stmt = $conn->prepare("
             SELECT s.id, s.title, s.track_number, s.duration, s.file_path,
                    s.album_id, al.name AS album_name,
@@ -640,11 +643,11 @@ try {
             JOIN albums al ON s.album_id = al.id
             JOIN artists a ON al.artist_id = a.id
             " . TRACK_ARTIST_JOIN . "
-            WHERE a.user = ?
+            WHERE a.user = ? $srcSql
             ORDER BY RAND()
             LIMIT $limit
         ");
-        $stmt->execute([$user]);
+        $stmt->execute(array_merge([$user], $srcParams));
         $songs = [];
         while ($row = $stmt->fetch()) {
             $songs[] = [
@@ -670,7 +673,12 @@ try {
         //    millésime dans une même partie.
         //  - albums : albums pochettés, mélangés — sert à « Pochette mystère ».
         // Les années absurdes sont écartées (tags parfois farfelus).
+        // Le vivier peut être restreint (genres, playlists, favoris) : le
+        // filtre s'applique DANS la sous-requête, pour que le titre retenu
+        // par album soit lui-même dans le vivier.
         $limit = min(300, max(1, intval($_GET['limit'] ?? 150)));
+        $source = GameSource::fromRequest();
+        [$pickSql, $pickParams] = GameSource::songWhere($user, $source, 's2', 'al2', 'a2');
         $stmt = $conn->prepare("
             SELECT s.id, s.title, s.track_number, s.duration, s.file_path,
                    s.album_id, al.name AS album_name, al.year,
@@ -685,6 +693,7 @@ try {
                 WHERE a2.user = ?
                   AND al2.year BETWEEN 1900 AND 2100
                   AND al2.artwork IS NOT NULL AND al2.artwork <> ''
+                  $pickSql
                 GROUP BY s2.album_id
             ) pick ON pick.song_id = s.id
             JOIN albums al ON s.album_id = al.id
@@ -693,7 +702,7 @@ try {
             ORDER BY RAND()
             LIMIT $limit
         ");
-        $stmt->execute([$user]);
+        $stmt->execute(array_merge([$user], $pickParams));
         $tracks = [];
         while ($row = $stmt->fetch()) {
             $tracks[] = [
@@ -711,6 +720,7 @@ try {
             ];
         }
 
+        [$albSql, $albParams] = GameSource::albumWhere($user, $source);
         $stmt = $conn->prepare("
             SELECT al.id, al.name, al.year,
                    a.id AS artist_id, a.name AS artist_name
@@ -718,10 +728,11 @@ try {
             JOIN artists a ON al.artist_id = a.id
             WHERE a.user = ?
               AND al.artwork IS NOT NULL AND al.artwork <> ''
+              $albSql
             ORDER BY RAND()
             LIMIT $limit
         ");
-        $stmt->execute([$user]);
+        $stmt->execute(array_merge([$user], $albParams));
         $albums = [];
         while ($row = $stmt->fetch()) {
             $albums[] = [

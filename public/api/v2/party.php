@@ -2,7 +2,7 @@
 /**
  * Gullify API v2 — Parties multijoueur des jeux.
  *
- *   POST ?action=create   {game,audioMode,name}   → session requise
+ *   POST ?action=create   {game,audioMode,name,source} → session requise
  *   GET  ?action=info&code=…                      → carte de visite du salon
  *   POST ?action=join     {code,name}             → jeton invité
  *   GET  ?action=state&code=…&token=…             → état complet
@@ -33,6 +33,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/_v2.php';
 require_once __DIR__ . '/../../../src/AppConfig.php';
+require_once __DIR__ . '/../../../src/GameSource.php';
 require_once __DIR__ . '/../../../src/Party.php';
 require_once __DIR__ . '/../../../src/Storage/StorageInterface.php';
 require_once __DIR__ . '/../../../src/Storage/LocalStorage.php';
@@ -60,7 +61,7 @@ function p_message(string $code): string {
         'name_required'    => 'Il faut un prénom.',
         'need_two_players' => "Il faut être au moins deux pour lancer la partie.",
         'already_started'  => 'La partie est déjà lancée.',
-        'library_too_small'=> "La bibliothèque n'a pas assez de titres pour ce jeu.",
+        'library_too_small'=> "Pas assez de titres pour ce jeu : élargis la source (tout, un autre genre, une autre playlist).",
         'not_host'         => "Seul l'hôte peut faire ça.",
         'not_accepting'    => "Ce n'est plus le moment de répondre.",
         'not_your_turn'    => "Ce n'est pas ton tour.",
@@ -106,7 +107,13 @@ try {
             $name = p_in('name', $default);
 
             try {
-                $made = Party::create((string)$user['username'], $game, $mode, Party::cleanName($name));
+                $made = Party::create(
+                    (string)$user['username'],
+                    $game,
+                    $mode,
+                    Party::cleanName($name),
+                    GameSource::fromRequest($body)
+                );
             } catch (InvalidArgumentException|RuntimeException $e) {
                 v2_fail('invalid_request', p_message($e->getMessage()), 400);
             }

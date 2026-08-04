@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../api/api_client.dart';
 import '../api/party_repository.dart';
+import '../models/game_source.dart';
 import 'auth.dart';
 
 final partyRepositoryProvider = Provider<PartyRepository>(
@@ -93,10 +94,18 @@ class PartyController extends Notifier<PartySession> {
       e is ApiException ? e.message : 'Connexion au serveur impossible';
 
   /// Crée un salon et commence à le suivre.
-  Future<bool> create({required String game, required String audioMode}) async {
+  Future<bool> create({
+    required String game,
+    required String audioMode,
+    GameSource source = GameSource.all,
+  }) async {
     state = state.copyWith(busy: true, clearError: true);
     try {
-      final ticket = await _repo.create(game: game, audioMode: audioMode);
+      final ticket = await _repo.create(
+        game: game,
+        audioMode: audioMode,
+        source: source,
+      );
       state = PartySession(
         code: ticket.code,
         token: ticket.token,

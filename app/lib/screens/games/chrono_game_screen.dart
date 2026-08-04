@@ -191,6 +191,7 @@ class _ChronoGameScreenState extends ConsumerState<ChronoGameScreen> {
     return GameScaffold(
       game: kChronoGame,
       onQuit: _snippet.stop,
+      onSourceChanged: () => _load(),
       status: _phase == _Phase.loading || _phase == _Phase.empty
           ? null
           : GameStatusBar(

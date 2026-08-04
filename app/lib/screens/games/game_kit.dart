@@ -11,6 +11,7 @@ import '../../state/games.dart';
 import '../../widgets/glass_box.dart';
 import '../../widgets/glass_kit.dart';
 import '../../widgets/mascot_empty.dart';
+import 'game_source_sheet.dart';
 
 /// Briques communes aux jeux : en-tête, feuille de règles, boutons de
 /// réponse, écran de fin et lecteur d'extraits.
@@ -91,6 +92,7 @@ class GameScaffold extends ConsumerWidget {
     required this.child,
     this.status,
     this.onQuit,
+    this.onSourceChanged,
   });
 
   final GameInfo game;
@@ -101,6 +103,10 @@ class GameScaffold extends ConsumerWidget {
 
   /// Appelé avant de quitter (arrêt de l'extrait en cours).
   final VoidCallback? onQuit;
+
+  /// Appelé quand le vivier vient de changer : la partie en cours est
+  /// relancée sur la nouvelle matière. Sans lui, le bouton n'apparaît pas.
+  final VoidCallback? onSourceChanged;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -133,6 +139,24 @@ class GameScaffold extends ConsumerWidget {
                       ),
                     ),
                   ),
+                  if (onSourceChanged != null) ...[
+                    GlassIconButton(
+                      icon: gameSourceIcon(ref.watch(gameSourceProvider)),
+                      tooltip: 'Où le jeu pioche',
+                      size: 42,
+                      onPressed: () async {
+                        final current = ref.read(gameSourceProvider);
+                        final picked = await showGameSourceSheet(
+                          context,
+                          current,
+                        );
+                        if (picked == null || picked == current) return;
+                        await ref.read(gameSourceProvider.notifier).set(picked);
+                        onSourceChanged!();
+                      },
+                    ),
+                    const SizedBox(width: 8),
+                  ],
                   GlassIconButton(
                     icon: Icons.help_outline_rounded,
                     tooltip: 'Règles du jeu',
@@ -488,6 +512,88 @@ class GameChoiceTile extends StatelessWidget {
 
 enum GameChoiceState { idle, correct, wrong, faded }
 
+/// Choix d'un réglage avant de jouer (jeu, mode d'écoute, vivier) : une carte
+/// de verre qui prend le liseré accent quand elle est retenue.
+class GamePickTile extends StatelessWidget {
+  const GamePickTile({
+    super.key,
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(18),
+        border: selected
+            ? Border.all(
+                color: scheme.primary.withValues(alpha: 0.9),
+                width: 1.6,
+              )
+            : null,
+        color: selected ? scheme.primary.withValues(alpha: 0.12) : null,
+      ),
+      child: GlassBox(
+        radius: 18,
+        blur: false,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(18),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            child: Row(
+              children: [
+                Icon(
+                  icon,
+                  color: selected ? scheme.primary : scheme.onSurfaceVariant,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 1),
+                      Text(
+                        subtitle,
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          height: 1.25,
+                          color: scheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (selected)
+                  Icon(Icons.check_circle_rounded, color: scheme.primary),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// Fin de partie : score, record, rejouer / quitter.
 class GameOverPanel extends StatelessWidget {
   const GameOverPanel({
@@ -576,13 +682,30 @@ class GameOverPanel extends StatelessWidget {
 }
 
 /// Message affiché quand la bibliothèque ne fournit pas assez de matière.
-class GameNotEnoughData extends StatelessWidget {
+///
+/// Quand un vivier est en place, c'est souvent lui le coupable : on le dit,
+/// plutôt que de laisser croire que la bibliothèque est vide.
+class GameNotEnoughData extends ConsumerWidget {
   const GameNotEnoughData({super.key, required this.message, this.hint});
 
   final String message;
   final String? hint;
 
   @override
-  Widget build(BuildContext context) =>
-      MascotEmpty(message: message, hint: hint, size: 112);
+  Widget build(BuildContext context, WidgetRef ref) {
+    final source = ref.watch(gameSourceProvider);
+    final narrowed = source.isAll
+        ? null
+        : 'Le jeu ne pioche que dans « ${source.label} » : élargis le vivier '
+              'avec le bouton du haut.';
+    final lines = [
+      if (hint != null && hint!.isNotEmpty) hint!,
+      ?narrowed,
+    ];
+    return MascotEmpty(
+      message: message,
+      hint: lines.isEmpty ? null : lines.join('\n\n'),
+      size: 112,
+    );
+  }
 }

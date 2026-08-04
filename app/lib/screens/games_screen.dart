@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../state/games.dart';
 import '../widgets/glass_box.dart';
+import 'games/game_source_sheet.dart';
 
 /// Onglet « Jeux » : le catalogue des jeux musicaux, jouables avec sa propre
 /// bibliothèque. Chaque carte affiche le meilleur score déjà réalisé.
@@ -41,6 +42,14 @@ class GamesScreen extends ConsumerWidget {
                 'Quatre façons de jouer avec ta propre bibliothèque — '
                 'seul ou à plusieurs.',
                 style: TextStyle(fontSize: 14, color: scheme.onSurfaceVariant),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
+              child: GameSourceTile(
+                source: ref.watch(gameSourceProvider),
+                onChanged: (source) =>
+                    ref.read(gameSourceProvider.notifier).set(source),
               ),
             ),
             const Padding(

@@ -166,6 +166,7 @@ class _DuelGameScreenState extends ConsumerState<DuelGameScreen> {
 
     return GameScaffold(
       game: kDuelGame,
+      onSourceChanged: () => _load(),
       status: !playable
           ? null
           : GameStatusBar(
