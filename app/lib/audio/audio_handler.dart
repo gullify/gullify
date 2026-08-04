@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:audio_service/audio_service.dart';
 import 'package:audio_session/audio_session.dart';
@@ -11,9 +10,10 @@ import '../api/playlist_repository.dart';
 import '../api/radio_repository.dart';
 import '../api/yt_downloads_repository.dart';
 import '../models/song.dart';
+import 'equalizer.dart';
 import 'net_lock.dart';
 
-bool get equalizerSupported => !kIsWeb && Platform.isAndroid;
+export 'equalizer.dart' show equalizerSupported;
 
 Future<GullifyAudioHandler> initAudioHandler() {
   return AudioService.init(
@@ -98,6 +98,16 @@ class GullifyAudioHandler extends BaseAudioHandler
       }
     });
     _watchAudioSession();
+    // La session audio n'existe qu'une fois la lecture lancée (ExoPlayer la
+    // génère en tâche de fond) : c'est le seul moment où l'égaliseur peut
+    // s'accrocher. Une nouvelle session = un nouvel effet à recréer.
+    if (equalizerSupported) {
+      _player.androidAudioSessionIdStream.listen((id) {
+        if (id == null) return;
+        logPlayback('égaliseur : session audio $id');
+        equalizer.attachSession(id);
+      });
+    }
     _player.currentIndexStream.listen((index) {
       final q = queue.value;
       if (index == null || index < 0 || index >= q.length) return;
@@ -126,15 +136,15 @@ class GullifyAudioHandler extends BaseAudioHandler
     });
   }
 
-  /// Android-only equalizer (a pipeline breaks playback on web).
-  final equalizer = AndroidEqualizer();
+  /// Égaliseur système (Android). Volontairement HORS de l'AudioPipeline de
+  /// just_audio : celui-ci lisait les bandes avant qu'ExoPlayer n'ait de
+  /// session audio, et l'exception empoisonnait le lecteur — plus aucune
+  /// lecture possible (idée #47). Voir equalizer.dart.
+  final equalizer = GullifyEqualizer();
 
   // Buffer tuning proven by the previous Android client (PixelPlay fork):
   // min 30s / max 60s / playback start after 5s.
   late final _player = AudioPlayer(
-    audioPipeline: equalizerSupported
-        ? AudioPipeline(androidAudioEffects: [equalizer])
-        : null,
     audioLoadConfiguration: const AudioLoadConfiguration(
       androidLoadControl: AndroidLoadControl(
         minBufferDuration: Duration(seconds: 30),

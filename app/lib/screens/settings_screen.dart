@@ -6,16 +6,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../audio/equalizer.dart';
 import '../state/app_theme.dart';
 import '../state/app_update.dart';
 import '../state/auth.dart';
 import '../state/background_playback.dart';
-import '../state/equalizer.dart';
 import '../state/offline.dart';
 import '../theme.dart';
 import '../widgets/update_dialog.dart';
 
-const appVersion = '2.76.0';
+const appVersion = '2.77.0';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});

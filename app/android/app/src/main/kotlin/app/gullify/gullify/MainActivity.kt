@@ -2,6 +2,7 @@ package app.gullify.gullify
 
 import android.content.Context
 import android.content.Intent
+import android.media.audiofx.Equalizer
 import android.net.wifi.WifiManager
 import android.os.PowerManager
 import androidx.core.content.FileProvider
@@ -9,6 +10,7 @@ import com.ryanheise.audioservice.AudioServiceActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import java.io.File
+import kotlin.math.roundToInt
 
 class MainActivity : AudioServiceActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
@@ -65,11 +67,110 @@ class MainActivity : AudioServiceActivity() {
                 result.notImplemented()
             }
         }
+        // Égaliseur système, attaché à la session audio du lecteur. On ne passe
+        // plus par l'AudioPipeline de just_audio : il lit les bandes au moment
+        // où il active le lecteur, avant qu'ExoPlayer (media3 1.9) n'ait généré
+        // sa session audio en tâche de fond. L'effet n'existe alors pas encore
+        // côté natif et l'exception qui en découlait empoisonnait le lecteur —
+        // plus aucune chanson ne démarrait (idée #47). Ici, un échec ne touche
+        // que l'écran de réglage.
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            "gullify/equalizer",
+        ).setMethodCallHandler { call, result ->
+            try {
+                when (call.method) {
+                    "bind" -> result.success(
+                        bindEqualizer(
+                            call.argument<Int>("sessionId")!!,
+                            call.argument<Boolean>("enabled") ?: false,
+                            call.argument<List<Double>>("gains") ?: emptyList(),
+                        ),
+                    )
+                    "setEnabled" -> {
+                        // setEnabled renvoie un code Android (pas un setter de
+                        // propriété Kotlin) : on l'appelle explicitement.
+                        equalizer?.setEnabled(call.argument<Boolean>("enabled")!!)
+                        result.success(true)
+                    }
+                    "setBandGain" -> {
+                        setBandGain(
+                            call.argument<Int>("index")!!,
+                            call.argument<Double>("gain")!!,
+                        )
+                        result.success(true)
+                    }
+                    else -> result.notImplemented()
+                }
+            } catch (e: Exception) {
+                result.error("eq_unavailable", e.message, null)
+            }
+        }
     }
 
     companion object {
         private var wifiLock: WifiManager.WifiLock? = null
         private var wakeLock: PowerManager.WakeLock? = null
+        private var equalizer: Equalizer? = null
+        private var equalizerSession: Int? = null
+
+        /// Crée (ou réutilise) l'égaliseur de la session audio donnée, y rejoue
+        /// les réglages mémorisés par l'app, et renvoie les bandes de
+        /// l'appareil. Une nouvelle session = un nouvel effet : l'ancien est
+        /// relâché pour ne pas fuir.
+        @Synchronized
+        private fun bindEqualizer(
+            sessionId: Int,
+            enabled: Boolean,
+            gains: List<Double>,
+        ): Map<String, Any> {
+            if (equalizerSession != sessionId) {
+                try {
+                    equalizer?.release()
+                } catch (_: Exception) {
+                }
+                equalizer = null
+                equalizerSession = null
+                equalizer = Equalizer(0, sessionId)
+                equalizerSession = sessionId
+            }
+            val eq = equalizer!!
+            val range = eq.bandLevelRange // en milliBels
+            val bandCount = eq.numberOfBands.toInt()
+            for (i in 0 until bandCount) {
+                val gain = gains.getOrNull(i) ?: continue
+                eq.setBandLevel(
+                    i.toShort(),
+                    millibels(gain, range),
+                )
+            }
+            eq.setEnabled(enabled)
+            return mapOf(
+                "minDecibels" to range[0] / 100.0,
+                "maxDecibels" to range[1] / 100.0,
+                "bands" to (0 until bandCount).map { i ->
+                    mapOf(
+                        "index" to i,
+                        // getCenterFreq renvoie des milliHertz, on veut des Hz.
+                        "centerFrequency" to eq.getCenterFreq(i.toShort()) / 1000.0,
+                        "gain" to eq.getBandLevel(i.toShort()) / 100.0,
+                    )
+                },
+            )
+        }
+
+        @Synchronized
+        private fun setBandGain(index: Int, gain: Double) {
+            val eq = equalizer ?: return
+            eq.setBandLevel(index.toShort(), millibels(gain, eq.bandLevelRange))
+        }
+
+        /// dB (côté app) → milliBels bornés à la plage de l'appareil (Android
+        /// rejette toute valeur hors plage).
+        private fun millibels(decibels: Double, range: ShortArray): Short =
+            (decibels * 100.0).roundToInt()
+                .coerceIn(range[0].toInt(), range[1].toInt())
+                .toShort()
 
         /// Acquiert (hold=true) ou relâche (hold=false) les verrous réseau, de
         /// façon idempotente. Toute exception est avalée : un échec de verrou ne

@@ -6,7 +6,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'audio/audio_handler.dart';
 import 'router.dart';
 import 'state/app_theme.dart';
-import 'state/equalizer.dart';
 import 'state/player.dart';
 import 'theme.dart';
 import 'widgets/keyboard_guard.dart';
@@ -14,9 +13,9 @@ import 'widgets/keyboard_guard.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final audioHandler = await initAudioHandler();
-  // Ne bloque jamais le premier affichage : l'égaliseur se restaure en
+  // Ne bloque jamais le premier affichage : l'égaliseur relit ses réglages en
   // arrière-plan et une erreur de plugin ne doit pas geler le démarrage.
-  unawaited(applySavedEqualizer(audioHandler).catchError((_) {}));
+  unawaited(audioHandler.equalizer.loadSaved().catchError((_) {}));
 
   // Container indépendant de l'arbre de widgets : quand Android Auto lance
   // l'app sans interface (téléphone verrouillé), aucun widget ne se

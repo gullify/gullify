@@ -8,6 +8,9 @@
     <!-- Talkie-walkie des parties multijoueur : se parler pendant un jeu.
          Demandée à la volée, au premier appui sur le bouton « parler ». -->
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+    <!-- Égaliseur : Android exige cette permission pour créer un effet audio
+         sur la session du lecteur. -->
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS"/>
     <!-- Auto-update : lancement de l'installeur d'APK téléchargé -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
     <!-- Lecture continue écran éteint : sans cette exemption, Android coupe

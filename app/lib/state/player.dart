@@ -2,6 +2,7 @@ import 'package:audio_service/audio_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../audio/audio_handler.dart';
+import '../audio/equalizer.dart';
 import '../models/song.dart';
 import 'auth.dart';
 import 'favorites.dart';
@@ -14,6 +15,12 @@ import 'yt_downloads.dart';
 /// Overridden in main() with the handler created by AudioService.init().
 final audioHandlerProvider = Provider<GullifyAudioHandler>(
   (ref) => throw UnimplementedError('audioHandlerProvider must be overridden'),
+);
+
+/// Égaliseur système. Exposé à part du handler : l'écran de réglage n'a besoin
+/// que de lui.
+final equalizerProvider = Provider<GullifyEqualizer>(
+  (ref) => ref.watch(audioHandlerProvider).equalizer,
 );
 
 /// Keeps the handler's repository in sync with auth (needed by Android Auto)

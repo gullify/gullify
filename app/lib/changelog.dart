@@ -8,6 +8,19 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('2.77.0', [
+    'La musique repart : plus aucune chanson ne démarrait et le lecteur '
+        'répondait toujours la même erreur, à cause de l\'égaliseur — il '
+        'demandait ses réglages au lecteur avant que celui-ci n\'ait ouvert '
+        'sa sortie audio, et l\'échec bloquait tout le reste',
+    'L\'égaliseur ne vit plus à l\'intérieur du lecteur : Gullify le branche '
+        'lui-même sur le son en cours, une fois la lecture partie. S\'il est '
+        'refusé par le téléphone, il le dit — la musique, elle, continue',
+    'Sa page marche de nouveau : les bandes de l\'appareil, les presets '
+        '(Rock, Jazz, Basses +…) et les réglages retrouvés au lancement. '
+        'Avant la première chanson, elle invite simplement à en lancer une, '
+        'le temps qu\'Android ouvre la sortie audio',
+  ]),
   ReleaseNote('2.76.0', [
     'La bibliothèque se range enfin dans une liste courte de 21 genres '
         'principaux — Chanson québécoise/francophone, Traditionnel québécois, '
