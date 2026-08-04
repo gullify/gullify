@@ -569,7 +569,12 @@ void _artistMenu(BuildContext context, WidgetRef ref, ArtistDetail d) {
                 : null,
             onTap: () {
               Navigator.pop(sheetContext);
-              _setGenreDialog(context, ref, d.artist.id, d.artist.genre);
+              _setGenreDialog(
+                context,
+                d.artist.id,
+                d.artist.genre,
+                artistName: d.artist.name,
+              );
             },
           ),
           const Divider(height: 1),
@@ -617,23 +622,109 @@ void _artistMenu(BuildContext context, WidgetRef ref, ArtistDetail d) {
 /// Dialogue « Définir le genre » : une suggestion tirée de MusicBrainz, les
 /// genres principaux à choisir d'un tap, un champ libre pour ce qui n'y rentre
 /// pas — et, le temps de se décider, un medley de l'artiste en fond.
-void _setGenreDialog(
+///
+/// Le dialogue ne fait que choisir : c'est ici qu'on enregistre, puis qu'on
+/// propose d'enchaîner sur l'artiste suivant qui n'a pas de genre (ranger une
+/// bibliothèque se fait par séries, et rouvrir le dialogue sur place évite
+/// l'aller-retour par la bibliothèque).
+Future<void> _setGenreDialog(
   BuildContext context,
-  WidgetRef ref,
   int artistId,
-  String? current,
-) {
-  showDialog<void>(
+  String? current, {
+  String? artistName,
+}) async {
+  // Tout ce dont la suite a besoin se saisit AVANT l'attente : passé la
+  // fermeture du dialogue, la fiche peut avoir disparu — le messager et le
+  // conteneur, eux, lui survivent.
+  final messenger = ScaffoldMessenger.of(context);
+  final container = ProviderScope.containerOf(context, listen: false);
+
+  final genre = await showDialog<String>(
     context: context,
-    builder: (_) => _GenreDialog(artistId: artistId, current: current),
+    builder: (_) => _GenreDialog(
+      artistId: artistId,
+      current: current,
+      artistName: artistName,
+    ),
+  );
+  if (genre == null) return; // Annulé : rien à enregistrer.
+
+  try {
+    await container
+        .read(libraryRepositoryProvider)
+        .setArtistGenre(artistId, genre);
+  } catch (e) {
+    messenger.showSnackBar(SnackBar(content: Text('Échec : $e')));
+    return;
+  }
+  container.invalidate(artistDetailProvider(artistId));
+  container.invalidate(genresProvider);
+  container.invalidate(artistsProvider);
+  container.invalidate(untaggedArtistsProvider);
+
+  // Retirer un genre n'ouvre pas de série : on vient au contraire d'ajouter
+  // un artiste à ranger.
+  if (genre.isEmpty) {
+    messenger.showSnackBar(const SnackBar(content: Text('Genre retiré')));
+    return;
+  }
+
+  final untagged = await _untaggedArtists(container);
+  final next = untagged?.next(exceptId: artistId);
+  if (next == null) {
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          // Sans liste (réseau), on ne prétend pas que tout est rangé.
+          untagged == null
+              ? 'Genre mis à jour'
+              : 'Genre mis à jour · plus aucun artiste sans genre',
+        ),
+      ),
+    );
+    return;
+  }
+
+  messenger.showSnackBar(
+    SnackBar(
+      duration: const Duration(seconds: 8),
+      content: Text('Genre mis à jour · suivant : ${next.name}'),
+      action: SnackBarAction(
+        label: 'Ranger',
+        onPressed: () {
+          if (!context.mounted) return;
+          messenger.hideCurrentSnackBar();
+          _setGenreDialog(context, next.id, null, artistName: next.name);
+        },
+      ),
+    ),
   );
 }
 
+/// Les artistes sans genre, ou null si le serveur n'a pas répondu — le genre
+/// est enregistré, une proposition qui manque ne vaut pas une erreur en
+/// travers de l'écran.
+Future<UntaggedArtists?> _untaggedArtists(ProviderContainer container) async {
+  try {
+    return await container.read(untaggedArtistsProvider.future);
+  } catch (_) {
+    return null;
+  }
+}
+
 class _GenreDialog extends ConsumerStatefulWidget {
-  const _GenreDialog({required this.artistId, required this.current});
+  const _GenreDialog({
+    required this.artistId,
+    required this.current,
+    this.artistName,
+  });
 
   final int artistId;
   final String? current;
+
+  /// Affiché en titre : en enchaînant d'un artiste au suivant, le dialogue
+  /// est tout ce qui dit qui l'on range.
+  final String? artistName;
 
   @override
   ConsumerState<_GenreDialog> createState() => _GenreDialogState();
@@ -666,28 +757,11 @@ class _GenreDialogState extends ConsumerState<_GenreDialog> {
     super.dispose();
   }
 
-  Future<void> _save(String genre) async {
-    // Le dialogue se ferme tout de suite, mais l'enregistrement continue
-    // après : on saisit AVANT le pop tout ce dont la suite a besoin. Passé
-    // le pop, `ref` appartient à un widget démonté et lève « Using "ref"
-    // when a widget is about to or has been unmounted is unsafe » — le
-    // conteneur, lui, survit à la fermeture du dialogue.
-    final messenger = ScaffoldMessenger.of(context);
-    final container = ProviderScope.containerOf(context, listen: false);
-    final repository = container.read(libraryRepositoryProvider);
-    Navigator.pop(context);
-    try {
-      await repository.setArtistGenre(widget.artistId, genre);
-      container.invalidate(artistDetailProvider(widget.artistId));
-      container.invalidate(genresProvider);
-      container.invalidate(artistsProvider);
-      messenger.showSnackBar(
-        const SnackBar(content: Text('Genre mis à jour')),
-      );
-    } catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text('Échec : $e')));
-    }
-  }
+  /// Le dialogue rend le genre choisi et se ferme : l'enregistrement, lui,
+  /// se poursuit chez l'appelant — le serveur répond souvent bien après, et
+  /// `ref` appartiendrait alors à un widget démonté (« Using "ref" when a
+  /// widget is about to or has been unmounted is unsafe »).
+  void _save(String genre) => Navigator.pop(context, genre);
 
   @override
   Widget build(BuildContext context) {
@@ -701,7 +775,11 @@ class _GenreDialogState extends ConsumerState<_GenreDialog> {
     final choices = [...taxonomy, ...extras];
 
     return AlertDialog(
-      title: const Text('Genre de l\'artiste'),
+      title: Text(
+        widget.artistName == null
+            ? 'Genre de l\'artiste'
+            : 'Genre de « ${widget.artistName} »',
+      ),
       content: SizedBox(
         width: 380,
         child: SingleChildScrollView(

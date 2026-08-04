@@ -204,6 +204,7 @@ void invalidateLibrary(WidgetRef ref) {
   ref.invalidate(albumsProvider);
   ref.invalidate(recentAlbumsProvider);
   ref.invalidate(popularSongsProvider);
+  ref.invalidate(untaggedArtistsProvider);
   ref.invalidate(allFavoritesProvider);
   ref.invalidate(favoriteIdsProvider);
 }

@@ -32,12 +32,20 @@ class _FakeLibraryRepo extends Fake implements LibraryRepository {
   String? savedGenre;
   int? savedArtistId;
 
+  /// Ce qu'il reste à ranger, tel que le serveur le dirait après
+  /// l'enregistrement.
+  UntaggedArtists untagged = const UntaggedArtists();
+
   @override
   Future<void> setArtistGenre(int artistId, String genre) async {
     savedArtistId = artistId;
     savedGenre = genre;
     if (pending != null) await pending!.future;
   }
+
+  @override
+  Future<UntaggedArtists> artistsWithoutGenre({int limit = 50}) async =>
+      untagged;
 }
 
 Widget _wrap(
@@ -59,6 +67,10 @@ Widget _wrap(
       // La suggestion part sur le réseau (MusicBrainz, côté serveur) : par
       // défaut le test n'en donne aucune, le dialogue doit marcher sans.
       genreSuggestionProvider(1).overrideWith((ref) async => suggestion),
+      // L'artiste sur lequel on enchaîne (voir « artiste suivant ») : sa
+      // suggestion part sur le réseau elle aussi.
+      genreSuggestionProvider(2)
+          .overrideWith((ref) async => const GenreSuggestion()),
       artistExtrasProvider('Artiste Test')
           .overrideWith((ref) async => const ArtistExtras()),
       // Sans ça, la fiche interroge YouTube — donc le client HTTP, donc la
@@ -171,7 +183,77 @@ void main() {
 
     expect(tester.takeException(), isNull);
     expect(repo.savedGenre, 'Punk');
-    expect(find.text('Genre mis à jour'), findsOneWidget);
+    expect(find.text('Genre mis à jour · plus aucun artiste sans genre'),
+        findsOneWidget);
+  });
+
+  // ── L'enchaînement (ranger par séries) ──────────────────────────────────
+  testWidgets('une fois rangé, l\'artiste suivant sans genre est proposé',
+      (tester) async {
+    final repo = _FakeLibraryRepo()
+      ..untagged = const UntaggedArtists(
+        artists: [
+          // Celui qu'on vient de ranger peut encore figurer dans la liste :
+          // il ne doit jamais être reproposé.
+          Artist(id: 1, name: 'Artiste Test'),
+          Artist(id: 2, name: 'Sans Genre'),
+        ],
+        total: 2,
+      );
+    await pump(tester, repo);
+
+    await tester.tap(find.widgetWithText(ChoiceChip, 'Punk'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Enregistrer'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Genre mis à jour · suivant : Sans Genre'), findsOneWidget);
+    expect(find.widgetWithText(SnackBarAction, 'Ranger'), findsOneWidget);
+  });
+
+  testWidgets('la proposition rouvre le choix sur cet artiste suivant',
+      (tester) async {
+    final repo = _FakeLibraryRepo()
+      ..untagged = const UntaggedArtists(
+        artists: [Artist(id: 2, name: 'Sans Genre')],
+        total: 1,
+      );
+    await pump(tester, repo);
+
+    await tester.tap(find.widgetWithText(ChoiceChip, 'Punk'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Enregistrer'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(SnackBarAction, 'Ranger'));
+    await tester.pumpAndSettle();
+
+    // Le dialogue dit qui l'on range : c'est tout ce qui le signale, la fiche
+    // en dessous étant restée celle de l'artiste précédent.
+    expect(find.text('Genre de « Sans Genre »'), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(ChoiceChip, 'Métal'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Enregistrer'));
+    await tester.pumpAndSettle();
+
+    expect(repo.savedArtistId, 2);
+    expect(repo.savedGenre, 'Métal');
+  });
+
+  testWidgets('retirer le genre ne lance pas de série', (tester) async {
+    final repo = _FakeLibraryRepo()
+      ..untagged = const UntaggedArtists(
+        artists: [Artist(id: 2, name: 'Sans Genre')],
+        total: 1,
+      );
+    await pump(tester, repo, genre: 'Punk');
+
+    await tester.tap(find.widgetWithText(TextButton, 'Retirer'));
+    await tester.pumpAndSettle();
+
+    expect(repo.savedGenre, '');
+    expect(find.text('Genre retiré'), findsOneWidget);
+    expect(find.widgetWithText(SnackBarAction, 'Ranger'), findsNothing);
   });
 
   // ── La suggestion (MusicBrainz) ─────────────────────────────────────────

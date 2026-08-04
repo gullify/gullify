@@ -489,6 +489,20 @@ class LibraryRepository {
         form: {'genre': genre},
       );
 
+  /// Les artistes qui n'ont pas encore de genre, par ordre alphabétique. La
+  /// liste est plafonnée ([limit]) mais le total dit combien il en reste : de
+  /// quoi enchaîner le rangement d'un artiste au suivant.
+  Future<UntaggedArtists> artistsWithoutGenre({int limit = 50}) async {
+    final data = await _client.get('library.php', query: {
+      'action': 'get_artists_without_genre',
+      'limit': limit,
+    }) as Map<String, dynamic>;
+    return UntaggedArtists(
+      artists: _list(data['artists'], _artist),
+      total: (data['total'] as num?)?.toInt() ?? 0,
+    );
+  }
+
   Future<List<Artist>> artistsByGenre(String genre) async {
     final data = await _client.get('library.php', query: {
       'action': 'get_artists_by_genre',
@@ -587,6 +601,24 @@ class GenreSuggestion {
   final List<String> tags;
 
   bool get isEmpty => genre == null && tags.isEmpty;
+}
+
+/// Les artistes qu'il reste à ranger : un début de liste (plafonnée) et le
+/// nombre exact qui reste sans genre.
+class UntaggedArtists {
+  const UntaggedArtists({this.artists = const [], this.total = 0});
+
+  final List<Artist> artists;
+  final int total;
+
+  /// Le premier de la liste qui n'est pas [exceptId] — l'artiste qu'on vient
+  /// de ranger peut encore y figurer si le serveur a répondu de son cache.
+  Artist? next({int? exceptId}) {
+    for (final a in artists) {
+      if (a.id != exceptId) return a;
+    }
+    return null;
+  }
 }
 
 /// Un genre, ce qu'il pèse dans la bibliothèque et un aperçu de ses

@@ -1203,6 +1203,49 @@ try {
             ];
         }
 
+    } elseif ($action === 'get_artists_without_genre') {
+        // Les artistes qu'il reste à ranger, par ordre alphabétique. Sert à
+        // enchaîner le choix du genre d'un artiste au suivant sans repasser
+        // par la bibliothèque ; `total` dit combien il en reste en tout, la
+        // liste étant plafonnée.
+        $limit = isset($_GET['limit']) ? max(1, min(500, (int)$_GET['limit'])) : 50;
+
+        $stmt = $conn->prepare('
+            SELECT
+                id,
+                name,
+                (image IS NOT NULL AND image != "") as has_image,
+                album_count,
+                song_count
+            FROM artists
+            WHERE user = ? AND (genre IS NULL OR genre = "")
+            ORDER BY name ASC
+            LIMIT ?
+        ');
+        $stmt->execute([$user, $limit]);
+
+        $artists = [];
+        while ($row = $stmt->fetch()) {
+            $artists[] = [
+                'id' => (int)$row['id'],
+                'name' => $row['name'],
+                'imageUrl' => $row['has_image'] ? 'serve_image.php?artist_id=' . $row['id'] : null,
+                'albumCount' => (int)$row['album_count'],
+                'songCount' => (int)$row['song_count']
+            ];
+        }
+
+        $stmt = $conn->prepare('
+            SELECT COUNT(*) FROM artists
+            WHERE user = ? AND (genre IS NULL OR genre = "")
+        ');
+        $stmt->execute([$user]);
+
+        $response['data'] = [
+            'artists' => $artists,
+            'total' => (int)$stmt->fetchColumn()
+        ];
+
     } elseif ($action === 'rename_genre') {
         // Renomme un genre partout (albums + artistes) pour l'utilisateur.
         $from = trim((string)($_POST['from'] ?? ''));

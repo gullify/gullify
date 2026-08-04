@@ -8,6 +8,15 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('2.81.0', [
+    'Ranger la bibliothèque se fait maintenant par séries : une fois le genre '
+        'd\'un artiste enregistré, Gullify propose d\'enchaîner sur le suivant '
+        'qui n\'en a pas. Un tap sur « Ranger » rouvre le choix sur place, '
+        'avec sa suggestion et son medley — sans repasser par la '
+        'bibliothèque à chaque fois',
+    'Le dialogue dit désormais de quel artiste il s\'agit, et quand il ne '
+        'reste plus personne à ranger, il le dit aussi',
+  ]),
   ReleaseNote('2.80.0', [
     'Choisir le genre d\'un artiste commence par une suggestion : Gullify '
         'demande à MusicBrainz ce qu\'on sait de lui, la ramène à la liste des '

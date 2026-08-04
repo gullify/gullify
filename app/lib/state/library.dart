@@ -34,6 +34,12 @@ final genreSuggestionProvider =
   return ref.watch(libraryRepositoryProvider).suggestArtistGenre(artistId);
 });
 
+/// Les artistes qui n'ont pas encore de genre : de quoi enchaîner le
+/// rangement d'un artiste au suivant, une fois le genre enregistré.
+final untaggedArtistsProvider = FutureProvider<UntaggedArtists>(
+  (ref) => ref.watch(libraryRepositoryProvider).artistsWithoutGenre(),
+);
+
 /// Artistes d'un genre donné.
 final artistsByGenreProvider = FutureProvider.family<List<Artist>, String>(
   (ref, genre) => ref.watch(libraryRepositoryProvider).artistsByGenre(genre),
