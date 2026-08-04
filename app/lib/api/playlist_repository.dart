@@ -83,6 +83,17 @@ class PlaylistRepository {
         body: {'id': playlistId, 'song_id': songId},
       );
 
+  /// Ajoute tout un album d'un coup et rend le nombre de titres ajoutés
+  /// (ceux qui y étaient déjà ne comptent pas).
+  Future<int> addAlbum(int playlistId, int albumId) async {
+    final data = await _client.post(
+      'playlists.php',
+      query: {'action': 'add_album'},
+      body: {'id': playlistId, 'album_id': albumId},
+    ) as Map<String, dynamic>;
+    return (data['added'] as num?)?.toInt() ?? 0;
+  }
+
   Future<void> removeSong(int playlistSongId) => _client.post(
         'playlists.php',
         query: {'action': 'remove_song'},

@@ -7,6 +7,7 @@
  *   POST ?action=rename      {id, name}        → null
  *   POST ?action=delete      {id}              → null
  *   POST ?action=add_song    {id, song_id}     → null
+ *   POST ?action=add_album   {id, album_id}    → {added}
  *   POST ?action=remove_song {playlist_song_id} → null
  */
 require_once __DIR__ . '/_v2.php';
@@ -77,6 +78,31 @@ try {
             }
             $db->addToPlaylist($id, $songId);
             v2_ok();
+
+        case 'add_album':
+            // Tout un album d'un coup (jeu « Défricheur » : un album gardé
+            // rejoint la playlist en entier). Les titres déjà présents sont
+            // ignorés par addToPlaylist.
+            $id      = (int)($body['id'] ?? 0);
+            $albumId = (int)($body['album_id'] ?? 0);
+            if (!$id || !$albumId) v2_fail('invalid_request', 'Missing id or album_id');
+            if ($db->getPlaylistSongs($id, $username) === false) {
+                v2_fail('not_found', 'Playlist not found', 404);
+            }
+            $stmt = $db->getConnection()->prepare('
+                SELECT s.id
+                FROM songs s
+                JOIN albums al ON s.album_id = al.id
+                JOIN artists a ON al.artist_id = a.id
+                WHERE al.id = ? AND a.user = ?
+                ORDER BY s.track_number ASC, s.id ASC
+            ');
+            $stmt->execute([$albumId, $username]);
+            $added = 0;
+            foreach ($stmt->fetchAll(PDO::FETCH_COLUMN) as $songId) {
+                if ($db->addToPlaylist($id, (int)$songId)) $added++;
+            }
+            v2_ok(['added' => $added]);
 
         case 'remove_song':
             $psId = (int)($body['playlist_song_id'] ?? 0);

@@ -822,6 +822,70 @@ try {
         }
         $response['data'] = $songs;
 
+    } elseif ($action === 'discovery_albums') {
+        // Jeu « Défricheur » : albums pochettés dont AUCUN titre n'a jamais
+        // été joué, avec un titre représentatif pour l'extrait de trente
+        // secondes. Un album entamé une seule fois n'est plus à défricher :
+        // c'est bien l'album entier qui doit être vierge.
+        $limit = min(200, max(1, intval($_GET['limit'] ?? 60)));
+        [$srcSql, $srcParams] = GameSource::albumWhere($user, GameSource::fromRequest());
+        $stmt = $conn->prepare("
+            SELECT al.id, al.name, al.year,
+                   a.id AS artist_id, a.name AS artist_name,
+                   (SELECT COUNT(*) FROM songs sc WHERE sc.album_id = al.id) AS song_count,
+                   s.id AS song_id, s.title, s.track_number, s.duration,
+                   s.file_path,
+                   " . TRACK_ARTIST_NAME . " AS track_artist_name
+            FROM albums al
+            JOIN artists a ON al.artist_id = a.id
+            JOIN songs s ON s.id = (
+                -- Le titre servi en extrait : de préférence assez long pour
+                -- qu'il y ait quelque chose à entendre, sinon la piste 1.
+                SELECT s2.id FROM songs s2
+                WHERE s2.album_id = al.id
+                ORDER BY (s2.duration >= 60) DESC, s2.track_number ASC, s2.id ASC
+                LIMIT 1
+            )
+            " . TRACK_ARTIST_JOIN . "
+            WHERE a.user = ?
+              AND al.artwork IS NOT NULL AND al.artwork <> ''
+              AND NOT EXISTS (
+                  SELECT 1 FROM play_history ph
+                  JOIN songs sp ON sp.id = ph.song_id
+                  WHERE sp.album_id = al.id AND ph.user = ?
+              )
+              $srcSql
+            ORDER BY RAND()
+            LIMIT $limit
+        ");
+        $stmt->execute(array_merge([$user, $user], $srcParams));
+        $albums = [];
+        while ($row = $stmt->fetch()) {
+            $artwork = albumArtworkUrl((int)$row['id']);
+            $albums[] = [
+                'id' => (int)$row['id'],
+                'name' => $row['name'],
+                'year' => $row['year'] !== null ? (int)$row['year'] : null,
+                'artworkUrl' => $artwork,
+                'artistId' => (int)$row['artist_id'],
+                'artistName' => $row['artist_name'],
+                'songCount' => (int)$row['song_count'],
+                'sample' => [
+                    'id' => (int)$row['song_id'],
+                    'title' => $row['title'],
+                    'trackNumber' => (int)$row['track_number'],
+                    'duration' => (int)$row['duration'],
+                    'filePath' => $row['file_path'],
+                    'albumId' => (int)$row['id'],
+                    'albumName' => $row['name'],
+                    'artworkUrl' => $artwork,
+                    'artistId' => (int)$row['artist_id'],
+                    'artistName' => $row['track_artist_name'],
+                ],
+            ];
+        }
+        $response['data'] = ['albums' => $albums];
+
     } elseif ($action === 'search') {
         // `q` historique; `query` accepté aussi (client mobile).
         $query = trim($_GET['q'] ?? $_GET['query'] ?? '');

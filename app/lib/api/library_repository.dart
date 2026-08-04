@@ -82,6 +82,24 @@ class GamePool {
   final List<Album> albums;
 }
 
+/// Un album jamais écouté, servi au jeu « Défricheur » avec le titre qui lui
+/// sert d'extrait.
+class DiscoveryAlbum {
+  const DiscoveryAlbum({
+    required this.album,
+    required this.sample,
+    this.songCount = 0,
+  });
+
+  final Album album;
+
+  /// Le titre dont on fait entendre trente secondes.
+  final Song sample;
+
+  /// Nombre de titres de l'album (ce qui rejoint la playlist si on le garde).
+  final int songCount;
+}
+
 class SearchResults {
   const SearchResults({
     this.artists = const [],
@@ -217,6 +235,28 @@ class LibraryRepository {
       'limit': limit,
     });
     return _list(data, _song);
+  }
+
+  /// Albums dont aucun titre n'a jamais été joué, avec l'extrait à faire
+  /// entendre (jeu « Défricheur »). Mélangés côté serveur.
+  Future<List<DiscoveryAlbum>> discoveryAlbums({
+    int limit = 60,
+    GameSource source = GameSource.all,
+  }) async {
+    final data = await _client.get('library.php', query: {
+      'action': 'discovery_albums',
+      'limit': limit,
+      ...source.query,
+    }) as Map<String, dynamic>;
+    return [
+      for (final e in data['albums'] as List<dynamic>? ?? [])
+        if ((e as Map<String, dynamic>)['sample'] != null)
+          DiscoveryAlbum(
+            album: _album(e),
+            sample: _song(e['sample'] as Map<String, dynamic>),
+            songCount: (e['songCount'] as num?)?.toInt() ?? 0,
+          ),
+    ];
   }
 
   /// Titres jamais joués (mode « Découverte »), mélangés.

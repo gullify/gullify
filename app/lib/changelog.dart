@@ -8,6 +8,20 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('2.70.0', [
+    'Nouveau jeu, « Défricheur » : l\'app vous sert trente secondes d\'un '
+        'album de votre bibliothèque dont vous n\'avez jamais écouté le '
+        'moindre titre. Glissez la carte à droite pour garder, à gauche pour '
+        'passer (les deux boutons font la même chose)',
+    'Tout album gardé rejoint la playlist « Défricheur », en entier — elle se '
+        'remplit tournée après tournée, et c\'est elle qu\'on écoute ensuite '
+        'pour de bon',
+    'Un album déjà jugé ne revient plus, même s\'il n\'a toujours pas été '
+        'écouté. Quand il n\'y a plus rien à défricher, un bouton permet de '
+        'tout remettre à zéro',
+    'Dix albums par tournée, et le vivier choisi dans l\'onglet « Jeux » '
+        's\'applique aussi (un genre, une playlist, les favoris)',
+  ]),
   ReleaseNote('2.69.0', [
     'Les jeux ne piochent plus forcément dans toute la bibliothèque : on '
         'choisit désormais le vivier depuis l\'onglet « Jeux » — tout, un ou '

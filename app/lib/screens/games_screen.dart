@@ -39,7 +39,7 @@ class GamesScreen extends ConsumerWidget {
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
               child: Text(
-                'Quatre façons de jouer avec ta propre bibliothèque — '
+                'Cinq façons de jouer avec ta propre bibliothèque — '
                 'seul ou à plusieurs.',
                 style: TextStyle(fontSize: 14, color: scheme.onSurfaceVariant),
               ),

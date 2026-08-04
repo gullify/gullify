@@ -258,7 +258,7 @@ class _SetupState extends ConsumerState<_Setup> {
         ),
         const SizedBox(height: 18),
         const SectionTitle('Le jeu', padding: EdgeInsets.fromLTRB(2, 4, 2, 8)),
-        for (final game in kGames)
+        for (final game in kGames.where((g) => g.multiplayer))
           Padding(
             padding: const EdgeInsets.only(bottom: 8),
             child: GamePickTile(

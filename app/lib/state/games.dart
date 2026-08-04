@@ -23,6 +23,7 @@ class GameInfo {
     required this.rules,
     this.scoreLabel = 'Meilleur score',
     this.needsSound = false,
+    this.multiplayer = true,
   });
 
   /// Clé de stockage (meilleur score, règles déjà lues).
@@ -41,6 +42,10 @@ class GameInfo {
 
   /// Le jeu fait entendre des extraits (utile de le dire avant de lancer).
   final bool needsSound;
+
+  /// Le jeu se joue aussi en salon (le serveur en connaît les manches).
+  /// Faux pour les jeux qui n'ont de sens que seul.
+  final bool multiplayer;
 }
 
 const kChronoGame = GameInfo(
@@ -117,8 +122,43 @@ const kDuelGame = GameInfo(
   ],
 );
 
+const kSwipeGame = GameInfo(
+  id: 'swipe',
+  name: 'Défricheur',
+  tagline: 'Trente secondes pour juger un album jamais écouté',
+  route: '/games/swipe',
+  icon: Icons.swipe_rounded,
+  scoreLabel: 'Meilleure récolte',
+  needsSound: true,
+  // Chacun défriche sa propre bibliothèque : rien à partager en salon.
+  multiplayer: false,
+  goal:
+      'Faire le tri dans les albums que tu as accumulés sans jamais les '
+      'écouter — et repartir avec une playlist de ce qui t\'a plu.',
+  rules: [
+    'Un album dont aucun titre n\'a jamais été joué se présente : pochette, '
+        'artiste, et trente secondes pour se faire une idée.',
+    'Glisse la carte vers la droite (ou touche le cœur) pour garder, vers la '
+        'gauche (ou la croix) pour passer.',
+    'Chaque album gardé rejoint la playlist « $kSwipePlaylist », en entier.',
+    'Un album déjà jugé ne revient plus : la partie suivante en propose '
+        'd\'autres.',
+    'Dix albums par tournée — le score, c\'est ce que tu as gardé.',
+  ],
+);
+
+/// La playlist que le Défricheur alimente : toujours la même, elle se
+/// remplit tournée après tournée.
+const kSwipePlaylist = 'Défricheur';
+
 /// Le catalogue affiché dans l'onglet « Jeux » (ordre d'affichage).
-const kGames = <GameInfo>[kChronoGame, kBlindGame, kCoverGame, kDuelGame];
+const kGames = <GameInfo>[
+  kChronoGame,
+  kBlindGame,
+  kCoverGame,
+  kDuelGame,
+  kSwipeGame,
+];
 
 /// La fiche d'un jeu à partir de son identifiant (celui qu'emploie le
 /// serveur pour les parties multijoueur).
@@ -143,6 +183,13 @@ final blindPoolProvider = FutureProvider<List<Song>>(
   (ref) => ref
       .watch(libraryRepositoryProvider)
       .randomSongs(limit: 120, source: ref.watch(gameSourceProvider)),
+);
+
+/// Vivier du Défricheur : les albums dont aucun titre n'a jamais été joué.
+final discoveryAlbumsProvider = FutureProvider<List<DiscoveryAlbum>>(
+  (ref) => ref
+      .watch(libraryRepositoryProvider)
+      .discoveryAlbums(limit: 80, source: ref.watch(gameSourceProvider)),
 );
 
 /// Vrai si glisser un titre de l'année [year] dans le trou n° [gap] de la
@@ -273,4 +320,66 @@ class GameSourceController extends Notifier<GameSource> {
 
 final gameSourceProvider = NotifierProvider<GameSourceController, GameSource>(
   GameSourceController.new,
+);
+
+/// Les albums déjà jugés au Défricheur (gardés comme passés) : ils ne
+/// reviennent plus. Le serveur, lui, continuerait de les proposer — un album
+/// gardé mais pas encore écouté reste « jamais joué ».
+class SwipeMemory extends Notifier<Set<int>> {
+  static const _key = 'game_swipe_seen';
+
+  /// Au-delà, on oublie les plus anciens : la bibliothèque finirait par ne
+  /// plus rien proposer, et le stockage n'est pas un journal.
+  static const _cap = 600;
+
+  bool _alive = true;
+  final Completer<void> _ready = Completer<void>();
+
+  /// Résolu quand la mémoire a été relue du stockage (borné, comme le reste).
+  Future<void> get ready =>
+      _ready.future.timeout(const Duration(seconds: 2), onTimeout: () {});
+
+  @override
+  Set<int> build() {
+    ref.onDispose(() => _alive = false);
+    _restore();
+    return const {};
+  }
+
+  Future<void> _restore() async {
+    try {
+      final raw = await _storage.read(key: _key);
+      final ids = <int>{
+        for (final part in (raw ?? '').split(','))
+          if (int.tryParse(part) != null) int.parse(part),
+      };
+      if (_alive && ids.isNotEmpty) state = ids;
+    } catch (_) {
+      // Stockage indisponible : on rejouera peut-être les mêmes albums, ce
+      // qui reste préférable à un jeu qui refuse de démarrer.
+    } finally {
+      if (!_ready.isCompleted) _ready.complete();
+    }
+  }
+
+  Future<void> remember(Iterable<int> albumIds) async {
+    final ids = [...state, ...albumIds];
+    final kept = ids.length <= _cap ? ids : ids.sublist(ids.length - _cap);
+    state = kept.toSet();
+    try {
+      await _storage.write(key: _key, value: kept.join(','));
+    } catch (_) {}
+  }
+
+  /// Repart de zéro : tout redevient à défricher.
+  Future<void> forget() async {
+    state = const {};
+    try {
+      await _storage.delete(key: _key);
+    } catch (_) {}
+  }
+}
+
+final swipeMemoryProvider = NotifierProvider<SwipeMemory, Set<int>>(
+  SwipeMemory.new,
 );

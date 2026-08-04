@@ -1,7 +1,7 @@
-// Les quatre jeux se déroulent entièrement à l'écran (aucune page de
-// détail) : ce test vérifie qu'ils s'ouvrent, expliquent leurs règles à la
-// première partie, puis affichent leur plateau — et qu'aucune mise en page
-// ne déborde sur un écran de téléphone.
+// Les jeux se déroulent entièrement à l'écran (aucune page de détail) : ce
+// test vérifie qu'ils s'ouvrent, expliquent leurs règles à la première
+// partie, puis affichent leur plateau — et qu'aucune mise en page ne déborde
+// sur un écran de téléphone.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -14,6 +14,7 @@ import 'package:gullify/screens/games/chrono_game_screen.dart';
 import 'package:gullify/screens/games/cover_game_screen.dart';
 import 'package:gullify/screens/games/duel_game_screen.dart';
 import 'package:gullify/screens/games/game_kit.dart';
+import 'package:gullify/screens/games/swipe_game_screen.dart';
 import 'package:gullify/state/games.dart';
 import 'package:gullify/state/library.dart';
 import 'package:gullify/theme.dart';
@@ -45,6 +46,11 @@ final _albums = [
 
 final _songs = [for (var i = 1; i <= 12; i++) _song(i)];
 
+final _discovery = [
+  for (var i = 1; i <= 6; i++)
+    DiscoveryAlbum(album: _albums[i - 1], sample: _song(i), songCount: i + 3),
+];
+
 /// Le vrai dépôt exigerait un client HTTP authentifié ; seul l'URL de flux
 /// est utilisée par les jeux.
 class _FakeRepository extends Fake implements LibraryRepository {
@@ -59,6 +65,7 @@ Widget _wrap(Widget child) => ProviderScope(
       (ref) async => GamePool(tracks: _tracks, albums: _albums),
     ),
     blindPoolProvider.overrideWith((ref) async => _songs),
+    discoveryAlbumsProvider.overrideWith((ref) async => _discovery),
   ],
   child: MaterialApp(
     theme: gullifyThemeFor(GullifyAccent.indigo, dark: false),
@@ -137,5 +144,26 @@ void main() {
     await openGame(tester, const DuelGameScreen());
     expect(find.text('Lequel est le plus ancien ?'), findsOneWidget);
     expect(find.text('VS'), findsOneWidget);
+  });
+
+  testWidgets('Défricheur sert un album à juger, et enchaîne', (tester) async {
+    await openGame(tester, const SwipeGameScreen());
+    expect(find.text('Garder'), findsOneWidget);
+    expect(find.text('Passer'), findsOneWidget);
+    // Six albums en réserve, dix par tournée : la tournée en fait six.
+    expect(find.text('1/6'), findsOneWidget);
+    expect(find.text('GARDÉS'), findsOneWidget);
+
+    // Passer fait sortir la carte (animation) puis présente la suivante.
+    await tester.tap(find.text('Passer'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.text('2/6'), findsOneWidget);
+
+    // Garder aussi — et la carte gardée n'est plus proposée.
+    await tester.tap(find.text('Garder'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.text('3/6'), findsOneWidget);
   });
 }
