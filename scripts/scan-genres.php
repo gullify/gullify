@@ -4,7 +4,8 @@
  *
  * Priority chain per artist:
  *   1. ID3 tags from sample files (majority vote) — preserves manual tags
- *   2. MusicBrainz API (community-voted tags, industry standard, free/no key)
+ *   2. Online catalogues (src/GenreLookup.php): MusicBrainz, then Deezer, then
+ *      Apple Music — each consulted only while nothing has come out
  *
  * Whatever the source, the answer always comes from the closed list of main
  * genres (src/GenreTaxonomy.php): tags that map to nothing ("Music", "seen
@@ -79,14 +80,14 @@ function updateProgress(array $data): void {
 
 require_once __DIR__ . '/../src/PathHelper.php';
 require_once __DIR__ . '/../src/GenreTaxonomy.php';
-require_once __DIR__ . '/../src/MusicBrainz.php';
+require_once __DIR__ . '/../src/GenreLookup.php';
 require_once AppConfig::getVendorPath() . '/getid3/getid3.php';
 
-// ── MusicBrainz ───────────────────────────────────────────────────────────
-// La recherche d'artiste et ses étiquettes vivent dans src/MusicBrainz.php :
-// le choix manuel du genre, dans l'app, interroge ainsi la même source que
-// ce scan — ce qui range tout seul est ce qui est proposé quand on range à
-// la main.
+// ── Les catalogues ────────────────────────────────────────────────────────
+// La consultation de MusicBrainz, Deezer et Apple Music vit dans
+// src/GenreLookup.php : le choix manuel du genre, dans l'app, interroge ainsi
+// les mêmes sources que ce scan — ce qui range tout seul est ce qui est
+// proposé quand on range à la main.
 
 // ── Extract genre from ID3 tags for a list of files ───────────────────────────
 /**
@@ -168,7 +169,7 @@ try {
     $updatedCount = 0;
     $skippedCount = 0;  // déjà taggés, laissés tels quels
     $noGenreCount = 0;  // cherchés, rien de probant trouvé
-    $mbCount      = 0;
+    $onlineCount  = 0;  // trouvés par les catalogues en ligne
 
     foreach ($artists as $index => $artist) {
         $artistId   = (int)$artist['id'];
@@ -207,13 +208,15 @@ try {
         $genre = id3GenreFromFiles($filePaths, $getID3);
         $source = 'id3';
 
-        // ── Step 2: MusicBrainz fallback ─────────────────────────────────────
+        // ── Step 2: les catalogues en ligne ──────────────────────────────────
+        // Un scan de fond peut insister (3 essais) : personne n'attend devant
+        // son téléphone.
         if (!$genre && function_exists('curl_init')) {
-            $mbGenre = GenreTaxonomy::pickFromTags(MusicBrainz::tags($artistName));
-            if ($mbGenre) {
-                $genre  = $mbGenre;
-                $source = 'musicbrainz';
-                $mbCount++;
+            $found = GenreLookup::suggest($artistName, 10, 3);
+            if ($found['genre']) {
+                $genre  = $found['genre'];
+                $source = $found['source'] ?? 'catalogue';
+                $onlineCount++;
             }
         }
 
@@ -251,12 +254,12 @@ try {
         'current_artist' => '',
         'updated'        => $updatedCount,
         'skipped'        => $skippedCount + $noGenreCount,
-        'musicbrainz'    => $mbCount,
+        'musicbrainz'    => $onlineCount,
     ]);
 
     echo "\n✓ Genre scan complete!\n";
     echo "  Updated : {$updatedCount} artists\n";
-    echo "  Via MusicBrainz : {$mbCount}\n";
+    echo "  Via les catalogues en ligne : {$onlineCount}\n";
     echo "  Already tagged : {$skippedCount} artists\n";
     echo "  No genre found : {$noGenreCount} artists\n";
 

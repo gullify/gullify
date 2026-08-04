@@ -57,29 +57,48 @@ class _FakeMedleyAudio implements MedleyAudio {
 }
 
 class _FakeRepo extends Fake implements LibraryRepository {
+  _FakeRepo({this.songsPerAlbum = 2});
+
+  final int songsPerAlbum;
+
   @override
   Future<AlbumDetail> albumDetail(int id) async => AlbumDetail(
         album: Album(id: id, name: 'Album $id'),
-        songs: [_s(id * 10, album: id), _s(id * 10 + 1, album: id)],
+        songs: [
+          for (var i = 0; i < songsPerAlbum; i++) _s(id * 10 + i, album: id),
+        ],
       );
 
   @override
   String streamUrl(Song song) => 'https://exemple/stream${song.id}';
 }
 
-ProviderContainer _container(_FakeMedleyAudio audio) {
+const _twoAlbums = [
+  Album(id: 1, name: 'Premier'),
+  Album(id: 2, name: 'Dernier'),
+];
+
+ProviderContainer _container(
+  _FakeMedleyAudio audio, {
+  _FakeRepo? repo,
+  List<Album> albums = _twoAlbums,
+}) {
   final container = ProviderContainer(
     overrides: [
       medleyAudioProvider.overrideWithValue(() => audio),
-      libraryRepositoryProvider.overrideWithValue(_FakeRepo()),
+      libraryRepositoryProvider.overrideWithValue(repo ?? _FakeRepo()),
       // Le medley écoute le lecteur principal pour se taire s'il repart ;
       // ici il ne joue jamais. (audioHandlerProvider, lui, n'est pas fourni :
       // le medley encaisse déjà son absence.)
       playbackStateProvider.overrideWith((ref) => const Stream.empty()),
-      artistDetailProvider(1).overrideWith((ref) async => const ArtistDetail(
-            artist: Artist(id: 1, name: 'Artiste Test', albumCount: 2),
-            albums: [Album(id: 1, name: 'Premier'), Album(id: 2, name: 'Dernier')],
-            topTracks: [],
+      artistDetailProvider(1).overrideWith((ref) async => ArtistDetail(
+            artist: Artist(
+              id: 1,
+              name: 'Artiste Test',
+              albumCount: albums.length,
+            ),
+            albums: albums,
+            topTracks: const [],
           )),
     ],
   );
@@ -113,7 +132,7 @@ void main() {
       ];
       expect(
         pickMedleySongs(songs).map((s) => s.id).toList(),
-        [1, 4, 6, 2],
+        [1, 4, 6, 2, 5],
       );
     });
 
@@ -129,6 +148,56 @@ void main() {
 
     test('sans chanson, pas de medley', () {
       expect(pickMedleySongs(const []), isEmpty);
+    });
+  });
+
+  // ── Toujours de quoi se faire une idée (idée #54) ───────────────────────
+  group('albumPicks', () {
+    test('commence par le milieu de l\'album', () {
+      final songs = List.generate(9, (i) => _s(i));
+      expect(albumPicks(songs).first.id, 4);
+    });
+
+    test('puis s\'étale sur tout le disque, sans doublon', () {
+      final songs = List.generate(9, (i) => _s(i));
+      final ids = albumPicks(songs).map((s) => s.id).toList();
+      expect(ids.length, kMedleySongs);
+      expect(ids.toSet().length, kMedleySongs);
+      expect(ids.first, 4);
+    });
+
+    test('ne rend que ce que l\'album a', () {
+      expect(albumPicks([_s(1), _s(2)]).map((s) => s.id).toList(), [2, 1]);
+      expect(albumPicks(const []), isEmpty);
+    });
+  });
+
+  group('medleyFromAlbums', () {
+    test('tourne d\'un album à l\'autre tant qu\'il y en a', () {
+      final albums = [
+        [_s(1), _s(2), _s(3)],
+        [_s(11), _s(12), _s(13)],
+        [_s(21), _s(22), _s(23)],
+      ];
+      // Le milieu de chacun d'abord, puis le second tour.
+      expect(
+        medleyFromAlbums(albums).map((s) => s.id).toList(),
+        [2, 12, 22, 1, 11],
+      );
+    });
+
+    test('repasse dans le même disque quand l\'artiste n\'a qu\'un album', () {
+      final only = [List.generate(12, (i) => _s(i))];
+      expect(medleyFromAlbums(only).length, kMedleySongs);
+    });
+
+    test('se contente du peu qu\'il y a, sans jamais répéter', () {
+      final ids = medleyFromAlbums([
+        [_s(1), _s(2)],
+        [_s(3)],
+      ]).map((s) => s.id).toList();
+      expect(ids.toSet().length, ids.length);
+      expect(ids.length, 3);
     });
   });
 
@@ -201,6 +270,37 @@ void main() {
       // Laisse expirer le pas de fondu en cours, qui se taira en voyant que
       // le medley n'est plus de son temps.
       await tester.pump(const Duration(milliseconds: 200));
+    });
+
+    testWidgets('un seul album donne quand même un medley entier',
+        (tester) async {
+      // Repro d'idée #54 : un artiste d'un seul album ne donnait qu'un extrait,
+      // et le medley tournait en rond sur la même chanson.
+      final audio = _FakeMedleyAudio();
+      final container = _container(
+        audio,
+        repo: _FakeRepo(songsPerAlbum: 12),
+        albums: const [Album(id: 1, name: 'Unique')],
+      );
+      final medley = container.read(medleyPlayerProvider.notifier);
+
+      unawaited(medley.toggle(1));
+      await tester.pump();
+
+      expect(container.read(medleyPlayerProvider).total, kMedleySongs);
+
+      // Et ce sont bien cinq titres différents.
+      final heard = <String>{audio.urls.single};
+      for (var i = 1; i < kMedleySongs; i++) {
+        await tester.pump(kMedleyExcerpt);
+        heard.add(audio.urls.last);
+      }
+      expect(heard.length, kMedleySongs);
+
+      await medley.stop();
+      // Laisse expirer le pas de fondu en cours, qui se taira en voyant que le
+      // medley n'est plus de son temps.
+      await tester.pump(kMedleyFadeOut);
     });
 
     testWidgets('s\'arrête pour de bon quand on le ferme', (tester) async {

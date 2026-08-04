@@ -110,7 +110,7 @@ class MusicBrainz
             }
             if (!$best) {
                 foreach ($data['artists'] as $a) {
-                    if (self::nameMatches($name, (string)($a['name'] ?? ''), (int)($a['score'] ?? 0))) {
+                    if (self::sameArtist($name, (string)($a['name'] ?? ''), (int)($a['score'] ?? 0))) {
                         $best = $a;
                         break;
                     }
@@ -160,20 +160,47 @@ class MusicBrainz
     }
 
     /**
-     * Garde-fou contre une recherche libre qui ramène quelqu'un d'autre : le
-     * nom trouvé doit ressembler à celui demandé, ou MusicBrainz doit être
-     * lui-même très sûr de sa correspondance. Pas de genre vaut mieux qu'un
-     * mauvais genre.
+     * Garde-fou contre une recherche qui ramène quelqu'un d'autre : le nom
+     * trouvé doit être celui demandé, à la ponctuation près. Pas de genre vaut
+     * mieux qu'un mauvais genre — c'est toute une discographie qu'on range de
+     * travers.
+     *
+     * Deux pièges, appris de la vraie bibliothèque :
+     *   - un nom court avalé par un long (« Anonyme Introuvable XYZ » n'est pas
+     *     le groupe « XYZ »), alors que MusicBrainz le note 100 ;
+     *   - le même groupe écrit autrement (« UB-40 » contre « UB40 »).
+     *
+     * @param int $score La confiance de MusicBrainz (0 quand la source n'en
+     *   donne pas) : elle n'ouvre la porte qu'aux noms qui se ressemblent
+     *   vraiment, à une faute de frappe près.
      */
-    private static function nameMatches(string $wanted, string $found, int $score): bool
+    public static function sameArtist(string $wanted, string $found, int $score = 0): bool
     {
         $a = GenreTaxonomy::normalize($wanted);
         $b = GenreTaxonomy::normalize($found);
         if ($a === '' || $b === '') return false;
         if ($a === $b) return true;
-        if (str_contains($a, $b) || str_contains($b, $a)) return true;
 
-        return $score >= 90;
+        // « UB-40 » et « UB40 » sont le même groupe : les espaces ne comptent pas.
+        $ca = str_replace(' ', '', $a);
+        $cb = str_replace(' ', '', $b);
+        if ($ca === $cb) return true;
+
+        // Un nom contenu dans l'autre (« Bob Marley » dans « (50 First Dates)
+        // Bob Marley »), mais jamais un nom court avalé au passage.
+        if (min(strlen($ca), strlen($cb)) >= 5
+            && (str_contains($a, $b) || str_contains($b, $a))
+        ) {
+            return true;
+        }
+
+        if ($score < 90) return false;
+
+        // Dernier recours : la source est sûre d'elle, et les noms ne diffèrent
+        // que d'un caractère ou deux.
+        $tolerance = max(1, intdiv(min(strlen($ca), strlen($cb)), 5));
+
+        return levenshtein($ca, $cb) <= $tolerance;
     }
 
     /**

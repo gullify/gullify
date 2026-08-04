@@ -16,6 +16,11 @@ const kMedleyExcerpt = Duration(seconds: 18);
 const kMedleyFadeIn = Duration(milliseconds: 1500);
 const kMedleyFadeOut = Duration(milliseconds: 2000);
 
+/// Combien d'extraits il faut pour se faire une idée. Un artiste d'un seul
+/// album donnait un seul extrait, et le medley tournait en rond sur la même
+/// chanson : on va alors chercher plusieurs titres du même disque (idée #54).
+const kMedleySongs = 5;
+
 /// Étale un choix sur toute une liste plutôt que d'en prendre la tête : sur
 /// une discographie, les quatre premiers albums se ressemblent souvent, alors
 /// que le premier, un du milieu et le dernier racontent l'artiste.
@@ -27,9 +32,43 @@ List<T> spreadPick<T>(List<T> items, int max) {
   ];
 }
 
+/// Ce qu'on prend d'un album, dans l'ordre : le milieu d'abord (un album s'y
+/// reconnaît mieux que par sa première piste), puis des titres étalés sur tout
+/// le disque. De quoi tenir un medley entier quand l'artiste n'a qu'un album.
+List<Song> albumPicks(List<Song> songs, {int max = kMedleySongs}) {
+  if (songs.isEmpty || max <= 0) return const [];
+  final middle = songs[songs.length ~/ 2];
+  return [
+    middle,
+    for (final s in spreadPick(songs, max))
+      if (s.id != middle.id) s,
+  ].take(max).toList();
+}
+
+/// Un medley se promène d'un album à l'autre : un titre de chacun, en
+/// tournant, plutôt que cinq titres du même disque. Quand les albums viennent
+/// à manquer, on repasse les chercher — mieux vaut cinq extraits d'un seul
+/// disque qu'un seul extrait en boucle.
+List<Song> medleyFromAlbums(List<List<Song>> albums, {int max = kMedleySongs}) {
+  final picks = [for (final a in albums) albumPicks(a, max: max)];
+  final picked = <Song>[];
+  for (var round = 0; picked.length < max; round++) {
+    var addedThisRound = false;
+    for (final album in picks) {
+      if (picked.length >= max) break;
+      if (round < album.length) {
+        picked.add(album[round]);
+        addedThisRound = true;
+      }
+    }
+    if (!addedThisRound) break;
+  }
+  return picked;
+}
+
 /// Un medley se promène : une chanson par album, en tournant, plutôt que
 /// cinq titres du même disque.
-List<Song> pickMedleySongs(List<Song> songs, {int max = 4}) {
+List<Song> pickMedleySongs(List<Song> songs, {int max = kMedleySongs}) {
   final byAlbum = <int, List<Song>>{};
   for (final s in songs) {
     byAlbum.putIfAbsent(s.albumId ?? 0, () => []).add(s);
@@ -145,25 +184,34 @@ class MedleyPlayer extends Notifier<MedleyState> {
     return const MedleyState();
   }
 
-  /// Rassemble de quoi faire un medley : une chanson prise au milieu de
-  /// quelques albums étalés sur la discographie, et à défaut les titres les
-  /// plus joués de l'artiste.
+  /// Rassemble de quoi faire un medley : [kMedleySongs] extraits pris sur des
+  /// albums étalés sur la discographie — et plusieurs titres du même disque
+  /// quand l'artiste n'en a qu'un. Les titres les plus joués complètent, et
+  /// prennent le relais s'il n'y a aucun album lisible.
   Future<List<Song>> _gather(int artistId) async {
     final repo = ref.read(libraryRepositoryProvider);
     final detail = await ref.read(artistDetailProvider(artistId).future);
 
-    final albums = spreadPick<Album>(detail.albums, 4);
+    final albums = spreadPick<Album>(detail.albums, kMedleySongs);
     final details = await Future.wait([
       for (final a in albums)
         repo.albumDetail(a.id).then<AlbumDetail?>((d) => d).catchError((_) => null),
     ]);
 
-    final songs = <Song>[
+    final songs = medleyFromAlbums([
       for (final d in details)
-        if (d != null && d.songs.isNotEmpty) d.songs[d.songs.length ~/ 2],
-    ];
-    if (songs.isNotEmpty) return songs;
-    return pickMedleySongs(detail.topTracks);
+        if (d != null && d.songs.isNotEmpty) d.songs,
+    ]);
+    if (songs.length >= kMedleySongs) return songs;
+
+    // Les albums n'ont pas suffi : on complète avec les titres les plus joués,
+    // sans repasser deux fois par la même chanson.
+    final chosen = {for (final s in songs) s.id};
+    return [
+      ...songs,
+      for (final s in pickMedleySongs(detail.topTracks))
+        if (chosen.add(s.id)) s,
+    ].take(kMedleySongs).toList();
   }
 
   /// Lance le medley d'un artiste (ou l'arrête s'il tourne déjà).

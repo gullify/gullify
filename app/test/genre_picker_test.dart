@@ -52,15 +52,16 @@ Widget _wrap(
   _FakeLibraryRepo repo, {
   String? genre,
   GenreSuggestion suggestion = const GenreSuggestion(),
+  List<String> taxonomy = _taxonomy,
 }) {
   return ProviderScope(
     overrides: [
       libraryRepositoryProvider.overrideWithValue(repo),
       genreTaxonomyProvider.overrideWith(
         // Un genre ajouté à la main vient à la suite de la liste principale.
-        (ref) async => const GenreTaxonomy(
-          genres: [..._taxonomy, 'Musique de fanfare'],
-          custom: ['Musique de fanfare'],
+        (ref) async => GenreTaxonomy(
+          genres: [...taxonomy, 'Musique de fanfare'],
+          custom: const ['Musique de fanfare'],
         ),
       ),
       genresProvider.overrideWith((ref) async => const [
@@ -104,11 +105,17 @@ void main() {
     _FakeLibraryRepo repo, {
     String? genre,
     GenreSuggestion suggestion = const GenreSuggestion(),
+    List<String> taxonomy = _taxonomy,
   }) async {
     tester.view.physicalSize = const Size(412, 892);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
-    await tester.pumpWidget(_wrap(repo, genre: genre, suggestion: suggestion));
+    await tester.pumpWidget(_wrap(
+      repo,
+      genre: genre,
+      suggestion: suggestion,
+      taxonomy: taxonomy,
+    ));
     await tester.pumpAndSettle();
     // Le dialogue s'ouvre depuis le menu de l'artiste.
     await tester.tap(find.byIcon(Icons.more_vert).first);
@@ -264,7 +271,7 @@ void main() {
     expect(find.widgetWithText(SnackBarAction, 'Ranger'), findsNothing);
   });
 
-  // ── La suggestion (MusicBrainz) ─────────────────────────────────────────
+  // ── La suggestion (les catalogues) ──────────────────────────────────────
   testWidgets('la suggestion se montre, avec les étiquettes qui l\'ont dictée',
       (tester) async {
     await pump(
@@ -273,6 +280,7 @@ void main() {
       suggestion: const GenreSuggestion(
         genre: 'Métal',
         tags: ['heavy metal', 'québécois'],
+        source: 'musicbrainz',
       ),
     );
 
@@ -284,13 +292,44 @@ void main() {
     expect(find.widgetWithText(ChoiceChip, 'Métal'), findsNWidgets(2));
   });
 
+  testWidgets('la suggestion dit de quel catalogue elle vient', (tester) async {
+    // MusicBrainz ne connaît pas tout le monde : Deezer et Apple Music
+    // prennent le relais, et le dialogue dit lequel a répondu (idée #54).
+    await pump(
+      tester,
+      _FakeLibraryRepo(),
+      suggestion: const GenreSuggestion(
+        genre: 'Punk',
+        tags: ['Alternative', 'Rock'],
+        source: 'deezer',
+      ),
+    );
+
+    expect(find.text('d\'après Deezer : Alternative, Rock'), findsOneWidget);
+  });
+
+  testWidgets('un catalogue sans étiquette se nomme quand même',
+      (tester) async {
+    await pump(
+      tester,
+      _FakeLibraryRepo(),
+      suggestion: const GenreSuggestion(genre: 'Punk', source: 'itunes'),
+    );
+
+    expect(find.text('d\'après Apple Music'), findsOneWidget);
+  });
+
   testWidgets('taper la suggestion la choisit, sans rien enregistrer seule',
       (tester) async {
     final repo = _FakeLibraryRepo();
     await pump(
       tester,
       repo,
-      suggestion: const GenreSuggestion(genre: 'Métal', tags: ['heavy metal']),
+      suggestion: const GenreSuggestion(
+        genre: 'Métal',
+        tags: ['heavy metal'],
+        source: 'musicbrainz',
+      ),
     );
 
     // Rien n'est parti tant qu'on n'a pas enregistré : la suggestion propose.
@@ -308,7 +347,8 @@ void main() {
       (tester) async {
     await pump(tester, _FakeLibraryRepo());
 
-    expect(find.text('MusicBrainz ne dit rien de cet artiste'), findsOneWidget);
+    expect(find.text('Aucun catalogue ne dit rien de cet artiste'),
+        findsOneWidget);
     expect(find.text('Suggestion'), findsNothing);
     // Le reste du dialogue marche comme avant.
     expect(find.widgetWithText(ChoiceChip, 'Punk'), findsOneWidget);
@@ -322,7 +362,7 @@ void main() {
       suggestion: const GenreSuggestion(tags: ['seen live', 'canadian']),
     );
 
-    expect(find.text('Rien de net chez MusicBrainz (seen live, canadian)'),
+    expect(find.text('Rien de net dans les catalogues (seen live, canadian)'),
         findsOneWidget);
   });
 
@@ -333,5 +373,54 @@ void main() {
 
     expect(find.text('Écouter un medley'), findsOneWidget);
     expect(find.text('Arrêter le medley'), findsNothing);
+  });
+
+  // ── Le dialogue tient dans l'écran (idée #54) ───────────────────────────
+  testWidgets('une longue liste de genres ne repousse rien hors de l\'écran',
+      (tester) async {
+    // Repro : avec les 21 genres principaux et ceux ajoutés à la main, les
+    // tuiles poussaient le champ libre, le medley et les boutons vers le bas.
+    // Seules les tuiles défilent désormais ; le reste reste sous la main.
+    final repo = _FakeLibraryRepo();
+    await pump(
+      tester,
+      repo,
+      taxonomy: [for (var i = 0; i < 30; i++) 'Genre numéro $i'],
+    );
+
+    expect(find.text('Écouter un medley').hitTestable(), findsOneWidget);
+    expect(find.byType(TextField).hitTestable(), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, 'Enregistrer').hitTestable(),
+        findsOneWidget);
+
+    // Et tout marche sans avoir à faire défiler quoi que ce soit.
+    await tester.enterText(find.byType(TextField), 'Turlututu');
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Enregistrer'));
+    await tester.pumpAndSettle();
+
+    expect(repo.savedGenre, 'Turlututu');
+  });
+
+  testWidgets('les tuiles défilent pour atteindre les derniers genres',
+      (tester) async {
+    final repo = _FakeLibraryRepo();
+    await pump(
+      tester,
+      repo,
+      taxonomy: [for (var i = 0; i < 30; i++) 'Genre numéro $i'],
+    );
+
+    await tester.scrollUntilVisible(
+      find.widgetWithText(ChoiceChip, 'Genre numéro 29'),
+      120,
+      scrollable: find.byType(Scrollable).last,
+    );
+    await tester.tap(find.widgetWithText(ChoiceChip, 'Genre numéro 29'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Enregistrer'));
+    await tester.pumpAndSettle();
+
+    expect(repo.savedGenre, 'Genre numéro 29');
   });
 }

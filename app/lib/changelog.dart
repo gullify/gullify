@@ -8,6 +8,23 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('2.84.0', [
+    'La suggestion de genre ne dépend plus de MusicBrainz seul. Quand il ne '
+        'dit rien de l\'artiste — ce qui arrivait presque à tout coup sur la '
+        'musique d\'ici — Gullify demande à Deezer, qui compte le genre de '
+        'chacun de ses albums, puis à Apple Music. Le dialogue dit de quel '
+        'catalogue vient la suggestion',
+    'Et il ne suggère plus n\'importe quoi : « Anonyme Introuvable XYZ » '
+        'ramenait le groupe « XYZ », que MusicBrainz notait pourtant 100. Un '
+        'nom court avalé par un nom long n\'est plus le même artiste',
+    'Le medley donne toujours cinq extraits. Un artiste d\'un seul album n\'en '
+        'avait qu\'un, qui tournait en rond : Gullify va maintenant chercher '
+        'plusieurs titres du même disque, étalés du début à la fin',
+    'Le choix du genre tient dans l\'écran. Les tuiles, plus petites, sont les '
+        'seules à défiler : la suggestion et le medley restent en tête, le '
+        'champ « Autre genre » et les boutons sous la main — plus rien n\'est '
+        'poussé hors de l\'écran',
+  ]),
   ReleaseNote('2.83.0', [
     'On peut enfin ajouter des genres. « Gérer les genres » (Paramètres) a un '
         'bouton « Ajouter » : le genre créé rejoint la liste proposée au '

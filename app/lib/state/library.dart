@@ -27,8 +27,9 @@ final genreTaxonomyProvider = FutureProvider<GenreTaxonomy>(
   (ref) => ref.watch(libraryRepositoryProvider).genreTaxonomy(),
 );
 
-/// La suggestion de MusicBrainz pour un artiste (choix manuel du genre).
-/// Interrogée seulement quand le dialogue s'ouvre : c'est deux allers-retours
+/// La suggestion des catalogues pour un artiste (choix manuel du genre) :
+/// MusicBrainz, puis Deezer, puis Apple Music tant que rien n'est sorti.
+/// Interrogée seulement quand le dialogue s'ouvre : ce sont des allers-retours
 /// réseau côté serveur, et le résultat y est gardé en cache un mois.
 final genreSuggestionProvider =
     FutureProvider.family<GenreSuggestion, int>((ref, artistId) async {

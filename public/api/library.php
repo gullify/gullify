@@ -1172,8 +1172,8 @@ try {
         }
 
     } elseif ($action === 'suggest_artist_genre') {
-        // Ce que MusicBrainz sait de l'artiste, ramené à la liste fermée : le
-        // choix manuel part ainsi de la même source que la détection
+        // Ce que les catalogues savent de l'artiste, ramené à la liste fermée :
+        // le choix manuel part ainsi des mêmes sources que la détection
         // automatique. Rien n'est écrit — c'est une suggestion, on garde la
         // main.
         $artistId = (int)($_GET['artist_id'] ?? $_POST['artist_id'] ?? 0);
@@ -1205,22 +1205,14 @@ try {
             if (is_array($cached)) {
                 $suggestion = $cached;
             } else {
-                require_once __DIR__ . '/../../src/MusicBrainz.php';
+                require_once __DIR__ . '/../../src/GenreLookup.php';
                 // Quelqu'un attend devant son téléphone : des appels courts,
                 // et une seule reprise — mieux vaut « aucune suggestion »
-                // qu'une minute d'attente.
-                $tags = function_exists('curl_init')
-                    ? MusicBrainz::tags($artistName, 4, 2)
-                    : [];
-                // Les étiquettes les plus votées d'abord : elles disent d'où
-                // vient la suggestion, et aident à trancher quand la taxonomie
-                // ne trouve rien.
-                usort($tags, fn($a, $b) => $b['count'] <=> $a['count']);
-                $suggestion = [
-                    'genre'  => GenreTaxonomy::pickFromTags($tags),
-                    'tags'   => array_slice(array_column($tags, 'name'), 0, 6),
-                    'source' => 'musicbrainz',
-                ];
+                // qu'une minute d'attente. Deezer et Apple Music ne sont
+                // consultés que si MusicBrainz n'a rien dit (idée #54).
+                $suggestion = function_exists('curl_init')
+                    ? GenreLookup::suggest($artistName, 4, 2)
+                    : ['genre' => null, 'tags' => [], 'source' => null];
                 @file_put_contents($cacheFile, json_encode($suggestion, JSON_UNESCAPED_UNICODE));
             }
 

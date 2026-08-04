@@ -126,6 +126,31 @@ $cases = [
     'rock français'        => GenreTaxonomy::ROCK,
     'rap québécois'        => GenreTaxonomy::HIPHOP,
 
+    // Les étiquettes des catalogues consultés à défaut de MusicBrainz
+    // (src/GenreLookup.php) : Deezer range par rayons, Apple Music donne un
+    // genre principal par artiste.
+    'Chanson française'    => GenreTaxonomy::CHANSON,
+    'French Pop'           => GenreTaxonomy::CHANSON,   // l'étiquette d'ici chez Apple Music
+    'Canadian French Pop'  => GenreTaxonomy::CHANSON,
+    'Rap français'         => GenreTaxonomy::HIPHOP,
+    'Rap/Hip Hop'          => GenreTaxonomy::HIPHOP,
+    'Soul & Funk'          => GenreTaxonomy::RNB,
+    'Pop indé/Folk'        => GenreTaxonomy::FOLK,
+    'Films/Jeux vidéo'     => GenreTaxonomy::TRAMES,
+    'Jeunesse'             => GenreTaxonomy::ENFANTS,
+    'Comptines/Chansons'   => GenreTaxonomy::ENFANTS,
+    'Musique africaine'    => GenreTaxonomy::MONDE,
+    'Musique asiatique'    => GenreTaxonomy::MONDE,
+    'Musique brésilienne'  => GenreTaxonomy::MONDE,
+    'Musique indienne'     => GenreTaxonomy::MONDE,
+    'Singer/Songwriter'    => GenreTaxonomy::FOLK,
+    'Children\'s Music'    => GenreTaxonomy::ENFANTS,
+    'Hip-Hop/Rap'          => GenreTaxonomy::HIPHOP,
+    // Ce que ces catalogues rangent avec la musique sans en être.
+    'Livres audio'         => null,
+    'Histoires'            => null,
+    'Musique allemande'    => null,
+
     // Rien d'exploitable : aucun genre plutôt qu'un faux genre.
     'Music'                => null,
     'Miscellaneous'        => null,

@@ -472,9 +472,10 @@ class LibraryRepository {
         form: {'name': name},
       );
 
-  /// Le genre que MusicBrainz suggère pour un artiste, ramené à la liste
-  /// fermée. `genre` est nul quand rien de fiable n'en sort — mieux vaut
-  /// aucune suggestion qu'une fausse.
+  /// Le genre que les catalogues suggèrent pour un artiste (MusicBrainz, puis
+  /// Deezer, puis Apple Music), ramené à la liste fermée. `genre` est nul
+  /// quand rien de fiable n'en sort — mieux vaut aucune suggestion qu'une
+  /// fausse.
   Future<GenreSuggestion> suggestArtistGenre(int artistId) async {
     final data = await _client.get('library.php', query: {
       'action': 'suggest_artist_genre',
@@ -488,6 +489,9 @@ class LibraryRepository {
         for (final t in data['tags'] as List<dynamic>? ?? [])
           if (t is String && t.isNotEmpty) t,
       ],
+      source: (data['source'] as String?)?.trim().isEmpty ?? true
+          ? null
+          : data['source'] as String,
     );
   }
 
@@ -605,16 +609,31 @@ class LibraryRepository {
   }
 }
 
-/// Ce que MusicBrainz dit d'un artiste : un genre de la liste fermée (nul si
-/// rien de fiable n'en sort) et les étiquettes qui y ont mené — elles se
-/// montrent, pour que le choix reste éclairé plutôt qu'imposé.
+/// Ce que les catalogues disent d'un artiste : un genre de la liste fermée
+/// (nul si rien de fiable n'en sort), les étiquettes qui y ont mené — elles se
+/// montrent, pour que le choix reste éclairé plutôt qu'imposé — et [source],
+/// celui des catalogues qui a répondu.
 class GenreSuggestion {
-  const GenreSuggestion({this.genre, this.tags = const []});
+  const GenreSuggestion({this.genre, this.tags = const [], this.source});
 
   final String? genre;
   final List<String> tags;
 
+  /// « musicbrainz », « deezer », « itunes », ou nul quand personne n'a rien
+  /// dit. Voir [sourceLabel] pour le nom à afficher.
+  final String? source;
+
   bool get isEmpty => genre == null && tags.isEmpty;
+
+  /// Le nom du catalogue tel qu'on le montre. Une source inconnue se donne
+  /// telle quelle plutôt que de se taire : c'est le serveur qui la nomme.
+  String? get sourceLabel => switch (source) {
+        'musicbrainz' => 'MusicBrainz',
+        'deezer' => 'Deezer',
+        'itunes' => 'Apple Music',
+        null || '' => null,
+        final other => other,
+      };
 }
 
 /// Les genres proposés au moment de ranger un artiste : [genres] les donne

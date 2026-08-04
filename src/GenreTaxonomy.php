@@ -94,6 +94,8 @@ class GenreTaxonomy
         'parodie', 'novelty', 'stand up', 'spoken word', 'parle', 'conte',
         'contes', 'audiobook', 'livre audio', 'podcast',
         'holiday', 'christmas', 'noel', 'temps des fetes',
+        // Ce que les catalogues rangent avec la musique sans en être (Deezer).
+        'livre audio', 'livres audio', 'histoires', 'musique allemande',
     ];
 
     /**
@@ -128,17 +130,23 @@ class GenreTaxonomy
         self::METAL      => ['metal', 'metal and hard rock', 'metal hard rock'],
         self::ELECTRO    => ['electronique', 'electronic', 'electro', 'electronica'],
         self::CLASSIQUE  => ['classique', 'classical', 'musique classique'],
-        self::MONDE      => ['musique du monde', 'world', 'world music', 'monde'],
+        self::MONDE      => [
+            'musique du monde', 'world', 'world music', 'monde',
+            // Les rayons « musique de » des catalogues (Deezer).
+            'musique asiatique', 'musique bresilienne', 'musique indienne',
+            'musique arabe', 'musique latine',
+        ],
         self::GOSPEL     => ['gospel / spirituel', 'gospel', 'spirituel'],
         self::TRAMES     => [
             'trames sonores', 'trame sonore', 'soundtrack', 'soundtracks',
             'bande originale', 'bande son', 'ost', 'original score', 'score',
+            'films jeux video', 'jeux video',
         ],
         self::ENFANTS    => [
             'musique pour enfants', 'enfants', 'enfant', 'jeunesse',
             'children', 'childrens music', 'kids', 'comptine', 'comptines',
             'berceuse', 'berceuses', 'lullaby', 'lullabies', 'nursery rhymes',
-            'disney',
+            'disney', 'comptines chansons',
         ],
         self::PUNK  => ['punk', 'punk rock', 'ska', 'hardcore'],
         self::ROCK  => ['rock', 'rock/pop', 'rock pop'],
@@ -160,6 +168,10 @@ class GenreTaxonomy
      */
     private const RULES = [
         // ── Composés à traiter avant le mot large qu'ils contiennent ────────
+        // « French pop » est l'étiquette que les catalogues collent à la
+        // chanson d'ici : elle dit la langue avant de dire la pop.
+        ['french pop',       self::CHANSON,    self::RANK_NORMAL],
+        ['pop francaise',    self::CHANSON,    self::RANK_NORMAL],
         ['post punk',        self::ALTERNATIF, self::RANK_NORMAL],
         ['pop rock',         self::POP,        self::RANK_NORMAL],
         ['country rock',     self::COUNTRY,    self::RANK_NORMAL],

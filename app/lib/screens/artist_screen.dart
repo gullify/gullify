@@ -776,66 +776,77 @@ class _GenreDialogState extends ConsumerState<_GenreDialog> {
     ]..sort();
     final choices = [...taxonomy, ...extras];
 
+    // Ce qui aide à choisir (la suggestion, le medley) se tient en haut ; les
+    // tuiles, elles seules, défilent. Sans ça, une trentaine de genres
+    // repoussaient le champ libre et le medley hors de l'écran (idée #54).
     return AlertDialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+      titlePadding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
+      contentPadding: const EdgeInsets.fromLTRB(20, 10, 20, 0),
       title: Text(
         widget.artistName == null
             ? 'Genre de l\'artiste'
             : 'Genre de « ${widget.artistName} »',
+        style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
       ),
       content: SizedBox(
         width: 380,
-        child: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _Suggestion(
-                artistId: widget.artistId,
-                selected: _selected,
-                onPick: (genre) => setState(() {
-                  _selected = genre;
-                  _customCtrl.clear();
-                }),
-              ),
-              const SizedBox(height: 12),
-              if (choices.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.only(bottom: 12),
-                  child: Text('Genres indisponibles pour le moment.'),
-                )
-              else
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 6,
-                  children: [
-                    for (final g in choices)
-                      ChoiceChip(
-                        label: Text(g),
-                        selected: _selected == g,
-                        onSelected: (_) => setState(
-                          () => _selected = _selected == g ? null : g,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _Suggestion(
+              artistId: widget.artistId,
+              selected: _selected,
+              onPick: (genre) => setState(() {
+                _selected = genre;
+                _customCtrl.clear();
+              }),
+            ),
+            const SizedBox(height: 8),
+            _MedleyButton(artistId: widget.artistId),
+            const Divider(height: 18),
+            if (choices.isEmpty)
+              const Padding(
+                padding: EdgeInsets.only(bottom: 12),
+                child: Text('Genres indisponibles pour le moment.'),
+              )
+            else
+              Flexible(
+                child: SingleChildScrollView(
+                  child: Wrap(
+                    spacing: 4,
+                    runSpacing: 4,
+                    children: [
+                      for (final g in choices)
+                        _GenreChip(
+                          label: g,
+                          selected: _selected == g,
+                          onTap: () => setState(
+                            () => _selected = _selected == g ? null : g,
+                          ),
                         ),
-                      ),
-                  ],
+                    ],
+                  ),
                 ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: _customCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'Autre genre',
-                  hintText: 'Si aucun ne convient…',
-                ),
-                onChanged: (v) {
-                  // Saisir un genre à la main écarte la sélection.
-                  if (v.trim().isNotEmpty && _selected != null) {
-                    setState(() => _selected = null);
-                  }
-                },
               ),
-              const SizedBox(height: 12),
-              _MedleyButton(artistId: widget.artistId),
-            ],
-          ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: _customCtrl,
+              style: const TextStyle(fontSize: 14),
+              decoration: const InputDecoration(
+                isDense: true,
+                labelText: 'Autre genre',
+                hintText: 'Si aucun ne convient…',
+              ),
+              onChanged: (v) {
+                // Saisir un genre à la main écarte la sélection.
+                if (v.trim().isNotEmpty && _selected != null) {
+                  setState(() => _selected = null);
+                }
+              },
+            ),
+          ],
         ),
       ),
       actions: [
@@ -860,9 +871,47 @@ class _GenreDialogState extends ConsumerState<_GenreDialog> {
   }
 }
 
-/// La suggestion de MusicBrainz, en tête du dialogue : un genre à prendre d'un
-/// tap, et les étiquettes qui l'ont dicté. Elle ne choisit jamais à la place —
-/// elle propose, et se tait quand elle n'a rien de sûr.
+/// Une tuile de genre, en petit. La liste en compte une trentaine : à taille
+/// normale, elles remplissaient le dialogue à elles seules.
+class _GenreChip extends StatelessWidget {
+  const _GenreChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+
+    return ChoiceChip(
+      label: Text(label),
+      selected: selected,
+      onSelected: (_) => onTap(),
+      // Sans crochet ni pastille : le genre choisi se reconnaît à sa couleur,
+      // et chaque tuile garde sa place pour le nom qu'elle porte.
+      showCheckmark: false,
+      selectedColor: scheme.primary,
+      labelStyle: TextStyle(
+        fontSize: 12,
+        fontWeight: FontWeight.w600,
+        color: selected ? scheme.onPrimary : null,
+      ),
+      labelPadding: const EdgeInsets.symmetric(horizontal: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      visualDensity: VisualDensity.compact,
+      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+    );
+  }
+}
+
+/// La suggestion des catalogues, en tête du dialogue : un genre à prendre d'un
+/// tap, d'où il vient, et les étiquettes qui l'ont dicté. Elle ne choisit
+/// jamais à la place — elle propose, et se tait quand elle n'a rien de sûr.
 class _Suggestion extends ConsumerWidget {
   const _Suggestion({
     required this.artistId,
@@ -894,46 +943,59 @@ class _Suggestion extends ConsumerWidget {
       ),
       // Une suggestion qui manque n'est pas une panne : le dialogue marche
       // très bien sans, on n'affiche pas d'erreur en travers.
-      error: (_, _) => Text(
-        'Suggestion indisponible (MusicBrainz)',
-        style: faint,
-      ),
+      error: (_, _) => Text('Suggestion indisponible', style: faint),
       data: (s) {
         if (s.genre == null) {
           return Text(
             s.tags.isEmpty
-                ? 'MusicBrainz ne dit rien de cet artiste'
-                : 'Rien de net chez MusicBrainz (${s.tags.take(3).join(', ')})',
+                ? 'Aucun catalogue ne dit rien de cet artiste'
+                : 'Rien de net dans les catalogues (${s.tags.take(3).join(', ')})',
             style: faint,
           );
         }
+        final source = s.sourceLabel;
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
+            // Le titre et la tuile sur une même ligne : la suggestion tient en
+            // deux lignes, et les tuiles gardent la place qu'elles réclament.
+            Wrap(
+              spacing: 8,
+              runSpacing: 4,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
-                Icon(Icons.auto_awesome, size: 16, color: scheme.primary),
-                const SizedBox(width: 6),
-                Text(
-                  'Suggestion',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: scheme.primary,
-                  ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.auto_awesome, size: 15, color: scheme.primary),
+                    const SizedBox(width: 5),
+                    Text(
+                      'Suggestion',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: scheme.primary,
+                      ),
+                    ),
+                  ],
+                ),
+                _GenreChip(
+                  label: s.genre!,
+                  selected: selected == s.genre,
+                  onTap: () => onPick(s.genre!),
                 ),
               ],
             ),
-            const SizedBox(height: 6),
-            ChoiceChip(
-              label: Text(s.genre!),
-              selected: selected == s.genre,
-              onSelected: (_) => onPick(s.genre!),
-            ),
-            if (s.tags.isNotEmpty) ...[
-              const SizedBox(height: 4),
-              Text('d\'après MusicBrainz : ${s.tags.take(4).join(', ')}',
-                  style: faint),
+            if (source != null) ...[
+              const SizedBox(height: 3),
+              Text(
+                s.tags.isEmpty
+                    ? 'd\'après $source'
+                    : 'd\'après $source : ${s.tags.take(4).join(', ')}',
+                style: faint,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
             ],
           ],
         );
@@ -955,44 +1017,43 @@ class _MedleyButton extends ConsumerWidget {
     final scheme = Theme.of(context).colorScheme;
     final medley = ref.watch(medleyPlayerProvider);
     final song = medley.current;
+    final faint = TextStyle(fontSize: 12, color: scheme.onSurfaceVariant);
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    // Tout sur une ligne : ce qui joue se lit à côté du bouton, et le dialogue
+    // ne s'allonge pas d'une rangée dès que le medley démarre.
+    return Row(
       children: [
         OutlinedButton.icon(
           onPressed: () =>
               ref.read(medleyPlayerProvider.notifier).toggle(artistId),
+          style: OutlinedButton.styleFrom(
+            visualDensity: VisualDensity.compact,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+          ),
           icon: Icon(
             medley.active ? Icons.stop_circle_outlined : Icons.graphic_eq,
-            size: 18,
+            size: 17,
           ),
           label: Text(medley.active ? 'Arrêter le medley' : 'Écouter un medley'),
         ),
+        const SizedBox(width: 8),
         if (medley.error)
-          Padding(
-            padding: const EdgeInsets.only(top: 4),
-            child: Text(
-              'Rien à faire écouter pour cet artiste',
-              style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
-            ),
-          ),
-        if (song != null)
-          Padding(
-            padding: const EdgeInsets.only(top: 6),
+          Expanded(
+            child: Text('Rien à faire écouter', style: faint, maxLines: 1),
+          )
+        else if (song != null)
+          Expanded(
             child: Row(
               children: [
                 EqBars(color: scheme.primary, height: 12),
-                const SizedBox(width: 8),
+                const SizedBox(width: 6),
                 Expanded(
                   child: Text(
-                    '${song.title}${song.albumName != null ? ' · ${song.albumName}' : ''}'
-                    '  (${medley.index}/${medley.total})',
+                    '${song.title}  (${medley.index}/${medley.total})',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: scheme.onSurfaceVariant,
-                    ),
+                    style: faint,
                   ),
                 ),
               ],
