@@ -8,6 +8,17 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('2.71.0', [
+    'La « bande vide » en bas de l\'écran, revenue malgré le correctif de la '
+        '2.65.0 : l\'app ne se contente plus de demander la fermeture du '
+        'clavier — quand la place reste réservée sans clavier à l\'écran, elle '
+        'la reprend d\'elle-même. Le contenu retrouve aussitôt toute la '
+        'hauteur',
+    'Un champ de saisie resté sélectionné dans un onglet qu\'on a quitté (ou '
+        'sur un écran recouvert) ne réserve plus la place de son clavier : '
+        'l\'app fait désormais la différence entre un champ à l\'écran et un '
+        'champ qui n\'y est plus',
+  ]),
   ReleaseNote('2.70.0', [
     'Nouveau jeu, « Défricheur » : l\'app vous sert trente secondes d\'un '
         'album de votre bibliothèque dont vous n\'avez jamais écouté le '

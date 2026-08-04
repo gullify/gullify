@@ -24,7 +24,22 @@ List<String> _spyTextInput() {
   return calls;
 }
 
+/// Rend l'inset du bas vu SOUS le garde — c'est lui qui décide de la bande.
+class _InsetProbe extends StatelessWidget {
+  const _InsetProbe();
+
+  static double? last;
+
+  @override
+  Widget build(BuildContext context) {
+    last = MediaQuery.viewInsetsOf(context).bottom;
+    return const SizedBox();
+  }
+}
+
 void main() {
+  setUp(() => _InsetProbe.last = null);
+
   testWidgets('dismissKeyboard retire le focus et ferme l\'IME', (
     tester,
   ) async {
@@ -52,7 +67,9 @@ void main() {
     final calls = _spyTextInput();
     await tester.pumpWidget(
       const MaterialApp(
-        home: KeyboardInsetGuard(child: Scaffold(body: SizedBox())),
+        // Pas de Scaffold : il absorbe lui-même l'inset du bas pour son
+        // body, ce qui masquerait ce que le garde fait vraiment.
+        home: KeyboardInsetGuard(child: Material(child: _InsetProbe())),
       ),
     );
 
@@ -65,6 +82,46 @@ void main() {
     await tester.pump(const Duration(seconds: 1));
 
     expect(calls, contains('TextInput.hide'));
+    // Et surtout : la place n'est plus réservée sous le garde, même si
+    // l'inset, lui, reste appliqué par le système.
+    expect(_InsetProbe.last, 0);
+  });
+
+  testWidgets('un champ resté focalisé hors écran ne retient pas la bande', (
+    tester,
+  ) async {
+    _spyTextInput();
+    final focusNode = FocusNode();
+    addTearDown(focusNode.dispose);
+
+    // TickerMode désactivé = l'onglet masqué du shell (go_router) ou l'écran
+    // recouvert : le champ garde le focus, son clavier est parti.
+    await tester.pumpWidget(
+      MaterialApp(
+        home: KeyboardInsetGuard(
+          child: Material(
+            child: Column(
+              children: [
+                TickerMode(
+                  enabled: false,
+                  child: TextField(focusNode: focusNode),
+                ),
+                const _InsetProbe(),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    focusNode.requestFocus();
+    await tester.pump();
+
+    tester.view.viewInsets = const FakeViewPadding(bottom: 900);
+    addTearDown(tester.view.resetViewInsets);
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+
+    expect(_InsetProbe.last, 0);
   });
 
   testWidgets('le garde laisse le clavier ouvert quand un champ est focalisé', (
@@ -77,7 +134,14 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: KeyboardInsetGuard(
-          child: Scaffold(body: TextField(focusNode: focusNode)),
+          child: Material(
+            child: Column(
+              children: [
+                TextField(focusNode: focusNode),
+                const _InsetProbe(),
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -92,5 +156,8 @@ void main() {
 
     expect(focusNode.hasFocus, isTrue);
     expect(calls, isNot(contains('TextInput.hide')));
+    // Un clavier légitime garde sa place réservée (900 px physiques sur les
+    // 3 pixels/point de la vue de test).
+    expect(_InsetProbe.last, 300);
   });
 }
