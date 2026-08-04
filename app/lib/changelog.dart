@@ -8,6 +8,19 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('2.72.0', [
+    'Le Défricheur juge maintenant des CHANSONS, pas des albums entiers : '
+        'chaque carte est un titre que tu n\'as jamais joué, avec sa pochette, '
+        'son album et son année — et toujours trente secondes pour te '
+        'décider',
+    'Ce que tu gardes rejoint la playlist « Défricheur » titre par titre : '
+        'plus d\'album complet ajouté pour une seule chanson qui t\'a plu',
+    'Le vivier s\'ouvre du même coup : un album déjà entamé garde ses titres '
+        'jamais écoutés à défricher, alors qu\'il disparaissait entièrement '
+        'avant. Les extraits trop courts (jingles, interludes) sont écartés',
+    'La mémoire du jeu repart à zéro — elle retenait des albums, elle retient '
+        'désormais des titres',
+  ]),
   ReleaseNote('2.71.0', [
     'La « bande vide » en bas de l\'écran, revenue malgré le correctif de la '
         '2.65.0 : l\'app ne se contente plus de demander la fermeture du '

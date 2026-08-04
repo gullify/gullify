@@ -48,7 +48,7 @@ final _songs = [for (var i = 1; i <= 12; i++) _song(i)];
 
 final _discovery = [
   for (var i = 1; i <= 6; i++)
-    DiscoveryAlbum(album: _albums[i - 1], sample: _song(i), songCount: i + 3),
+    DiscoveryTrack(song: _song(i), year: 1970 + i * 3),
 ];
 
 /// Le vrai dépôt exigerait un client HTTP authentifié ; seul l'URL de flux
@@ -65,7 +65,7 @@ Widget _wrap(Widget child) => ProviderScope(
       (ref) async => GamePool(tracks: _tracks, albums: _albums),
     ),
     blindPoolProvider.overrideWith((ref) async => _songs),
-    discoveryAlbumsProvider.overrideWith((ref) async => _discovery),
+    discoveryTracksProvider.overrideWith((ref) async => _discovery),
   ],
   child: MaterialApp(
     theme: gullifyThemeFor(GullifyAccent.indigo, dark: false),
@@ -146,11 +146,14 @@ void main() {
     expect(find.text('VS'), findsOneWidget);
   });
 
-  testWidgets('Défricheur sert un album à juger, et enchaîne', (tester) async {
+  testWidgets('Défricheur sert un titre à juger, et enchaîne', (tester) async {
     await openGame(tester, const SwipeGameScreen());
     expect(find.text('Garder'), findsOneWidget);
     expect(find.text('Passer'), findsOneWidget);
-    // Six albums en réserve, dix par tournée : la tournée en fait six.
+    // La carte montre le TITRE (pas le nom de l'album) : c'est lui qu'on
+    // juge. Le tirage est mélangé, et la carte suivante se devine derrière.
+    expect(find.textContaining('Titre '), findsWidgets);
+    // Six titres en réserve, dix par tournée : la tournée en fait six.
     expect(find.text('1/6'), findsOneWidget);
     expect(find.text('GARDÉS'), findsOneWidget);
 

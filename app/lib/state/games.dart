@@ -125,7 +125,7 @@ const kDuelGame = GameInfo(
 const kSwipeGame = GameInfo(
   id: 'swipe',
   name: 'Défricheur',
-  tagline: 'Trente secondes pour juger un album jamais écouté',
+  tagline: 'Trente secondes pour juger un titre jamais écouté',
   route: '/games/swipe',
   icon: Icons.swipe_rounded,
   scoreLabel: 'Meilleure récolte',
@@ -133,17 +133,17 @@ const kSwipeGame = GameInfo(
   // Chacun défriche sa propre bibliothèque : rien à partager en salon.
   multiplayer: false,
   goal:
-      'Faire le tri dans les albums que tu as accumulés sans jamais les '
+      'Faire le tri dans les titres que tu as accumulés sans jamais les '
       'écouter — et repartir avec une playlist de ce qui t\'a plu.',
   rules: [
-    'Un album dont aucun titre n\'a jamais été joué se présente : pochette, '
-        'artiste, et trente secondes pour se faire une idée.',
+    'Un titre qui n\'a jamais été joué se présente : pochette, artiste, et '
+        'trente secondes pour se faire une idée.',
     'Glisse la carte vers la droite (ou touche le cœur) pour garder, vers la '
         'gauche (ou la croix) pour passer.',
-    'Chaque album gardé rejoint la playlist « $kSwipePlaylist », en entier.',
-    'Un album déjà jugé ne revient plus : la partie suivante en propose '
+    'Chaque titre gardé rejoint la playlist « $kSwipePlaylist ».',
+    'Un titre déjà jugé ne revient plus : la partie suivante en propose '
         'd\'autres.',
-    'Dix albums par tournée — le score, c\'est ce que tu as gardé.',
+    'Dix titres par tournée — le score, c\'est ce que tu as gardé.',
   ],
 );
 
@@ -185,11 +185,11 @@ final blindPoolProvider = FutureProvider<List<Song>>(
       .randomSongs(limit: 120, source: ref.watch(gameSourceProvider)),
 );
 
-/// Vivier du Défricheur : les albums dont aucun titre n'a jamais été joué.
-final discoveryAlbumsProvider = FutureProvider<List<DiscoveryAlbum>>(
+/// Vivier du Défricheur : les titres qui n'ont jamais été joués.
+final discoveryTracksProvider = FutureProvider<List<DiscoveryTrack>>(
   (ref) => ref
       .watch(libraryRepositoryProvider)
-      .discoveryAlbums(limit: 80, source: ref.watch(gameSourceProvider)),
+      .discoveryTracks(limit: 80, source: ref.watch(gameSourceProvider)),
 );
 
 /// Vrai si glisser un titre de l'année [year] dans le trou n° [gap] de la
@@ -322,15 +322,18 @@ final gameSourceProvider = NotifierProvider<GameSourceController, GameSource>(
   GameSourceController.new,
 );
 
-/// Les albums déjà jugés au Défricheur (gardés comme passés) : ils ne
-/// reviennent plus. Le serveur, lui, continuerait de les proposer — un album
+/// Les titres déjà jugés au Défricheur (gardés comme passés) : ils ne
+/// reviennent plus. Le serveur, lui, continuerait de les proposer — un titre
 /// gardé mais pas encore écouté reste « jamais joué ».
 class SwipeMemory extends Notifier<Set<int>> {
-  static const _key = 'game_swipe_seen';
+  // Clé propre aux titres : l'ancienne (`game_swipe_seen`) contenait des
+  // identifiants d'ALBUMS, qui filtreraient des titres au hasard.
+  static const _key = 'game_swipe_seen_songs';
 
   /// Au-delà, on oublie les plus anciens : la bibliothèque finirait par ne
-  /// plus rien proposer, et le stockage n'est pas un journal.
-  static const _cap = 600;
+  /// plus rien proposer, et le stockage n'est pas un journal. Plus haut que
+  /// du temps des albums — on juge maintenant titre par titre.
+  static const _cap = 2000;
 
   bool _alive = true;
   final Completer<void> _ready = Completer<void>();
@@ -355,15 +358,15 @@ class SwipeMemory extends Notifier<Set<int>> {
       };
       if (_alive && ids.isNotEmpty) state = ids;
     } catch (_) {
-      // Stockage indisponible : on rejouera peut-être les mêmes albums, ce
+      // Stockage indisponible : on rejouera peut-être les mêmes titres, ce
       // qui reste préférable à un jeu qui refuse de démarrer.
     } finally {
       if (!_ready.isCompleted) _ready.complete();
     }
   }
 
-  Future<void> remember(Iterable<int> albumIds) async {
-    final ids = [...state, ...albumIds];
+  Future<void> remember(Iterable<int> songIds) async {
+    final ids = [...state, ...songIds];
     final kept = ids.length <= _cap ? ids : ids.sublist(ids.length - _cap);
     state = kept.toSet();
     try {

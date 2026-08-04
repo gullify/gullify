@@ -14,7 +14,7 @@ import '../../widgets/glass_box.dart';
 import '../../widgets/glass_kit.dart';
 import 'game_kit.dart';
 
-/// « Défricheur » : trente secondes d'un album jamais écouté, on garde ou on
+/// « Défricheur » : trente secondes d'un titre jamais écouté, on garde ou on
 /// passe. Ce qu'on garde rejoint la playlist du même nom — de quoi enfin
 /// écouter ce qu'on a accumulé sans jamais l'ouvrir.
 class SwipeGameScreen extends ConsumerStatefulWidget {
@@ -28,7 +28,7 @@ enum _Phase { loading, empty, playing, saving, over }
 
 class _SwipeGameScreenState extends ConsumerState<SwipeGameScreen>
     with SingleTickerProviderStateMixin {
-  /// Albums proposés par tournée : assez pour défricher, assez court pour
+  /// Titres proposés par tournée : assez pour défricher, assez court pour
   /// qu'on ait envie d'y revenir.
   static const _rounds = 10;
 
@@ -51,8 +51,8 @@ class _SwipeGameScreenState extends ConsumerState<SwipeGameScreen>
   String? _error;
   String? _saveError;
 
-  List<DiscoveryAlbum> _deck = [];
-  final List<DiscoveryAlbum> _kept = [];
+  List<DiscoveryTrack> _deck = [];
+  final List<DiscoveryTrack> _kept = [];
   int _index = 0;
   int _addedSongs = 0;
 
@@ -113,15 +113,15 @@ class _SwipeGameScreenState extends ConsumerState<SwipeGameScreen>
     });
     try {
       final pool = refresh
-          ? await ref.refresh(discoveryAlbumsProvider.future)
-          : await ref.read(discoveryAlbumsProvider.future);
+          ? await ref.refresh(discoveryTracksProvider.future)
+          : await ref.read(discoveryTracksProvider.future);
       if (!mounted) return;
       // Ce qui a déjà été jugé ne revient pas : le serveur, lui, continue de
       // le proposer tant qu'on ne l'a pas écouté.
       final seen = ref.read(swipeMemoryProvider);
       final fresh = [
-        for (final album in pool)
-          if (!seen.contains(album.album.id)) album,
+        for (final track in pool)
+          if (!seen.contains(track.song.id)) track,
       ]..shuffle(_random);
       if (fresh.isEmpty) {
         setState(() => _phase = _Phase.empty);
@@ -145,10 +145,10 @@ class _SwipeGameScreenState extends ConsumerState<SwipeGameScreen>
     }
   }
 
-  DiscoveryAlbum get _current => _deck[_index];
+  DiscoveryTrack get _current => _deck[_index];
 
   void _startRound() {
-    final sample = _current.sample;
+    final sample = _current.song;
     _start = snippetStart(sample, _random);
     _snippet.playFrom(
       ref.read(libraryRepositoryProvider).streamUrl(sample),
@@ -215,7 +215,7 @@ class _SwipeGameScreenState extends ConsumerState<SwipeGameScreen>
     _startRound();
   }
 
-  /// Fin de tournée : la récolte rejoint la playlist, et tous les albums vus
+  /// Fin de tournée : la récolte rejoint la playlist, et tous les titres vus
   /// (gardés comme passés) sont retenus pour ne plus revenir.
   Future<void> _finish() async {
     _timer?.cancel();
@@ -223,7 +223,7 @@ class _SwipeGameScreenState extends ConsumerState<SwipeGameScreen>
     setState(() => _phase = _Phase.saving);
 
     await ref.read(swipeMemoryProvider.notifier).remember([
-      for (final a in _deck) a.album.id,
+      for (final t in _deck) t.song.id,
     ]);
 
     var added = 0;
@@ -231,8 +231,9 @@ class _SwipeGameScreenState extends ConsumerState<SwipeGameScreen>
       try {
         final actions = ref.read(playlistActionsProvider);
         final playlistId = await actions.ensureNamed(kSwipePlaylist);
-        for (final album in _kept) {
-          added += await actions.addAlbum(playlistId, album.album.id);
+        for (final track in _kept) {
+          await actions.addSong(playlistId, track.song.id);
+          added++;
         }
       } catch (e) {
         // La récolte est perdue pour la playlist, pas la partie : on le dit
@@ -267,7 +268,7 @@ class _SwipeGameScreenState extends ConsumerState<SwipeGameScreen>
           : GameStatusBar(
               children: [
                 GameStatChip(
-                  label: 'Album',
+                  label: 'Titre',
                   value: '${_index + 1}/${_deck.length}',
                 ),
                 GameStatChip(label: 'Gardés', value: '${_kept.length}'),
@@ -305,7 +306,7 @@ class _SwipeGameScreenState extends ConsumerState<SwipeGameScreen>
                 : 'Impossible de charger la partie',
             hint:
                 _error ??
-                'Tous les albums de ta bibliothèque ont déjà été écoutés — '
+                'Tous les titres de ta bibliothèque ont déjà été écoutés — '
                     'ou déjà jugés ici.',
           ),
         ),
@@ -336,7 +337,7 @@ class _SwipeGameScreenState extends ConsumerState<SwipeGameScreen>
             best: best,
             headline: _kept.isEmpty
                 ? 'Rien gardé cette fois'
-                : '${_kept.length} album${_kept.length > 1 ? 's' : ''} '
+                : '${_kept.length} titre${_kept.length > 1 ? 's' : ''} '
                       'à écouter',
             scoreSuffix: ' gardés',
             onReplay: _load,
@@ -448,15 +449,15 @@ class _SwipeGameScreenState extends ConsumerState<SwipeGameScreen>
     );
   }
 
-  /// La carte d'un album : pochette en grand, identité dessous, et le verdict
+  /// La carte d'un titre : pochette en grand, identité dessous, et le verdict
   /// qui s'affiche dès que le geste penche d'un côté.
   Widget _card(
-    DiscoveryAlbum entry, {
+    DiscoveryTrack entry, {
     required double art,
     bool interactive = true,
   }) {
     final scheme = Theme.of(context).colorScheme;
-    final album = entry.album;
+    final song = entry.song;
     final dx = interactive && !_flying ? _drag.dx : 0.0;
     final keeping = interactive && (_flying ? _keeping : dx > 0);
     final verdict = interactive
@@ -478,7 +479,7 @@ class _SwipeGameScreenState extends ConsumerState<SwipeGameScreen>
               Stack(
                 alignment: Alignment.topCenter,
                 children: [
-                  Artwork(url: album.artworkUrl, size: art, borderRadius: 20),
+                  Artwork(url: song.artworkUrl, size: art, borderRadius: 20),
                   if (verdict > 0.05)
                     Positioned(
                       top: 14,
@@ -491,7 +492,7 @@ class _SwipeGameScreenState extends ConsumerState<SwipeGameScreen>
               ),
               const SizedBox(height: 14),
               Text(
-                album.name,
+                song.title,
                 maxLines: 2,
                 textAlign: TextAlign.center,
                 overflow: TextOverflow.ellipsis,
@@ -504,17 +505,21 @@ class _SwipeGameScreenState extends ConsumerState<SwipeGameScreen>
               ),
               const SizedBox(height: 2),
               Text(
-                album.artistName ?? '',
+                song.artistName ?? '',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(fontSize: 14, color: scheme.onSurfaceVariant),
               ),
               const SizedBox(height: 6),
+              // L'album d'où vient le titre, et son année : de quoi situer ce
+              // qu'on entend sans rien dévoiler de plus.
               Text(
                 [
-                  if (album.year != null) '${album.year}',
-                  '${entry.songCount} titre${entry.songCount > 1 ? 's' : ''}',
+                  if ((song.albumName ?? '').isNotEmpty) song.albumName!,
+                  if (entry.year != null) '${entry.year}',
                 ].join(' · '),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   fontSize: 12.5,
                   fontWeight: FontWeight.w600,

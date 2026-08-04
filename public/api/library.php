@@ -822,7 +822,55 @@ try {
         }
         $response['data'] = $songs;
 
+    } elseif ($action === 'discovery_tracks') {
+        // Jeu « Défricheur » : titres jamais joués, pochettés, servis un par
+        // un. Contrairement à `discovery_albums`, un album entamé garde ses
+        // titres vierges dans le vivier — c'est bien la chanson qu'on juge.
+        $limit = min(200, max(1, intval($_GET['limit'] ?? 60)));
+        [$srcSql, $srcParams] = GameSource::songWhere($user, GameSource::fromRequest());
+        $stmt = $conn->prepare("
+            SELECT s.id, s.title, s.track_number, s.duration, s.file_path,
+                   s.album_id, al.name AS album_name, al.year,
+                   " . TRACK_ARTIST_ID . " AS artist_id,
+                   " . TRACK_ARTIST_NAME . " AS artist_name
+            FROM songs s
+            JOIN albums al ON s.album_id = al.id
+            JOIN artists a ON al.artist_id = a.id
+            " . TRACK_ARTIST_JOIN . "
+            LEFT JOIN play_history ph
+                ON ph.song_id = s.id AND ph.user = ?
+            WHERE a.user = ? AND ph.id IS NULL
+              AND al.artwork IS NOT NULL AND al.artwork <> ''
+              -- Trente secondes à faire entendre : les jingles et autres
+              -- interludes n'ont rien à se faire juger. Une durée inconnue
+              -- (0) reste admise, sinon certaines bibliothèques se videraient.
+              AND (s.duration = 0 OR s.duration >= 45)
+              $srcSql
+            ORDER BY RAND()
+            LIMIT $limit
+        ");
+        $stmt->execute(array_merge([$user, $user], $srcParams));
+        $songs = [];
+        while ($row = $stmt->fetch()) {
+            $songs[] = [
+                'id' => (int)$row['id'],
+                'title' => $row['title'],
+                'trackNumber' => (int)$row['track_number'],
+                'duration' => (int)$row['duration'],
+                'filePath' => $row['file_path'],
+                'albumId' => (int)$row['album_id'],
+                'albumName' => $row['album_name'],
+                'artworkUrl' => albumArtworkUrl((int)$row['album_id']),
+                'artistId' => $row['artist_id'] !== null ? (int)$row['artist_id'] : null,
+                'artistName' => $row['artist_name'],
+                'year' => $row['year'] !== null ? (int)$row['year'] : null,
+            ];
+        }
+        $response['data'] = ['songs' => $songs];
+
     } elseif ($action === 'discovery_albums') {
+        // Ancienne mouture du Défricheur (albums entiers, app ≤ 2.71) :
+        // gardée pour les téléphones pas encore mis à jour.
         // Jeu « Défricheur » : albums pochettés dont AUCUN titre n'a jamais
         // été joué, avec un titre représentatif pour l'extrait de trente
         // secondes. Un album entamé une seule fois n'est plus à défricher :
