@@ -646,15 +646,20 @@ class _GenreDialogState extends ConsumerState<_GenreDialog> {
   }
 
   Future<void> _save(String genre) async {
+    // Le dialogue se ferme tout de suite, mais l'enregistrement continue
+    // après : on saisit AVANT le pop tout ce dont la suite a besoin. Passé
+    // le pop, `ref` appartient à un widget démonté et lève « Using "ref"
+    // when a widget is about to or has been unmounted is unsafe » — le
+    // conteneur, lui, survit à la fermeture du dialogue.
     final messenger = ScaffoldMessenger.of(context);
+    final container = ProviderScope.containerOf(context, listen: false);
+    final repository = container.read(libraryRepositoryProvider);
     Navigator.pop(context);
     try {
-      await ref
-          .read(libraryRepositoryProvider)
-          .setArtistGenre(widget.artistId, genre);
-      ref.invalidate(artistDetailProvider(widget.artistId));
-      ref.invalidate(genresProvider);
-      ref.invalidate(artistsProvider);
+      await repository.setArtistGenre(widget.artistId, genre);
+      container.invalidate(artistDetailProvider(widget.artistId));
+      container.invalidate(genresProvider);
+      container.invalidate(artistsProvider);
       messenger.showSnackBar(
         const SnackBar(content: Text('Genre mis à jour')),
       );

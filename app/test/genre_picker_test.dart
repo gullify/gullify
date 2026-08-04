@@ -2,6 +2,8 @@
 // range en tapant sur un genre, plutôt qu'en retapant son nom à chaque fois
 // (« Punk Rock », « punk rock », « Punk-Rock »… finissaient en autant de
 // genres différents).
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -20,6 +22,13 @@ const _taxonomy = [
 ];
 
 class _FakeLibraryRepo extends Fake implements LibraryRepository {
+  _FakeLibraryRepo({this.pending});
+
+  /// Quand il est fourni, l'enregistrement ne se termine que lorsque le test
+  /// le décide : c'est le cas réel, où le serveur répond bien après que le
+  /// dialogue s'est refermé.
+  final Completer<void>? pending;
+
   String? savedGenre;
   int? savedArtistId;
 
@@ -27,6 +36,7 @@ class _FakeLibraryRepo extends Fake implements LibraryRepository {
   Future<void> setArtistGenre(int artistId, String genre) async {
     savedArtistId = artistId;
     savedGenre = genre;
+    if (pending != null) await pending!.future;
   }
 }
 
@@ -129,5 +139,27 @@ void main() {
   testWidgets('sans genre défini, pas de bouton « Retirer »', (tester) async {
     await pump(tester, _FakeLibraryRepo());
     expect(find.widgetWithText(TextButton, 'Retirer'), findsNothing);
+  });
+
+  testWidgets('le serveur peut répondre après la fermeture du dialogue',
+      (tester) async {
+    // Repro du bug : le dialogue se referme avant la réponse du serveur, donc
+    // la suite de l'enregistrement s'exécute alors que le widget est démonté.
+    final pending = Completer<void>();
+    final repo = _FakeLibraryRepo(pending: pending);
+    await pump(tester, repo);
+
+    await tester.tap(find.widgetWithText(ChoiceChip, 'Punk'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Enregistrer'));
+    await tester.pumpAndSettle();
+    expect(find.byType(AlertDialog), findsNothing);
+
+    pending.complete();
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(repo.savedGenre, 'Punk');
+    expect(find.text('Genre mis à jour'), findsOneWidget);
   });
 }

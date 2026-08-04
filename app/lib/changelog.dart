@@ -8,6 +8,13 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('2.78.0', [
+    'Changer le genre d\'un artiste ne finit plus sur un message d\'erreur : '
+        'le dialogue se refermait avant que le serveur ait répondu, et '
+        'Gullify perdait le fil de ce qu\'il était en train d\'enregistrer. '
+        'Le genre est bien enregistré et les listes se rafraîchissent, même '
+        'quand le serveur prend son temps',
+  ]),
   ReleaseNote('2.77.0', [
     'La musique repart : plus aucune chanson ne démarrait et le lecteur '
         'répondait toujours la même erreur, à cause de l\'égaliseur — il '
