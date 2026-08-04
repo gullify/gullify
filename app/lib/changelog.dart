@@ -8,6 +8,20 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('2.74.0', [
+    'Nouvel écran « Infos du serveur » (Paramètres → Compte) : l\'espace '
+        'disque restant s\'affiche en gros, avec une jauge qui passe à '
+        'l\'orange puis au rouge quand le disque se remplit',
+    'On y voit aussi ce qui occupe la place — le poids de la musique et celui '
+        'des données (cache, journaux) — ainsi que la taille de la '
+        'bibliothèque : titres, albums, artistes, genres, durée cumulée, '
+        'taille de la base et date du dernier scan',
+    'Et de quoi savoir sur quoi tourne le serveur : système, serveur web, '
+        'version de PHP, processeurs, charge, mémoire libre, temps de marche '
+        'et heure du serveur',
+    'La mesure du poids des dossiers est mise en cache côté serveur : la page '
+        's\'ouvre vite même avec des dizaines de milliers de fichiers',
+  ]),
   ReleaseNote('2.73.0', [
     'Parties à plusieurs : les invités peuvent enfin écrire leur prénom. Leur '
         'page se rafraîchissait toutes les secondes en refaisant la carte à '

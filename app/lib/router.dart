@@ -31,6 +31,7 @@ import 'screens/radio_edit_screen.dart';
 import 'screens/radio_screen.dart';
 import 'api/radio_repository.dart';
 import 'screens/search_screen.dart';
+import 'screens/server_info_screen.dart';
 import 'screens/server_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/shell_screen.dart';
@@ -166,6 +167,10 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (_, _) => const NotificationsScreen(),
       ),
       GoRoute(path: '/settings', builder: (_, _) => const SettingsScreen()),
+      GoRoute(
+        path: '/settings/server-info',
+        builder: (_, _) => const ServerInfoScreen(),
+      ),
       GoRoute(
         path: '/settings/equalizer',
         builder: (_, _) => const EqualizerScreen(),

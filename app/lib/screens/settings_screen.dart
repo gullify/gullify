@@ -15,7 +15,7 @@ import '../state/offline.dart';
 import '../theme.dart';
 import '../widgets/update_dialog.dart';
 
-const appVersion = '2.73.0';
+const appVersion = '2.74.0';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -35,6 +35,13 @@ class SettingsScreen extends ConsumerWidget {
             leading: const Icon(Icons.dns_outlined),
             title: const Text('Serveur'),
             subtitle: Text(auth.serverUrl ?? ''),
+          ),
+          ListTile(
+            leading: const Icon(Icons.storage_outlined),
+            title: const Text('Infos du serveur'),
+            subtitle: const Text('Espace disque, bibliothèque, versions'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.push('/settings/server-info'),
           ),
           ListTile(
             leading: const Icon(Icons.swap_horiz),
