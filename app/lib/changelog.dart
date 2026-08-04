@@ -8,6 +8,17 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('2.79.0', [
+    'Une idée confiée à Claude prévient quand elle est faite : la cloche de '
+        'l\'accueil s\'allume, la notification rappelle l\'idée et la version '
+        'qui la livre, et un tap ouvre le carnet d\'idées. Si Claude a préféré '
+        'ne pas s\'y risquer, il le dit là aussi plutôt que de laisser l\'idée '
+        'traîner sans nouvelle',
+    'Les notifications se lisent enfin : cartes de verre, icône et couleur '
+        'selon ce qu\'elles annoncent, âge en clair (« il y a 5 min »), et le '
+        'compteur de la cloche se met à jour tout seul pendant que l\'app est '
+        'ouverte',
+  ]),
   ReleaseNote('2.78.0', [
     'Changer le genre d\'un artiste ne finit plus sur un message d\'erreur : '
         'le dialogue se refermait avant que le serveur ait répondu, et '

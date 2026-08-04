@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -235,11 +237,36 @@ class HomeScreen extends ConsumerWidget {
   }
 }
 
-class _NotificationsButton extends ConsumerWidget {
+class _NotificationsButton extends ConsumerStatefulWidget {
   const _NotificationsButton();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_NotificationsButton> createState() =>
+      _NotificationsButtonState();
+}
+
+class _NotificationsButtonState extends ConsumerState<_NotificationsButton> {
+  Timer? _poll;
+
+  @override
+  void initState() {
+    super.initState();
+    // La pastille doit s'allumer toute seule : une idée confiée à Claude
+    // aboutit pendant que l'app est ouverte, et rien ne relit la liste sinon.
+    _poll = Timer.periodic(
+      const Duration(minutes: 1),
+      (_) => mounted ? ref.invalidate(notificationsProvider) : null,
+    );
+  }
+
+  @override
+  void dispose() {
+    _poll?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final unread = ref.watch(notificationsProvider).value?.unread ?? 0;
     return Badge(
       isLabelVisible: unread > 0,
