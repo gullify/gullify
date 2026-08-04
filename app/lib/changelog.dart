@@ -8,6 +8,30 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('2.76.0', [
+    'La bibliothèque se range enfin dans une liste courte de 21 genres '
+        'principaux — Chanson québécoise/francophone, Traditionnel québécois, '
+        'Acadien, Folk, Country, Pop, Rock, Alternatif / Indie, Punk, Métal, '
+        'Hip-hop / Rap, R&B / Soul, Reggae, Jazz, Blues, Électronique, '
+        'Classique, Musique du monde, Gospel / Spirituel, Trames sonores et '
+        'Musique pour enfants — sans sous-genres',
+    'Les 90 étiquettes qui traînaient dans la bibliothèque (« Melodic Death '
+        'Metal », « Punk Rock », « Music », « Special Purpose Artist »…) ont '
+        'été ramenées à ces genres ; celles qui ne disent rien de la musique '
+        'ont été effacées pour laisser la détection refaire le travail',
+    'La détection de genre ne retient plus la première étiquette venue : elle '
+        'pèse toutes celles de MusicBrainz et garde celle qui range vraiment, '
+        'en laissant passer devant les genres d\'ici (« néo-trad » ne se dit '
+        'pas par hasard) sans pour autant transformer un groupe punk '
+        'québécois en chanson',
+    'Elle sait aussi retrouver les artistes dont le nom traîne un préfixe '
+        '(« (50 First Dates) Bob Marley »), vérifie que l\'artiste trouvé est '
+        'bien le bon, et réessaye quand MusicBrainz refuse une requête au '
+        'passage',
+    'Le genre d\'un artiste se choisit maintenant d\'un tap dans la liste, au '
+        'lieu de se retaper à la main — avec un champ libre pour les cas à '
+        'part et un bouton pour le retirer',
+  ]),
   ReleaseNote('2.75.0', [
     'La bibliothèque a un nouvel onglet « Genres » : tous les genres en '
         'grille, chacun avec une mosaïque de quatre pochettes, son nombre '

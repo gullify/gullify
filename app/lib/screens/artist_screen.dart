@@ -611,77 +611,136 @@ void _artistMenu(BuildContext context, WidgetRef ref, ArtistDetail d) {
   );
 }
 
-/// Dialogue « Définir le genre » : champ libre + suggestions des genres
-/// déjà présents dans la bibliothèque.
+/// Dialogue « Définir le genre » : les genres principaux à choisir d'un tap,
+/// et un champ libre en dessous pour ce qui n'y rentre pas.
 void _setGenreDialog(
   BuildContext context,
   WidgetRef ref,
   int artistId,
   String? current,
 ) {
-  // Le champ de saisie de l'Autocomplete; capturé pour lire la valeur.
-  TextEditingController? fieldCtrl;
   showDialog<void>(
     context: context,
-    builder: (dialogContext) => AlertDialog(
+    builder: (_) => _GenreDialog(artistId: artistId, current: current),
+  );
+}
+
+class _GenreDialog extends ConsumerStatefulWidget {
+  const _GenreDialog({required this.artistId, required this.current});
+
+  final int artistId;
+  final String? current;
+
+  @override
+  ConsumerState<_GenreDialog> createState() => _GenreDialogState();
+}
+
+class _GenreDialogState extends ConsumerState<_GenreDialog> {
+  late String? _selected = widget.current;
+  final _customCtrl = TextEditingController();
+
+  @override
+  void dispose() {
+    _customCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save(String genre) async {
+    final messenger = ScaffoldMessenger.of(context);
+    Navigator.pop(context);
+    try {
+      await ref
+          .read(libraryRepositoryProvider)
+          .setArtistGenre(widget.artistId, genre);
+      ref.invalidate(artistDetailProvider(widget.artistId));
+      ref.invalidate(genresProvider);
+      ref.invalidate(artistsProvider);
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Genre mis à jour')),
+      );
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('Échec : $e')));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Les genres principaux, plus ceux que la bibliothèque contient déjà sans
+    // qu'ils en fassent partie (un genre saisi à la main, par exemple).
+    final taxonomy = ref.watch(genreTaxonomyProvider).value ?? const <String>[];
+    final extras = [
+      for (final g in ref.watch(genresProvider).value ?? [])
+        if (g.name.isNotEmpty && !taxonomy.contains(g.name)) g.name,
+    ]..sort();
+    final choices = [...taxonomy, ...extras];
+
+    return AlertDialog(
       title: const Text('Genre de l\'artiste'),
-      content: Consumer(
-        builder: (context, ref, _) {
-          final genres =
-              (ref.watch(genresProvider).value ?? []).map((g) => g.name);
-          return Autocomplete<String>(
-            initialValue: TextEditingValue(text: current ?? ''),
-            optionsBuilder: (value) {
-              final q = value.text.trim().toLowerCase();
-              if (q.isEmpty) return genres;
-              return genres.where((g) => g.toLowerCase().contains(q));
-            },
-            fieldViewBuilder:
-                (context, controller, focusNode, onFieldSubmitted) {
-              fieldCtrl = controller;
-              return TextField(
-                controller: controller,
-                focusNode: focusNode,
-                autofocus: true,
-                onSubmitted: (_) => onFieldSubmitted(),
-                decoration: const InputDecoration(
-                  labelText: 'Genre',
-                  hintText: 'Tape pour rechercher ou créer…',
+      content: SizedBox(
+        width: 380,
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (choices.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.only(bottom: 12),
+                  child: Text('Genres indisponibles pour le moment.'),
+                )
+              else
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    for (final g in choices)
+                      ChoiceChip(
+                        label: Text(g),
+                        selected: _selected == g,
+                        onSelected: (_) => setState(
+                          () => _selected = _selected == g ? null : g,
+                        ),
+                      ),
+                  ],
                 ),
-              );
-            },
-          );
-        },
+              const SizedBox(height: 16),
+              TextField(
+                controller: _customCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Autre genre',
+                  hintText: 'Si aucun ne convient…',
+                ),
+                onChanged: (v) {
+                  // Saisir un genre à la main écarte la sélection.
+                  if (v.trim().isNotEmpty && _selected != null) {
+                    setState(() => _selected = null);
+                  }
+                },
+              ),
+            ],
+          ),
+        ),
       ),
       actions: [
+        if ((widget.current ?? '').isNotEmpty)
+          TextButton(
+            onPressed: () => _save(''),
+            child: const Text('Retirer'),
+          ),
         TextButton(
-          onPressed: () => Navigator.pop(dialogContext),
+          onPressed: () => Navigator.pop(context),
           child: const Text('Annuler'),
         ),
         FilledButton(
-          onPressed: () async {
-            final messenger = ScaffoldMessenger.of(context);
-            final value = (fieldCtrl?.text ?? current ?? '').trim();
-            Navigator.pop(dialogContext);
-            try {
-              await ref
-                  .read(libraryRepositoryProvider)
-                  .setArtistGenre(artistId, value);
-              ref.invalidate(artistDetailProvider(artistId));
-              ref.invalidate(genresProvider);
-              ref.invalidate(artistsProvider);
-              messenger.showSnackBar(
-                const SnackBar(content: Text('Genre mis à jour')),
-              );
-            } catch (e) {
-              messenger.showSnackBar(SnackBar(content: Text('Échec : $e')));
-            }
+          onPressed: () {
+            final custom = _customCtrl.text.trim();
+            _save(custom.isNotEmpty ? custom : (_selected ?? ''));
           },
           child: const Text('Enregistrer'),
         ),
       ],
-    ),
-  );
+    );
+  }
 }
 
 /// En-tête d'artiste : image plein cadre qui se fond dans le fond de l'app,

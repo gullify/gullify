@@ -446,6 +446,18 @@ class LibraryRepository {
     );
   }
 
+  /// La liste fermée des genres principaux proposée par le serveur (elle ne
+  /// dépend pas de ce que contient la bibliothèque).
+  Future<List<String>> genreTaxonomy() async {
+    final data = await _client.get('library.php', query: {
+      'action': 'get_genre_taxonomy',
+    }) as Map<String, dynamic>;
+    return [
+      for (final g in data['genres'] as List<dynamic>? ?? [])
+        if (g is String && g.isNotEmpty) g,
+    ];
+  }
+
   Future<void> renameGenre(String from, String to) => _client.post(
         'library.php',
         query: {'action': 'rename_genre'},

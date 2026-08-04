@@ -17,6 +17,7 @@ header('Content-Type: application/json');
 require_once __DIR__ . '/../../src/AppConfig.php';
 require_once __DIR__ . '/../../src/Database.php';
 require_once __DIR__ . '/../../src/GameSource.php';
+require_once __DIR__ . '/../../src/GenreTaxonomy.php';
 require_once __DIR__ . '/../../src/PathHelper.php';
 require_once __DIR__ . '/../../src/TrackArtist.php';
 
@@ -1075,6 +1076,12 @@ try {
             ];
         }
         $response['data'] = ['genres' => $genres];
+
+    } elseif ($action === 'get_genre_taxonomy') {
+        // La liste fermée des genres principaux, telle que la propose le
+        // choix du genre d'un artiste. Elle ne dépend ni de l'utilisateur ni
+        // de ce que contient déjà la bibliothèque.
+        $response['data'] = ['genres' => GenreTaxonomy::ALL];
 
     } elseif ($action === 'recent_albums') {
         $days = isset($_GET['days']) ? intval($_GET['days']) : 30;

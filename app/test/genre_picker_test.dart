@@ -1,0 +1,133 @@
+// Le choix du genre d'un artiste propose la liste fermée du serveur : on
+// range en tapant sur un genre, plutôt qu'en retapant son nom à chaque fois
+// (« Punk Rock », « punk rock », « Punk-Rock »… finissaient en autant de
+// genres différents).
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:gullify/api/library_repository.dart';
+import 'package:gullify/models/album.dart';
+import 'package:gullify/models/artist.dart';
+import 'package:gullify/screens/artist_screen.dart';
+import 'package:gullify/state/library.dart';
+import 'package:gullify/state/yt_downloads.dart';
+
+const _taxonomy = [
+  'Chanson québécoise/francophone',
+  'Traditionnel québécois',
+  'Punk',
+  'Métal',
+];
+
+class _FakeLibraryRepo extends Fake implements LibraryRepository {
+  String? savedGenre;
+  int? savedArtistId;
+
+  @override
+  Future<void> setArtistGenre(int artistId, String genre) async {
+    savedArtistId = artistId;
+    savedGenre = genre;
+  }
+}
+
+Widget _wrap(_FakeLibraryRepo repo, {String? genre}) {
+  return ProviderScope(
+    overrides: [
+      libraryRepositoryProvider.overrideWithValue(repo),
+      genreTaxonomyProvider.overrideWith((ref) async => _taxonomy),
+      genresProvider.overrideWith((ref) async => const [
+            GenreCount('Punk', 4, albumCount: 9),
+            // Un genre déjà en base qui ne fait pas partie de la liste : il
+            // reste proposé, sans quoi on ne pourrait plus le remettre.
+            GenreCount('Ska-punk maison', 1, albumCount: 1),
+          ]),
+      artistsProvider.overrideWith((ref) async => const <Artist>[]),
+      artistExtrasProvider('Artiste Test')
+          .overrideWith((ref) async => const ArtistExtras()),
+      // Sans ça, la fiche interroge YouTube — donc le client HTTP, donc la
+      // session, qui arme un minuteur que le test ne verra jamais expirer.
+      ytArtistAlbumsProvider('Artiste Test').overrideWith((ref) async => []),
+      relatedArtistsProvider('Artiste Test').overrideWith((ref) async => []),
+      artistDetailProvider(1).overrideWith((ref) async => ArtistDetail(
+            artist: Artist(id: 1, name: 'Artiste Test', albumCount: 1, genre: genre),
+            albums: const [Album(id: 1, name: 'Album Test', year: 2024)],
+            topTracks: const [],
+          )),
+    ],
+    child: const MaterialApp(home: ArtistScreen(artistId: 1)),
+  );
+}
+
+void main() {
+  Future<void> openDialog(WidgetTester tester) async {
+    await tester.tap(find.text('Définir le genre'));
+    await tester.pumpAndSettle();
+  }
+
+  Future<void> pump(WidgetTester tester, _FakeLibraryRepo repo,
+      {String? genre}) async {
+    tester.view.physicalSize = const Size(412, 892);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(_wrap(repo, genre: genre));
+    await tester.pumpAndSettle();
+    // Le dialogue s'ouvre depuis le menu de l'artiste.
+    await tester.tap(find.byIcon(Icons.more_vert).first);
+    await tester.pumpAndSettle();
+    await openDialog(tester);
+  }
+
+  testWidgets('les genres principaux sont proposés, plus ceux déjà en base',
+      (tester) async {
+    await pump(tester, _FakeLibraryRepo());
+
+    for (final g in _taxonomy) {
+      expect(find.widgetWithText(ChoiceChip, g), findsOneWidget, reason: g);
+    }
+    expect(find.widgetWithText(ChoiceChip, 'Ska-punk maison'), findsOneWidget);
+  });
+
+  testWidgets('taper un genre puis enregistrer l\'envoie tel quel',
+      (tester) async {
+    final repo = _FakeLibraryRepo();
+    await pump(tester, repo);
+
+    await tester.tap(find.widgetWithText(ChoiceChip, 'Punk'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Enregistrer'));
+    await tester.pumpAndSettle();
+
+    expect(repo.savedArtistId, 1);
+    expect(repo.savedGenre, 'Punk');
+  });
+
+  testWidgets('le champ libre prend le pas sur la sélection', (tester) async {
+    final repo = _FakeLibraryRepo();
+    await pump(tester, repo);
+
+    await tester.tap(find.widgetWithText(ChoiceChip, 'Punk'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'Turlututu');
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Enregistrer'));
+    await tester.pumpAndSettle();
+
+    expect(repo.savedGenre, 'Turlututu');
+  });
+
+  testWidgets('« Retirer » vide le genre, et n\'apparaît que s\'il y en a un',
+      (tester) async {
+    final repo = _FakeLibraryRepo();
+    await pump(tester, repo, genre: 'Punk');
+
+    expect(find.widgetWithText(TextButton, 'Retirer'), findsOneWidget);
+    await tester.tap(find.widgetWithText(TextButton, 'Retirer'));
+    await tester.pumpAndSettle();
+    expect(repo.savedGenre, '');
+  });
+
+  testWidgets('sans genre défini, pas de bouton « Retirer »', (tester) async {
+    await pump(tester, _FakeLibraryRepo());
+    expect(find.widgetWithText(TextButton, 'Retirer'), findsNothing);
+  });
+}
