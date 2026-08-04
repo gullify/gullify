@@ -428,7 +428,15 @@ if (strlen($code) > 8) $code = substr($code, 0, 8);
    * l'appui sur un bouton et ferait clignoter la page.
    */
   function renderKey() {
-    if (!token) return 'join:' + (info ? info.status + ':' + (info.players || []).length : '?') + ':' + errorMsg;
+    if (!token) {
+      if (!info) return 'join:loading';
+      if (info.error) return 'join:error';
+      // La liste des joueurs n'entre PAS dans la clé : elle bouge à chaque
+      // sondage (un invité arrive, un autre part) et reconstruire la carte
+      // détruirait le champ du prénom — donc fermerait le clavier de celui
+      // qui est en train de le saisir. tickJoin() la rafraîchit en place.
+      return 'join:' + info.status + ':' + info.game + ':' + errorMsg;
+    }
     if (!state) return 'nostate:' + errorMsg;
     var k = [state.status, state.phase, state.roundIndex, state.version, errorMsg, audioBlocked].join('|');
     if (state.round) k += '|' + (state.round.myAnswer || '');
@@ -439,12 +447,30 @@ if (strlen($code) > 8) $code = substr($code, 0, 8);
     var key = renderKey();
     if (key !== renderedKey) {
       renderedKey = key;
+      // Un champ recréé, c'est le clavier qui se referme : quand une
+      // reconstruction est inévitable (erreur, partie lancée), on rend le
+      // focus et le curseur au champ qui les avait.
+      var active = document.activeElement;
+      var caret = null;
+      if (active && active.tagName === 'INPUT' && app.contains(active)) {
+        try { caret = active.selectionStart; } catch (e) {}
+      } else {
+        active = null;
+      }
       app.innerHTML = '';
       build();
+      if (active) {
+        var again = app.querySelector('input');
+        if (again) {
+          again.focus();
+          if (caret !== null) { try { again.setSelectionRange(caret, caret); } catch (e) {} }
+        }
+      }
     }
     // La barre du talkie-walkie vit hors du DOM reconstruit : un appui sur le
     // micro ne doit pas être annulé par l'arrivée d'un autre joueur.
     renderTalk();
+    tickJoin();
     tickVisuals();
   }
 
@@ -498,15 +524,16 @@ if (strlen($code) > 8) $code = substr($code, 0, 8);
     c.appendChild(el('h1', null, g.name));
     c.appendChild(el('p', 'muted', g.goal));
 
+    // Ces deux lignes bougent à chaque sondage : elles sont remplies par
+    // tickJoin(), jamais reconstruites (voir renderKey).
     var sub = el('p', 'muted');
+    sub.id = 'joinSub';
     sub.style.marginTop = '10px';
-    sub.textContent = 'Chez ' + (info.hostName || 'l’hôte') + ' · ' +
-      (info.players || []).length + '/' + info.maxPlayers + ' joueurs';
     c.appendChild(sub);
 
-    if ((info.players || []).length) {
-      c.appendChild(el('p', 'muted', (info.players || []).join(' · ')));
-    }
+    var list = el('p', 'muted');
+    list.id = 'joinPlayers';
+    c.appendChild(list);
 
     if (info.status !== 'lobby') {
       var w = el('p', 'err', 'La partie a déjà commencé — impossible de la rejoindre.');
@@ -1157,6 +1184,26 @@ if (strlen($code) > 8) $code = substr($code, 0, 8);
 
   // ────────────────────────────────────── rafraîchissements légers (60 Hz) ──
 
+  /**
+   * Rafraîchit ce qui bouge sur l'écran « Rejoindre » (l'hôte, le nombre de
+   * joueurs, leurs prénoms) sans toucher au reste du DOM : le champ du
+   * prénom — et le clavier ouvert dessus — doit survivre aux sondages.
+   */
+  function tickJoin() {
+    if (token || !info || info.error) return;
+    var sub = document.getElementById('joinSub');
+    if (sub) {
+      sub.textContent = 'Chez ' + (info.hostName || 'l’hôte') + ' · ' +
+        (info.players || []).length + '/' + info.maxPlayers + ' joueurs';
+    }
+    var list = document.getElementById('joinPlayers');
+    if (list) {
+      var names = (info.players || []).join(' · ');
+      list.textContent = names;
+      list.style.display = names ? '' : 'none';
+    }
+  }
+
   function tickVisuals() {
     if (!state || state.status !== 'playing') return;
     var left = remainingMs();
@@ -1186,13 +1233,15 @@ if (strlen($code) > 8) $code = substr($code, 0, 8);
 
   function loadInfo() {
     if (!CODE) { render(); return; }
+    // Pas de `renderedKey = null` ici : ce sondage tourne toutes les secondes
+    // et remettait la carte à neuf à chaque tour — le champ du prénom était
+    // détruit puis recréé, et le clavier de l'invité se refermait aussitôt
+    // qu'il touchait la case. renderKey() sait ce qui mérite un rebuild.
     call('info', { code: CODE }).then(function (d) {
       info = d;
-      renderedKey = null;
       render();
     }).catch(function (e) {
       info = { error: true, message: e.message };
-      renderedKey = null;
       render();
     });
   }

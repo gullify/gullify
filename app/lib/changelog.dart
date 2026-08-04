@@ -8,6 +8,16 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('2.73.0', [
+    'Parties à plusieurs : les invités peuvent enfin écrire leur prénom. Leur '
+        'page se rafraîchissait toutes les secondes en refaisant la carte à '
+        'neuf — le champ était détruit et recréé, si bien que le clavier se '
+        'refermait dès qu\'on touchait la case',
+    'La page ne se reconstruit plus que lorsqu\'il se passe vraiment quelque '
+        'chose : l\'arrivée des autres joueurs et le compteur du salon se '
+        'mettent à jour sur place, sans rien effacer. Et si une '
+        'reconstruction s\'impose, la saisie en cours garde son curseur',
+  ]),
   ReleaseNote('2.72.0', [
     'Le Défricheur juge maintenant des CHANSONS, pas des albums entiers : '
         'chaque carte est un titre que tu n\'as jamais joué, avec sa pochette, '
