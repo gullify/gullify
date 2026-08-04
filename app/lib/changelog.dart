@@ -8,6 +8,15 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('2.82.0', [
+    'Le medley s\'entend enfin. Il avait tout l\'air de tourner — le titre '
+        'défilait, les barres bougeaient — mais pas une note n\'en sortait : '
+        'Gullify attendait la fin du morceau avant de monter le son, et un '
+        'extrait ne finit jamais. Le fondu d\'entrée restait donc à zéro, et '
+        'l\'extrait suivant n\'arrivait pas davantage. Les extraits '
+        's\'enchaînent maintenant en fondu, d\'un album à l\'autre, comme '
+        'promis',
+  ]),
   ReleaseNote('2.81.0', [
     'Ranger la bibliothèque se fait maintenant par séries : une fois le genre '
         'd\'un artiste enregistré, Gullify propose d\'enchaîner sur le suivant '

@@ -60,6 +60,44 @@ Duration medleyStart(int durationSeconds) {
   return Duration(seconds: wanted > latest ? latest : wanted);
 }
 
+/// Le peu qu'un medley demande à un lecteur audio. L'interface existe pour
+/// pouvoir faire tourner un medley en test avec un lecteur qui se comporte
+/// comme just_audio — dont [play] ne rend la main qu'à l'arrêt du son.
+abstract class MedleyAudio {
+  Future<void> setVolume(double volume);
+  Future<void> setUrl(String url, {Duration? initialPosition});
+
+  /// Comme just_audio : le Future ne se referme qu'à la fin de la lecture, à
+  /// la pause ou à l'arrêt. Ne jamais l'attendre pour enchaîner.
+  Future<void> play();
+  Future<void> stop();
+  Future<void> dispose();
+}
+
+class _JustAudioMedley implements MedleyAudio {
+  final AudioPlayer _player = AudioPlayer();
+
+  @override
+  Future<void> setVolume(double volume) => _player.setVolume(volume);
+
+  @override
+  Future<void> setUrl(String url, {Duration? initialPosition}) =>
+      _player.setUrl(url, initialPosition: initialPosition);
+
+  @override
+  Future<void> play() => _player.play();
+
+  @override
+  Future<void> stop() => _player.stop();
+
+  @override
+  Future<void> dispose() => _player.dispose();
+}
+
+/// Fabrique du lecteur de medley, remplaçable en test.
+final medleyAudioProvider =
+    Provider<MedleyAudio Function()>((ref) => _JustAudioMedley.new);
+
 /// État du medley : de quoi afficher ce qui joue, et rien de plus.
 class MedleyState {
   const MedleyState({
@@ -88,7 +126,7 @@ final medleyPlayerProvider =
     NotifierProvider<MedleyPlayer, MedleyState>(MedleyPlayer.new);
 
 class MedleyPlayer extends Notifier<MedleyState> {
-  AudioPlayer? _player;
+  MedleyAudio? _player;
   Timer? _next;
   List<Song> _queue = const [];
 
@@ -178,7 +216,11 @@ class MedleyPlayer extends Notifier<MedleyState> {
         initialPosition: medleyStart(song.duration),
       );
       if (gen != _gen) return;
-      await player.play();
+      // Surtout ne pas attendre : chez just_audio, le Future de play() ne se
+      // referme qu'à l'arrêt du son. L'attendre gelait le medley sur son
+      // premier extrait, volume à zéro — l'image d'un medley qui tourne, et
+      // pas une note (idée #52).
+      unawaited(player.play().catchError((Object _) {}));
     } catch (_) {
       if (gen != _gen) return;
       // Un titre illisible ne doit pas tuer le medley : on passe au suivant.
@@ -208,7 +250,7 @@ class MedleyPlayer extends Notifier<MedleyState> {
   /// Fondu à la main : just_audio ne monte pas le son tout seul, et un extrait
   /// qui commence à plein volume au milieu d'un couplet fait sursauter.
   Future<void> _fade(
-    AudioPlayer player,
+    MedleyAudio player,
     double from,
     double to,
     Duration duration,
@@ -227,7 +269,7 @@ class MedleyPlayer extends Notifier<MedleyState> {
     }
   }
 
-  AudioPlayer _ensurePlayer() => _player ??= AudioPlayer();
+  MedleyAudio _ensurePlayer() => _player ??= ref.read(medleyAudioProvider)();
 
   /// Arrête le medley et remet l'état à zéro. Appelé à la fermeture du
   /// dialogue, donc parfois après que le provider lui-même a disparu (fin de
