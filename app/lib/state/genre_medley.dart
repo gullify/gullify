@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
@@ -11,10 +12,11 @@ import 'player.dart';
 
 /// Durée d'un extrait, et les fondus qui l'ouvrent et le ferment. Un medley
 /// n'est pas une écoute : il donne la couleur d'un artiste le temps de choisir
-/// son genre, sans jamais couper net.
-const kMedleyExcerpt = Duration(seconds: 18);
-const kMedleyFadeIn = Duration(milliseconds: 1500);
-const kMedleyFadeOut = Duration(milliseconds: 2000);
+/// son genre, sans jamais couper net. Dix-huit secondes passaient trop vite
+/// pour reconnaître un titre : on laisse le temps d'un refrain (idée #55).
+const kMedleyExcerpt = Duration(seconds: 26);
+const kMedleyFadeIn = Duration(milliseconds: 2200);
+const kMedleyFadeOut = Duration(milliseconds: 2200);
 
 /// Combien d'extraits il faut pour se faire une idée. Un artiste d'un seul
 /// album donnait un seul extrait, et le medley tournait en rond sur la même
@@ -165,9 +167,22 @@ final medleyPlayerProvider =
     NotifierProvider<MedleyPlayer, MedleyState>(MedleyPlayer.new);
 
 class MedleyPlayer extends Notifier<MedleyState> {
-  MedleyAudio? _player;
+  /// Deux lecteurs, à tour de rôle : le suivant se charge et démarre pendant
+  /// que le précédent joue encore. C'est ce qui fait un vrai fondu enchaîné.
+  /// Avec un seul lecteur, le `setUrl` de l'extrait suivant coupait le son net
+  /// et le chargement se faisait en silence : les fondus ne s'entendaient pas,
+  /// ils ne laissaient qu'un blanc entre chaque extrait (idée #55).
+  final List<MedleyAudio> _players = [];
+
+  /// Le lecteur qu'on entend, s'il y en a un.
+  MedleyAudio? _live;
+
   Timer? _next;
   List<Song> _queue = const [];
+
+  /// Titres illisibles enchaînés : au-delà d'une file entière, il n'y a rien à
+  /// faire écouter, et on arrête plutôt que de tourner en rond.
+  int _misses = 0;
 
   /// Génération courante : chaque start/stop l'incrémente, et tout ce qui
   /// dormait (fondu en cours, minuterie) se tait en constatant qu'il n'est
@@ -239,6 +254,7 @@ class MedleyPlayer extends Notifier<MedleyState> {
     }
 
     _queue = songs;
+    _misses = 0;
     await _playAt(0, gen);
   }
 
@@ -248,14 +264,22 @@ class MedleyPlayer extends Notifier<MedleyState> {
     // quand la musique s'arrête.
     final index = i % _queue.length;
     final song = _queue[index];
-    final player = _ensurePlayer();
+    // Le lecteur libre : celui qui ne joue pas. L'autre tient l'antenne
+    // jusqu'à ce que celui-ci soit chargé et lancé.
+    final player = _spare(i);
+    final leaving = _live;
 
-    state = MedleyState(
-      loading: true,
-      current: song,
-      index: index + 1,
-      total: _queue.length,
-    );
+    // Rien ne bouge à l'écran tant que le nouvel extrait n'a pas démarré : on
+    // continue d'annoncer ce qu'on entend vraiment. Au tout premier, il n'y a
+    // rien à entendre — c'est le seul moment où le medley fait attendre.
+    if (leaving == null) {
+      state = MedleyState(
+        loading: true,
+        current: song,
+        index: index + 1,
+        total: _queue.length,
+      );
+    }
 
     try {
       await player.setVolume(0);
@@ -271,11 +295,19 @@ class MedleyPlayer extends Notifier<MedleyState> {
       unawaited(player.play().catchError((Object _) {}));
     } catch (_) {
       if (gen != _gen) return;
-      // Un titre illisible ne doit pas tuer le medley : on passe au suivant.
+      // Un titre illisible ne doit pas tuer le medley : on passe au suivant,
+      // sans couper celui qui joue. Mais si toute la file est illisible, il
+      // n'y a rien à faire écouter.
+      if (++_misses >= _queue.length) {
+        await stop();
+        if (ref.mounted) state = const MedleyState(error: true);
+        return;
+      }
       _next = Timer(const Duration(milliseconds: 200), () => _playAt(i + 1, gen));
       return;
     }
     if (gen != _gen) return;
+    _misses = 0;
 
     state = MedleyState(
       current: song,
@@ -283,20 +315,35 @@ class MedleyPlayer extends Notifier<MedleyState> {
       total: _queue.length,
     );
 
-    await _fade(player, 0, 1, kMedleyFadeIn, gen);
+    // Le fondu enchaîné : l'un monte pendant que l'autre descend.
+    _live = player;
+    await Future.wait([
+      _fade(player, 0, 1, kMedleyFadeIn, gen),
+      if (leaving != null) _fade(leaving, 1, 0, kMedleyFadeOut, gen),
+    ]);
     if (gen != _gen) return;
+    if (leaving != null) {
+      // L'extrait précédent est inaudible : on le coupe pour de bon, et son
+      // lecteur redevient libre pour l'extrait d'après.
+      try {
+        await leaving.stop();
+      } catch (_) {}
+    }
 
-    final untilFadeOut = kMedleyExcerpt - kMedleyFadeIn - kMedleyFadeOut;
-    _next = Timer(untilFadeOut.isNegative ? Duration.zero : untilFadeOut, () async {
-      if (gen != _gen) return;
-      await _fade(player, 1, 0, kMedleyFadeOut, gen);
-      if (gen != _gen) return;
-      await _playAt(i + 1, gen);
-    });
+    // On croise le suivant assez tôt pour que l'extrait dure bien le temps
+    // annoncé, fondu compris.
+    final untilNext = kMedleyExcerpt - kMedleyFadeIn;
+    _next = Timer(
+      untilNext.isNegative ? Duration.zero : untilNext,
+      () => _playAt(i + 1, gen),
+    );
   }
 
   /// Fondu à la main : just_audio ne monte pas le son tout seul, et un extrait
-  /// qui commence à plein volume au milieu d'un couplet fait sursauter.
+  /// qui commence à plein volume au milieu d'un couplet fait sursauter. Le
+  /// volume suit une courbe à puissance constante — deux extraits qui se
+  /// croisent en volume linéaire creusent un trou au milieu du fondu, là où la
+  /// racine garde le niveau.
   Future<void> _fade(
     MedleyAudio player,
     double from,
@@ -304,20 +351,30 @@ class MedleyPlayer extends Notifier<MedleyState> {
     Duration duration,
     int gen,
   ) async {
-    const steps = 15;
+    final steps = (duration.inMilliseconds ~/ 40).clamp(1, 200);
     final step = Duration(microseconds: duration.inMicroseconds ~/ steps);
     for (var i = 1; i <= steps; i++) {
       await Future<void>.delayed(step);
       if (gen != _gen) return;
+      final t = i / steps;
+      final volume = sqrt(from * from + (to * to - from * from) * t);
       try {
-        await player.setVolume(from + (to - from) * i / steps);
+        await player.setVolume(volume.clamp(0, 1));
       } catch (_) {
         return;
       }
     }
   }
 
-  MedleyAudio _ensurePlayer() => _player ??= ref.read(medleyAudioProvider)();
+  /// Le lecteur du rang [i] : deux en tout, pris à tour de rôle, pour que le
+  /// suivant se charge sans couper le précédent.
+  MedleyAudio _spare(int i) {
+    if (_players.isEmpty) {
+      final create = ref.read(medleyAudioProvider);
+      _players.addAll([create(), create()]);
+    }
+    return _players[i % _players.length];
+  }
 
   /// Arrête le medley et remet l'état à zéro. Appelé à la fermeture du
   /// dialogue, donc parfois après que le provider lui-même a disparu (fin de
@@ -328,16 +385,23 @@ class MedleyPlayer extends Notifier<MedleyState> {
     _next?.cancel();
     _next = null;
     _queue = const [];
+    _live = null;
+    _misses = 0;
     if (ref.mounted) state = const MedleyState();
-    try {
-      await _player?.stop();
-    } catch (_) {}
+    for (final player in _players) {
+      try {
+        await player.stop();
+      } catch (_) {}
+    }
   }
 
   void _dispose() {
     _gen++;
     _next?.cancel();
-    _player?.dispose();
-    _player = null;
+    for (final player in _players) {
+      player.dispose();
+    }
+    _players.clear();
+    _live = null;
   }
 }

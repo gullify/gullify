@@ -8,6 +8,15 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('2.85.0', [
+    'Le medley enchaîne enfin ses extraits. Les fondus ne s\'entendaient pas : '
+        'ils ne laissaient qu\'un blanc entre chaque titre. Gullify tient '
+        'maintenant deux lecteurs, et le titre suivant se charge et démarre '
+        'pendant que le précédent joue encore — l\'un monte pendant que '
+        'l\'autre descend, sans jamais un instant de silence',
+    'Et les extraits durent plus longtemps : vingt-six secondes au lieu de '
+        'dix-huit, de quoi reconnaître un titre avant qu\'il ne passe',
+  ]),
   ReleaseNote('2.84.0', [
     'La suggestion de genre ne dépend plus de MusicBrainz seul. Quand il ne '
         'dit rien de l\'artiste — ce qui arrivait presque à tout coup sur la '

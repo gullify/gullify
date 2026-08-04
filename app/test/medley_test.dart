@@ -21,11 +21,34 @@ Song _s(int id, {int? album, int duration = 240}) => Song(
       duration: duration,
     );
 
+/// Ce que le medley a fait entendre, tous lecteurs confondus : le medley en
+/// tient deux, à tour de rôle, pour croiser les extraits sans couper le son.
+class _Bench {
+  final List<_FakeMedleyAudio> players = [];
+  final List<String> urls = [];
+  final List<Duration?> starts = [];
+
+  MedleyAudio create() {
+    final player = _FakeMedleyAudio(this);
+    players.add(player);
+    return player;
+  }
+
+  /// Le son qui sort de l'app : le plus fort des lecteurs en train de jouer.
+  double get volume => players
+      .where((p) => p.playing)
+      .fold<double>(0, (loudest, p) => p.volume > loudest ? p.volume : loudest);
+
+  bool get playing => players.any((p) => p.playing);
+  int get playingCount => players.where((p) => p.playing).length;
+}
+
 /// Un lecteur qui se comporte comme just_audio là où ça compte : son [play]
 /// ne rend la main qu'à l'arrêt du son. C'est ce qui gelait le medley.
 class _FakeMedleyAudio implements MedleyAudio {
-  final List<String> urls = [];
-  final List<Duration?> starts = [];
+  _FakeMedleyAudio(this.bench);
+
+  final _Bench bench;
   double volume = 1;
   bool playing = false;
   Completer<void>? _playing;
@@ -35,8 +58,8 @@ class _FakeMedleyAudio implements MedleyAudio {
 
   @override
   Future<void> setUrl(String url, {Duration? initialPosition}) async {
-    urls.add(url);
-    starts.add(initialPosition);
+    bench.urls.add(url);
+    bench.starts.add(initialPosition);
   }
 
   @override
@@ -79,13 +102,13 @@ const _twoAlbums = [
 ];
 
 ProviderContainer _container(
-  _FakeMedleyAudio audio, {
+  _Bench bench, {
   _FakeRepo? repo,
   List<Album> albums = _twoAlbums,
 }) {
   final container = ProviderContainer(
     overrides: [
-      medleyAudioProvider.overrideWithValue(() => audio),
+      medleyAudioProvider.overrideWithValue(bench.create),
       libraryRepositoryProvider.overrideWithValue(repo ?? _FakeRepo()),
       // Le medley écoute le lecteur principal pour se taire s'il repart ;
       // ici il ne joue jamais. (audioHandlerProvider, lui, n'est pas fourni :
@@ -230,41 +253,41 @@ void main() {
   group('lecture', () {
     testWidgets('monte le son et enchaîne, sans attendre la fin du morceau',
         (tester) async {
-      final audio = _FakeMedleyAudio();
-      final container = _container(audio);
+      final bench = _Bench();
+      final container = _container(bench);
       final medley = container.read(medleyPlayerProvider.notifier);
 
       unawaited(medley.toggle(1));
       await tester.pump();
 
       // Le premier extrait est lancé, en silence : le fondu commence.
-      expect(audio.urls, ['https://exemple/stream11']);
-      expect(audio.playing, isTrue);
-      expect(audio.volume, 0);
+      expect(bench.urls, ['https://exemple/stream11']);
+      expect(bench.playing, isTrue);
+      expect(bench.volume, 0);
 
       await tester.pump(kMedleyFadeIn + const Duration(milliseconds: 100));
-      expect(audio.volume, 1);
+      expect(bench.volume, 1);
       expect(container.read(medleyPlayerProvider).loading, isFalse);
       expect(container.read(medleyPlayerProvider).index, 1);
 
       // Puis l'extrait suivant vient tout seul, pris sur l'autre album.
       await tester.pump(kMedleyExcerpt);
-      expect(audio.urls.length, 2);
-      expect(audio.urls.last, 'https://exemple/stream21');
-      expect(audio.volume, 1);
+      expect(bench.urls.length, 2);
+      expect(bench.urls.last, 'https://exemple/stream21');
+      expect(bench.volume, 1);
       expect(container.read(medleyPlayerProvider).index, 2);
 
       await medley.stop();
     });
 
     testWidgets('entre dans le vif de chaque titre', (tester) async {
-      final audio = _FakeMedleyAudio();
-      final container = _container(audio);
+      final bench = _Bench();
+      final container = _container(bench);
       final medley = container.read(medleyPlayerProvider.notifier);
 
       unawaited(medley.toggle(1));
       await tester.pump();
-      expect(audio.starts.single, medleyStart(240));
+      expect(bench.starts.single, medleyStart(240));
 
       await medley.stop();
       // Laisse expirer le pas de fondu en cours, qui se taira en voyant que
@@ -276,9 +299,9 @@ void main() {
         (tester) async {
       // Repro d'idée #54 : un artiste d'un seul album ne donnait qu'un extrait,
       // et le medley tournait en rond sur la même chanson.
-      final audio = _FakeMedleyAudio();
+      final bench = _Bench();
       final container = _container(
-        audio,
+        bench,
         repo: _FakeRepo(songsPerAlbum: 12),
         albums: const [Album(id: 1, name: 'Unique')],
       );
@@ -290,10 +313,10 @@ void main() {
       expect(container.read(medleyPlayerProvider).total, kMedleySongs);
 
       // Et ce sont bien cinq titres différents.
-      final heard = <String>{audio.urls.single};
+      final heard = <String>{bench.urls.single};
       for (var i = 1; i < kMedleySongs; i++) {
         await tester.pump(kMedleyExcerpt);
-        heard.add(audio.urls.last);
+        heard.add(bench.urls.last);
       }
       expect(heard.length, kMedleySongs);
 
@@ -304,21 +327,82 @@ void main() {
     });
 
     testWidgets('s\'arrête pour de bon quand on le ferme', (tester) async {
-      final audio = _FakeMedleyAudio();
-      final container = _container(audio);
+      final bench = _Bench();
+      final container = _container(bench);
       final medley = container.read(medleyPlayerProvider.notifier);
 
       unawaited(medley.toggle(1));
       await tester.pump(kMedleyFadeIn + const Duration(milliseconds: 100));
       await medley.stop();
 
-      expect(audio.playing, isFalse);
+      expect(bench.playing, isFalse);
       expect(container.read(medleyPlayerProvider).active, isFalse);
 
       // Rien ne se rallume ensuite : les minuteries d'avant sont périmées.
       await tester.pump(kMedleyExcerpt * 2);
-      expect(audio.urls.length, 1);
-      expect(audio.playing, isFalse);
+      expect(bench.urls.length, 1);
+      expect(bench.playing, isFalse);
+    });
+  });
+
+  // ── Un vrai fondu enchaîné (idée #55) ───────────────────────────────────
+  // Repro du bug : avec un seul lecteur, le `setUrl` de l'extrait suivant
+  // coupait le son, et le chargement se faisait en silence. On n'entendait pas
+  // les fondus — seulement le blanc qu'ils laissaient entre chaque extrait.
+  group('fondu enchaîné', () {
+    testWidgets('ne laisse jamais de trou entre deux extraits', (tester) async {
+      final bench = _Bench();
+      final container = _container(bench);
+      final medley = container.read(medleyPlayerProvider.notifier);
+
+      unawaited(medley.toggle(1));
+      await tester.pump();
+      await tester.pump(kMedleyFadeIn + const Duration(milliseconds: 100));
+      expect(bench.volume, 1);
+
+      // On écoute tout du long, jusqu'au bout du passage à l'extrait suivant :
+      // à aucun instant le son ne tombe.
+      const pas = Duration(milliseconds: 200);
+      for (var t = Duration.zero;
+          t < kMedleyExcerpt + kMedleyFadeIn;
+          t += pas) {
+        await tester.pump(pas);
+        expect(bench.playing, isTrue, reason: 'plus rien ne joue à $t');
+        // Fondu à puissance constante : au milieu du croisement, les deux
+        // extraits sont encore à ~0,71.
+        expect(bench.volume, greaterThan(0.5), reason: 'trou à $t');
+      }
+      expect(bench.urls.length, greaterThanOrEqualTo(2));
+
+      await medley.stop();
+    });
+
+    testWidgets('coupe l\'extrait sortant, une fois le fondu fini',
+        (tester) async {
+      final bench = _Bench();
+      final container = _container(bench);
+      final medley = container.read(medleyPlayerProvider.notifier);
+
+      unawaited(medley.toggle(1));
+      await tester.pump();
+
+      // Pendant le croisement, les deux extraits sonnent ensemble…
+      await tester.pump(kMedleyExcerpt + kMedleyFadeIn ~/ 2);
+      expect(bench.playingCount, 2);
+
+      // … et après, il n'en reste qu'un, à plein volume.
+      await tester.pump(kMedleyFadeIn);
+      expect(bench.playingCount, 1);
+      expect(bench.volume, 1);
+
+      await medley.stop();
+    });
+
+    testWidgets('laisse le temps de reconnaître un titre', (tester) async {
+      // Idée #55 : dix-huit secondes, c'était trop court.
+      expect(kMedleyExcerpt.inSeconds, greaterThanOrEqualTo(24));
+      // Et il reste du plein volume entre les deux fondus.
+      expect(kMedleyExcerpt, greaterThan(kMedleyFadeIn + kMedleyFadeOut));
     });
   });
 }
