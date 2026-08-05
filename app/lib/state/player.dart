@@ -29,41 +29,57 @@ final audioHandlerBinderProvider = Provider<void>((ref) {
   final handler = ref.watch(audioHandlerProvider);
   final auth = ref.watch(authProvider);
   final authenticated = auth.status == AuthStatus.authenticated;
-  handler.logAA('binder: auth=${auth.status.name}');
+  // Serveur muet au démarrage (voiture sans réseau) : la session n'est pas
+  // « authentifiée », mais on connaît le serveur et le jeton. On lie quand
+  // même les dépôts — ils échoueront tant qu'il n'y a pas de réseau, puis
+  // répondront d'eux-mêmes dès son retour, ce qui recharge Android Auto.
+  final usable = auth.serverUrl != null &&
+      (auth.token?.isNotEmpty ?? false) &&
+      auth.status != AuthStatus.needsServer;
+  handler.logAA('binder: auth=${auth.status.name}'
+      '${!authenticated && usable ? ' (jeton hors ligne)' : ''}');
   // Chaque liaison est indépendante et protégée : une erreur sur l'une (ex.
   // client YouTube) ne doit jamais empêcher la bibliothèque de se lier ni
   // casser l'initialisation sans écran (voiture).
   try {
-    handler.repository =
-        authenticated ? ref.watch(libraryRepositoryProvider) : null;
-    if (authenticated) handler.logAA('repository lié');
+    handler.repository = usable ? ref.watch(libraryRepositoryProvider) : null;
+    if (usable) handler.logAA('repository lié');
   } catch (e) {
     handler.logAA('ERREUR liaison repository: $e');
   }
   try {
-    handler.radioRepository =
-        authenticated ? ref.watch(radioRepositoryProvider) : null;
+    handler.radioRepository = usable ? ref.watch(radioRepositoryProvider) : null;
   } catch (e) {
     handler.logAA('ERREUR liaison radio: $e');
   }
   try {
     handler.ytRepository =
-        authenticated ? ref.watch(ytDownloadsRepositoryProvider) : null;
+        usable ? ref.watch(ytDownloadsRepositoryProvider) : null;
   } catch (e) {
     handler.logAA('ERREUR liaison youtube: $e');
   }
   try {
     handler.playlistRepository =
-        authenticated ? ref.watch(playlistRepositoryProvider) : null;
+        usable ? ref.watch(playlistRepositoryProvider) : null;
   } catch (e) {
     handler.logAA('ERREUR liaison playlists: $e');
   }
+  // Les titres téléchargés : la seule chose qui reste jouable sans réseau,
+  // donc ce qu'Android Auto affiche quand la bibliothèque ne répond pas.
   try {
-    handler.offlinePaths = {
-      for (final o in (ref.watch(offlineProvider).value ?? {}).values)
-        o.song.id: o.localPath,
-    };
+    final downloads = (ref.watch(offlineProvider).value ?? {}).values.toList()
+      ..sort((a, b) {
+        final artist =
+            (a.song.artistName ?? '').compareTo(b.song.artistName ?? '');
+        return artist != 0 ? artist : a.song.title.compareTo(b.song.title);
+      });
+    handler.offlinePaths = {for (final o in downloads) o.song.id: o.localPath};
+    handler.offlineSongs = [for (final o in downloads) o.song];
   } catch (_) {}
+  // Le réessai d'Android Auto ne se contente pas de redemander la
+  // bibliothèque : il rejoue aussi la restauration de session, seule façon de
+  // retrouver l'utilisateur et ses favoris quand le réseau revient en route.
+  handler.onRetrySession = () => ref.read(authProvider.notifier).refreshSession();
   // Cœur (favoris) dans la notification / Android Auto : bascule via l'état
   // Riverpod et tient l'icône à jour quand les favoris changent.
   try {

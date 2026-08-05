@@ -8,6 +8,24 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('2.90.0', [
+    'Android Auto sans réseau ne reste plus sur « Aucune sélection ». La '
+        'vraie raison : au démarrage dans la voiture, l\'app demandait au '
+        'serveur de confirmer la session; sans réseau elle la jetait, et la '
+        'bibliothèque n\'avait plus rien à répondre — même une fois le signal '
+        'revenu. Le jeton est maintenant gardé : les listes se remplissent '
+        'toutes seules dès que le serveur répond de nouveau',
+    'À la place d\'un écran vide, chaque liste qui n\'a pas pu se charger '
+        'propose « Réessayer » et affiche les titres téléchargés sur le '
+        'téléphone, jouables sans réseau. Le réessai automatique, lui, ne '
+        'baisse plus les bras au bout de deux minutes : il attend le retour du '
+        'signal aussi longtemps qu\'il faut, et recharge l\'écran de la voiture '
+        'sans qu\'on ait à y toucher',
+    'Nouvelle entrée « Téléchargements » dans la Bibliothèque d\'Android '
+        'Auto : tout lire, en aléatoire ou un titre précis, sans la moindre '
+        'connexion. La recherche, vocale ou au clavier, y pioche aussi quand '
+        'le serveur est injoignable',
+  ]),
   ReleaseNote('2.89.0', [
     'Écouter un titre trouvé dans la recherche YouTube, c\'est maintenant le '
         'lecteur de Gullify qui le fait. Cette pré-écoute avait le sien, à '

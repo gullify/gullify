@@ -89,14 +89,43 @@ class AuthController extends Notifier<AuthState> {
     } on ApiException catch (e) {
       if (e.isUnauthenticated) {
         await _storage.delete(key: _kToken);
+        state = AuthState(status: AuthStatus.needsLogin, serverUrl: serverUrl);
+        return;
       }
-      // Sinon : serveur injoignable — on garde les identifiants et
-      // l'utilisateur pourra réessayer depuis l'écran de connexion.
-      state = AuthState(status: AuthStatus.needsLogin, serverUrl: serverUrl);
+      // Sinon : serveur injoignable (voiture sans réseau…). On garde le jeton
+      // DANS l'état, pas seulement dans le coffre : les dépôts restent alors
+      // utilisables et se remettent à répondre d'eux-mêmes au retour du
+      // réseau, sans repasser par l'écran de connexion — c'est ce qui permet
+      // à Android Auto de se recharger tout seul.
+      state = _offline(serverUrl, token);
     } catch (_) {
-      state = AuthState(status: AuthStatus.needsLogin, serverUrl: serverUrl);
+      state = _offline(serverUrl, token);
     }
   }
+
+  /// Session en attente de réseau : identifiants connus, serveur muet.
+  AuthState _offline(String serverUrl, String token) => AuthState(
+        status: AuthStatus.needsLogin,
+        serverUrl: serverUrl,
+        token: token,
+      );
+
+  /// Rejoue la restauration de session quand elle avait échoué faute de
+  /// réseau. Appelée par le réessai d'Android Auto : dès que le serveur
+  /// répond, la session redevient complète (utilisateur, favoris…) sans que
+  /// l'on ait à rouvrir l'app.
+  Future<void> refreshSession() async {
+    if (state.status == AuthStatus.authenticated) return;
+    if (_refreshing != null) return _refreshing;
+    final f = _refreshing = _restore();
+    try {
+      await f;
+    } finally {
+      _refreshing = null;
+    }
+  }
+
+  Future<void>? _refreshing;
 
   /// Validates the server by hitting /api/v2/ping.php, then stores it.
   Future<void> setServer(String url) async {
