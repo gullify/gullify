@@ -4,6 +4,7 @@ import '../models/game_source.dart';
 import '../models/game_track.dart';
 import '../models/server_user.dart';
 import '../models/song.dart';
+import '../models/song_chords.dart';
 import 'api_client.dart';
 
 /// Detail payload for an artist page.
@@ -365,6 +366,18 @@ class LibraryRepository {
     if (synced != null && synced.trim().isNotEmpty) return synced;
     final l = data['lyrics'] as String?;
     return (l == null || l.trim().isEmpty) ? null : l;
+  }
+
+  /// Grille d'accords guitare du titre (bouton « Accords » du lecteur).
+  Future<ChordsResult> chords(String filePath) async {
+    final data = await _client.get('chords.php', query: {
+      'path': filePath,
+    }) as Map<String, dynamic>;
+    final raw = data['chords'];
+    return ChordsResult(
+      chords: raw is Map<String, dynamic> ? SongChords.fromJson(raw) : null,
+      searchUrl: data['searchUrl'] as String?,
+    );
   }
 
   /// Report a play to the server (play_history + song_stats).

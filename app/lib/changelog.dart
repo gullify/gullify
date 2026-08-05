@@ -8,6 +8,21 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('2.91.0', [
+    'Un bouton guitare rejoint les paroles dans le lecteur : il ouvre la '
+        'grille d\'accords du titre en cours, accords en couleur au-dessus '
+        'des paroles, avec le capo, la tonalité et l\'accordage annoncés en '
+        'haut. Les grilles viennent d\'Ultimate-Guitar, et le serveur garde '
+        'celles qu\'il a déjà trouvées',
+    'Chaque accord de la grille est dessiné : un petit manche avec les cases, '
+        'les cordes à vide et les cordes étouffées, pour ne pas avoir à '
+        'chercher le doigté ailleurs',
+    'Deux boutons pour jouer avec : « + » et « − » transposent toute la '
+        'grille sans décaler les accords au-dessus des syllabes, et le '
+        'défilement automatique — quatre vitesses — fait avancer la page '
+        'pendant qu\'on a les deux mains sur la guitare. Si aucune grille '
+        'n\'existe, l\'app propose d\'aller chercher soi-même',
+  ]),
   ReleaseNote('2.90.0', [
     'Android Auto sans réseau ne reste plus sur « Aucune sélection ». La '
         'vraie raison : au démarrage dans la voiture, l\'app demandait au '

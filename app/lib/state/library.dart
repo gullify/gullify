@@ -5,6 +5,7 @@ import '../models/album.dart';
 import '../models/artist.dart';
 import '../models/server_user.dart';
 import '../models/song.dart';
+import '../models/song_chords.dart';
 import 'auth.dart';
 
 final libraryRepositoryProvider = Provider<LibraryRepository>(
@@ -108,6 +109,11 @@ final searchFocusRequestProvider =
 
 final lyricsProvider = FutureProvider.family<String?, String>(
   (ref, filePath) => ref.watch(libraryRepositoryProvider).lyrics(filePath),
+);
+
+/// Grille d'accords guitare du titre (bouton « Accords » du lecteur).
+final chordsProvider = FutureProvider.family<ChordsResult, String>(
+  (ref, filePath) => ref.watch(libraryRepositoryProvider).chords(filePath),
 );
 
 final searchResultsProvider = FutureProvider<SearchResults>((ref) {

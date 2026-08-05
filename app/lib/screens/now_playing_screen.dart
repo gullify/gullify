@@ -10,6 +10,7 @@ import '../state/library.dart';
 import '../state/player.dart';
 import '../state/sleep_timer.dart';
 import '../widgets/artwork.dart';
+import '../widgets/chords_sheet.dart';
 
 class NowPlayingScreen extends ConsumerWidget {
   const NowPlayingScreen({super.key});
@@ -217,6 +218,15 @@ class NowPlayingScreen extends ConsumerWidget {
                             icon: const Icon(Icons.lyrics_outlined),
                             tooltip: 'Paroles',
                             onPressed: () => _showLyrics(context, ref, item),
+                          ),
+                        if (!isRadio)
+                          IconButton(
+                            icon: const ChordsIcon(),
+                            tooltip: 'Accords guitare',
+                            onPressed: () => showChordsSheet(
+                              context,
+                              item.extras?['filePath'] as String?,
+                            ),
                           ),
                         const _SleepTimerButton(),
                         if (!isRadio)
