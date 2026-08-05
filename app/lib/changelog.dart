@@ -8,6 +8,19 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('2.87.0', [
+    'Tous les lecteurs de Gullify sortent maintenant du même moule. La '
+        'pré-écoute YouTube, le medley de genre, les extraits des jeux et les '
+        'messages vocaux des parties gardaient chacun un lecteur brut, sans '
+        'rien du réglage patiemment mis au point pour le lecteur principal. Ils '
+        'tiennent désormais eux aussi le verrou qui garde la Wi-Fi et le '
+        'processeur actifs pendant la lecture — c\'est ce qui évitait déjà les '
+        '« mise en tampon » écran éteint',
+    'Et les extraits partent plus vite. Un medley ou une manche de jeu n\'a pas '
+        'besoin du même tampon qu\'un morceau écouté d\'un bout à l\'autre : on '
+        'télécharge moins d\'avance pour vingt-six secondes de musique, et la '
+        'première note arrive en une seconde et demie au lieu de deux et demie',
+  ]),
   ReleaseNote('2.86.0', [
     'Ranger les genres se fait maintenant à la chaîne. Le dialogue offre deux '
         'boutons : « Enregistrer », qui range et referme, et « Enregistrer et '

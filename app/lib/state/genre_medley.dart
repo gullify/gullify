@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
 
 import '../api/library_repository.dart';
+import '../audio/tuned_player.dart';
 import '../models/album.dart';
 import '../models/song.dart';
 import 'library.dart';
@@ -116,7 +117,7 @@ abstract class MedleyAudio {
 }
 
 class _JustAudioMedley implements MedleyAudio {
-  final AudioPlayer _player = AudioPlayer();
+  final AudioPlayer _player = createGullifyPlayer(use: PlayerUse.snippet);
 
   @override
   Future<void> setVolume(double volume) => _player.setVolume(volume);

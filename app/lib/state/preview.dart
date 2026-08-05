@@ -5,6 +5,7 @@ import 'package:just_audio/just_audio.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
 import '../api/yt_downloads_repository.dart';
+import '../audio/tuned_player.dart';
 import 'player.dart';
 import 'yt_downloads.dart';
 
@@ -48,7 +49,8 @@ class PreviewState {
 }
 
 /// Lecteur de pré-écoute : un [AudioPlayer] just_audio dédié, distinct du
-/// lecteur principal (audio_service). Lancer une pré-écoute met le lecteur
+/// lecteur principal (audio_service) pour ne pas jeter la file en cours — mais
+/// réglé comme lui (tuned_player.dart). Lancer une pré-écoute met le lecteur
 /// principal en pause pour éviter deux sons simultanés.
 final previewPlayerProvider =
     NotifierProvider<PreviewPlayer, PreviewState>(PreviewPlayer.new);
@@ -57,10 +59,11 @@ class PreviewPlayer extends Notifier<PreviewState> {
   AudioPlayer? _player;
   final List<StreamSubscription<dynamic>> _subs = [];
 
-  // Le lecteur de pré-écoute est un just_audio brut, hors foreground service :
-  // sans lui, Android suspend le process et coupe le son dès que le téléphone
-  // tombe en veille. On maintient l'appareil éveillé tant que la pré-écoute
-  // joue, et on relâche dès qu'elle est en pause / arrêtée.
+  // La pré-écoute joue hors du foreground service : sans ça, Android suspend le
+  // process et coupe le son dès que le téléphone tombe en veille. Le verrou
+  // réseau du lecteur (tuned_player.dart) garde la Wi-Fi et le CPU actifs, mais
+  // seul le service de premier plan protège du gel de l'app — on maintient donc
+  // l'appareil éveillé tant que la pré-écoute joue, et on relâche à la pause.
   bool _awake = false;
   Future<void> _keepAwake(bool on) async {
     if (_awake == on) return;
@@ -85,7 +88,7 @@ class PreviewPlayer extends Notifier<PreviewState> {
   AudioPlayer _ensurePlayer() {
     final existing = _player;
     if (existing != null) return existing;
-    final p = AudioPlayer();
+    final p = createGullifyPlayer(use: PlayerUse.streaming);
     _subs.add(p.playerStateStream.listen((s) {
       final atEnd = s.processingState == ProcessingState.completed;
       final playing = s.playing && !atEnd;

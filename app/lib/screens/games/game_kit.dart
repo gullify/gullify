@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:just_audio/just_audio.dart';
 
+import '../../audio/tuned_player.dart';
 import '../../models/song.dart';
 import '../../state/games.dart';
 import '../../widgets/glass_box.dart';
@@ -17,9 +18,10 @@ import 'game_source_sheet.dart';
 /// réponse, écran de fin et lecteur d'extraits.
 
 /// Lecteur d'extraits **isolé** du lecteur principal : aucune notification,
-/// aucun mini-lecteur, donc aucun titre dévoilé pendant une manche.
+/// aucun mini-lecteur, donc aucun titre dévoilé pendant une manche. Il en garde
+/// tout de même le réglage (tuned_player.dart).
 class SnippetPlayer {
-  final AudioPlayer _player = AudioPlayer();
+  final AudioPlayer _player = createGullifyPlayer(use: PlayerUse.snippet);
 
   /// Exposé pour écouter l'état (lecture / pause) dans l'interface.
   AudioPlayer get player => _player;

@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 
 import '../api/party_repository.dart';
+import '../audio/tuned_player.dart';
 import 'party.dart';
 
 /// Talkie-walkie des parties multijoueur.
@@ -137,9 +138,11 @@ class DeviceVoiceRecorder implements VoiceRecorder {
 }
 
 /// Lecteur dédié aux messages : il ne touche pas au lecteur de musique, ni au
-/// lecteur d'extraits de la manche.
+/// lecteur d'extraits de la manche — une voix passe *par-dessus* l'extrait, il
+/// lui faut donc son propre son. Il est réglé comme les autres
+/// (tuned_player.dart).
 class JustAudioVoiceSpeaker implements VoiceSpeaker {
-  final AudioPlayer _player = AudioPlayer();
+  final AudioPlayer _player = createGullifyPlayer(use: PlayerUse.snippet);
 
   @override
   Future<void> play(String url) async {

@@ -11,7 +11,7 @@ import '../api/radio_repository.dart';
 import '../api/yt_downloads_repository.dart';
 import '../models/song.dart';
 import 'equalizer.dart';
-import 'net_lock.dart';
+import 'tuned_player.dart';
 
 export 'equalizer.dart' show equalizerSupported;
 
@@ -73,15 +73,9 @@ class GullifyAudioHandler extends BaseAudioHandler
     _player.playerStateStream.listen((s) {
       if (s.playing == _lastLoggedPlaying) return;
       _lastLoggedPlaying = s.playing;
-      // Verrou réseau tenu uniquement pendant la lecture : garde la radio Wi-Fi
-      // et le CPU actifs écran éteint pour que le flux ne cale pas en veille
-      // (cause racine des « mise en tampon » diagnostiquées). Relâché dès la
-      // pause pour ne pas grever la batterie hors lecture.
-      if (s.playing) {
-        acquireNetworkLock();
-      } else {
-        releaseNetworkLock();
-      }
+      // (Le verrou réseau qui garde la Wi-Fi et le CPU actifs écran éteint est
+      // tenu par le lecteur lui-même — voir tuned_player.dart, où tous les
+      // lecteurs de l'app le prennent désormais.)
       // Le titre courant permet de savoir quelle piste s'est arrêtée (utile
       // quand l'arrêt suit un changement de source ou une piste précise).
       final title = mediaItem.value?.title;
@@ -142,18 +136,9 @@ class GullifyAudioHandler extends BaseAudioHandler
   /// lecture possible (idée #47). Voir equalizer.dart.
   final equalizer = GullifyEqualizer();
 
-  // Buffer tuning proven by the previous Android client (PixelPlay fork):
-  // min 30s / max 60s / playback start after 5s.
-  late final _player = AudioPlayer(
-    audioLoadConfiguration: const AudioLoadConfiguration(
-      androidLoadControl: AndroidLoadControl(
-        minBufferDuration: Duration(seconds: 30),
-        maxBufferDuration: Duration(seconds: 60),
-        bufferForPlaybackDuration: Duration(seconds: 5),
-        bufferForPlaybackAfterRebufferDuration: Duration(seconds: 10),
-      ),
-    ),
-  );
+  // Réglage des tampons et verrou réseau : voir tuned_player.dart, d'où sortent
+  // tous les lecteurs de l'app.
+  late final _player = createGullifyPlayer(use: PlayerUse.streaming);
 
   /// Set after login so the media browser (Android Auto) can list the library.
   LibraryRepository? repository;
@@ -571,9 +556,6 @@ class GullifyAudioHandler extends BaseAudioHandler
   Future<void> stop() async {
     _flushPlay();
     _switchingSource = false;
-    // Sûreté : relâche le verrou réseau même si aucune transition « playing »
-    // ne suit l'arrêt (fin de file, coupure).
-    releaseNetworkLock();
     await _player.stop();
     await super.stop();
   }
