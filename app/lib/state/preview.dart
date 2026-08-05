@@ -48,15 +48,16 @@ class PreviewState {
       );
 }
 
-/// Lecteur de pré-écoute : un [AudioPlayer] just_audio dédié, distinct du
+/// Lecteur de pré-écoute : un lecteur emprunté à la réserve commune, distinct du
 /// lecteur principal (audio_service) pour ne pas jeter la file en cours — mais
-/// réglé comme lui (tuned_player.dart). Lancer une pré-écoute met le lecteur
-/// principal en pause pour éviter deux sons simultanés.
+/// réglé comme lui (tuned_player.dart). Il est rendu dès qu'on arrête la
+/// pré-écoute. Lancer une pré-écoute met le lecteur principal en pause pour
+/// éviter deux sons simultanés.
 final previewPlayerProvider =
     NotifierProvider<PreviewPlayer, PreviewState>(PreviewPlayer.new);
 
 class PreviewPlayer extends Notifier<PreviewState> {
-  AudioPlayer? _player;
+  PlayerLease? _lease;
   final List<StreamSubscription<dynamic>> _subs = [];
 
   // La pré-écoute joue hors du foreground service : sans ça, Android suspend le
@@ -85,10 +86,14 @@ class PreviewPlayer extends Notifier<PreviewState> {
     return const PreviewState();
   }
 
-  AudioPlayer _ensurePlayer() {
-    final existing = _player;
+  /// Le lecteur de la pré-écoute en cours, emprunté à la réserve au premier
+  /// besoin. Ses écoutes vont et viennent avec lui : rendu, il repart faire du
+  /// son ailleurs et ne doit plus rien nous dire.
+  PlayerLease _ensureLease() {
+    final existing = _lease;
     if (existing != null) return existing;
-    final p = createGullifyPlayer(use: PlayerUse.streaming);
+    final lease = leaseGullifyPlayer(use: PlayerUse.streaming);
+    final p = lease.player;
     _subs.add(p.playerStateStream.listen((s) {
       final atEnd = s.processingState == ProcessingState.completed;
       final playing = s.playing && !atEnd;
@@ -110,14 +115,15 @@ class PreviewPlayer extends Notifier<PreviewState> {
     _subs.add(p.durationStream.listen((d) {
       state = state.copyWith(duration: d);
     }));
-    _player = p;
-    return p;
+    _lease = lease;
+    return lease;
   }
 
   /// Bascule la pré-écoute du [song] : lance / met en pause / reprend.
   Future<void> toggle(YtSong song) async {
     if (song.videoId.isEmpty) return;
-    final p = _ensurePlayer();
+    final lease = _ensureLease();
+    final p = lease.player;
 
     // Même titre : simple pause / reprise.
     if (state.videoId == song.videoId) {
@@ -133,29 +139,46 @@ class PreviewPlayer extends Notifier<PreviewState> {
     try {
       await ref.read(audioHandlerProvider).pause();
     } catch (_) {}
+    // Le lecteur principal qui se tait peut avoir arrêté la pré-écoute en
+    // chemin : le lecteur est alors rendu, et ce n'est plus à nous d'y toucher.
+    if (!identical(_lease, lease)) return;
 
     state = PreviewState(videoId: song.videoId, loading: true);
     final url = ref.read(ytDownloadsRepositoryProvider).previewUrl(song.videoId);
     try {
       await p.setUrl(url);
+      if (!identical(_lease, lease)) return;
       await p.play();
     } catch (_) {
       state = PreviewState(videoId: song.videoId, error: true);
     }
   }
 
-  /// Arrête toute pré-écoute et remet l'état à zéro.
+  /// Arrête toute pré-écoute et remet l'état à zéro. Le lecteur retourne à la
+  /// réserve : rien ne sert d'en garder un allumé entre deux écoutes, et la
+  /// prochaine pré-écoute en réempruntera un (idée #58).
   Future<void> stop() async {
     await _keepAwake(false);
-    await _player?.stop();
+    final lease = _lease;
+    _lease = null;
+    await _dropSubs();
+    await lease?.give();
     state = const PreviewState();
+  }
+
+  Future<void> _dropSubs() async {
+    final subs = List.of(_subs);
+    _subs.clear();
+    for (final s in subs) {
+      await s.cancel();
+    }
   }
 
   void _dispose() {
     _keepAwake(false);
-    for (final s in _subs) {
-      s.cancel();
-    }
-    _player?.dispose();
+    final lease = _lease;
+    _lease = null;
+    _dropSubs();
+    lease?.give();
   }
 }

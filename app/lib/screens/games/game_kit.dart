@@ -18,10 +18,13 @@ import 'game_source_sheet.dart';
 /// réponse, écran de fin et lecteur d'extraits.
 
 /// Lecteur d'extraits **isolé** du lecteur principal : aucune notification,
-/// aucun mini-lecteur, donc aucun titre dévoilé pendant une manche. Il en garde
-/// tout de même le réglage (tuned_player.dart).
+/// aucun mini-lecteur, donc aucun titre dévoilé pendant une manche. Il n'est pas
+/// à lui pour autant : il l'emprunte à la réserve le temps de la partie et le
+/// rend en sortant (tuned_player.dart).
 class SnippetPlayer {
-  final AudioPlayer _player = createGullifyPlayer(use: PlayerUse.snippet);
+  final PlayerLease _lease = leaseGullifyPlayer(use: PlayerUse.snippet);
+
+  AudioPlayer get _player => _lease.player;
 
   /// Exposé pour écouter l'état (lecture / pause) dans l'interface.
   AudioPlayer get player => _player;
@@ -34,27 +37,34 @@ class SnippetPlayer {
   /// Charge un extrait et le lance. Les erreurs réseau sont avalées : une
   /// manche muette reste jouable (l'extrait peut être relancé).
   Future<void> playFrom(String url, Duration start) async {
+    if (!_lease.held) return;
     try {
       await _player.stop();
+      if (!_lease.held) return;
       await _player.setUrl(url, initialPosition: start);
+      if (!_lease.held) return;
       await _player.play();
     } catch (_) {}
   }
 
   Future<void> replay(Duration start) async {
+    if (!_lease.held) return;
     try {
       await _player.seek(start);
+      if (!_lease.held) return;
       await _player.play();
     } catch (_) {}
   }
 
   Future<void> toggle() async {
+    if (!_lease.held) return;
     try {
       _player.playing ? await _player.pause() : await _player.play();
     } catch (_) {}
   }
 
   Future<void> stop() async {
+    if (!_lease.held) return;
     try {
       await _player.stop();
     } catch (_) {}
@@ -63,16 +73,16 @@ class SnippetPlayer {
   /// Met l'extrait en sourdine pendant qu'on parle ou qu'on écoute quelqu'un
   /// (talkie-walkie des parties) : la voix doit passer devant la musique.
   Future<void> duck(bool quiet) async {
+    if (!_lease.held) return;
     try {
       await _player.setVolume(quiet ? 0.18 : 1);
     } catch (_) {}
   }
 
-  Future<void> dispose() async {
-    try {
-      await _player.dispose();
-    } catch (_) {}
-  }
+  /// Fin de la partie : le lecteur retourne à la réserve, prêt pour le suivant.
+  /// Tout ce qui arriverait en retard (une manche qui se relance, un extrait qui
+  /// finit de charger) ne le touche plus — il n'est plus à nous.
+  Future<void> dispose() => _lease.give();
 }
 
 /// Début d'extrait : jamais l'intro (trop facile ou silencieuse), jamais la

@@ -8,6 +8,23 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('2.88.0', [
+    'Les lecteurs de Gullify ne sont plus « chacun le sien ». La version '
+        'précédente leur donnait le même réglage, mais chacun gardait le sien '
+        'allumé dans son coin pour la vie de l\'app. Ils se passent maintenant '
+        'les mêmes : la pré-écoute YouTube, le medley de genre, les extraits '
+        'des manches et les messages vocaux des parties en empruntent un le '
+        'temps de faire du son, et le rendent en se taisant. Le medley qui '
+        's\'arrête laisse ses deux lecteurs à la manche de jeu suivante, qui les '
+        'reprend tels quels',
+    'Au repos, l\'app n\'en garde donc plus un seul allumé — un lecteur qui ne '
+        'joue pas tient quand même un décodeur du téléphone, et il y en avait '
+        'jusqu\'à cinq. Un lecteur rendu est arrêté et remis à plein volume '
+        'avant d\'être reprêté : un fondu de medley ne peut plus laisser la '
+        'manche suivante muette',
+    'Le lecteur principal, lui, reste à part : c\'est le seul qui tient la file '
+        'd\'attente et la notification, et le seul qu\'on ne prête à personne',
+  ]),
   ReleaseNote('2.87.0', [
     'Tous les lecteurs de Gullify sortent maintenant du même moule. La '
         'pré-écoute YouTube, le medley de genre, les extraits des jeux et les '

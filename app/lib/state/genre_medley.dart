@@ -116,24 +116,42 @@ abstract class MedleyAudio {
   Future<void> dispose();
 }
 
+/// Un lecteur emprunté à la réserve le temps d'un medley (tuned_player.dart) :
+/// une fois rendu, ce guichet ne fait plus rien. C'est ce qui protège l'extrait
+/// du suivant — un fondu ou une minuterie qui se réveille après l'arrêt du
+/// medley toucherait sinon un lecteur déjà reparti ailleurs.
 class _JustAudioMedley implements MedleyAudio {
-  final AudioPlayer _player = createGullifyPlayer(use: PlayerUse.snippet);
+  PlayerLease? _lease = leaseGullifyPlayer(use: PlayerUse.snippet);
+
+  AudioPlayer? get _player => _lease?.player;
 
   @override
-  Future<void> setVolume(double volume) => _player.setVolume(volume);
+  Future<void> setVolume(double volume) async {
+    await _player?.setVolume(volume);
+  }
 
   @override
-  Future<void> setUrl(String url, {Duration? initialPosition}) =>
-      _player.setUrl(url, initialPosition: initialPosition);
+  Future<void> setUrl(String url, {Duration? initialPosition}) async {
+    await _player?.setUrl(url, initialPosition: initialPosition);
+  }
 
   @override
-  Future<void> play() => _player.play();
+  Future<void> play() async {
+    // Comme chez just_audio, ce Future ne se referme qu'à l'arrêt du son.
+    await _player?.play();
+  }
 
   @override
-  Future<void> stop() => _player.stop();
+  Future<void> stop() async {
+    await _player?.stop();
+  }
 
   @override
-  Future<void> dispose() => _player.dispose();
+  Future<void> dispose() async {
+    final lease = _lease;
+    _lease = null;
+    await lease?.give();
+  }
 }
 
 /// Fabrique du lecteur de medley, remplaçable en test.
@@ -161,9 +179,9 @@ class MedleyState {
   bool get active => loading || current != null;
 }
 
-/// Lecteur de medley : un [AudioPlayer] just_audio dédié, comme la pré-écoute
-/// YouTube — le lecteur principal garde sa file et sa notification, on ne fait
-/// que l'interrompre le temps de choisir.
+/// Lecteur de medley : deux lecteurs empruntés à la réserve commune, comme la
+/// pré-écoute YouTube et les manches de jeu — le lecteur principal garde sa file
+/// et sa notification, on ne fait que l'interrompre le temps de choisir.
 final medleyPlayerProvider =
     NotifierProvider<MedleyPlayer, MedleyState>(MedleyPlayer.new);
 
@@ -380,7 +398,8 @@ class MedleyPlayer extends Notifier<MedleyState> {
   }
 
   /// Le lecteur du rang [i] : deux en tout, pris à tour de rôle, pour que le
-  /// suivant se charge sans couper le précédent.
+  /// suivant se charge sans couper le précédent. Empruntés au premier extrait,
+  /// rendus à l'arrêt du medley.
   MedleyAudio _spare(int i) {
     if (_players.isEmpty) {
       final create = ref.read(medleyAudioProvider);
@@ -402,9 +421,17 @@ class MedleyPlayer extends Notifier<MedleyState> {
     _misses = 0;
     _artistId = null;
     if (ref.mounted) state = const MedleyState();
-    for (final player in _players) {
+    // Le medley s'est tu : ses deux lecteurs retournent à la réserve, où la
+    // manche de jeu ou la pré-écoute suivante les reprendra plutôt que d'en
+    // allumer d'autres (idée #58). Le medley d'après en réempruntera deux.
+    final leaving = List.of(_players);
+    _players.clear();
+    for (final player in leaving) {
       try {
         await player.stop();
+      } catch (_) {}
+      try {
+        await player.dispose();
       } catch (_) {}
     }
   }

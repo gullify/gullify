@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:just_audio/just_audio.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 
@@ -137,20 +136,25 @@ class DeviceVoiceRecorder implements VoiceRecorder {
   }
 }
 
-/// Lecteur dédié aux messages : il ne touche pas au lecteur de musique, ni au
-/// lecteur d'extraits de la manche — une voix passe *par-dessus* l'extrait, il
-/// lui faut donc son propre son. Il est réglé comme les autres
-/// (tuned_player.dart).
+/// Lecteur des messages : il ne touche pas au lecteur de musique, ni au lecteur
+/// d'extraits de la manche — une voix passe *par-dessus* l'extrait, il lui faut
+/// donc un son à lui pendant qu'elle parle. Il l'emprunte à la réserve commune
+/// au premier message et le rend en se taisant (tuned_player.dart) : hors des
+/// parties, le talkie-walkie ne garde aucun lecteur allumé.
 class JustAudioVoiceSpeaker implements VoiceSpeaker {
-  final AudioPlayer _player = createGullifyPlayer(use: PlayerUse.snippet);
+  PlayerLease? _lease;
 
   @override
   Future<void> play(String url) async {
+    final lease = _lease ??= leaseGullifyPlayer(use: PlayerUse.snippet);
     try {
-      await _player.setUrl(url);
+      await lease.player.setUrl(url);
+      // Coupé pendant le chargement (haut-parleur éteint, salon quitté) : le
+      // lecteur est rendu, on le laisse à qui l'a repris.
+      if (!identical(_lease, lease)) return;
       // `play()` ne rend la main qu'à la fin du message : c'est ce qui enchaîne
       // les messages un par un plutôt que tous ensemble.
-      await _player.play();
+      await lease.player.play();
     } catch (_) {
       // Un message illisible (expiré, réseau coupé) ne doit pas bloquer la file.
     }
@@ -158,17 +162,15 @@ class JustAudioVoiceSpeaker implements VoiceSpeaker {
 
   @override
   Future<void> stop() async {
-    try {
-      await _player.stop();
-    } catch (_) {}
+    final lease = _lease;
+    _lease = null;
+    // Rendre le lecteur l'arrête : le `play()` du message en cours se referme,
+    // et la file des messages reprend son cours.
+    await lease?.give();
   }
 
   @override
-  Future<void> dispose() async {
-    try {
-      await _player.dispose();
-    } catch (_) {}
-  }
+  Future<void> dispose() => stop();
 }
 
 // ──────────────────────────────────────────────────────────── réception ──
