@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../models/song_chords.dart';
 import '../state/library.dart';
+import 'tuner_sheet.dart';
 
 /// Feuille « Accords » du lecteur : la grille guitare du titre en cours,
 /// transposable, avec défilement automatique et diagrammes de doigté.
@@ -227,6 +228,7 @@ class _ChordsViewState extends State<_ChordsView> {
       children: [
         _Header(chords: chords, transpose: _transpose),
         _Toolbar(
+          tuning: chords.tuning,
           transpose: _transpose,
           onTranspose: (delta) => setState(() {
             _transpose = ((_transpose + delta + 6) % 12) - 6;
@@ -374,6 +376,7 @@ class _Pill extends StatelessWidget {
 
 class _Toolbar extends StatelessWidget {
   const _Toolbar({
+    required this.tuning,
     required this.transpose,
     required this.onTranspose,
     required this.scrolling,
@@ -382,6 +385,8 @@ class _Toolbar extends StatelessWidget {
     required this.onSpeed,
   });
 
+  /// L'accordage de la grille : l'accordeur s'y règle tout seul.
+  final String? tuning;
   final int transpose;
   final ValueChanged<int> onTranspose;
   final bool scrolling;
@@ -418,6 +423,11 @@ class _Toolbar extends StatelessWidget {
             tooltip: 'Transposer vers le haut',
             icon: const Icon(Icons.add),
             onPressed: () => onTranspose(1),
+          ),
+          IconButton(
+            tooltip: 'Accordeur',
+            icon: const Icon(Icons.speed),
+            onPressed: () => showTunerSheet(context, tuning: tuning),
           ),
           const Spacer(),
           if (scrolling)

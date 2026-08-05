@@ -5,9 +5,27 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gullify/api/library_repository.dart';
+import 'package:gullify/audio/tuner.dart';
 import 'package:gullify/models/song_chords.dart';
 import 'package:gullify/state/library.dart';
+import 'package:gullify/state/tuner.dart';
 import 'package:gullify/widgets/chords_sheet.dart';
+
+/// Micro de papier : l'accordeur ouvert depuis la grille ne doit pas aller
+/// chercher le vrai micro dans un test.
+class _SilentPitchSource implements PitchSource {
+  @override
+  Future<bool> ensurePermission() async => true;
+
+  @override
+  Future<Stream<double?>> start() async => const Stream<double?>.empty();
+
+  @override
+  Future<void> stop() async {}
+
+  @override
+  Future<void> dispose() async {}
+}
 
 class _FakeLibraryRepo extends Fake implements LibraryRepository {
   _FakeLibraryRepo(this.result);
@@ -76,7 +94,10 @@ Future<void> _open(WidgetTester tester, _FakeLibraryRepo repo) async {
   addTearDown(tester.view.reset);
   await tester.pumpWidget(
     ProviderScope(
-      overrides: [libraryRepositoryProvider.overrideWithValue(repo)],
+      overrides: [
+        libraryRepositoryProvider.overrideWithValue(repo),
+        pitchSourceProvider.overrideWithValue(_SilentPitchSource()),
+      ],
       child: MaterialApp(
         home: Builder(
           builder: (context) => Scaffold(
@@ -183,6 +204,25 @@ void main() {
       expect(find.text('Tonalité Gm'), findsOneWidget);
       // Les doigtés restent ceux de la version d'origine : on l'annonce.
       expect(find.text('Doigtés (position d\'origine)'), findsOneWidget);
+    });
+
+    testWidgets('ouvre l\'accordeur réglé sur l\'accordage de la grille',
+        (tester) async {
+      await _open(tester, _FakeLibraryRepo(ChordsResult(chords: _chords())));
+
+      await tester.tap(find.byTooltip('Accordeur'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Accordeur'), findsOneWidget);
+      expect(find.text('Joue une corde à vide'), findsOneWidget);
+      // « E A D G B E » : l'accordeur est parti sur le standard.
+      final chip = tester.widget<ChoiceChip>(
+        find.ancestor(
+          of: find.text('Standard'),
+          matching: find.byType(ChoiceChip),
+        ),
+      );
+      expect(chip.selected, isTrue);
     });
 
     testWidgets('sans grille, propose la recherche', (tester) async {

@@ -8,6 +8,18 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('2.92.0', [
+    'La page des accords a maintenant son accordeur : le bouton en forme de '
+        'cadran, à côté des boutons de transposition, ouvre un accordeur qui '
+        'écoute la guitare au micro. La note entendue s\'affiche en grand, '
+        'l\'aiguille dit de combien on est trop grave ou trop aigu, et la '
+        'corde visée s\'allume — verte quand elle est juste',
+    'L\'accordeur part sur l\'accordage annoncé par la grille du titre '
+        '(Drop D, demi-ton plus bas…) et huit accordages sont proposés, du '
+        'standard au DADGAD. La musique se met en pause le temps d\'accorder '
+        '— sans quoi le micro entendrait le haut-parleur avant la corde — et '
+        'repart à la fermeture, l\'écran restant allumé pendant ce temps',
+  ]),
   ReleaseNote('2.91.0', [
     'Un bouton guitare rejoint les paroles dans le lecteur : il ouvre la '
         'grille d\'accords du titre en cours, accords en couleur au-dessus '
