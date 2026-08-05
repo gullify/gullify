@@ -9,12 +9,15 @@ import 'net_lock.dart';
 /// question de code : le medley croise deux extraits (un fondu enchaîné demande
 /// deux sons à la fois), les jeux doivent rester anonymes (le titre en cours ne
 /// doit apparaître ni en notification ni dans le mini-lecteur, sinon la manche
-/// est donnée), le talkie-walkie des parties parle *par-dessus* l'extrait, et la
-/// pré-écoute YouTube ne doit pas jeter la file de lecture en cours. Ce qui se
-/// partage, c'est le *réglage* du lecteur (idée #57) — et, depuis l'idée #58,
-/// les lecteurs eux-mêmes : plus personne ne garde le sien dans son coin.
+/// est donnée) et le talkie-walkie des parties parle *par-dessus* l'extrait. Ce
+/// qui se partage, c'est le *réglage* du lecteur (idée #57) — et, depuis l'idée
+/// #58, les lecteurs eux-mêmes : plus personne ne garde le sien dans son coin.
 ///
-/// La pré-écoute, le medley, les manches de jeu et les messages des parties
+/// La pré-écoute YouTube, elle, est repartie chez le lecteur principal (idée
+/// #59) : une écoute qui ne s'ouvre pas, ne s'affiche pas en notification et
+/// meurt à l'écran éteint n'est pas une écoute. Elle n'emprunte plus rien.
+///
+/// Le medley, les manches de jeu et les messages des parties
 /// **empruntent** un lecteur à la réserve le temps de faire du son, et le
 /// rendent en se taisant. Le lecteur rendu est arrêté, remis à plat et prêté au
 /// suivant : au repos l'app n'en garde plus un seul allumé, et deux extraits qui
@@ -25,7 +28,8 @@ import 'net_lock.dart';
 /// Deux profils, parce qu'ils n'écoutent pas la même chose.
 enum PlayerUse {
   /// Un morceau entier, écouté d'un bout à l'autre : on remplit large pour
-  /// traverser un trou de réseau (lecteur principal, pré-écoute YouTube).
+  /// traverser un trou de réseau (lecteur principal, pré-écoute YouTube
+  /// comprise depuis l'idée #59).
   streaming,
 
   /// Quelques dizaines de secondes qui doivent partir tout de suite (medley,

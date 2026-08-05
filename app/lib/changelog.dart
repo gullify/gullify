@@ -8,6 +8,24 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('2.89.0', [
+    'Écouter un titre trouvé dans la recherche YouTube, c\'est maintenant le '
+        'lecteur de Gullify qui le fait. Cette pré-écoute avait le sien, à '
+        'l\'écart : le lecteur ne s\'ouvrait pas, la notification ne disait '
+        'rien, et l\'écran éteint coupait le son au bout de quelques secondes. '
+        'Elle part désormais comme une chanson — mini-lecteur, écran '
+        'verrouillé, veille — et remplace la file d\'attente, comme une radio',
+    'Du coup, plus jamais deux sons à la fois. Une pré-écoute lancée puis un '
+        'medley de genre ouvert dans la foulée jouaient l\'un par-dessus '
+        'l\'autre : chacun ne faisait taire que le lecteur principal, qui ne '
+        'jouait pas. Le medley coupe maintenant la pré-écoute, et la '
+        'pré-écoute coupe le medley',
+    'Le medley de genre, lui, garde son lecteur à part et s\'arrête toujours '
+        'à la fermeture du dialogue : il croise deux extraits à la fois pour '
+        'ses fondus, ce qu\'un lecteur unique ne sait pas faire, et il ne doit '
+        'pas jeter la file d\'attente en cours à chaque artiste rangé. Il sert '
+        'à choisir un genre, pas à écouter',
+  ]),
   ReleaseNote('2.88.0', [
     'Les lecteurs de Gullify ne sont plus « chacun le sien ». La version '
         'précédente leur donnait le même réglage, mais chacun gardait le sien '

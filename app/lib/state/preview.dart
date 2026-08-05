@@ -1,16 +1,14 @@
-import 'dart:async';
-
+import 'package:audio_service/audio_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:just_audio/just_audio.dart';
-import 'package:wakelock_plus/wakelock_plus.dart';
 
 import '../api/yt_downloads_repository.dart';
-import '../audio/tuned_player.dart';
+import '../audio/audio_handler.dart';
 import 'player.dart';
 import 'yt_downloads.dart';
 
-/// État de la pré-écoute d'une chanson YouTube (avant téléchargement).
-/// Un seul titre est en pré-écoute à la fois; [videoId] null = rien.
+/// État de la pré-écoute d'une chanson YouTube (avant téléchargement), tel que
+/// l'affiche la rangée de la recherche. Ce n'est plus qu'une lecture du lecteur
+/// principal : [videoId] est le titre YouTube qu'il joue, s'il en joue un.
 class PreviewState {
   const PreviewState({
     this.videoId,
@@ -48,137 +46,95 @@ class PreviewState {
       );
 }
 
-/// Lecteur de pré-écoute : un lecteur emprunté à la réserve commune, distinct du
-/// lecteur principal (audio_service) pour ne pas jeter la file en cours — mais
-/// réglé comme lui (tuned_player.dart). Il est rendu dès qu'on arrête la
-/// pré-écoute. Lancer une pré-écoute met le lecteur principal en pause pour
-/// éviter deux sons simultanés.
+/// Le titre YouTube en pré-écoute dans une fiche du lecteur principal, s'il
+/// s'agit d'une pré-écoute.
+String? previewVideoIdOf(MediaItem? item) =>
+    item?.extras?[kPreviewVideoId] as String?;
+
+/// Pré-écoute d'un titre YouTube : **le lecteur principal**, et rien d'autre
+/// (idée #59).
+///
+/// Elle avait le sien, à l'écart, pour ne pas jeter la file en cours. On y
+/// perdait tout le reste : le lecteur ne s'ouvrait pas, la notification ne
+/// disait rien, l'écran éteint coupait le son (hors du service de premier plan,
+/// Android suspend l'app), et un medley lancé dans la foulée se superposait —
+/// il ne faisait taire que le lecteur principal, qui ne jouait pas. Une
+/// pré-écoute est une écoute : elle passe par le lecteur principal comme une
+/// chanson, et remplace la file comme une radio.
+///
+/// Ce qui reste ici n'est plus qu'un guichet : lancer le titre, et relire ce
+/// que le lecteur principal en dit pour l'afficher dans la rangée.
 final previewPlayerProvider =
     NotifierProvider<PreviewPlayer, PreviewState>(PreviewPlayer.new);
 
 class PreviewPlayer extends Notifier<PreviewState> {
-  PlayerLease? _lease;
-  final List<StreamSubscription<dynamic>> _subs = [];
-
-  // La pré-écoute joue hors du foreground service : sans ça, Android suspend le
-  // process et coupe le son dès que le téléphone tombe en veille. Le verrou
-  // réseau du lecteur (tuned_player.dart) garde la Wi-Fi et le CPU actifs, mais
-  // seul le service de premier plan protège du gel de l'app — on maintient donc
-  // l'appareil éveillé tant que la pré-écoute joue, et on relâche à la pause.
-  bool _awake = false;
-  Future<void> _keepAwake(bool on) async {
-    if (_awake == on) return;
-    _awake = on;
-    try {
-      await WakelockPlus.toggle(enable: on);
-    } catch (_) {}
-  }
+  /// Le dernier titre qui n'a pas pu se lancer. Le lecteur principal, lui, ne
+  /// dit rien d'un flux injoignable — il reste sur sa fiche, à l'arrêt.
+  String? _failed;
 
   @override
   PreviewState build() {
-    ref.onDispose(_dispose);
-    // Si le lecteur principal se (re)met à jouer, on coupe la pré-écoute :
-    // jamais deux sons en même temps.
-    ref.listen(playbackStateProvider, (_, next) {
-      final playing = next.value?.playing ?? false;
-      if (playing && state.videoId != null) stop();
-    });
-    return const PreviewState();
+    final item = ref.watch(currentMediaItemProvider).value;
+    final videoId = previewVideoIdOf(item);
+    // Le lecteur principal joue autre chose (ou plus rien) : aucune rangée de
+    // la recherche ne s'allume.
+    if (videoId == null) return const PreviewState();
+
+    final playback = ref.watch(playbackStateProvider).value;
+    final processing = playback?.processingState;
+    return PreviewState(
+      videoId: videoId,
+      playing: playback?.playing ?? false,
+      loading: processing == AudioProcessingState.loading ||
+          processing == AudioProcessingState.buffering,
+      error: _failed == videoId,
+      position: ref.watch(positionProvider).value ?? Duration.zero,
+      duration: item?.duration,
+    );
   }
 
-  /// Le lecteur de la pré-écoute en cours, emprunté à la réserve au premier
-  /// besoin. Ses écoutes vont et viennent avec lui : rendu, il repart faire du
-  /// son ailleurs et ne doit plus rien nous dire.
-  PlayerLease _ensureLease() {
-    final existing = _lease;
-    if (existing != null) return existing;
-    final lease = leaseGullifyPlayer(use: PlayerUse.streaming);
-    final p = lease.player;
-    _subs.add(p.playerStateStream.listen((s) {
-      final atEnd = s.processingState == ProcessingState.completed;
-      final playing = s.playing && !atEnd;
-      state = state.copyWith(
-        playing: playing,
-        loading: s.processingState == ProcessingState.loading ||
-            s.processingState == ProcessingState.buffering,
-      );
-      _keepAwake(playing);
-      if (atEnd) {
-        // Fin du titre : on revient au début, prêt à ré-écouter.
-        p.pause();
-        p.seek(Duration.zero);
-      }
-    }));
-    _subs.add(p.positionStream.listen((pos) {
-      if (state.videoId != null) state = state.copyWith(position: pos);
-    }));
-    _subs.add(p.durationStream.listen((d) {
-      state = state.copyWith(duration: d);
-    }));
-    _lease = lease;
-    return lease;
+  /// Vrai tant que le lecteur principal tient encore le titre. Un titre allé
+  /// jusqu'au bout laisse sa fiche affichée mais le lecteur au repos : le
+  /// reprendre demande de le relancer, pas de rappuyer sur « lecture ».
+  bool get _held {
+    final s = ref.read(playbackStateProvider).value?.processingState;
+    return s == AudioProcessingState.ready ||
+        s == AudioProcessingState.buffering ||
+        s == AudioProcessingState.loading;
   }
 
   /// Bascule la pré-écoute du [song] : lance / met en pause / reprend.
   Future<void> toggle(YtSong song) async {
     if (song.videoId.isEmpty) return;
-    final lease = _ensureLease();
-    final p = lease.player;
+    final handler = ref.read(audioHandlerProvider);
 
-    // Même titre : simple pause / reprise.
-    if (state.videoId == song.videoId) {
-      if (p.playing) {
-        await p.pause();
+    // Même titre, toujours chargé : simple pause / reprise du lecteur principal.
+    if (state.videoId == song.videoId && !state.error && _held) {
+      if (state.playing) {
+        await handler.pause();
       } else {
-        await p.play();
+        await handler.play();
       }
       return;
     }
 
-    // Nouveau titre : on coupe le lecteur principal pour éviter deux sons.
+    _failed = null;
     try {
-      await ref.read(audioHandlerProvider).pause();
-    } catch (_) {}
-    // Le lecteur principal qui se tait peut avoir arrêté la pré-écoute en
-    // chemin : le lecteur est alors rendu, et ce n'est plus à nous d'y toucher.
-    if (!identical(_lease, lease)) return;
-
-    state = PreviewState(videoId: song.videoId, loading: true);
-    final url = ref.read(ytDownloadsRepositoryProvider).previewUrl(song.videoId);
-    try {
-      await p.setUrl(url);
-      if (!identical(_lease, lease)) return;
-      await p.play();
+      await handler.playPreview(
+        videoId: song.videoId,
+        url: ref.read(ytDownloadsRepositoryProvider).previewUrl(song.videoId),
+        title: song.title,
+        artist: song.artist,
+        artwork: song.thumbnail.isEmpty ? null : song.thumbnail,
+      );
     } catch (_) {
-      state = PreviewState(videoId: song.videoId, error: true);
+      _failed = song.videoId;
+      state = state.copyWith(
+        videoId: song.videoId,
+        playing: false,
+        loading: false,
+        error: true,
+      );
     }
-  }
-
-  /// Arrête toute pré-écoute et remet l'état à zéro. Le lecteur retourne à la
-  /// réserve : rien ne sert d'en garder un allumé entre deux écoutes, et la
-  /// prochaine pré-écoute en réempruntera un (idée #58).
-  Future<void> stop() async {
-    await _keepAwake(false);
-    final lease = _lease;
-    _lease = null;
-    await _dropSubs();
-    await lease?.give();
-    state = const PreviewState();
-  }
-
-  Future<void> _dropSubs() async {
-    final subs = List.of(_subs);
-    _subs.clear();
-    for (final s in subs) {
-      await s.cancel();
-    }
-  }
-
-  void _dispose() {
-    _keepAwake(false);
-    final lease = _lease;
-    _lease = null;
-    _dropSubs();
-    lease?.give();
   }
 }

@@ -31,6 +31,11 @@ Future<GullifyAudioHandler> initAudioHandler() {
   );
 }
 
+/// Marque, dans les extras d'une fiche du lecteur principal, la pré-écoute
+/// d'un titre YouTube (idée #59) : c'est à ça que la recherche reconnaît « son »
+/// titre dans ce que joue le lecteur principal.
+const kPreviewVideoId = 'previewVideoId';
+
 /// Media IDs used for the Android Auto / media browser tree.
 class BrowseIds {
   static const root = AudioService.browsableRootId;
@@ -121,6 +126,16 @@ class GullifyAudioHandler extends BaseAudioHandler
     });
     _player.positionStream.listen((pos) {
       if (_trackedSongId != null) _lastPosition = pos;
+    });
+    // La durée d'un flux qu'on ne connaît pas d'avance (la pré-écoute d'un titre
+    // YouTube : le serveur la découvre en le transcodant) n'arrive qu'une fois
+    // le titre chargé. On complète alors sa fiche, sans quoi le scrubber du
+    // lecteur et la barre de la recherche n'auraient jamais de fin. Une radio
+    // n'en a pas non plus, mais elle est en direct : le lecteur ne rend rien.
+    _player.durationStream.listen((duration) {
+      final item = mediaItem.value;
+      if (duration == null || item == null || item.duration != null) return;
+      mediaItem.add(item.copyWith(duration: duration));
     });
     _player.processingStateStream.listen((s) {
       if (s == ProcessingState.completed) {
@@ -428,6 +443,44 @@ class GullifyAudioHandler extends BaseAudioHandler
       extras: const {'radio': true},
     );
     queue.add([item]);
+    await _player.setAudioSources([AudioSource.uri(Uri.parse(url))]);
+    await play();
+  }
+
+  /// Pré-écoute d'un titre YouTube trouvé dans la recherche (idée #59). Elle
+  /// avait son propre lecteur, à l'écart : rien ne s'ouvrait, rien ne
+  /// s'affichait en notification, et l'écran éteint la coupait — hors du
+  /// service de premier plan, Android suspend l'app et le son avec. Elle passe
+  /// maintenant par le lecteur principal, comme une chanson : mini-lecteur,
+  /// écran verrouillé, veille, et un seul son à la fois pour de bon.
+  ///
+  /// Comme une radio, elle remplace la file : on ne fait pas écouter un titre
+  /// qui n'est pas encore dans la bibliothèque au milieu de ceux qui y sont.
+  Future<void> playPreview({
+    required String videoId,
+    required String url,
+    required String title,
+    String? artist,
+    String? artwork,
+  }) async {
+    _flushPlay();
+    _switchingSource = true;
+    final item = MediaItem(
+      id: url,
+      title: title,
+      artist: artist,
+      album: 'Pré-écoute YouTube',
+      // La durée arrive avec le flux (voir durationStream, plus haut).
+      artUri: _artUri(artwork),
+      extras: {kPreviewVideoId: videoId},
+    );
+    queue.add([item]);
+    // Annoncé tout de suite, avant même le chargement : la rangée de la
+    // recherche doit passer en « chargement » au doigt levé, et non à la
+    // première note. `currentIndexStream` la réannoncera à l'identique.
+    mediaItem.add(item);
+    playbackState.add(playbackState.value
+        .copyWith(processingState: AudioProcessingState.loading));
     await _player.setAudioSources([AudioSource.uri(Uri.parse(url))]);
     await play();
   }

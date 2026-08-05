@@ -773,6 +773,10 @@ class _ResultRow extends StatelessWidget {
 /// rangée (ou la pochette) lance / met en pause la pré-écoute; le bouton de
 /// droite lance le téléchargement. Le titre en cours affiche une barre de
 /// progression et une pochette « lecture / pause ».
+///
+/// La pré-écoute part dans le lecteur principal (idée #59) : le mini-lecteur
+/// s'ouvre dessus, la notification l'annonce et l'écran éteint ne la coupe plus.
+/// Ce qui s'affiche ici n'est que l'écho de ce que joue ce lecteur.
 class _YtSongRow extends ConsumerWidget {
   const _YtSongRow({required this.song, required this.onDownload});
 
