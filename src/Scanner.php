@@ -15,6 +15,7 @@ require_once __DIR__ . '/Storage/LocalStorage.php';
 require_once __DIR__ . '/Storage/SFTPStorage.php';
 require_once __DIR__ . '/Storage/StorageFactory.php';
 require_once __DIR__ . '/ArtworkManager.php';
+require_once __DIR__ . '/LibraryDedupe.php';
 
 class Scanner {
     private $db;
@@ -117,6 +118,17 @@ class Scanner {
         }
         if (!$this->columnExists('songs', 'artist_id')) {
             $this->db->exec("ALTER TABLE songs ADD COLUMN artist_id INT NULL");
+        }
+
+        // Un fichier = une ligne. Tant que l'index d'unicité manque, on fusionne
+        // les doublons déjà en base puis on le pose (voir LibraryDedupe).
+        $dedupe = new LibraryDedupe($this->db);
+        if (!$dedupe->indexExists()) {
+            try {
+                $dedupe->run();
+            } catch (Throwable $e) {
+                error_log('Scanner: déduplication impossible — ' . $e->getMessage());
+            }
         }
     }
 
@@ -541,9 +553,18 @@ class Scanner {
             )->execute([$albumId]);
         }
 
+        // ON DUPLICATE KEY : si un autre scan (scan d'artiste lancé par un
+        // téléchargement, par exemple) a déjà inséré ce fichier, on met à jour
+        // sa ligne au lieu d'en créer une deuxième.
         $stmt = $this->db->prepare('
             INSERT INTO songs (album_id, artist_id, title, track_number, duration, file_path, file_hash)
             VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON DUPLICATE KEY UPDATE
+                artist_id = VALUES(artist_id),
+                title = VALUES(title),
+                track_number = VALUES(track_number),
+                duration = VALUES(duration),
+                file_hash = VALUES(file_hash)
         ');
         $stmt->execute([
             $albumId,
@@ -577,7 +598,33 @@ class Scanner {
      * Scan a single artist's directory with full ID3 metadata.
      * Returns a change report.
      */
+    /**
+     * Deux téléchargements du même artiste qui se terminent en même temps
+     * déclenchaient deux scans simultanés, chacun voyant une base « sans ce
+     * fichier » et l'insérant : d'où des titres en double. Un verrou MySQL
+     * (donc partagé entre processus) les met à la queue leu leu.
+     */
     public function scanArtist(int $artistId, string $user): array {
+        $lock = 'gullify_scan_artist_' . $artistId;
+        $stmt = $this->db->prepare('SELECT GET_LOCK(?, 180)');
+        $stmt->execute([$lock]);
+        $acquired = (int) $stmt->fetchColumn() === 1;
+        if (!$acquired) {
+            // Le scan concurrent traîne : on continue quand même (l'index
+            // d'unicité sur songs empêche le doublon de toute façon).
+            error_log("Scanner: verrou $lock non obtenu, scan lancé sans attendre");
+        }
+
+        try {
+            return $this->scanArtistLocked($artistId, $user);
+        } finally {
+            if ($acquired) {
+                $this->db->prepare('SELECT RELEASE_LOCK(?)')->execute([$lock]);
+            }
+        }
+    }
+
+    private function scanArtistLocked(int $artistId, string $user): array {
         $changes = [
             'new_albums' => [],
             'new_songs' => [],

@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../api/yt_downloads_repository.dart';
 import '../state/yt_downloads.dart';
 import '../widgets/artwork.dart';
+import '../widgets/download_confirm.dart';
 
 /// Ajout de musique depuis YouTube Music : recherche d'albums +
 /// suivi de la file de téléchargement du serveur (yt-dlp).
@@ -37,40 +38,27 @@ class _YtDownloadsScreenState extends ConsumerState<YtDownloadsScreen>
 
   Future<void> _downloadLink(String url) async {
     final messenger = ScaffoldMessenger.of(context);
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Télécharger ce lien'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(url, style: Theme.of(context).textTheme.bodySmall),
-            const SizedBox(height: 12),
-            const Text(
-              'Le serveur télécharge ce lien (piste, album ou playlist) '
-              'puis l\'ajoute à la bibliothèque. Le nom de l\'artiste et de '
-              'l\'album est détecté automatiquement.',
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Annuler'),
-          ),
-          FilledButton.icon(
-            onPressed: () => Navigator.pop(context, true),
-            icon: const Icon(Icons.download),
-            label: const Text('Télécharger'),
-          ),
-        ],
-      ),
+    // Un même lien déjà en file ne se relance pas.
+    final duplicate = await ref
+        .read(ytDownloadsRepositoryProvider)
+        .checkDuplicate(url: url);
+    if (!mounted) return;
+
+    final ok = await showDownloadConfirm(
+      context,
+      title: 'Télécharger ce lien',
+      subtitle: url,
+      body: 'Le serveur télécharge ce lien (piste, album ou playlist) '
+          'puis l\'ajoute à la bibliothèque. Le nom de l\'artiste et de '
+          'l\'album est détecté automatiquement.',
+      duplicate: duplicate,
     );
-    if (ok != true || !mounted) return;
+    if (!ok || !mounted) return;
 
     try {
-      await ref.read(ytQueueProvider.notifier).startUrl(url);
+      await ref
+          .read(ytQueueProvider.notifier)
+          .startUrl(url, force: duplicate != null);
       messenger.showSnackBar(
         const SnackBar(content: Text('Téléchargement démarré')),
       );
@@ -102,50 +90,35 @@ class _YtDownloadsScreenState extends ConsumerState<YtDownloadsScreen>
       );
       return;
     }
+    // Déjà dans la bibliothèque ou déjà en file ? On le dit avant de proposer.
+    final duplicate = await ref
+        .read(ytDownloadsRepositoryProvider)
+        .checkDuplicate(
+          artist: resolved.artist,
+          album: resolved.title,
+          url: resolved.playlistUrl,
+        );
     if (!mounted) return;
     Navigator.pop(context);
 
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(resolved.title),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(resolved.artist),
-            const SizedBox(height: 4),
-            Text(
-              [
-                if (resolved.year.isNotEmpty) resolved.year,
-                '${resolved.trackCount} piste${resolved.trackCount > 1 ? 's' : ''}',
-              ].join(' · '),
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-            const SizedBox(height: 12),
-            const Text(
-              'Le serveur télécharge cet album puis l\'ajoute '
-              'à la bibliothèque.',
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Annuler'),
-          ),
-          FilledButton.icon(
-            onPressed: () => Navigator.pop(context, true),
-            icon: const Icon(Icons.download),
-            label: const Text('Télécharger'),
-          ),
-        ],
-      ),
+    final ok = await showDownloadConfirm(
+      context,
+      title: resolved.title,
+      subtitle: resolved.artist,
+      details: [
+        if (resolved.year.isNotEmpty) resolved.year,
+        '${resolved.trackCount} piste${resolved.trackCount > 1 ? 's' : ''}',
+      ].join(' · '),
+      body: 'Le serveur télécharge cet album puis l\'ajoute '
+          'à la bibliothèque.',
+      duplicate: duplicate,
     );
-    if (ok != true || !mounted) return;
+    if (!ok || !mounted) return;
 
     try {
-      await ref.read(ytQueueProvider.notifier).start(resolved);
+      await ref
+          .read(ytQueueProvider.notifier)
+          .start(resolved, force: duplicate != null);
       messenger.showSnackBar(
         SnackBar(content: Text('Téléchargement démarré : ${resolved.title}')),
       );
@@ -326,7 +299,11 @@ class _AlbumResults extends ConsumerWidget {
               if (a.year.isNotEmpty) a.year,
             ].join(' · '),
           ),
-          trailing: const Icon(Icons.download_outlined),
+          // Déjà téléchargé : la pastille remplace la flèche, on n'invite
+          // plus à le reprendre.
+          trailing: a.inLibrary
+              ? const InLibraryBadge()
+              : const Icon(Icons.download_outlined),
           onTap: () => onAlbumTap(a),
         );
       },

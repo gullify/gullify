@@ -12,6 +12,7 @@ import '../state/player.dart';
 import '../state/preview.dart';
 import '../state/yt_downloads.dart';
 import '../widgets/artwork.dart';
+import '../widgets/download_confirm.dart';
 import '../widgets/glass_box.dart';
 import '../widgets/glass_kit.dart';
 import '../widgets/song_menu.dart';
@@ -95,51 +96,36 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       );
       return;
     }
+    // Déjà dans la bibliothèque ou déjà en file ? On le dit avant de proposer.
+    final duplicate = await ref
+        .read(ytDownloadsRepositoryProvider)
+        .checkDuplicate(
+          artist: resolved.artist,
+          album: resolved.title,
+          url: resolved.playlistUrl,
+        );
     if (!mounted) return;
     Navigator.of(context, rootNavigator: true).pop();
 
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(resolved.title),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(resolved.artist),
-            const SizedBox(height: 4),
-            Text(
-              [
-                if (resolved.year.isNotEmpty) resolved.year,
-                '${resolved.trackCount} piste'
-                    '${resolved.trackCount > 1 ? 's' : ''}',
-              ].join(' · '),
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-            const SizedBox(height: 12),
-            const Text(
-              "Le serveur télécharge cet album puis l'ajoute "
-              'à la bibliothèque.',
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Annuler'),
-          ),
-          FilledButton.icon(
-            onPressed: () => Navigator.pop(context, true),
-            icon: const Icon(Icons.download),
-            label: const Text('Télécharger'),
-          ),
-        ],
-      ),
+    final ok = await showDownloadConfirm(
+      context,
+      title: resolved.title,
+      subtitle: resolved.artist,
+      details: [
+        if (resolved.year.isNotEmpty) resolved.year,
+        '${resolved.trackCount} piste'
+            '${resolved.trackCount > 1 ? 's' : ''}',
+      ].join(' · '),
+      body: "Le serveur télécharge cet album puis l'ajoute "
+          'à la bibliothèque.',
+      duplicate: duplicate,
     );
-    if (ok != true || !mounted) return;
+    if (!ok || !mounted) return;
 
     try {
-      await ref.read(ytQueueProvider.notifier).start(resolved);
+      await ref
+          .read(ytQueueProvider.notifier)
+          .start(resolved, force: duplicate != null);
       _notifyStarted(messenger, resolved.title);
     } catch (e) {
       messenger.showSnackBar(
@@ -151,50 +137,39 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   /// Chanson seule : confirmation puis mise en file avec l'URL watch?v=.
   Future<void> _confirmSongDownload(YtSong song) async {
     final messenger = ScaffoldMessenger.of(context);
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(song.title),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(song.artist),
-            const SizedBox(height: 4),
-            Text(
-              [
-                if (song.album.isNotEmpty) song.album,
-                if (song.duration.isNotEmpty) song.duration,
-              ].join(' · '),
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-            const SizedBox(height: 12),
-            const Text(
-              "Le serveur télécharge cette chanson puis l'ajoute "
-              'à la bibliothèque.',
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Annuler'),
-          ),
-          FilledButton.icon(
-            onPressed: () => Navigator.pop(context, true),
-            icon: const Icon(Icons.download),
-            label: const Text('Télécharger'),
-          ),
-        ],
-      ),
+    // Pour une chanson seule, le doublon se juge sur le titre : elles
+    // atterrissent toutes dans « Singles ».
+    final duplicate = await ref
+        .read(ytDownloadsRepositoryProvider)
+        .checkDuplicate(
+          artist: song.artist,
+          album: song.album.isEmpty ? 'Singles' : song.album,
+          url: song.watchUrl,
+          title: song.title,
+        );
+    if (!mounted) return;
+
+    final ok = await showDownloadConfirm(
+      context,
+      title: song.title,
+      subtitle: song.artist,
+      details: [
+        if (song.album.isNotEmpty) song.album,
+        if (song.duration.isNotEmpty) song.duration,
+      ].join(' · '),
+      body: "Le serveur télécharge cette chanson puis l'ajoute "
+          'à la bibliothèque.',
+      duplicate: duplicate,
     );
-    if (ok != true || !mounted) return;
+    if (!ok || !mounted) return;
 
     try {
       await ref.read(ytDownloadsRepositoryProvider).start(
             url: song.watchUrl,
             artistName: song.artist,
             albumName: song.album.isEmpty ? 'Singles' : song.album,
+            title: song.title,
+            force: duplicate != null,
           );
       ref.invalidate(ytQueueProvider);
       _notifyStarted(messenger, song.title);
@@ -512,7 +487,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 if (a.year.isNotEmpty) a.year,
                 'Album',
               ].join(' · '),
-              trailing: const Icon(Icons.download_outlined),
+              trailing: a.inLibrary
+                  ? const InLibraryBadge()
+                  : const Icon(Icons.download_outlined),
               onTap: () => _confirmAlbumDownload(a),
             ),
         ];
@@ -612,7 +589,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             if (a.year.isNotEmpty) a.year,
             'Album',
           ].join(' · '),
-          trailing: const Icon(Icons.download_outlined),
+          trailing: a.inLibrary
+              ? const InLibraryBadge()
+              : const Icon(Icons.download_outlined),
           onTap: () => _confirmAlbumDownload(a),
         ));
       }
@@ -840,6 +819,7 @@ class _YtSongRow extends ConsumerWidget {
                 ),
               ),
               const SizedBox(width: 4),
+              if (song.inLibrary) const InLibraryBadge(),
               IconButton(
                 tooltip: 'Télécharger',
                 icon: const Icon(Icons.download_outlined),

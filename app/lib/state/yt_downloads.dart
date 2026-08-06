@@ -155,19 +155,22 @@ class YtQueueNotifier extends AsyncNotifier<List<ServerDownload>> {
     }
   }
 
-  Future<String> start(YtResolvedAlbum album) async {
+  Future<String> start(YtResolvedAlbum album, {bool force = false}) async {
     final id = await ref.read(ytDownloadsRepositoryProvider).start(
           url: album.playlistUrl,
           artistName: album.artist,
           albumName: album.title,
+          force: force,
         );
     await refresh();
     return id;
   }
 
   /// Met en file un lien YouTube collé (le serveur extrait les métadonnées).
-  Future<String> startUrl(String url) async {
-    final id = await ref.read(ytDownloadsRepositoryProvider).startUrl(url);
+  Future<String> startUrl(String url, {bool force = false}) async {
+    final id = await ref
+        .read(ytDownloadsRepositoryProvider)
+        .startUrl(url, force: force);
     await refresh();
     return id;
   }

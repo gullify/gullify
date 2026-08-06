@@ -8,6 +8,7 @@ class YtAlbum {
     required this.year,
     required this.thumbnail,
     required this.browseId,
+    this.inLibrary = false,
   });
 
   factory YtAlbum.fromJson(Map<String, dynamic> json) => YtAlbum(
@@ -16,6 +17,7 @@ class YtAlbum {
         year: '${json['year'] ?? ''}',
         thumbnail: json['thumbnail'] as String? ?? '',
         browseId: json['browseId'] as String? ?? '',
+        inLibrary: json['in_library'] == true,
       );
 
   final String title;
@@ -23,6 +25,10 @@ class YtAlbum {
   final String year;
   final String thumbnail;
   final String browseId;
+
+  /// Le serveur a reconnu cet album dans la bibliothèque : inutile de le
+  /// retélécharger (l'app le signale au lieu de le proposer bêtement).
+  final bool inLibrary;
 }
 
 /// Artiste similaire suggéré par YouTube Music.
@@ -53,6 +59,7 @@ class YtSong {
     required this.duration,
     required this.thumbnail,
     required this.videoId,
+    this.inLibrary = false,
   });
 
   factory YtSong.fromJson(Map<String, dynamic> json) => YtSong(
@@ -62,6 +69,7 @@ class YtSong {
         duration: json['duration'] as String? ?? '',
         thumbnail: json['thumbnail'] as String? ?? '',
         videoId: json['videoId'] as String? ?? '',
+        inLibrary: json['in_library'] == true,
       );
 
   final String title;
@@ -70,6 +78,9 @@ class YtSong {
   final String duration;
   final String thumbnail;
   final String videoId;
+
+  /// Chanson déjà présente dans la bibliothèque (même artiste, même titre).
+  final bool inLibrary;
 
   /// URL acceptée telle quelle par l'action `start` (yt-dlp).
   String get watchUrl => 'https://music.youtube.com/watch?v=$videoId';
@@ -102,6 +113,35 @@ class YtResolvedAlbum {
   final String year;
   final int trackCount;
   final String thumbnail;
+}
+
+/// Ce que le serveur a reconnu comme déjà téléchargé : soit une file en cours,
+/// soit un album (ou un titre) déjà rangé dans la bibliothèque.
+class YtDuplicate {
+  const YtDuplicate({
+    required this.kind,
+    required this.artist,
+    required this.album,
+    required this.trackCount,
+    required this.message,
+  });
+
+  factory YtDuplicate.fromJson(Map<String, dynamic> json) => YtDuplicate(
+        kind: json['kind'] as String? ?? '',
+        artist: json['artist'] as String? ?? '',
+        album: json['album'] as String? ?? '',
+        trackCount: (json['track_count'] as num?)?.toInt() ?? 0,
+        message: json['message'] as String? ?? '',
+      );
+
+  /// `queue` (téléchargement en cours), `library` (album déjà là) ou `song`.
+  final String kind;
+  final String artist;
+  final String album;
+  final int trackCount;
+  final String message;
+
+  bool get isQueued => kind == 'queue';
 }
 
 /// Téléchargement serveur (queue yt-dlp, fichiers dl_*.json).
@@ -236,12 +276,44 @@ class YtDownloadsRepository {
     return YtResolvedAlbum.fromJson(data);
   }
 
+  /// Demande au serveur si c'est déjà téléchargé (file en cours ou
+  /// bibliothèque). [title] n'est renseigné que pour une chanson seule.
+  /// Renvoie null quand la voie est libre — et aussi si la vérification
+  /// échoue : elle ne doit jamais empêcher un téléchargement.
+  Future<YtDuplicate?> checkDuplicate({
+    String artist = '',
+    String album = '',
+    String url = '',
+    String title = '',
+  }) async {
+    try {
+      final data = await _client.get(
+        'download.php',
+        query: {
+          'action': 'check_duplicate',
+          'artist': artist,
+          'album': album,
+          'url': url,
+          'title': title,
+        },
+      ) as Map<String, dynamic>;
+      final dup = data['duplicate'];
+      if (dup is Map<String, dynamic>) return YtDuplicate.fromJson(dup);
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// Met l'album en file de téléchargement. `artist_id: new` laisse le
   /// worker créer l'artiste et déclencher le scan de la bibliothèque.
+  /// [force] repasse outre le refus du serveur en cas de doublon.
   Future<String> start({
     required String url,
     required String artistName,
     required String albumName,
+    String title = '',
+    bool force = false,
   }) async {
     final data = await _client.post(
       'download.php',
@@ -251,6 +323,8 @@ class YtDownloadsRepository {
         'artist_name': artistName,
         'album_name': albumName,
         'artist_id': 'new',
+        if (title.isNotEmpty) 'title': title,
+        if (force) 'force': '1',
       },
     ) as Map<String, dynamic>;
     return data['download_id'] as String? ?? '';
@@ -259,11 +333,15 @@ class YtDownloadsRepository {
   /// Met en file un lien YouTube collé tel quel (vidéo, playlist ou album).
   /// Sans `artist_name`/`album_name`, le serveur extrait les métadonnées du
   /// lien via yt-dlp. `artist_id: new` déclenche la création + le scan.
-  Future<String> startUrl(String url) async {
+  Future<String> startUrl(String url, {bool force = false}) async {
     final data = await _client.post(
       'download.php',
       query: {'action': 'start'},
-      form: {'url': url, 'artist_id': 'new'},
+      form: {
+        'url': url,
+        'artist_id': 'new',
+        if (force) 'force': '1',
+      },
     ) as Map<String, dynamic>;
     return data['download_id'] as String? ?? '';
   }

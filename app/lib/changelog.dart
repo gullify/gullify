@@ -8,6 +8,22 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('2.99.0', [
+    'Les albums téléchargés dernièrement avaient chaque titre en double : deux '
+        'téléchargements qui se terminaient en même temps lançaient deux '
+        'analyses du même artiste, et chacune inscrivait le même fichier. Les '
+        'doublons déjà en base ont été fusionnés — favoris, listes de lecture '
+        'et compteurs d\'écoute conservés — et la base refuse maintenant '
+        'd\'inscrire deux fois le même fichier',
+    'Un album (ou un titre) déjà dans la bibliothèque porte la pastille '
+        '« Déjà là » dans la recherche YouTube Music, et la fenêtre de '
+        'téléchargement le rappelle avant de lancer quoi que ce soit. Un '
+        '« Télécharger quand même » reste là pour reprendre un album '
+        'incomplet',
+    'Un album déjà en cours de téléchargement ne se relance plus du tout : '
+        'deux téléchargements dans le même dossier, c\'est exactement ce qui '
+        'fabriquait les doublons',
+  ]),
   ReleaseNote('2.98.0', [
     'Une chanson se prête : « Partager » — dans le menu d\'un titre (appui '
         'long) comme dans le lecteur — tire un lien à envoyer par SMS. La '

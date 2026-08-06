@@ -30,6 +30,209 @@ function sanitizeForPath($name) {
     return trim($name);
 }
 
+/**
+ * Clé de comparaison souple d'un nom d'artiste/album/titre : casse, accents,
+ * ponctuation et espaces multiples ignorés. « Cœur de pirate » et
+ * « Coeur De Pirate » désignent le même artiste.
+ */
+function normalizeName($name) {
+    $name = (string) $name;
+    $name = str_replace(['œ', 'Œ', 'æ', 'Æ'], ['oe', 'oe', 'ae', 'ae'], $name);
+    if (function_exists('transliterator_transliterate')) {
+        $t = transliterator_transliterate('Any-Latin; Latin-ASCII; Lower()', $name);
+        if ($t !== false) $name = $t;
+    } else {
+        $t = @iconv('UTF-8', 'ASCII//TRANSLIT', $name);
+        if ($t !== false) $name = $t;
+    }
+    $name = mb_strtolower($name, 'UTF-8');
+    $name = preg_replace('/[^a-z0-9]+/', ' ', $name);
+    return trim(preg_replace('/\s+/', ' ', $name));
+}
+
+/**
+ * Albums déjà présents dans la bibliothèque de [$user], indexés par
+ * « artiste|album » normalisé => nombre de pistes.
+ */
+function libraryAlbumIndex($user) {
+    static $cache = [];
+    if (isset($cache[$user])) return $cache[$user];
+
+    $index = [];
+    try {
+        $db = AppConfig::getDB();
+        $stmt = $db->prepare('
+            SELECT ar.name AS artist, al.name AS album, COUNT(s.id) AS tracks
+            FROM albums al
+            JOIN artists ar ON ar.id = al.artist_id
+            LEFT JOIN songs s ON s.album_id = al.id
+            WHERE ar.user = ?
+            GROUP BY al.id
+        ');
+        $stmt->execute([$user]);
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            if ((int) $row['tracks'] === 0) continue; // album fantôme, pas un doublon
+            $key = normalizeName($row['artist']) . '|' . normalizeName($row['album']);
+            $index[$key] = [
+                'artist'      => $row['artist'],
+                'album'       => $row['album'],
+                'track_count' => (int) $row['tracks'],
+            ];
+        }
+    } catch (Throwable $e) {
+        error_log('download.php: index bibliothèque indisponible — ' . $e->getMessage());
+    }
+
+    return $cache[$user] = $index;
+}
+
+/**
+ * Titres déjà présents pour les artistes cités, sous forme d'ensemble
+ * « artiste|titre » normalisé (annotation des chansons trouvées sur YouTube).
+ *
+ * @param string[] $artistNames
+ */
+function librarySongIndex($user, array $artistNames) {
+    $artistNames = array_values(array_unique(array_filter(array_map('trim', $artistNames))));
+    if (!$artistNames) return [];
+
+    $index = [];
+    try {
+        $db = AppConfig::getDB();
+        $ph = implode(',', array_fill(0, count($artistNames), '?'));
+        $stmt = $db->prepare("
+            SELECT ar.name AS artist, s.title, s.track_artist
+            FROM songs s
+            JOIN albums al ON al.id = s.album_id
+            JOIN artists ar ON ar.id = al.artist_id
+            WHERE ar.user = ? AND (ar.name IN ($ph) OR s.track_artist IN ($ph))
+        ");
+        $stmt->execute(array_merge([$user], $artistNames, $artistNames));
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $title = normalizeName($row['title']);
+            $index[normalizeName($row['artist']) . '|' . $title] = true;
+            if (!empty($row['track_artist'])) {
+                $index[normalizeName($row['track_artist']) . '|' . $title] = true;
+            }
+        }
+    } catch (Throwable $e) {
+        error_log('download.php: index des titres indisponible — ' . $e->getMessage());
+    }
+
+    return $index;
+}
+
+/**
+ * Téléchargement du même album déjà en file (ou en cours) pour cet
+ * utilisateur — un double appui ne doit pas le lancer deux fois.
+ *
+ * @return array|null
+ */
+function findQueuedDownload($downloadDir, $user, $artist, $album, $url) {
+    $wanted = normalizeName($artist) . '|' . normalizeName($album);
+    foreach (glob($downloadDir . 'dl_*.json') as $file) {
+        $data = json_decode((string) @file_get_contents($file), true);
+        if (!is_array($data)) continue;
+        if (($data['user'] ?? '') !== $user) continue;
+        if (!in_array($data['status'] ?? '', ['queued', 'downloading', 'scanning'], true)) continue;
+
+        $sameAlbum = ($artist !== '' && $album !== '')
+            && (normalizeName($data['artist'] ?? '') . '|' . normalizeName($data['album'] ?? '')) === $wanted;
+        $sameUrl = $url !== '' && ($data['url'] ?? '') === $url;
+        if ($sameAlbum || $sameUrl) {
+            return [
+                'kind'        => 'queue',
+                'artist'      => $data['artist'] ?? $artist,
+                'album'       => $data['album'] ?? $album,
+                'download_id' => $data['id'] ?? '',
+                'status'      => $data['status'] ?? '',
+            ];
+        }
+    }
+    return null;
+}
+
+/**
+ * Doublon éventuel pour cette demande : déjà en file, ou déjà rangé dans la
+ * bibliothèque. Renvoie null si la voie est libre.
+ *
+ * [$title] n'est renseigné que pour une chanson seule : on compare alors le
+ * titre, pas l'album (elles atterrissent toutes dans « Singles », qui
+ * ressemblerait sinon à un doublon dès la deuxième chanson d'un artiste).
+ */
+function findDuplicate($downloadDir, $user, $artist, $album, $url, $title = '') {
+    $queued = findQueuedDownload($downloadDir, $user, $artist, $album, $url);
+    if ($queued) return $queued;
+
+    if ($title !== '' && $artist !== '') {
+        $songs = librarySongIndex($user, [$artist]);
+        if (isset($songs[normalizeName($artist) . '|' . normalizeName($title)])) {
+            return ['kind' => 'song', 'artist' => $artist, 'album' => $title];
+        }
+        return null;
+    }
+
+    if ($artist === '' || $album === '') return null;
+
+    $index = libraryAlbumIndex($user);
+    $key = normalizeName($artist) . '|' . normalizeName($album);
+    if (isset($index[$key])) {
+        return [
+            'kind'        => 'library',
+            'artist'      => $index[$key]['artist'],
+            'album'       => $index[$key]['album'],
+            'track_count' => $index[$key]['track_count'],
+        ];
+    }
+    return null;
+}
+
+/**
+ * Marque d'un `in_library` les albums trouvés sur YouTube qui sont déjà dans
+ * la bibliothèque : la pastille évite de les retélécharger par distraction.
+ */
+function markAlbumsInLibrary($user, array $albums) {
+    if ($user === '' || !$albums) return $albums;
+    $index = libraryAlbumIndex($user);
+    foreach ($albums as &$album) {
+        $key = normalizeName($album['artist'] ?? '') . '|' . normalizeName($album['title'] ?? '');
+        $album['in_library'] = isset($index[$key]);
+    }
+    return $albums;
+}
+
+/** Idem pour les chansons trouvées à l'unité. */
+function markSongsInLibrary($user, array $songs) {
+    if ($user === '' || !$songs) return $songs;
+    $index = librarySongIndex($user, array_column($songs, 'artist'));
+    foreach ($songs as &$song) {
+        $key = normalizeName($song['artist'] ?? '') . '|' . normalizeName($song['title'] ?? '');
+        $song['in_library'] = isset($index[$key]);
+    }
+    return $songs;
+}
+
+/** Message affiché à l'utilisateur quand on refuse un doublon. */
+function duplicateMessage(array $dup) {
+    if (($dup['kind'] ?? '') === 'queue') {
+        return sprintf(
+            '« %s » de %s est déjà en cours de téléchargement.',
+            $dup['album'], $dup['artist']
+        );
+    }
+    if (($dup['kind'] ?? '') === 'song') {
+        return sprintf(
+            '« %s » de %s est déjà dans la bibliothèque.',
+            $dup['album'], $dup['artist']
+        );
+    }
+    $tracks = (int) ($dup['track_count'] ?? 0);
+    return sprintf(
+        '« %s » de %s est déjà dans la bibliothèque (%d piste%s).',
+        $dup['album'], $dup['artist'], $tracks, $tracks > 1 ? 's' : ''
+    );
+}
+
 function extractMetadata($url) {
     $command = 'timeout 20 yt-dlp --print "%(uploader)s|%(playlist_title)s|%(title)s" --no-download ' . escapeshellarg($url) . ' 2>/dev/null | head -1';
     $result = shell_exec($command);
@@ -172,6 +375,22 @@ try {
                 $albumName = sanitizeForPath($albumName);
             }
 
+            // Rien ne se télécharge deux fois sans le dire : « force » permet
+            // de reprendre quand même (album incomplet, meilleure version…).
+            $force = filter_var($_POST['force'] ?? $_GET['force'] ?? false, FILTER_VALIDATE_BOOLEAN);
+            if (!$force) {
+                $songTitle = trim($_POST['title'] ?? $_GET['title'] ?? '');
+                $dup = findDuplicate($downloadDir, $user, $artistName, $albumName, $url, $songTitle);
+                if ($dup) {
+                    echo json_encode([
+                        'success' => false,
+                        'error' => duplicateMessage($dup),
+                        'duplicate' => $dup,
+                    ], JSON_UNESCAPED_UNICODE);
+                    break;
+                }
+            }
+
             $downloadId = uniqid('dl_', true);
 
             $statusFile = $downloadDir . "{$downloadId}.json";
@@ -199,6 +418,28 @@ try {
                 'download_id' => $downloadId,
                 'message' => 'Telechargement demarre'
             ]);
+            break;
+
+        case 'check_duplicate':
+            // Appelé avant d'ouvrir la fenêtre de confirmation : l'app prévient
+            // que l'album est déjà là plutôt que de le retélécharger.
+            $user = $_GET['user'] ?? $_POST['user'] ?? '';
+            $artistName = sanitizeForPath($_GET['artist'] ?? $_POST['artist'] ?? '');
+            $albumName = sanitizeForPath($_GET['album'] ?? $_POST['album'] ?? '');
+            $url = $_GET['url'] ?? $_POST['url'] ?? '';
+            $songTitle = trim($_GET['title'] ?? $_POST['title'] ?? '');
+
+            if (empty($user)) {
+                throw new Exception('Missing user parameter');
+            }
+
+            $dup = findDuplicate($downloadDir, $user, $artistName, $albumName, $url, $songTitle);
+            echo json_encode([
+                'success' => true,
+                'data' => [
+                    'duplicate' => $dup ? $dup + ['message' => duplicateMessage($dup)] : null,
+                ],
+            ], JSON_UNESCAPED_UNICODE);
             break;
 
         case 'preview':
@@ -239,13 +480,16 @@ try {
                 break;
             }
             $data = json_decode($output, true);
-            $albums = array_map(fn($r) => [
-                'title'     => $r['title']     ?? '',
-                'artist'    => $r['artist']    ?? '',
-                'year'      => $r['year']      ?? '',
-                'thumbnail' => $r['thumbnail'] ?? '',
-                'browseId'  => $r['browseId']  ?? '',
-            ], $data['results'] ?? []);
+            $albums = markAlbumsInLibrary(
+                $_GET['user'] ?? '',
+                array_map(fn($r) => [
+                    'title'     => $r['title']     ?? '',
+                    'artist'    => $r['artist']    ?? '',
+                    'year'      => $r['year']      ?? '',
+                    'thumbnail' => $r['thumbnail'] ?? '',
+                    'browseId'  => $r['browseId']  ?? '',
+                ], $data['results'] ?? [])
+            );
             echo json_encode(['success' => true, 'data' => ['albums' => $albums]]);
             break;
 
@@ -279,6 +523,7 @@ try {
                 'thumbnail' => $r['thumbnail'] ?? '',
                 'videoId'   => $r['videoId']   ?? '',
             ], $data['results'] ?? []), fn($s) => $s['videoId'] !== ''));
+            $songs = markSongsInLibrary($_GET['user'] ?? '', $songs);
             echo json_encode(['success' => true, 'data' => ['songs' => $songs]]);
             break;
 
@@ -334,13 +579,16 @@ try {
                 break;
             }
             $data = json_decode($output, true);
-            $albums = array_values(array_filter(array_map(fn($r) => [
-                'title'     => $r['title']     ?? '',
-                'artist'    => $r['artist']    ?? '',
-                'year'      => $r['year']      ?? '',
-                'thumbnail' => $r['thumbnail'] ?? '',
-                'browseId'  => $r['browseId']  ?? '',
-            ], $data['results'] ?? []), fn($a) => $a['browseId'] !== ''));
+            $albums = markAlbumsInLibrary(
+                $_GET['user'] ?? '',
+                array_values(array_filter(array_map(fn($r) => [
+                    'title'     => $r['title']     ?? '',
+                    'artist'    => $r['artist']    ?? '',
+                    'year'      => $r['year']      ?? '',
+                    'thumbnail' => $r['thumbnail'] ?? '',
+                    'browseId'  => $r['browseId']  ?? '',
+                ], $data['results'] ?? []), fn($a) => $a['browseId'] !== ''))
+            );
             echo json_encode(['success' => true, 'data' => ['albums' => $albums]]);
             break;
 
