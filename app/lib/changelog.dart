@@ -8,6 +8,17 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('2.93.0', [
+    'Dans le lecteur, le nom de l\'album (en haut) et celui de l\'artiste '
+        '(sous le titre) mènent maintenant à leur page : un petit chevron '
+        'indique qu\'on peut y aller, et le lecteur se referme en passant la '
+        'main — on revient donc de l\'artiste à la page d\'où l\'on écoutait, '
+        'mini-lecteur toujours là, plutôt que de rouvrir le plein écran',
+    'Si le lecteur avait justement été ouvert depuis cet album (ou cet '
+        'artiste), il se contente de se refermer : plus de doublons empilés '
+        'derrière le bouton retour. Les titres sans album ni artiste connus '
+        '(radio, pré-écoute YouTube) gardent un texte simple',
+  ]),
   ReleaseNote('2.92.0', [
     'La page des accords a maintenant son accordeur : le bouton en forme de '
         'cadran, à côté des boutons de transposition, ouvre un accordeur qui '

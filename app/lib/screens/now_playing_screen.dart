@@ -31,6 +31,8 @@ class NowPlayingScreen extends ConsumerWidget {
     final scheme = Theme.of(context).colorScheme;
     final isRadio = item.extras?['radio'] == true;
     final songId = item.extras?['songId'] as int?;
+    final albumId = item.extras?['albumId'] as int?;
+    final artistId = item.extras?['artistId'] as int?;
 
     // La pochette floutée remplit l'arrière-plan (design Liquid Glass).
     final light = scheme.brightness == Brightness.light;
@@ -62,10 +64,9 @@ class NowPlayingScreen extends ConsumerWidget {
                 ),
               ),
               if (item.album != null)
-                Text(
-                  item.album!,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                _DetailLink(
+                  text: item.album!,
+                  path: albumId == null ? null : '/album/$albumId',
                   style: const TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
@@ -136,10 +137,12 @@ class NowPlayingScreen extends ConsumerWidget {
                                 ),
                               ),
                               if (item.artist != null)
-                                Text(
-                                  item.artist!,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
+                                _DetailLink(
+                                  text: item.artist!,
+                                  path: artistId == null
+                                      ? null
+                                      : '/artist/$artistId',
+                                  chevronSize: 18,
                                   style: TextStyle(
                                     fontSize: 15,
                                     fontWeight: FontWeight.w500,
@@ -242,6 +245,63 @@ class NowPlayingScreen extends ConsumerWidget {
                 ),
               ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Ouvre une page de détail depuis le lecteur plein écran : il se referme
+/// d'abord, la destination s'ouvre au-dessus de la page d'où l'on vient
+/// (mini-lecteur toujours là). On n'empile pas un écran sous le plein écran,
+/// sinon la flèche « bas » du lecteur ramènerait à l'artiste.
+void _openDetail(BuildContext context, String path) {
+  final router = GoRouter.of(context);
+  if (context.canPop()) router.pop();
+  // Le lecteur a pu être ouvert depuis cette page même (album → lecture →
+  // lecteur → « album ») : sa fermeture suffit, on n'empile pas un doublon.
+  if (router.routerDelegate.currentConfiguration.uri.toString() == path) return;
+  router.push(path);
+}
+
+/// Nom d'album ou d'artiste cliquable (idée #64) : chevron discret pour
+/// signaler qu'on peut y aller, texte simple quand l'identifiant manque
+/// (radio, pré-écoute YouTube, titre sans album connu).
+class _DetailLink extends StatelessWidget {
+  const _DetailLink({
+    required this.text,
+    required this.path,
+    required this.style,
+    this.chevronSize = 15,
+  });
+
+  final String text;
+  final String? path;
+  final TextStyle style;
+  final double chevronSize;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = Text(
+      text,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: style,
+    );
+    final destination = path;
+    if (destination == null) return label;
+
+    return InkWell(
+      onTap: () => _openDetail(context, destination),
+      borderRadius: BorderRadius.circular(10),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 2),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Flexible(child: label),
+            Icon(Icons.chevron_right, size: chevronSize, color: style.color),
           ],
         ),
       ),

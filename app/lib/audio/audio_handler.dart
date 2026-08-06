@@ -433,7 +433,14 @@ class GullifyAudioHandler extends BaseAudioHandler
         album: s.albumName,
         duration: Duration(seconds: s.duration),
         artUri: _artUri(s.artworkUrl),
-        extras: {'songId': s.id, 'filePath': s.filePath},
+        // albumId/artistId : le lecteur y renvoie d'un toucher sur l'album ou
+        // l'artiste (idée #64). Absents des compilations sans album connu.
+        extras: {
+          'songId': s.id,
+          'filePath': s.filePath,
+          if (s.albumId != null) 'albumId': s.albumId,
+          if (s.artistId != null) 'artistId': s.artistId,
+        },
       );
 
   /// Vrai pendant le remplacement de la file : just_audio repasse alors par
