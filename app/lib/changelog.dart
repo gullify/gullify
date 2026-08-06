@@ -8,6 +8,22 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('2.97.0', [
+    'La page d\'un artiste qui vient d\'entrer dans la bibliothèque ne reste '
+        'plus sur le logo Gullify : le serveur va chercher sa photo au moment '
+        'où la page s\'ouvre, sur YouTube Music d\'abord (le catalogue '
+        'québécois et francophone y est bien mieux servi), sur Deezer ensuite. '
+        'Une fois trouvée, elle est gardée — et l\'artiste l\'a aussi dans les '
+        'listes, la voiture et la notification',
+    'La photo n\'est prise que si le nom correspond vraiment : YouTube et '
+        'Deezer répondent toujours quelque chose, même à un nom qui n\'existe '
+        'pas, et coller le visage d\'un autre est pire que pas de photo du '
+        'tout. Un artiste que personne n\'a n\'est pas redemandé avant une '
+        'semaine, et les fourre-tout (« Unknown Artist », « Various Artists ») '
+        'sont écartés',
+    'La recherche ne part que depuis la page d\'un artiste, une à la fois : '
+        'ouvrir la liste des artistes n\'en déclenche aucune',
+  ]),
   ReleaseNote('2.96.0', [
     'Le mini-lecteur répond au pouce : un balayage vers le haut ouvre le '
         'lecteur complet, un balayage vers le bas ferme le lecteur — le son '

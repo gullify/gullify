@@ -143,6 +143,15 @@ class LibraryRepository {
     return Artist.fromJson(j).copyWith(imageUrl: _abs(url));
   }
 
+  /// L'image de l'en-tête d'un artiste (idée #67). `fetch=1` autorise le
+  /// serveur à aller la chercher sur le web (YouTube Music, puis Deezer) s'il
+  /// ne l'a nulle part — un artiste qui vient d'arriver dans la bibliothèque
+  /// n'a rien, et restait sur le logo Gullify. Réservé à la page d'un artiste :
+  /// une liste en déclencherait des centaines.
+  String artistImageUrl(int id) => _client.resourceUrl(
+        'serve_image.php?artist_id=$id&fetch=1&fallback=404',
+      );
+
   Album _album(Map<String, dynamic> j) =>
       Album.fromJson(j).copyWith(artworkUrl: _abs(j['artworkUrl'] as String?));
 
@@ -333,8 +342,9 @@ class LibraryRepository {
       'action': 'artist',
       'id': id,
     }) as Map<String, dynamic>;
+    final artist = _artist(data['artist'] as Map<String, dynamic>);
     return ArtistDetail(
-      artist: _artist(data['artist'] as Map<String, dynamic>),
+      artist: artist.copyWith(imageUrl: artistImageUrl(id)),
       albums: _list(data['albums'], _album),
       topTracks: _list(data['topTracks'], _song),
     );

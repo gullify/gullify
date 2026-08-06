@@ -4,6 +4,7 @@
  * Serves artist/album artwork from local cache, database or filesystem.
  */
 require_once __DIR__ . '/../src/AppConfig.php';
+require_once __DIR__ . '/../src/ArtistImage.php';
 require_once __DIR__ . '/../src/PathHelper.php';
 require_once __DIR__ . '/../src/Storage/StorageFactory.php';
 
@@ -139,6 +140,14 @@ try {
                     @file_put_contents($cachedFile, $data);
                     serveBinary($data);
                 }
+            }
+
+            // 4. Personne n'a d'image en local : aller la chercher sur le web
+            // (YouTube Music puis Deezer). Réservé à `?fetch=1` — la page d'un
+            // artiste le demande, une liste de 500 artistes non (idée #67).
+            if (($_GET['fetch'] ?? '') === '1') {
+                $data = ArtistImage::ensure((int)$artistId, (string)$artist['name']);
+                if ($data !== null) serveBinary($data);
             }
         }
     }

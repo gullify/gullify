@@ -22,6 +22,7 @@ ini_set('display_errors', 0);
 header('Content-Type: application/json');
 
 require_once __DIR__ . '/../src/AppConfig.php';
+require_once __DIR__ . '/../src/ArtistImage.php';
 require_once __DIR__ . '/../src/auth_required.php';
 require_once __DIR__ . '/../src/Notifications.php';
 
@@ -52,90 +53,15 @@ function writeProgress(string $user, array $state): void
     @file_put_contents(progressFile($user), json_encode($state));
 }
 
-function ytMusicArtistImage(string $name): ?string
-{
-    $script = AppConfig::getPythonPath() . '/ytmusic_search.py';
-    if (!file_exists($script)) return null;
-    $python = is_executable('/opt/ytdlp/bin/python3') ? '/opt/ytdlp/bin/python3' : 'python3';
-    $cmd    = sprintf('%s %s artist %s 2>/dev/null',
-        $python,
-        escapeshellarg($script),
-        escapeshellarg($name)
-    );
-    $out = @shell_exec($cmd);
-    if (!$out) return null;
-    $data = json_decode($out, true);
-    $hits = $data['results'] ?? [];
-    if (!$hits) return null;
-
-    // Prefer an exact case-insensitive match
-    $exact = null;
-    foreach ($hits as $h) {
-        if (mb_strtolower($h['name'] ?? '') === mb_strtolower($name)) { $exact = $h; break; }
-    }
-    $best = $exact ?? $hits[0];
-    $thumb = $best['thumbnail'] ?? '';
-    if (!$thumb) return null;
-    // YT thumbnails come back at the smallest size in some setups —
-    // upgrade common width tokens to a 1000px version.
-    $thumb = preg_replace('/=w\d+-h\d+/', '=w1000-h1000', $thumb);
-    return $thumb;
-}
-
-function deezerArtistImage(string $name): ?string
-{
-    $url = 'https://api.deezer.com/search/artist?limit=5&q=' . urlencode($name);
-    $ch  = curl_init($url);
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT        => 8,
-        CURLOPT_USERAGENT      => 'Gullify/1.0',
-    ]);
-    $body = curl_exec($ch);
-    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-    if ($code !== 200 || !$body) return null;
-    $data = json_decode($body, true);
-    $hits = $data['data'] ?? [];
-    if (!$hits) return null;
-    $best = null;
-    foreach ($hits as $h) {
-        if (mb_strtolower($h['name'] ?? '') === mb_strtolower($name)) { $best = $h; break; }
-    }
-    $best ??= $hits[0];
-    return $best['picture_xl'] ?? $best['picture_big'] ?? null;
-}
-
-function downloadImage(string $url): ?string
-{
-    $ch = curl_init($url);
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT        => 12,
-        CURLOPT_USERAGENT      => 'Gullify/1.0',
-        CURLOPT_FOLLOWLOCATION => true,
-    ]);
-    $bin  = curl_exec($ch);
-    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-    if ($code !== 200 || !$bin || strlen($bin) < 200) return null;
-    return $bin;
-}
-
+/**
+ * Une image d'artiste, YouTube Music puis Deezer. La recherche elle-même vit
+ * dans src/ArtistImage.php : le rattrapage en masse (ici) et la récupération à
+ * l'ouverture d'une page d'artiste (serve_image.php, idée #67) doivent chercher
+ * exactement de la même façon.
+ */
 function fetchOneArtist(string $name): ?array
 {
-    // YouTube Music first (better for francophone / niche)
-    $url = ytMusicArtistImage($name);
-    $src = 'ytmusic';
-    if (!$url) {
-        $url = deezerArtistImage($name);
-        $src = 'deezer';
-    }
-    if (!$url) return null;
-
-    $bin = downloadImage($url);
-    if (!$bin) return null;
-    return ['data' => $bin, 'source' => $src];
+    return ArtistImage::fetch($name);
 }
 
 function startBatch(string $user, bool $onlyMissing): array
