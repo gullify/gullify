@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../state/favorites.dart';
+import '../state/karaoke.dart';
 import '../state/library.dart';
 import '../state/player.dart';
 import '../state/sleep_timer.dart';
@@ -529,23 +530,92 @@ void _showLyrics(BuildContext context, WidgetRef ref, MediaItem item) {
     builder: (context) => DraggableScrollableSheet(
       expand: false,
       initialChildSize: 0.7,
-      builder: (context, controller) => filePath == null
-          ? const Center(child: Text('Paroles indisponibles'))
-          : Consumer(
-              builder: (context, ref, _) {
-                final lyrics = ref.watch(lyricsProvider(filePath));
-                return lyrics.when(
-                  loading: () =>
-                      const Center(child: CircularProgressIndicator()),
-                  error: (e, _) => Center(child: Text('Erreur: $e')),
-                  data: (text) => text == null
-                      ? const Center(child: Text('Aucunes paroles trouvées'))
-                      : _LyricsView(text: text, controller: controller),
-                );
-              },
+      builder: (context, controller) => Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 8, 0),
+            child: Row(
+              children: [
+                Text(
+                  'Paroles',
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const Spacer(),
+                _KaraokeButton(filePath: filePath),
+              ],
             ),
+          ),
+          Expanded(
+            child: filePath == null
+                ? const Center(child: Text('Paroles indisponibles'))
+                : Consumer(
+                    builder: (context, ref, _) {
+                      final lyrics = ref.watch(lyricsProvider(filePath));
+                      return lyrics.when(
+                        loading: () =>
+                            const Center(child: CircularProgressIndicator()),
+                        error: (e, _) => Center(child: Text('Erreur: $e')),
+                        data: (text) => text == null
+                            ? const Center(child: Text('Aucunes paroles trouvées'))
+                            : _LyricsView(text: text, controller: controller),
+                      );
+                    },
+                  ),
+          ),
+        ],
+      ),
     ),
   );
+}
+
+/// Bouton « micro barré » des paroles (idée #63) : bascule le lecteur sur la
+/// version voix atténuée du titre, préparée par le serveur. Il attend que le
+/// rendu soit prêt avant de basculer — sinon on entendrait la version
+/// d'origine en croyant le mode actif — et dit pourquoi quand un titre ne s'y
+/// prête pas (mixage trop centré : il n'y a pas de voix à retirer sans
+/// effacer le reste).
+class _KaraokeButton extends ConsumerWidget {
+  const _KaraokeButton({required this.filePath});
+
+  final String? filePath;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final karaoke = ref.watch(karaokeProvider);
+    final scheme = Theme.of(context).colorScheme;
+
+    ref.listen(karaokeProvider, (previous, next) {
+      if (next.phase == KaraokePhase.unavailable &&
+          previous?.phase != KaraokePhase.unavailable) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(KaraokeNotifier.explain(next.reason))),
+        );
+      }
+    });
+
+    final accent = karaoke.active ? scheme.primary : null;
+    return TextButton.icon(
+      onPressed: filePath == null || karaoke.busy
+          ? null
+          : () => ref.read(karaokeProvider.notifier).toggle(filePath),
+      icon: karaoke.busy
+          ? const SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : Icon(Icons.mic_off, color: accent),
+      label: Text(
+        karaoke.busy ? 'Préparation…' : 'Karaoké',
+        style: TextStyle(
+          color: accent,
+          fontWeight: karaoke.active ? FontWeight.w700 : null,
+        ),
+      ),
+    );
+  }
 }
 
 class _LrcLine {

@@ -108,6 +108,19 @@ class SearchResults {
   bool get isEmpty => artists.isEmpty && albums.isEmpty && songs.isEmpty;
 }
 
+/// Où en est la version karaoké d'un titre côté serveur (idée #63).
+enum KaraokeState { ready, rendering, unavailable }
+
+class KaraokeStatus {
+  const KaraokeStatus({required this.state, this.reason});
+
+  final KaraokeState state;
+
+  /// Pourquoi c'est indisponible : `mono` (mixage trop centré, rien à
+  /// annuler), `source` (fichier hors du serveur), `ffmpeg`, `probe`, `cache`.
+  final String? reason;
+}
+
 class LibraryRepository {
   LibraryRepository(this._client);
 
@@ -142,9 +155,32 @@ class LibraryRepository {
           .toList();
 
   /// URL used by the audio player to stream a song.
-  String streamUrl(Song song) => _client.resourceUrl(
-        'stream.php?path=${Uri.encodeQueryComponent(song.filePath)}',
+  String streamUrl(Song song) => streamUrlForPath(song.filePath);
+
+  /// Idem à partir du seul chemin du fichier (le lecteur n'a que ça sous la
+  /// main dans les extras de sa file). En mode [karaoke], le serveur sert la
+  /// version voix atténuée s'il l'a déjà rendue, et l'original sinon.
+  String streamUrlForPath(String filePath, {bool karaoke = false}) =>
+      _client.resourceUrl(
+        'stream.php?path=${Uri.encodeQueryComponent(filePath)}'
+        '${karaoke ? '&karaoke=1' : ''}',
       );
+
+  /// Demande (et lance si besoin) le rendu de la version karaoké d'un titre.
+  /// Voir src/Karaoke.php : le rendu se fait en tâche de fond, on redemande
+  /// jusqu'à `ready` — ou `unavailable`, qui est définitif.
+  Future<KaraokeStatus> prepareKaraoke(String filePath) async {
+    final data =
+        await _client.get('karaoke.php', query: {'path': filePath}) as Map;
+    return KaraokeStatus(
+      state: switch (data['status']) {
+        'ready' => KaraokeState.ready,
+        'rendering' => KaraokeState.rendering,
+        _ => KaraokeState.unavailable,
+      },
+      reason: data['reason'] as String?,
+    );
+  }
 
   Future<List<Artist>> artists({int limit = 5000, int offset = 0}) async {
     final data = await _client.get('library.php', query: {

@@ -119,6 +119,7 @@ class GullifyAudioHandler extends BaseAudioHandler
       _trackedQueue = q;
       _flushPlay();
       _startTracking(q[index]);
+      _prefetchKaraoke(index);
       mediaItem.add(q[index]);
       // Rafraîchit le cœur (favori) pour la nouvelle piste courante.
       playbackState.add(
@@ -417,13 +418,110 @@ class GullifyAudioHandler extends BaseAudioHandler
     });
   }
 
+  /// Mode karaoké (idée #63) : le serveur sert la version voix atténuée des
+  /// titres. Le rendu vit sur le serveur — un titre téléchargé passe donc lui
+  /// aussi par le réseau tant que le mode est actif.
+  bool _karaoke = false;
+  bool get karaoke => _karaoke;
+
   /// Fichier local si le titre est téléchargé, flux du serveur sinon. Sans
   /// session (voiture sans réseau), seuls les téléchargements ont une source :
   /// les autres n'ont rien à jouer plutôt que de faire planter la file.
+  ///
+  /// Un titre téléchargé garde son fichier même en mode karaoké : une file
+  /// bâtie dans la voiture (Android Auto, sans réseau) ne doit jamais se
+  /// retrouver à pointer vers le serveur parce que le mode est resté actif.
+  /// Le basculement explicite, lui, emmène toute la file en karaoké — voir
+  /// setKaraoke().
   String _sourceUri(Song s) {
     final local = offlinePaths[s.id];
     if (local != null) return Uri.file(local).toString();
+    if (_karaoke) {
+      final karaokeUrl = repository?.streamUrlForPath(s.filePath, karaoke: true);
+      if (karaokeUrl != null) return karaokeUrl;
+    }
     return repository?.streamUrl(s) ?? '';
+  }
+
+  /// La source d'une fiche de la file, avec ou sans karaoké. Une radio ou une
+  /// pré-écoute YouTube n'a pas de chemin de fichier : elle ne bouge pas.
+  /// Ici le karaoké l'emporte même sur un titre téléchargé — c'est un geste
+  /// explicite, fait depuis l'app, réseau en main ; le retour au normal, lui,
+  /// rend au titre son fichier local.
+  MediaItem _reroute(MediaItem item, {required bool karaoke}) {
+    final path = item.extras?['filePath'] as String?;
+    final repo = repository;
+    if (path == null || repo == null) return item;
+    final songId = item.extras?['songId'] as int?;
+    final local = songId == null ? null : offlinePaths[songId];
+    final url = karaoke
+        ? repo.streamUrlForPath(path, karaoke: true)
+        : (local != null
+            ? Uri.file(local).toString()
+            : repo.streamUrlForPath(path));
+    return url == item.id ? item : item.copyWith(id: url);
+  }
+
+  /// Bascule la file en cours vers la version karaoké (ou en revient) sans
+  /// perdre sa place : même file, même piste, même seconde, même lecture en
+  /// cours. Les titres dont le rendu n'est pas prêt côté serveur repartent
+  /// simplement dans leur version d'origine (stream.php le décide).
+  Future<void> setKaraoke(bool on) async {
+    if (_karaoke == on) return;
+    _karaoke = on;
+    // Sortir du mode oublie ce qui a été demandé : y revenir plus tard doit
+    // pouvoir relancer un rendu qui aurait échoué entre-temps.
+    if (!on) _karaokeAsked.clear();
+
+    final items = queue.value;
+    if (items.isEmpty) return;
+    final swapped = [for (final item in items) _reroute(item, karaoke: on)];
+    final changed = [
+      for (var i = 0; i < items.length; i++)
+        if (swapped[i].id != items[i].id) i,
+    ];
+    if (changed.isEmpty) return;
+
+    final index = (_player.currentIndex ?? 0).clamp(0, swapped.length - 1);
+    final position = _player.position;
+    final wasPlaying = _player.playing;
+
+    // La piste ne change pas : on garde le suivi d'écoute en cours plutôt que
+    // de déclarer une lecture partielle et d'en démarrer une autre (le
+    // listener de currentIndexStream se tait quand file et index sont déjà
+    // ceux qu'il connaît).
+    _queueIndex = index;
+    _trackedQueue = swapped;
+
+    _switchingSource = true;
+    queue.add(swapped);
+    mediaItem.add(swapped[index]);
+    await _player.setAudioSources(
+      [for (final item in swapped) AudioSource.uri(Uri.parse(item.id))],
+      initialIndex: index,
+      initialPosition: position,
+    );
+    if (wasPlaying) await play();
+    _prefetchKaraoke(index + 1);
+  }
+
+  /// Titres dont le rendu karaoké a déjà été demandé au serveur.
+  final _karaokeAsked = <String>{};
+
+  /// En mode karaoké, prépare d'avance les titres qui arrivent : le rendu
+  /// prend quelques secondes et ExoPlayer précharge la piste suivante bien
+  /// avant qu'on l'entende. Sans cette avance, le titre suivant serait servi
+  /// dans sa version d'origine.
+  void _prefetchKaraoke(int fromIndex) {
+    final repo = repository;
+    if (!_karaoke || repo == null) return;
+    final q = queue.value;
+    for (var i = fromIndex; i <= fromIndex + 1 && i < q.length; i++) {
+      if (i < 0) continue;
+      final path = q[i].extras?['filePath'] as String?;
+      if (path == null || !_karaokeAsked.add(path)) continue;
+      unawaited(repo.prepareKaraoke(path).then((_) {}, onError: (_) {}));
+    }
   }
 
   MediaItem _toMediaItem(Song s) => MediaItem(

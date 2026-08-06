@@ -43,7 +43,7 @@ RUN printf "upload_max_filesize=50M\npost_max_size=50M\nmemory_limit=256M\nmax_e
     > /usr/local/etc/php/conf.d/gullify.ini
 
 # Data directories
-RUN mkdir -p /app/data/cache /app/data/logs /app/data/downloads \
+RUN mkdir -p /app/data/cache /app/data/logs /app/data/downloads /app/data/karaoke \
     && chown -R www-data:www-data /app/data
 
 # Make scripts executable and readable by www-data

@@ -8,6 +8,29 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('2.94.0', [
+    'Un bouton « micro barré » s\'ajoute en haut des paroles : il passe le '
+        'titre en cours en version karaoké, voix atténuée, sans perdre une '
+        'seconde de lecture — même file, même piste, même endroit. Rebasculer '
+        'le bouton rend la voix',
+    'Comment ça marche, et ce que ça vaut : il n\'existe aucune API de '
+        'versions karaoké, et une vraie séparation des pistes demanderait un '
+        'modèle de plusieurs gigaoctets. Le serveur fait donc l\'autre chose '
+        'que la technique sait faire vite et bien : il annule le centre du '
+        'mixage, là où la voix lead se trouve presque toujours, en gardant '
+        'les graves. Ce n\'est pas un instrumental de studio — les chœurs '
+        'centrés et une partie de la caisse claire partent avec la voix — '
+        'mais c\'est de quoi chanter dessus',
+    'Le rendu se fait une fois par titre, en quelques secondes, et le serveur '
+        'le garde. Le bouton attend qu\'il soit prêt avant de basculer, et '
+        'prépare d\'avance le titre suivant pour que le mode tienne d\'un '
+        'morceau à l\'autre. Un titre mixé trop au centre (vieux '
+        'enregistrements, mono) est refusé en disant pourquoi : il n\'y a '
+        'rien à retirer sans effacer le reste',
+    'Un titre téléchargé continue de jouer depuis le téléphone quand une file '
+        'se construit : le karaoké vit sur le serveur, il ne doit jamais '
+        'ramener la voiture sans réseau vers le réseau',
+  ]),
   ReleaseNote('2.93.0', [
     'Dans le lecteur, le nom de l\'album (en haut) et celui de l\'artiste '
         '(sous le titre) mènent maintenant à leur page : un petit chevron '

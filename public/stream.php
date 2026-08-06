@@ -3,12 +3,17 @@
  * Gullify - Audio Streaming Endpoint
  * Supports HTTP range requests for seeking.
  * Uses StorageFactory to support both local and SFTP backends.
+ *
+ * `&karaoke=1` sert la version voix atténuée du titre si elle a déjà été
+ * rendue (voir src/Karaoke.php) ; sinon l'original part comme d'habitude —
+ * la lecture ne s'arrête jamais parce qu'un karaoké manque.
  */
 require_once __DIR__ . '/../src/AppConfig.php';
 require_once __DIR__ . '/../src/Storage/StorageInterface.php';
 require_once __DIR__ . '/../src/Storage/LocalStorage.php';
 require_once __DIR__ . '/../src/Storage/SFTPStorage.php';
 require_once __DIR__ . '/../src/Storage/StorageFactory.php';
+require_once __DIR__ . '/../src/Karaoke.php';
 
 ini_set('max_execution_time', 0);
 
@@ -72,7 +77,18 @@ if (!$storage->fileExists($filePath)) {
     exit('File not found');
 }
 
-$size  = $storage->stat($filePath)['size'];
+// ── Version karaoké ───────────────────────────────────────────────────────────
+// Rendu déjà en cache : c'est lui qu'on sert, comme un fichier local ordinaire.
+$karaoke = false;
+if (!empty($_GET['karaoke']) && $storage->getType() === 'local') {
+    $rendered = Karaoke::readyFor($relativePath, $filePath);
+    if ($rendered !== null) {
+        $filePath = $rendered;
+        $karaoke  = true;
+    }
+}
+
+$size  = $karaoke ? filesize($filePath) : $storage->stat($filePath)['size'];
 $begin = 0;
 $end   = $size - 1;
 
