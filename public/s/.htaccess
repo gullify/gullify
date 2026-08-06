@@ -1,0 +1,7 @@
+# gullify.app/s/3f9a2c… → index.php?t=3f9a2c…
+# Le jeton d'un partage n'est pas un fichier : tout ce qui n'existe pas sur le
+# disque est confié à la page, qui dira si le lien est encore valable.
+RewriteEngine On
+RewriteBase /s/
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteRule ^([A-Za-z0-9]{12,32})/?$ index.php?t=$1 [QSA,L]

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../models/song.dart';
 import '../state/favorites.dart';
 import '../state/karaoke.dart';
 import '../state/library.dart';
@@ -12,6 +13,7 @@ import '../state/player.dart';
 import '../state/sleep_timer.dart';
 import '../widgets/artwork.dart';
 import '../widgets/chords_sheet.dart';
+import '../widgets/share_sheet.dart';
 
 class NowPlayingScreen extends ConsumerWidget {
   const NowPlayingScreen({super.key});
@@ -233,6 +235,25 @@ class NowPlayingScreen extends ConsumerWidget {
                             ),
                           ),
                         const _SleepTimerButton(),
+                        if (!isRadio && songId != null)
+                          IconButton(
+                            icon: const Icon(Icons.ios_share_rounded),
+                            tooltip: 'Partager',
+                            onPressed: () => showShareSheet(
+                              context,
+                              Song(
+                                id: songId,
+                                title: item.title,
+                                filePath:
+                                    item.extras?['filePath'] as String? ?? '',
+                                albumId: albumId,
+                                albumName: item.album,
+                                artistId: artistId,
+                                artistName: item.artist,
+                                artworkUrl: artUrl,
+                              ),
+                            ),
+                          ),
                         if (!isRadio)
                           IconButton(
                             icon: const Icon(Icons.queue_music),

@@ -9,6 +9,7 @@ import '../state/offline.dart';
 import '../state/player.dart';
 import '../state/playlists.dart';
 import 'artwork.dart';
+import 'share_sheet.dart';
 
 /// Bottom sheet with actions for a song (favorite, playlists, navigation).
 Future<void> showSongMenu(BuildContext context, Song song) {
@@ -71,6 +72,15 @@ Future<void> showSongMenu(BuildContext context, Song song) {
                 onTap: () {
                   Navigator.pop(context);
                   _showPlaylistPicker(context, song);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.ios_share_rounded),
+                title: const Text('Partager'),
+                subtitle: const Text('Lien d\'écoute valable 24 h'),
+                onTap: () {
+                  Navigator.pop(context);
+                  showShareSheet(context, song);
                 },
               ),
               if (offlineSupported)

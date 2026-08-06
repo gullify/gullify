@@ -8,6 +8,20 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('2.98.0', [
+    'Une chanson se prête : « Partager » — dans le menu d\'un titre (appui '
+        'long) comme dans le lecteur — tire un lien à envoyer par SMS. La '
+        'personne qui le reçoit écoute la chanson dans son navigateur, sans '
+        'compte et sans installer quoi que ce soit, exactement comme une '
+        'invitation à une partie',
+    'Le lien s\'efface tout seul au bout de 24 h : passé ce délai la page ne '
+        'montre plus rien. « Désactiver le lien » le coupe avant l\'heure si '
+        'on se ravise',
+    'Un lien n\'ouvre qu\'une seule chanson — jamais la bibliothèque, jamais '
+        'le fichier d\'origine. La page d\'écoute a le visage de l\'app '
+        '(verre nuit, pochette, bouton d\'accent) et l\'aperçu du SMS montre '
+        'déjà la pochette et le titre',
+  ]),
   ReleaseNote('2.97.0', [
     'La page d\'un artiste qui vient d\'entrer dans la bibliothèque ne reste '
         'plus sur le logo Gullify : le serveur va chercher sa photo au moment '
