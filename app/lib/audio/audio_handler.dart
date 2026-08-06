@@ -680,6 +680,53 @@ class GullifyAudioHandler extends BaseAudioHandler
     queue.add([q[current]]);
   }
 
+  /// Ferme le lecteur : coupe le son, vide la file et efface la piste en
+  /// cours. C'est ce qui fait disparaître le mini-lecteur (et la notification
+  /// média avec lui) quand on le balaie vers le bas — `stop()` seul laissait
+  /// la fiche en place, donc le mini-lecteur aussi.
+  ///
+  /// Renvoie de quoi revenir en arrière : la file et l'endroit où elle en
+  /// était, à repasser à [restoreQueue].
+  Future<({List<MediaItem> queue, int index, Duration position})>
+      dismiss() async {
+    final closed = (
+      queue: queue.value,
+      index: _player.currentIndex ?? 0,
+      position: _player.position,
+    );
+    _flushPlay();
+    _switchingSource = false;
+    await _player.stop();
+    _queueIndex = null;
+    _trackedQueue = null;
+    queue.add(const []);
+    mediaItem.add(null);
+    await super.stop();
+    return closed;
+  }
+
+  /// Rouvre une file fermée par [dismiss] — l'annulation du balayage, à la
+  /// piste et à la seconde près.
+  Future<void> restoreQueue(
+    List<MediaItem> items, {
+    int index = 0,
+    Duration position = Duration.zero,
+  }) async {
+    if (items.isEmpty) return;
+    final at = index.clamp(0, items.length - 1);
+    _flushPlay();
+    _switchingSource = true;
+    queue.add(items);
+    mediaItem.add(items[at]);
+    await _player.setAudioSources(
+      [for (final item in items) AudioSource.uri(Uri.parse(item.id))],
+      initialIndex: at,
+      // Une radio n'a pas de position à reprendre : elle est en direct.
+      initialPosition: items[at].isLive == true ? Duration.zero : position,
+    );
+    await play();
+  }
+
   /// Fondu de volume court : reprise et pause en douceur plutôt qu'à sec.
   /// (Un vrai crossfade entre pistes exigerait deux lecteurs simultanés.)
   Future<void> _fadeTo(double target) async {

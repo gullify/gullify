@@ -8,6 +8,16 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('2.96.0', [
+    'Le mini-lecteur répond au pouce : un balayage vers le haut ouvre le '
+        'lecteur complet, un balayage vers le bas ferme le lecteur — le son '
+        's\'arrête, la file se vide et la carte disparaît du bas de l\'écran',
+    'Fermer reste rattrapable : « Annuler » rouvre la file à la piste et à la '
+        'seconde où elle s\'était arrêtée. Le balayage vers le bas demande un '
+        'geste un peu plus franc que vers le haut, tant qu\'à couper la musique',
+    'Le balayage horizontal ne change pas : à gauche la piste suivante, à '
+        'droite la précédente',
+  ]),
   ReleaseNote('2.95.0', [
     'Les écrans vides (aucune notification, aucun favori, aucun téléchargement, '
         'aucun résultat…) changent de visage : la mouette y est gravée en '

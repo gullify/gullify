@@ -136,6 +136,18 @@ class PlayerActions {
       _handler.removeQueueItemAt(index);
   Future<void> clearQueue() => _handler.clearQueueExceptCurrent();
 
+  /// Ferme le lecteur (balayage vers le bas du mini-lecteur, idée #66) et
+  /// renvoie de quoi le rouvrir tel quel.
+  Future<({List<MediaItem> queue, int index, Duration position})> dismiss() =>
+      _handler.dismiss();
+
+  Future<void> restoreQueue(
+    List<MediaItem> items, {
+    int index = 0,
+    Duration position = Duration.zero,
+  }) =>
+      _handler.restoreQueue(items, index: index, position: position);
+
   Future<void> playRadio({
     required String url,
     required String title,
