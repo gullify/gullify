@@ -8,6 +8,17 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('2.95.0', [
+    'Les écrans vides (aucune notification, aucun favori, aucun téléchargement, '
+        'aucun résultat…) changent de visage : la mouette y est gravée en '
+        'monochrome — une seule teinte, tirée de la couleur d\'accent — au '
+        'creux d\'un médaillon de verre, et se dissout vers le bas au lieu de '
+        's\'arrêter net',
+    'Le trou de transparence en pleine poitrine de la mascotte est bouché : le '
+        'fond se voyait à travers elle, et ça se remarquait surtout sur base '
+        'sombre. La correction profite aussi aux écrans de connexion et de '
+        'serveur, qui l\'affichent en couleurs',
+  ]),
   ReleaseNote('2.94.0', [
     'Un bouton « micro barré » s\'ajoute en haut des paroles : il passe le '
         'titre en cours en version karaoké, voix atténuée, sans perdre une '
