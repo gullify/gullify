@@ -8,6 +8,17 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.0.0', [
+    'La mouette a un nouveau visage : elle regarde droit devant, casque sur '
+        'les oreilles et grosses lunettes. C\'est elle qu\'on retrouve '
+        'maintenant sur l\'icône de l\'app, sur l\'écran de démarrage, à la '
+        'connexion et sur les pages vides',
+    'Le fond de l\'icône passe au bleu-vert de la nouvelle mascotte, et '
+        'l\'icône des notifications de lecture suit la même silhouette',
+    'Le site et les pages de partage arborent la nouvelle frimousse : '
+        'favicon, icône d\'écran d\'accueil et pochette par défaut des albums '
+        'sans jaquette',
+  ]),
   ReleaseNote('2.99.0', [
     'Les albums téléchargés dernièrement avaient chaque titre en double : deux '
         'téléchargements qui se terminaient en même temps lançaient deux '

@@ -18,7 +18,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # of the product and file versions while build-number is used as the build suffix.
 # versionCode : doit rester supérieur à 26 (dernier code de l'ancienne app
 # pixelplay) pour que son auto-updater propose la migration vers la v2.
-version: 2.99.0+133
+version: 3.0.0+134
 
 environment:
   sdk: ^3.12.2
@@ -128,5 +128,5 @@ flutter_launcher_icons:
   android: true
   ios: false
   image_path: assets/icon/icon_full.png
-  adaptive_icon_background: "#3E85A4"
+  adaptive_icon_background: "#2C6774"
   adaptive_icon_foreground: assets/icon/adaptive_foreground.png
