@@ -8,6 +8,14 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.2.0', [
+    'La mouette du médaillon des pages vides — celle qu\'on voit quand il n\'y '
+        'a aucune notification — n\'est plus teintée de la couleur d\'accent '
+        'choisie : elle est gravée en noir et blanc sur un disque de verre '
+        'neutre',
+    'Elle est aussi recentrée : elle était calée vers le bas du disque et '
+        's\'y dissolvait, elle est maintenant posée bien au milieu',
+  ]),
   ReleaseNote('3.1.0', [
     'Dans Android Auto, un genre s\'écoute maintenant d\'un seul geste : '
         '« Tout lire » et « Lecture aléatoire » attendent en tête de la liste '

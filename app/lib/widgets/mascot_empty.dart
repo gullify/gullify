@@ -5,8 +5,8 @@ import 'package:flutter/material.dart';
 ///
 /// La mouette n'est plus posée en couleurs sur le fond (le PNG détouré
 /// laissait voir le fond à travers la poitrine, et le rendu criard volait la
-/// vedette au message) : elle est gravée en **monochrome** — une seule teinte,
-/// dérivée de l'accent du thème — au centre d'un disque de verre teinté.
+/// vedette au message) : elle est gravée en **noir et blanc** — deux gris, sans
+/// la moindre couleur d'accent — au centre d'un disque de verre neutre.
 class MascotEmpty extends StatelessWidget {
   const MascotEmpty({
     super.key,
@@ -66,29 +66,32 @@ class MascotEmpty extends StatelessWidget {
   }
 }
 
-/// La mouette gravée en monochrome sur un disque de verre teinté accent :
-/// halo radial, liseré fin, ombre douce — le vocabulaire « Liquid Glass ».
+/// La mouette gravée en noir et blanc sur un disque de verre neutre : halo
+/// radial, liseré fin, ombre douce — le vocabulaire « Liquid Glass », sans
+/// couleur. La couleur d'accent choisie dans les réglages ne teinte plus le
+/// médaillon (idée #72) : l'état vide reste sobre, quelle que soit la teinte.
 class MascotMedallion extends StatelessWidget {
   const MascotMedallion({super.key, this.size = 132});
 
   final double size;
 
+  /// Le dessin n'occupe pas tout le PNG : son cadre utile va de 14,2 % à
+  /// 82,7 % en hauteur et de 21,6 % à 78,4 % en largeur. Son centre est donc
+  /// un peu au-dessus du centre du fichier — c'est de là que venait le
+  /// médaillon « pas centré ».
+  static const _artCenterY = 0.4846;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
     final dark = theme.brightness == Brightness.dark;
 
-    // Deux tons d'une même teinte : le trait (casque, lunettes, bec) reste
-    // lisible alors que tout est monochrome.
-    final ink = Color.lerp(scheme.primary, Colors.black, dark ? 0.42 : 0.55)!;
-    final paper =
-        Color.lerp(scheme.primary, Colors.white, dark ? 0.66 : 0.34)!;
+    // Deux gris purs : le trait (casque, lunettes, bec) reste lisible alors
+    // que tout est monochrome.
+    final ink = dark ? const Color(0xFF33373E) : const Color(0xFF202329);
+    final paper = dark ? const Color(0xFFE9EBEF) : const Color(0xFFC8CCD3);
     final disc = size * 1.34;
-    // Cadrage camée : la mouette descend jusqu'au bas du disque, où elle se
-    // dissout en transparence (même geste que l'en-tête d'artiste) — le bas
-    // plat du PNG détouré ne se lit plus comme une coupure.
-    final art = disc * 1.05;
+    final art = disc * 1.02;
 
     return SizedBox(
       width: disc,
@@ -98,7 +101,7 @@ class MascotMedallion extends StatelessWidget {
           shape: BoxShape.circle,
           boxShadow: [
             BoxShadow(
-              color: scheme.primary.withValues(alpha: dark ? 0.22 : 0.14),
+              color: Colors.black.withValues(alpha: dark ? 0.28 : 0.12),
               blurRadius: 28,
               offset: const Offset(0, 12),
             ),
@@ -120,32 +123,22 @@ class MascotMedallion extends StatelessWidget {
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     gradient: RadialGradient(
-                      colors: [
-                        scheme.primary.withValues(alpha: dark ? 0.26 : 0.18),
-                        scheme.primary.withValues(alpha: 0.03),
-                      ],
+                      colors: dark
+                          ? const [Color(0x1FFFFFFF), Color(0x08FFFFFF)]
+                          : const [Color(0x14000000), Color(0x05000000)],
                     ),
                   ),
                 ),
+                // Le dessin est centré sur le disque : on compense le décalage
+                // de son cadre utile dans le PNG.
                 Positioned(
                   left: (disc - art) / 2,
-                  // Le dessin s'arrête à 82,7 % de la hauteur du PNG : on
-                  // remonte d'autant pour amener ce bas au bas du disque.
-                  top: disc * 0.98 - art * 0.827,
+                  top: disc / 2 - art * _artCenterY,
                   width: art,
                   height: art,
-                  child: ShaderMask(
-                    shaderCallback: (rect) => const LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      stops: [0.0, 0.66, 0.86],
-                      colors: [Colors.white, Colors.white, Colors.transparent],
-                    ).createShader(rect),
-                    blendMode: BlendMode.dstIn,
-                    child: ColorFiltered(
-                      colorFilter: duotoneFilter(ink, paper),
-                      child: Image.asset('assets/icon/mascot.png'),
-                    ),
+                  child: ColorFiltered(
+                    colorFilter: duotoneFilter(ink, paper),
+                    child: Image.asset('assets/icon/mascot.png'),
                   ),
                 ),
               ],
