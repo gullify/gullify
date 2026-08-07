@@ -8,6 +8,17 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.1.0', [
+    'Dans Android Auto, un genre s\'écoute maintenant d\'un seul geste : '
+        '« Tout lire » et « Lecture aléatoire » attendent en tête de la liste '
+        'des artistes du genre. Plus besoin de choisir un artiste, puis un '
+        'album, puis un titre au volant',
+    'Les listes « Genres » et « Albums » ont elles aussi leurs deux entrées '
+        'de lecture en tête, comme « Artistes » : partout où il y a plusieurs '
+        'choix, la musique peut partir tout de suite',
+    'Le « Tout lire » d\'un genre suit l\'ordre artiste, album, piste ; '
+        '« Lecture aléatoire » brasse tout le genre',
+  ]),
   ReleaseNote('3.0.0', [
     'La mouette a un nouveau visage : elle regarde droit devant, casque sur '
         'les oreilles et grosses lunettes. C\'est elle qu\'on retrouve '

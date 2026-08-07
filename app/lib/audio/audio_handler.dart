@@ -9,6 +9,7 @@ import '../api/library_repository.dart';
 import '../api/playlist_repository.dart';
 import '../api/radio_repository.dart';
 import '../api/yt_downloads_repository.dart';
+import '../models/game_source.dart';
 import '../models/song.dart';
 import 'equalizer.dart';
 import 'tuned_player.dart';
@@ -1123,7 +1124,11 @@ class GullifyAudioHandler extends BaseAudioHandler
 
       case BrowseIds.genres:
         final genres = await repo.genres();
+        if (genres.isEmpty) return [];
         return [
+          // Comme sur les artistes et les albums : de quoi lancer la musique
+          // sans avoir à descendre d'un cran de plus au volant.
+          ..._playAllItems('ALL', playLabel: 'Tout lire'),
           for (final g in genres)
             MediaItem(
               id: BrowseIds.genre(g.name),
@@ -1148,7 +1153,12 @@ class GullifyAudioHandler extends BaseAudioHandler
 
       case BrowseIds.albums:
         final albums = await repo.albums();
+        if (albums.isEmpty) return [];
         return [
+          // « Tout lire / aléatoire » = toute la bibliothèque, comme sur les
+          // artistes : la liste d'albums est longue, on ne doit pas avoir à la
+          // parcourir pour lancer quelque chose.
+          ..._playAllItems('ALL', playLabel: 'Tout lire'),
           for (final a in albums)
             _browsableAlbum(a.id, a.name, a.artistName, a.artworkUrl),
         ];
@@ -1242,7 +1252,10 @@ class GullifyAudioHandler extends BaseAudioHandler
     if (parentMediaId.startsWith('GENRE_')) {
       final name = parentMediaId.substring('GENRE_'.length);
       final artists = await repo.artistsByGenre(name);
+      if (artists.isEmpty) return [];
       return [
+        // Tout le genre d'un coup, sans choisir d'artiste.
+        ..._playAllItems(parentMediaId, playLabel: 'Tout lire'),
         for (final ar in artists)
           MediaItem(
             id: BrowseIds.artist(ar.id),
@@ -1558,6 +1571,15 @@ class GullifyAudioHandler extends BaseAudioHandler
         return;
       }
 
+      // « Tout lire » / « Lecture aléatoire » d'un genre. Traité à part : un
+      // nom de genre peut contenir n'importe quoi (espaces, tirets bas), il
+      // ne se découpe pas à l'expression régulière des autres catégories.
+      if (mediaId.startsWith('GENRE_')) {
+        final songs = await genreSongs(mediaId, repo);
+        if (songs.isNotEmpty) await playSongs(songs);
+        return;
+      }
+
       // Résultat de recherche AA : joue la liste à partir du titre choisi.
       if (mediaId.startsWith('SONG_')) {
         final id = int.parse(mediaId.substring('SONG_'.length));
@@ -1621,6 +1643,39 @@ class GullifyAudioHandler extends BaseAudioHandler
         processingState: AudioProcessingState.idle,
       ));
     }
+  }
+
+  /// Les titres d'un « Tout lire » / « Lecture aléatoire » de genre, dans
+  /// l'ordre où ils doivent s'entendre. Le serveur sait filtrer par genre en
+  /// une seule requête (le vivier des jeux) : on évite un détail par artiste
+  /// puis par album, impensable au volant sur un genre qui compte cinquante
+  /// artistes. Liste vide si l'identifiant n'est pas jouable — un genre seul
+  /// se navigue, il ne se joue pas.
+  @visibleForTesting
+  Future<List<Song>> genreSongs(String mediaId, LibraryRepository repo) async {
+    final rest = mediaId.substring('GENRE_'.length);
+    final shuffle = rest.endsWith('_SHUFFLE');
+    final suffix = shuffle ? '_SHUFFLE' : '_PLAY';
+    if (!rest.endsWith(suffix)) return const [];
+    final name = rest.substring(0, rest.length - suffix.length);
+    if (name.isEmpty) return const [];
+    final songs = await repo.randomSongs(
+      limit: 500,
+      source: GameSource(mode: GameSourceMode.genres, genres: [name]),
+    );
+    logAA('genre « $name » : ${songs.length} titres '
+        '(${shuffle ? 'aléatoire' : 'tout lire'})');
+    // Le serveur rend la liste mélangée : l'aléatoire se joue telle quelle,
+    // « Tout lire » la remet en ordre artiste / album / piste.
+    if (shuffle) return songs;
+    return songs.toList()
+      ..sort((a, b) {
+        final artist = (a.artistName ?? '').compareTo(b.artistName ?? '');
+        if (artist != 0) return artist;
+        final album = (a.albumName ?? '').compareTo(b.albumName ?? '');
+        if (album != 0) return album;
+        return (a.trackNumber ?? 0).compareTo(b.trackNumber ?? 0);
+      });
   }
 
   /// « Tout lire », « Lecture aléatoire » ou un titre précis parmi les

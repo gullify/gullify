@@ -135,7 +135,8 @@ void main() {
     );
 
     expect(sessionReprise, 1);
-    expect(items.map((i) => i.title), ['Un album']);
+    // « Tout lire » / « Lecture aléatoire » précèdent la liste (idée #71).
+    expect(items.map((i) => i.title), contains('Un album'));
   });
 
   test('« Réessayer » toujours hors ligne repropose le repli', () async {
@@ -169,7 +170,7 @@ void main() {
     );
 
     final items = await handler.getChildren(BrowseIds.albums);
-    expect(items.map((i) => i.title), ['Un album']);
+    expect(items.map((i) => i.title), contains('Un album'));
   });
 
   test('la recherche hors ligne rend les titres téléchargés', () async {
