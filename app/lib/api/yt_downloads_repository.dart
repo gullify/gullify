@@ -201,6 +201,22 @@ class YtDownloadsRepository {
         .toList();
   }
 
+  /// Nouvelles sorties YouTube Music : seulement des ALBUMS (le serveur écarte
+  /// les singles et les EP, qui noieraient la liste). Rien à chercher, c'est
+  /// la même page pour tout le monde — le serveur la garde en cache.
+  Future<List<YtAlbum>> newReleases({int limit = 30}) async {
+    final data = await _client.get(
+      'download.php',
+      query: {'action': 'new_releases', 'limit': '$limit'},
+    ) as Map<String, dynamic>;
+    final albums = data['albums'] as List<dynamic>? ?? [];
+    return albums
+        .cast<Map<String, dynamic>>()
+        .map(YtAlbum.fromJson)
+        .where((a) => a.browseId.isNotEmpty)
+        .toList();
+  }
+
   /// URL de pré-écoute d'une chanson YouTube : le serveur proxifie son flux
   /// audio (yt-dlp) pour l'écouter avant de la télécharger. Endpoint legacy
   /// (racine, hors v2) car la réponse est binaire, pas une envelope JSON.

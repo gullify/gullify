@@ -8,6 +8,15 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.3.0', [
+    'L\'onglet Recherche, champ vide, affiche maintenant les nouveautés de '
+        'YouTube Music : les sorties du moment, prêtes à télécharger d\'un tap '
+        'comme n\'importe quel résultat',
+    'Seuls les ALBUMS sont listés — les singles et les EP, qui noyaient la '
+        'liste, sont écartés',
+    'La liste montre douze sorties, « Charger plus » en révèle davantage; les '
+        'albums déjà dans la bibliothèque portent leur pastille',
+  ]),
   ReleaseNote('3.2.0', [
     'La mouette du médaillon des pages vides — celle qu\'on voit quand il n\'y '
         'a aucune notification — n\'est plus teintée de la couleur d\'accent '

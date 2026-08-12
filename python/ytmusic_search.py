@@ -147,6 +147,92 @@ def related_artists(query):
     except Exception:
         return []
 
+def _two_row_items(node):
+    """Parcourt une réponse « browse » et rend ses tuiles (musicTwoRowItemRenderer)."""
+    if isinstance(node, dict):
+        for key, value in node.items():
+            if key == "musicTwoRowItemRenderer":
+                yield value
+            else:
+                yield from _two_row_items(value)
+    elif isinstance(node, list):
+        for value in node:
+            yield from _two_row_items(value)
+
+def _new_releases_page(ytmusic):
+    """Page « Nouveautés » complète de YouTube Music (~170 sorties).
+
+    Chaque tuile porte un sous-titre « Album • Artiste » (ou « Single »/« EP ») :
+    on ne garde que les albums. Endpoint non exposé par ytmusicapi, d'où l'appel
+    direct — le repli sur get_explore() couvre un changement d'API.
+    """
+    response = ytmusic._send_request(
+        "browse", {"browseId": "FEmusic_new_releases_albums"})
+    out = []
+    seen = set()
+    for item in _two_row_items(response):
+        subtitle = [r.get("text", "") for r in
+                    (item.get("subtitle") or {}).get("runs", [])]
+        if not subtitle or subtitle[0] != "Album":
+            continue  # single, EP, playlist…
+        endpoint = (item.get("navigationEndpoint") or {}).get("browseEndpoint") or {}
+        browse_id = endpoint.get("browseId", "")
+        if not browse_id or browse_id in seen:
+            continue
+        title_runs = (item.get("title") or {}).get("runs", [])
+        title = title_runs[0].get("text", "") if title_runs else ""
+        if not title:
+            continue
+        seen.add(browse_id)
+        thumbs = ((item.get("thumbnailRenderer") or {})
+                  .get("musicThumbnailRenderer", {})
+                  .get("thumbnail", {})
+                  .get("thumbnails", []))
+        out.append({
+            "title": title,
+            # runs[1] est le séparateur « • » ; le reste nomme le ou les artistes.
+            "artist": "".join(subtitle[2:]).strip(),
+            "year": "",
+            "browseId": browse_id,
+            "thumbnail": thumbs[-1].get("url", "") if thumbs else "",
+            "type": "album",
+        })
+    return out
+
+def new_releases(limit=30):
+    """Nouvelles sorties YouTube Music, albums seulement (pas de singles/EP)."""
+    try:
+        ytmusic = YTMusic()
+    except Exception:
+        return []
+
+    try:
+        albums = _new_releases_page(ytmusic)
+    except Exception:
+        albums = []
+
+    if not albums:
+        # Repli : les nouveautés de la page Explorer (moins nombreuses).
+        try:
+            explore = ytmusic.get_explore()
+        except Exception:
+            return []
+        for item in explore.get("new_releases", []) or []:
+            if item.get("type") != "Album" or not item.get("browseId"):
+                continue
+            albums.append({
+                "title": item.get("title", ""),
+                "artist": ", ".join(
+                    [a.get("name", "") for a in item.get("artists", []) or []]),
+                "year": "",
+                "browseId": item.get("browseId", ""),
+                "thumbnail": item.get("thumbnails", [{}])[-1].get("url", "")
+                    if item.get("thumbnails") else "",
+                "type": "album",
+            })
+
+    return albums[:limit]
+
 def get_album_details(browse_id):
     """Get detailed album information including track listing"""
     try:
@@ -177,6 +263,17 @@ def get_album_details(browse_id):
         return None
 
 def main():
+    # « new_releases » n'a pas de requête : son 2e argument est la limite.
+    if len(sys.argv) >= 2 and sys.argv[1] == "new_releases":
+        limit = 30
+        if len(sys.argv) >= 3:
+            try:
+                limit = max(1, min(100, int(sys.argv[2])))
+            except ValueError:
+                pass
+        print(json.dumps({"results": new_releases(limit)}))
+        sys.exit(0)
+
     if len(sys.argv) < 3:
         print(json.dumps({"error": "Usage: ytmusic_search.py <type> <query>", "results": []}))
         sys.exit(1)

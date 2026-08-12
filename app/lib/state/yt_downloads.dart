@@ -99,6 +99,30 @@ final ytArtistSearchProvider = FutureProvider.family<List<YtArtist>, String>(
       ),
 );
 
+/// Nombre de nouveautés affichées dans l'onglet Recherche. « Charger plus »
+/// en révèle davantage : le serveur garde la page en cache, redemander une
+/// tranche plus grande ne relance pas de recherche.
+const int _kNewReleasesPageSize = 12;
+
+class _NewReleasesLimit extends Notifier<int> {
+  @override
+  int build() => _kNewReleasesPageSize;
+
+  void more() =>
+      state = (state + _kNewReleasesPageSize).clamp(_kNewReleasesPageSize, 60);
+}
+
+final newReleasesLimitProvider =
+    NotifierProvider<_NewReleasesLimit, int>(_NewReleasesLimit.new);
+
+/// Nouvelles sorties YouTube Music (albums seulement), pour l'onglet Recherche
+/// quand le champ est vide.
+final ytNewReleasesProvider = FutureProvider<List<YtAlbum>>(
+  (ref) => ref.watch(ytDownloadsRepositoryProvider).newReleases(
+        limit: ref.watch(newReleasesLimitProvider),
+      ),
+);
+
 /// Albums YouTube Music d'un artiste (suggestions sur sa page).
 final ytArtistAlbumsProvider = FutureProvider.family<List<YtAlbum>, String>(
   (ref, artistName) =>

@@ -188,6 +188,50 @@ function findDuplicate($downloadDir, $user, $artist, $album, $url, $title = '') 
 }
 
 /**
+ * Nouvelles sorties YouTube Music (albums seulement), en cache 3 h : la page
+ * est la même pour tout le monde et l'appel python coûte plusieurs secondes.
+ * On récupère toujours la page complète et on ne tranche qu'à la sortie, pour
+ * qu'une limite plus grande ne relance pas la recherche.
+ */
+function fetchNewReleases($limit) {
+    $cacheFile = AppConfig::getDataPath() . '/cache/yt_new_releases.json';
+    $stale = null;
+    if (is_readable($cacheFile)) {
+        $cached = json_decode((string) @file_get_contents($cacheFile), true);
+        if (is_array($cached) && $cached) {
+            if (time() - (int) @filemtime($cacheFile) < 3 * 3600) {
+                return array_slice($cached, 0, $limit);
+            }
+            $stale = $cached; // périmé : filet si YouTube ne répond pas
+        }
+    }
+
+    $pythonScript = AppConfig::getPythonPath() . '/ytmusic_search.py';
+    $pythonBin    = file_exists('/opt/ytdlp/bin/python3') ? '/opt/ytdlp/bin/python3' : 'python3';
+    $output = shell_exec(
+        $pythonBin . ' ' . escapeshellarg($pythonScript) . ' new_releases 100 2>/dev/null'
+    );
+    $data = $output ? json_decode($output, true) : null;
+    $albums = array_values(array_filter(array_map(fn($r) => [
+        'title'     => $r['title']     ?? '',
+        'artist'    => $r['artist']    ?? '',
+        'year'      => $r['year']      ?? '',
+        'thumbnail' => $r['thumbnail'] ?? '',
+        'browseId'  => $r['browseId']  ?? '',
+    ], $data['results'] ?? []), fn($a) => $a['browseId'] !== '' && $a['title'] !== ''));
+
+    if (!$albums) {
+        return $stale ? array_slice($stale, 0, $limit) : [];
+    }
+
+    if (!is_dir(dirname($cacheFile))) {
+        @mkdir(dirname($cacheFile), 0775, true);
+    }
+    @file_put_contents($cacheFile, json_encode($albums, JSON_UNESCAPED_UNICODE));
+    return array_slice($albums, 0, $limit);
+}
+
+/**
  * Marque d'un `in_library` les albums trouvés sur YouTube qui sont déjà dans
  * la bibliothèque : la pastille évite de les retélécharger par distraction.
  */
@@ -490,6 +534,17 @@ try {
                     'browseId'  => $r['browseId']  ?? '',
                 ], $data['results'] ?? [])
             );
+            echo json_encode(['success' => true, 'data' => ['albums' => $albums]]);
+            break;
+
+        case 'new_releases':
+            // Nouvelles sorties YouTube Music, affichées dans l'onglet
+            // Recherche quand le champ est vide. Albums seulement : les
+            // singles noient la liste sans intéresser personne.
+            $limit = (int)($_GET['limit'] ?? 30);
+            if ($limit < 1)   { $limit = 30; }
+            if ($limit > 100) { $limit = 100; }
+            $albums = markAlbumsInLibrary($_GET['user'] ?? '', fetchNewReleases($limit));
             echo json_encode(['success' => true, 'data' => ['albums' => $albums]]);
             break;
 

@@ -279,6 +279,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 ),
               ),
               const _OtherUsersSection(),
+              _NewReleasesSection(onDownload: _confirmAlbumDownload),
             ] else ...[
               // Où chercher : bibliothèque locale ou YouTube Music.
               Padding(
@@ -969,6 +970,62 @@ class _UserRow extends StatelessWidget {
       subtitle: counts,
       trailing: const Icon(Icons.chevron_right, color: Color(0xFFB6BAC1)),
       onTap: () => context.push('/user-library', extra: user),
+    );
+  }
+}
+
+/// Découverte : les nouvelles sorties de YouTube Music, ALBUMS seulement (le
+/// serveur écarte singles et EP). Affichée dans l'onglet Recherche quand le
+/// champ est vide; un tap propose le téléchargement, comme un résultat.
+class _NewReleasesSection extends ConsumerWidget {
+  const _NewReleasesSection({required this.onDownload});
+
+  final ValueChanged<YtAlbum> onDownload;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final releases = ref.watch(ytNewReleasesProvider);
+    final limit = ref.watch(newReleasesLimitProvider);
+    // Valeurs déjà connues : conservées pendant un « Charger plus ».
+    final albums = releases.value ?? const <YtAlbum>[];
+    // Section secondaire : si YouTube ne répond pas, on n'encombre pas l'écran.
+    if (albums.isEmpty && releases.hasError) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SectionTitle(
+          'Nouveautés',
+          padding: EdgeInsets.fromLTRB(20, 18, 20, 2),
+        ),
+        const Padding(
+          padding: EdgeInsets.fromLTRB(20, 0, 20, 6),
+          child: Text(
+            'Nouveaux albums sur YouTube Music',
+            style: TextStyle(fontSize: 12.5, color: Color(0xFF8A8F98)),
+          ),
+        ),
+        for (final a in albums)
+          _ResultRow(
+            artwork: Artwork(
+              url: a.thumbnail.isEmpty ? null : a.thumbnail,
+              size: 46,
+              borderRadius: 12,
+            ),
+            title: a.title,
+            subtitle: a.artist,
+            trailing: a.inLibrary
+                ? const InLibraryBadge()
+                : const Icon(Icons.download_outlined),
+            onTap: () => onDownload(a),
+          ),
+        if (releases.isLoading)
+          const _LoadingRow()
+        else if (albums.length >= limit && limit < 60)
+          _LoadMoreButton(
+            onPressed: () => ref.read(newReleasesLimitProvider.notifier).more(),
+          ),
+      ],
     );
   }
 }
