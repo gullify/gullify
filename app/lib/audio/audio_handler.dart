@@ -12,6 +12,7 @@ import '../api/yt_downloads_repository.dart';
 import '../models/game_source.dart';
 import '../models/song.dart';
 import 'equalizer.dart';
+import 'fade.dart';
 import 'tuned_player.dart';
 
 export 'equalizer.dart' show equalizerSupported;
@@ -118,6 +119,7 @@ class GullifyAudioHandler extends BaseAudioHandler
       if (index == _queueIndex && identical(q, _trackedQueue)) return;
       _queueIndex = index;
       _trackedQueue = q;
+      _fadeInNewTrack();
       _flushPlay();
       _startTracking(q[index]);
       _prefetchKaraoke(index);
@@ -131,6 +133,7 @@ class GullifyAudioHandler extends BaseAudioHandler
     });
     _player.positionStream.listen((pos) {
       if (_trackedSongId != null) _lastPosition = pos;
+      _watchTrackFade(pos);
     });
     // La durée d'un flux qu'on ne connaît pas d'avance (la pré-écoute d'un titre
     // YouTube : le serveur la découvre en le transcodant) n'arrive qu'une fois
@@ -155,6 +158,10 @@ class GullifyAudioHandler extends BaseAudioHandler
   /// session audio, et l'exception empoisonnait le lecteur — plus aucune
   /// lecture possible (idée #47). Voir equalizer.dart.
   final equalizer = GullifyEqualizer();
+
+  /// Réglage du fondu à la lecture, à la pause et entre les titres (idée #75).
+  /// Réglable dans Paramètres → Lecture → Fondu ; voir fade.dart.
+  final fade = PlaybackFade();
 
   // Réglage des tampons et verrou réseau : voir tuned_player.dart, d'où sortent
   // tous les lecteurs de l'app.
@@ -697,6 +704,7 @@ class GullifyAudioHandler extends BaseAudioHandler
     );
     _flushPlay();
     _switchingSource = false;
+    await _cancelFade();
     await _player.stop();
     _queueIndex = null;
     _trackedQueue = null;
@@ -728,41 +736,129 @@ class GullifyAudioHandler extends BaseAudioHandler
     await play();
   }
 
-  /// Fondu de volume court : reprise et pause en douceur plutôt qu'à sec.
-  /// (Un vrai crossfade entre pistes exigerait deux lecteurs simultanés.)
-  Future<void> _fadeTo(double target) async {
-    const steps = 8;
-    const stepDelay = Duration(milliseconds: 30);
-    final start = _player.volume;
-    for (var i = 1; i <= steps; i++) {
-      await _player.setVolume(start + (target - start) * i / steps);
-      await Future<void>.delayed(stepDelay);
+  /// Fondu de fin de piste en cours : le volume est descendu (ou en train de
+  /// descendre) parce que le titre se termine, pas parce qu'on met en pause.
+  bool _endFading = false;
+
+  /// Marque du fondu en cours. Chaque nouveau fondu la fait avancer, ce qui
+  /// abandonne le précédent : deux rampes de volume qui se marchent dessus
+  /// laisseraient le lecteur à un volume au hasard.
+  int _fadeToken = 0;
+
+  /// Fondu de volume : reprise, pause et changement de titre en douceur plutôt
+  /// qu'à sec. Durée réglée par l'utilisateur (idée #75), sauf [over] imposé —
+  /// la fin d'une piste se fond sur ce qu'il en reste, jamais plus.
+  /// (Un vrai fondu enchaîné entre pistes exigerait deux lecteurs simultanés.)
+  ///
+  /// Renvoie sa marque : un appelant qui enchaîne (la pause, après son fondu)
+  /// la compare à [_fadeToken] pour savoir si quelqu'un lui a pris la main
+  /// entre-temps.
+  Future<int> _fadeTo(double target, {Duration? over}) async {
+    final token = ++_fadeToken;
+    final ramp = fadeRamp(
+      from: _player.volume,
+      to: target,
+      over: over ?? fade.duration,
+    );
+    final instant = ramp.length <= 1;
+    for (final volume in ramp) {
+      if (!instant) await Future<void>.delayed(kFadeTick);
+      if (token != _fadeToken) return token;
+      await _player.setVolume(volume);
     }
+    return token;
+  }
+
+  /// Coupe court au fondu en cours et remet le volume à plein — un lecteur
+  /// laissé à mi-fondu jouerait le titre suivant en sourdine.
+  Future<void> _cancelFade() async {
+    _fadeToken++;
+    _endFading = false;
+    if (_player.volume != 1) await _player.setVolume(1);
+  }
+
+  /// Fin de piste : descend le volume sur ce qu'il reste du titre, et le
+  /// remonte dès qu'on n'est plus dans cette dernière ligne droite (titre
+  /// suivant, titre rejoué en boucle, retour en arrière). Piloté par la
+  /// position plutôt que par une minuterie : c'est la seule façon de se
+  /// rattraper tout seul après un saut ou une reprise.
+  void _watchTrackFade(Duration position) {
+    final total = _player.duration;
+    switch (trackFadeAt(
+      position: position,
+      total: total,
+      fade: fade.fadesTracks ? fade.duration : Duration.zero,
+      playing: _player.playing,
+      live: mediaItem.value?.isLive == true,
+      fadingOut: _endFading,
+    )) {
+      case TrackFade.none:
+        break;
+      case TrackFade.out:
+        _endFading = true;
+        // Sur ce qu'il reste du titre, pas plus : le fondu doit finir avec
+        // lui, pas déborder sur le suivant.
+        unawaited(_fadeTo(0, over: total! - position));
+      case TrackFade.back:
+        _endFading = false;
+        unawaited(_fadeTo(1));
+    }
+  }
+
+  /// Nouvelle piste : elle entre en fondu au lieu de démarrer à plein volume,
+  /// que la précédente se soit éteinte d'elle-même ou qu'on ait appuyé sur
+  /// « suivant ». Sans lecture en cours, il n'y a rien à fondre — c'est
+  /// [play] qui s'en chargera.
+  void _fadeInNewTrack() {
+    if (!fade.fadesTracks || !_player.playing) return;
+    _endFading = false;
+    unawaited(() async {
+      final token = ++_fadeToken;
+      await _player.setVolume(0);
+      if (token != _fadeToken) return;
+      await _fadeTo(1);
+    }());
   }
 
   @override
   Future<void> play() async {
-    await _player.setVolume(0);
+    _endFading = false;
+    final over = fade.duration;
+    await _player.setVolume(over > Duration.zero ? 0 : 1);
     // play() de just_audio ne se résout qu'à la pause/fin — ne pas attendre.
     unawaited(_player.play());
-    await _fadeTo(1);
+    // Le fondu d'entrée ne se fait pas attendre non plus : il peut durer
+    // plusieurs secondes, et tout ce qui lance une file (playSongs, Android
+    // Auto) attend cette méthode.
+    unawaited(_fadeTo(1, over: over));
   }
 
   @override
   Future<void> pause() async {
-    await _fadeTo(0);
+    final token = await _fadeTo(0);
+    // Reprise de la lecture pendant le fondu de sortie : la pause n'a plus
+    // lieu d'être, quelqu'un a repris la main sur le volume.
+    if (token != _fadeToken) return;
     await _player.pause();
+    _endFading = false;
     await _player.setVolume(1);
   }
 
   @override
-  Future<void> seek(Duration position) => _player.seek(position);
+  Future<void> seek(Duration position) async {
+    if (_endFading) await _cancelFade();
+    await _player.seek(position);
+  }
 
   @override
-  Future<void> skipToNext() => _player.seekToNext();
+  Future<void> skipToNext() async {
+    if (_endFading) await _cancelFade();
+    await _player.seekToNext();
+  }
 
   @override
   Future<void> skipToPrevious() async {
+    if (_endFading) await _cancelFade();
     if (_player.position > const Duration(seconds: 3)) {
       await _player.seek(Duration.zero);
     } else {
@@ -772,6 +868,7 @@ class GullifyAudioHandler extends BaseAudioHandler
 
   @override
   Future<void> skipToQueueItem(int index) async {
+    if (_endFading) await _cancelFade();
     await _player.seek(Duration.zero, index: index);
     await play();
   }
@@ -800,6 +897,7 @@ class GullifyAudioHandler extends BaseAudioHandler
   Future<void> stop() async {
     _flushPlay();
     _switchingSource = false;
+    await _cancelFade();
     await _player.stop();
     await super.stop();
   }

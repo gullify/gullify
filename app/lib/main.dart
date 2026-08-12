@@ -16,6 +16,8 @@ Future<void> main() async {
   // Ne bloque jamais le premier affichage : l'égaliseur relit ses réglages en
   // arrière-plan et une erreur de plugin ne doit pas geler le démarrage.
   unawaited(audioHandler.equalizer.loadSaved().catchError((_) {}));
+  // Idem pour le fondu : d'ici qu'il soit relu, le lecteur fond comme avant.
+  unawaited(audioHandler.fade.loadSaved().catchError((_) {}));
 
   // Container indépendant de l'arbre de widgets : quand Android Auto lance
   // l'app sans interface (téléphone verrouillé), aucun widget ne se

@@ -8,6 +8,20 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.5.0', [
+    'Le fondu du lecteur se règle enfin : Paramètres → Lecture → Fondu. Le '
+        'son monte au démarrage et descend avant la pause, sur la durée que '
+        'tu choisis — d\'une demi-seconde à huit secondes',
+    'Nouveau : le fondu entre les titres (à activer dans le même écran). '
+        'Chaque titre s\'efface sur sa fin et le suivant se lève, sans trou '
+        'entre les deux; ça vaut aussi pour un titre rejoué en boucle',
+    'Le fondu ne peut plus rester coincé : reprise en arrière, saut au titre '
+        'suivant, fin de la file ou réglage éteint en cours de route, le '
+        'volume revient toujours. Et une radio, qui n\'a pas de fin, n\'est '
+        'jamais fondue',
+    'Appuyer sur lecture pendant le fondu de la pause annule la pause au lieu '
+        'de couper le son au milieu',
+  ]),
   ReleaseNote('3.4.0', [
     'Les nouveautés de la recherche ne sont plus un fourre-tout : elles sont '
         'reclassées pour toi, avec en tête les sorties des artistes que tu '

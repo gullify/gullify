@@ -9,6 +9,7 @@ import 'screens/artist_screen.dart';
 import 'screens/changelog_screen.dart';
 import 'screens/downloads_screen.dart';
 import 'screens/equalizer_screen.dart';
+import 'screens/fade_screen.dart';
 import 'screens/favorites_screen.dart';
 import 'screens/games/blind_test_game_screen.dart';
 import 'screens/games/chrono_game_screen.dart';
@@ -175,6 +176,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/settings/equalizer',
         builder: (_, _) => const EqualizerScreen(),
+      ),
+      GoRoute(
+        path: '/settings/fade',
+        builder: (_, _) => const FadeScreen(),
       ),
       GoRoute(
         path: '/settings/downloads',

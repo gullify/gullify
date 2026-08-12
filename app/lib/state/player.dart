@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../audio/audio_handler.dart';
 import '../audio/equalizer.dart';
+import '../audio/fade.dart';
 import '../models/song.dart';
 import 'auth.dart';
 import 'favorites.dart';
@@ -21,6 +22,13 @@ final audioHandlerProvider = Provider<GullifyAudioHandler>(
 /// que de lui.
 final equalizerProvider = Provider<GullifyEqualizer>(
   (ref) => ref.watch(audioHandlerProvider).equalizer,
+);
+
+/// Réglage du fondu à la lecture, à la pause et entre les titres (idée #75).
+/// Exposé à part du handler, comme l'égaliseur : l'écran de réglage n'a besoin
+/// que de lui.
+final playbackFadeProvider = Provider<PlaybackFade>(
+  (ref) => ref.watch(audioHandlerProvider).fade,
 );
 
 /// Keeps the handler's repository in sync with auth (needed by Android Auto)

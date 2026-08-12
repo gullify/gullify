@@ -1,0 +1,78 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../audio/fade.dart';
+import '../state/player.dart';
+
+/// Réglage du fondu du lecteur (idée #75) : la musique monte et descend en
+/// douceur au lieu de démarrer et de s'arrêter net.
+class FadeScreen extends ConsumerWidget {
+  const FadeScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final fade = ref.watch(playbackFadeProvider);
+    final scheme = Theme.of(context).colorScheme;
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Fondu')),
+      body: ListenableBuilder(
+        listenable: fade,
+        builder: (context, _) => ListView(
+          children: [
+            SwitchListTile(
+              secondary: const Icon(Icons.graphic_eq),
+              title: const Text('Fondu à la lecture et à la pause'),
+              subtitle: const Text(
+                'Le son monte au démarrage et descend avant la pause',
+              ),
+              value: fade.enabled,
+              onChanged: fade.setEnabled,
+            ),
+            ListTile(
+              enabled: fade.enabled,
+              leading: const Icon(Icons.timer_outlined),
+              title: const Text('Durée du fondu'),
+              trailing: Text(
+                formatFadeSeconds(fade.seconds),
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  color: fade.enabled ? scheme.primary : scheme.outline,
+                ),
+              ),
+            ),
+            Slider(
+              value: fade.seconds,
+              min: kFadeMinSeconds,
+              max: kFadeMaxSeconds,
+              // Un demi-pas : c'est la plus petite marche qui s'entende.
+              divisions: ((kFadeMaxSeconds - kFadeMinSeconds) * 2).round(),
+              label: formatFadeSeconds(fade.seconds),
+              onChanged: fade.enabled ? fade.setSeconds : null,
+            ),
+            const Divider(height: 24),
+            SwitchListTile(
+              secondary: const Icon(Icons.repeat_one_on_outlined),
+              title: const Text('Fondu entre les titres'),
+              subtitle: const Text(
+                'Chaque titre s\'efface à la fin et le suivant se lève, sans '
+                'silence entre les deux',
+              ),
+              value: fade.betweenTracks,
+              onChanged: fade.enabled ? fade.setBetweenTracks : null,
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+              child: Text(
+                'Une radio n\'est pas concernée : elle n\'a pas de fin à '
+                'annoncer. Un fondu long retarde d\'autant la pause — le son '
+                'descend d\'abord, la musique s\'arrête ensuite.',
+                style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

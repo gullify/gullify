@@ -7,15 +7,17 @@ import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../audio/equalizer.dart';
+import '../audio/fade.dart';
 import '../state/app_theme.dart';
 import '../state/app_update.dart';
 import '../state/auth.dart';
 import '../state/background_playback.dart';
 import '../state/offline.dart';
+import '../state/player.dart';
 import '../theme.dart';
 import '../widgets/update_dialog.dart';
 
-const appVersion = '3.4.0';
+const appVersion = '3.5.0';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -64,8 +66,8 @@ class SettingsScreen extends ConsumerWidget {
             ),
           ),
           const Divider(),
-          if (equalizerSupported || offlineSupported)
-            const _SectionHeader('Lecture'),
+          const _SectionHeader('Lecture'),
+          const _FadeTile(),
           if (equalizerSupported)
             ListTile(
               leading: const Icon(Icons.equalizer),
@@ -83,7 +85,7 @@ class SettingsScreen extends ConsumerWidget {
               onTap: () => context.push('/settings/downloads'),
             ),
           if (!kIsWeb && Platform.isAndroid) const _BackgroundPlaybackTile(),
-          if (equalizerSupported || offlineSupported) const Divider(),
+          const Divider(),
           const _SectionHeader('Bibliothèque'),
           ListTile(
             leading: const Icon(Icons.label_outline),
@@ -285,6 +287,32 @@ class _ProfilePhotoTileState extends ConsumerState<_ProfilePhotoTile> {
               child: CircularProgressIndicator(strokeWidth: 2.5),
             )
           : const Icon(Icons.edit_outlined, size: 20),
+    );
+  }
+}
+
+/// Fondu du lecteur (idée #75) : le réglage vit dans son écran, la ligne en
+/// résume l'état.
+class _FadeTile extends ConsumerWidget {
+  const _FadeTile();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final fade = ref.watch(playbackFadeProvider);
+    return ListenableBuilder(
+      listenable: fade,
+      builder: (context, _) => ListTile(
+        leading: const Icon(Icons.graphic_eq),
+        title: const Text('Fondu'),
+        subtitle: Text(
+          !fade.enabled
+              ? 'Lecture et pause franches'
+              : '${formatFadeSeconds(fade.seconds)} à la lecture et à la pause'
+                  '${fade.betweenTracks ? ', et entre les titres' : ''}',
+        ),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () => context.push('/settings/fade'),
+      ),
     );
   }
 }
