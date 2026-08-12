@@ -8,6 +8,18 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.4.0', [
+    'Les nouveautés de la recherche ne sont plus un fourre-tout : elles sont '
+        'reclassées pour toi, avec en tête les sorties des artistes que tu '
+        'écoutes déjà — c\'est écrit sous leur titre',
+    'Les pièces radiophoniques allemandes, les mixes de DJ, la musique de gym '
+        'et les sorties écrites dans un alphabet qu\'on ne lit pas descendent '
+        'au fond de la liste, et les albums déjà rangés dans la bibliothèque '
+        'avec eux',
+    'Gullify annonce maintenant le Canada à YouTube Music, pour que la '
+        'recherche parle du bon marché (la page des nouveautés, elle, est la '
+        'même partout dans le monde : le pays n\'y change rien)',
+  ]),
   ReleaseNote('3.3.0', [
     'L\'onglet Recherche, champ vide, affiche maintenant les nouveautés de '
         'YouTube Music : les sorties du moment, prêtes à télécharger d\'un tap '

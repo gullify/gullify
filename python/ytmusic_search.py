@@ -13,10 +13,26 @@ except ImportError:
     print(json.dumps({"error": "ytmusicapi not installed", "results": []}))
     sys.exit(0)
 
+# Pays annoncé à YouTube Music : sans lui il devine d'après l'IP du serveur, et
+# les disponibilités comme l'ordre des résultats suivent alors le mauvais
+# marché. On dit donc « Canada » partout.
+#
+# La langue, elle, reste l'anglais : ytmusicapi 1.12 ne sait pas relire une
+# réponse en français (la recherche de chansons revient vide), et les libellés
+# qu'on teste ici — « Album » d'une tuile de nouveauté — sont ceux de l'anglais.
+LOCATION = "CA"
+
+def _client():
+    """Client YouTube Music localisé, avec repli sur les réglages par défaut."""
+    try:
+        return YTMusic(location=LOCATION)
+    except Exception:
+        return YTMusic()
+
 def search_albums(query, limit=10):
     """Search for albums on YouTube Music"""
     try:
-        ytmusic = YTMusic()
+        ytmusic = _client()
         results = ytmusic.search(query, filter="albums", limit=limit)
 
         albums = []
@@ -37,7 +53,7 @@ def search_albums(query, limit=10):
 def search_songs(query, limit=10):
     """Search for songs on YouTube Music"""
     try:
-        ytmusic = YTMusic()
+        ytmusic = _client()
         results = ytmusic.search(query, filter="songs", limit=limit)
 
         songs = []
@@ -59,7 +75,7 @@ def search_songs(query, limit=10):
 def search_artists(query, limit=10):
     """Search for artists on YouTube Music"""
     try:
-        ytmusic = YTMusic()
+        ytmusic = _client()
         results = ytmusic.search(query, filter="artists", limit=limit)
 
         artists = []
@@ -82,7 +98,7 @@ def artist_albums(browse_id, limit=50):
     get_artist(browseId) donne la vraie discographie de l'artiste choisi.
     """
     try:
-        ytmusic = YTMusic()
+        ytmusic = _client()
         artist = ytmusic.get_artist(browse_id)
         name = artist.get("name", "")
         out = []
@@ -125,7 +141,7 @@ def artist_albums(browse_id, limit=50):
 def related_artists(query):
     """Artistes similaires : cherche l'artiste, puis lit ses artistes liés."""
     try:
-        ytmusic = YTMusic()
+        ytmusic = _client()
         found = ytmusic.search(query, filter="artists", limit=1)
         if not found:
             return []
@@ -200,9 +216,14 @@ def _new_releases_page(ytmusic):
     return out
 
 def new_releases(limit=30):
-    """Nouvelles sorties YouTube Music, albums seulement (pas de singles/EP)."""
+    """Nouvelles sorties YouTube Music, albums seulement (pas de singles/EP).
+
+    Cette page-là ignore le pays : CA, US, FR ou JP renvoient exactement les
+    mêmes albums, dans un ordre à peine différent. C'est donc un fourre-tout
+    mondial, que le serveur (download.php) reclasse ensuite par pertinence.
+    """
     try:
-        ytmusic = YTMusic()
+        ytmusic = _client()
     except Exception:
         return []
 
@@ -236,7 +257,7 @@ def new_releases(limit=30):
 def get_album_details(browse_id):
     """Get detailed album information including track listing"""
     try:
-        ytmusic = YTMusic()
+        ytmusic = _client()
         album = ytmusic.get_album(browse_id)
 
         tracks = []

@@ -977,6 +977,10 @@ class _UserRow extends StatelessWidget {
 /// Découverte : les nouvelles sorties de YouTube Music, ALBUMS seulement (le
 /// serveur écarte singles et EP). Affichée dans l'onglet Recherche quand le
 /// champ est vide; un tap propose le téléchargement, comme un résultat.
+///
+/// YouTube sert la même page mondiale à tout le monde (le pays n'y change
+/// rien) : c'est le serveur qui la reclasse, tes artistes en tête et le bruit
+/// à la fin. Les sorties d'un artiste déjà écouté le disent sous leur titre.
 class _NewReleasesSection extends ConsumerWidget {
   const _NewReleasesSection({required this.onDownload});
 
@@ -1001,7 +1005,7 @@ class _NewReleasesSection extends ConsumerWidget {
         const Padding(
           padding: EdgeInsets.fromLTRB(20, 0, 20, 6),
           child: Text(
-            'Nouveaux albums sur YouTube Music',
+            'Nouveaux albums sur YouTube Music, tes artistes en premier',
             style: TextStyle(fontSize: 12.5, color: Color(0xFF8A8F98)),
           ),
         ),
@@ -1013,7 +1017,9 @@ class _NewReleasesSection extends ConsumerWidget {
               borderRadius: 12,
             ),
             title: a.title,
-            subtitle: a.artist,
+            subtitle: a.knownArtist && !a.inLibrary
+                ? '${a.artist} · Tu écoutes déjà cet artiste'
+                : a.artist,
             trailing: a.inLibrary
                 ? const InLibraryBadge()
                 : const Icon(Icons.download_outlined),

@@ -9,6 +9,7 @@ class YtAlbum {
     required this.thumbnail,
     required this.browseId,
     this.inLibrary = false,
+    this.knownArtist = false,
   });
 
   factory YtAlbum.fromJson(Map<String, dynamic> json) => YtAlbum(
@@ -18,6 +19,7 @@ class YtAlbum {
         thumbnail: json['thumbnail'] as String? ?? '',
         browseId: json['browseId'] as String? ?? '',
         inLibrary: json['in_library'] == true,
+        knownArtist: json['known_artist'] == true,
       );
 
   final String title;
@@ -29,6 +31,10 @@ class YtAlbum {
   /// Le serveur a reconnu cet album dans la bibliothèque : inutile de le
   /// retélécharger (l'app le signale au lieu de le proposer bêtement).
   final bool inLibrary;
+
+  /// Un des artistes crédités est déjà dans la bibliothèque : c'est ce qui
+  /// remonte cette sortie en haut des nouveautés.
+  final bool knownArtist;
 }
 
 /// Artiste similaire suggéré par YouTube Music.
@@ -203,7 +209,8 @@ class YtDownloadsRepository {
 
   /// Nouvelles sorties YouTube Music : seulement des ALBUMS (le serveur écarte
   /// les singles et les EP, qui noieraient la liste). Rien à chercher, c'est
-  /// la même page pour tout le monde — le serveur la garde en cache.
+  /// la même page pour tout le monde — le serveur la garde en cache, puis la
+  /// reclasse par pertinence (tes artistes d'abord).
   Future<List<YtAlbum>> newReleases({int limit = 30}) async {
     final data = await _client.get(
       'download.php',

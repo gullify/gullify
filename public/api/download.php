@@ -190,17 +190,17 @@ function findDuplicate($downloadDir, $user, $artist, $album, $url, $title = '') 
 /**
  * Nouvelles sorties YouTube Music (albums seulement), en cache 3 h : la page
  * est la même pour tout le monde et l'appel python coûte plusieurs secondes.
- * On récupère toujours la page complète et on ne tranche qu'à la sortie, pour
- * qu'une limite plus grande ne relance pas la recherche.
+ * On rend toujours la page entière — c'est rankNewReleases() qui la reclasse
+ * par utilisateur, et l'appelant qui tranche.
  */
-function fetchNewReleases($limit) {
+function fetchNewReleases() {
     $cacheFile = AppConfig::getDataPath() . '/cache/yt_new_releases.json';
     $stale = null;
     if (is_readable($cacheFile)) {
         $cached = json_decode((string) @file_get_contents($cacheFile), true);
         if (is_array($cached) && $cached) {
             if (time() - (int) @filemtime($cacheFile) < 3 * 3600) {
-                return array_slice($cached, 0, $limit);
+                return $cached;
             }
             $stale = $cached; // périmé : filet si YouTube ne répond pas
         }
@@ -221,14 +221,98 @@ function fetchNewReleases($limit) {
     ], $data['results'] ?? []), fn($a) => $a['browseId'] !== '' && $a['title'] !== ''));
 
     if (!$albums) {
-        return $stale ? array_slice($stale, 0, $limit) : [];
+        return $stale ?: [];
     }
 
     if (!is_dir(dirname($cacheFile))) {
         @mkdir(dirname($cacheFile), 0775, true);
     }
     @file_put_contents($cacheFile, json_encode($albums, JSON_UNESCAPED_UNICODE));
-    return array_slice($albums, 0, $limit);
+    return $albums;
+}
+
+/**
+ * Les artistes de la bibliothèque de [$user], normalisés, en ensemble.
+ */
+function libraryArtistSet($user) {
+    if ($user === '') return [];
+    $artists = [];
+    foreach (libraryAlbumIndex($user) as $entry) {
+        $artists[normalizeName($entry['artist'])] = true;
+    }
+    unset($artists['']);
+    return $artists;
+}
+
+/**
+ * Les artistes crédités sur une sortie : YouTube les colle en une seule
+ * chaîne (« A, B & C », « A feat. B »), qu'il faut redécouper pour espérer
+ * reconnaître l'un d'eux dans la bibliothèque.
+ *
+ * @return string[] noms normalisés
+ */
+function splitArtistNames($credit) {
+    $parts = preg_split(
+        '/\s*(?:,|&|\/|\bfeat\.?\b|\bft\.?\b|\bwith\b|\bavec\b|\bx\b)\s*/iu',
+        (string) $credit
+    ) ?: [];
+    $names = [];
+    foreach ($parts as $part) {
+        $name = normalizeName($part);
+        if ($name !== '') $names[] = $name;
+    }
+    return $names;
+}
+
+/**
+ * Reclasse les nouveautés par pertinence pour [$user].
+ *
+ * YouTube sert la même page mondiale à tout le monde : préciser le pays n'y
+ * change rien (CA, US, FR et JP renvoient les mêmes albums), d'où le mélange
+ * de Schlager allemand, de pièces radiophoniques et de mixes de DJ qui rendait
+ * la liste si étrange. Faute de pouvoir la filtrer à la source, on la trie :
+ * en tête les artistes déjà écoutés, en queue le bruit et ce qu'on possède
+ * déjà. Rien n'est jeté — l'ordre de YouTube départage les ex æquo (tri stable
+ * depuis PHP 8) et « Charger plus » finit par tout montrer.
+ */
+function rankNewReleases($user, array $albums) {
+    $known = libraryArtistSet($user);
+
+    // Sorties qui ne sont pas vraiment de la musique à écouter : pièces
+    // radiophoniques allemandes (« Folge 12 : … »), mixes de club, karaoké,
+    // musique de gym et compilations d'échantillons.
+    $noise = '/\b(folge\s*\d+|h(ö|o)rspiel|dj\s?mix|megamix|club\s?mix|karaok|'
+           . 'workout|fitness|aerobic|sampler|nightcore)\b/iu';
+    // Alphabet non latin : illisible pour un francophone, donc en fin de liste.
+    $foreign = '/[\p{Cyrillic}\p{Arabic}\p{Devanagari}\p{Han}\p{Hangul}'
+             . '\p{Hiragana}\p{Katakana}\p{Hebrew}\p{Thai}\p{Bengali}'
+             . '\p{Tamil}\p{Telugu}\p{Greek}]/u';
+
+    foreach ($albums as &$album) {
+        $credit = $album['artist'] ?? '';
+        $album['known_artist'] = false;
+        foreach (splitArtistNames($credit) as $name) {
+            if (isset($known[$name])) {
+                $album['known_artist'] = true;
+                break;
+            }
+        }
+
+        $text  = $credit . ' ' . ($album['title'] ?? '');
+        $score = 0;
+        if ($album['known_artist'])           $score += 3;
+        if (!empty($album['in_library']))     $score -= 4; // déjà rangé ici
+        if (preg_match($noise, $text))        $score -= 1;
+        if (preg_match($foreign, $text))      $score -= 1;
+        $album['_score'] = $score;
+    }
+    unset($album);
+
+    usort($albums, fn($a, $b) => $b['_score'] <=> $a['_score']);
+    return array_map(function ($album) {
+        unset($album['_score']);
+        return $album;
+    }, $albums);
 }
 
 /**
@@ -540,12 +624,18 @@ try {
         case 'new_releases':
             // Nouvelles sorties YouTube Music, affichées dans l'onglet
             // Recherche quand le champ est vide. Albums seulement : les
-            // singles noient la liste sans intéresser personne.
+            // singles noient la liste sans intéresser personne. La page de
+            // YouTube étant un fourre-tout mondial, on la reclasse pour cet
+            // utilisateur avant de n'en servir que le début.
             $limit = (int)($_GET['limit'] ?? 30);
             if ($limit < 1)   { $limit = 30; }
             if ($limit > 100) { $limit = 100; }
-            $albums = markAlbumsInLibrary($_GET['user'] ?? '', fetchNewReleases($limit));
-            echo json_encode(['success' => true, 'data' => ['albums' => $albums]]);
+            $user   = $_GET['user'] ?? '';
+            $albums = rankNewReleases($user, markAlbumsInLibrary($user, fetchNewReleases()));
+            echo json_encode([
+                'success' => true,
+                'data' => ['albums' => array_slice($albums, 0, $limit)],
+            ]);
             break;
 
         case 'search_songs':
