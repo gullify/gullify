@@ -23,6 +23,7 @@ import 'package:gullify/screens/library_screen.dart';
 import 'package:gullify/screens/radio_screen.dart';
 import 'package:gullify/screens/search_screen.dart';
 import 'package:gullify/screens/shell_screen.dart';
+import 'package:gullify/screens/year_screen.dart';
 import 'package:gullify/state/favorites.dart';
 import 'package:gullify/state/library.dart';
 import 'package:gullify/state/notifications.dart';
@@ -76,6 +77,13 @@ const _genres = [
   GenreCount('Électro', 2, albumCount: 3),
   GenreCount('Jazz', 1, albumCount: 1),
   GenreCount('Rock', 4, albumCount: 9),
+];
+
+const _years = [
+  YearCount(2024, albumCount: 3, songCount: 41),
+  YearCount(2023, albumCount: 2, songCount: 26),
+  YearCount(2020, albumCount: 1, songCount: 11),
+  YearCount(1994, albumCount: 2, songCount: 24),
 ];
 
 const _playlists = [
@@ -200,6 +208,8 @@ Widget _wrap(Widget child, {MediaItem? item, String? searchQuery}) {
       notificationsProvider.overrideWith((ref) async =>
           const NotificationsPage(items: [], unread: 2)),
       radioStationsProvider.overrideWith((ref) async => _stations),
+      yearsProvider.overrideWith((ref) async => _years),
+      albumsByYearProvider(2024).overrideWith((ref) async => _albums),
       suggestionsProvider.overrideWith(
           (ref) async => const Suggestions(genre: 'Indie', albums: _albums)),
       if (searchQuery != null) ...[
@@ -342,6 +352,25 @@ void main() {
     await expectLater(
       find.byKey(const Key('golden-root')),
       matchesGoldenFile('goldens/library_genres.png'),
+    );
+  });
+
+  testWidgets('library years view renders', (tester) async {
+    await pumpScreen(tester, _shellWrap(const LibraryScreen(), tab: 1));
+    await tester.tap(find.text('Années'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    await expectLater(
+      find.byKey(const Key('golden-root')),
+      matchesGoldenFile('goldens/library_years.png'),
+    );
+  });
+
+  testWidgets('year screen renders', (tester) async {
+    await pumpScreen(tester, _wrap(const YearScreen(year: 2024)));
+    await expectLater(
+      find.byType(YearScreen),
+      matchesGoldenFile('goldens/year_screen.png'),
     );
   });
 

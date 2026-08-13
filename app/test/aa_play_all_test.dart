@@ -31,6 +31,7 @@ class _Repository extends LibraryRepository {
     int limit = 5000,
     int offset = 0,
     String? genre,
+    int? year,
   }) async =>
       const [Album(id: 1, name: 'Un album', artistName: 'Quelqu\'un')];
 

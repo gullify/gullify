@@ -42,6 +42,7 @@ import 'screens/stats_screen.dart';
 import 'screens/user_library_screen.dart';
 import 'screens/video_watch_screen.dart';
 import 'screens/videos_screen.dart';
+import 'screens/year_screen.dart';
 import 'screens/yt_downloads_screen.dart';
 import 'models/server_user.dart';
 import 'state/auth.dart';
@@ -207,6 +208,13 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/genre',
         builder: (_, state) =>
             GenreScreen(genre: state.uri.queryParameters['name'] ?? ''),
+      ),
+      // La machine à remonter le temps (idée #80) : une année de la
+      // bibliothèque, sa radio et ses albums.
+      GoRoute(
+        path: '/year/:year',
+        builder: (_, state) =>
+            YearScreen(year: int.tryParse(state.pathParameters['year']!) ?? 0),
       ),
       GoRoute(
         path: '/settings/scan',

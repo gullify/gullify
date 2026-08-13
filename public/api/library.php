@@ -1184,6 +1184,98 @@ try {
         }
         $response['data'] = ['genres' => $genres];
 
+    } elseif ($action === 'get_years') {
+        // Machine à remonter le temps (idée #80) : les millésimes présents
+        // dans la bibliothèque. L'année vient de l'album — c'est la seule
+        // date que porte la bibliothèque. Les années farfelues (tags
+        // fantaisistes) sont écartées comme ailleurs.
+        $stmt = $conn->prepare('
+            SELECT al.year,
+                   COUNT(DISTINCT al.id) AS album_count,
+                   COUNT(s.id) AS song_count
+            FROM albums al
+            JOIN artists a ON al.artist_id = a.id
+            LEFT JOIN songs s ON s.album_id = al.id
+            WHERE a.user = ? AND al.year BETWEEN 1900 AND 2100
+            GROUP BY al.year
+            ORDER BY al.year DESC
+        ');
+        $stmt->execute([$user]);
+        $rows = $stmt->fetchAll();
+
+        // Aperçu : jusqu'à 4 pochettes par année, comme la vue des genres.
+        $covers = [];
+        $coverStmt = $conn->prepare('
+            SELECT t.year, t.id FROM (
+                SELECT al.year AS year, al.id AS id,
+                       ROW_NUMBER() OVER (
+                           PARTITION BY al.year ORDER BY al.id DESC
+                       ) AS rn
+                FROM albums al
+                JOIN artists a ON al.artist_id = a.id
+                WHERE a.user = ? AND al.year BETWEEN 1900 AND 2100
+                  AND al.artwork IS NOT NULL AND al.artwork != ""
+            ) t
+            WHERE t.rn <= 4
+        ');
+        $coverStmt->execute([$user]);
+        while ($cover = $coverStmt->fetch()) {
+            $covers[(int)$cover['year']][] = albumArtworkUrl((int)$cover['id']);
+        }
+
+        $years = [];
+        foreach ($rows as $row) {
+            $y = (int)$row['year'];
+            $years[] = [
+                'year'        => $y,
+                'albumCount'  => (int)$row['album_count'],
+                'songCount'   => (int)$row['song_count'],
+                'artworkUrls' => $covers[$y] ?? [],
+            ];
+        }
+        $response['data'] = ['years' => $years];
+
+    } elseif ($action === 'year_songs') {
+        // Le flux d'une année (idée #80) : les titres de cette année-là,
+        // mélangés côté serveur, comme la lecture aléatoire d'un genre.
+        $year  = (int)($_GET['year'] ?? 0);
+        $limit = min(500, max(1, intval($_GET['limit'] ?? 200)));
+        if ($year < 1900 || $year > 2100) {
+            $response['error'] = true;
+            $response['message'] = 'Invalid year';
+        } else {
+            $stmt = $conn->prepare("
+                SELECT s.id, s.title, s.track_number, s.duration, s.file_path,
+                       s.album_id, al.name AS album_name,
+                       " . TRACK_ARTIST_ID . " AS artist_id,
+                       " . TRACK_ARTIST_NAME . " AS artist_name
+                FROM songs s
+                JOIN albums al ON s.album_id = al.id
+                JOIN artists a ON al.artist_id = a.id
+                " . TRACK_ARTIST_JOIN . "
+                WHERE a.user = ? AND al.year = ?
+                ORDER BY RAND()
+                LIMIT $limit
+            ");
+            $stmt->execute([$user, $year]);
+            $songs = [];
+            while ($row = $stmt->fetch()) {
+                $songs[] = [
+                    'id' => (int)$row['id'],
+                    'title' => $row['title'],
+                    'trackNumber' => (int)$row['track_number'],
+                    'duration' => (int)$row['duration'],
+                    'filePath' => $row['file_path'],
+                    'albumId' => (int)$row['album_id'],
+                    'albumName' => $row['album_name'],
+                    'artworkUrl' => albumArtworkUrl((int)$row['album_id']),
+                    'artistId' => $row['artist_id'] !== null ? (int)$row['artist_id'] : null,
+                    'artistName' => $row['artist_name'],
+                ];
+            }
+            $response['data'] = $songs;
+        }
+
     } elseif ($action === 'get_genre_taxonomy') {
         // Ce que propose le choix du genre d'un artiste : la liste principale
         // d'abord (fermée, elle ne dépend ni de l'utilisateur ni de ce que
@@ -1678,6 +1770,13 @@ try {
             $extraSql .= ' AND (al.genre = ? OR a.genre = ?)';
             $params[]  = $genre;
             $params[]  = $genre;
+        }
+        // Millésime (idée #80) : les albums d'une année précise, pour la
+        // machine à remonter le temps de la bibliothèque.
+        $year = (int)($_GET['year'] ?? 0);
+        if ($year > 0) {
+            $extraSql .= ' AND al.year = ?';
+            $params[]  = $year;
         }
 
         $countStmt = $conn->prepare("

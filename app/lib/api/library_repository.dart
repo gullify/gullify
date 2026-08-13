@@ -237,12 +237,14 @@ class LibraryRepository {
     int limit = 5000,
     int offset = 0,
     String? genre,
+    int? year,
   }) async {
     final data = await _client.get('library.php', query: {
       'action': 'get_all_albums',
       'limit': limit,
       'offset': offset,
       'genre': ?genre,
+      'year': ?year,
     }) as Map<String, dynamic>;
     return _list(data['albums'], _album);
   }
@@ -627,6 +629,37 @@ class LibraryRepository {
     );
   }
 
+  /// Les millésimes présents dans la bibliothèque (idée #80), du plus récent
+  /// au plus ancien. L'année vient de l'album : c'est la seule date que porte
+  /// la bibliothèque.
+  Future<List<YearCount>> years() async {
+    final data = await _client.get('library.php', query: {
+      'action': 'get_years',
+    }) as Map<String, dynamic>;
+    return _list(
+      data['years'],
+      (j) => YearCount(
+        (j['year'] as num?)?.toInt() ?? 0,
+        albumCount: (j['albumCount'] as num?)?.toInt() ?? 0,
+        songCount: (j['songCount'] as num?)?.toInt() ?? 0,
+        artworkUrls: [
+          for (final u in j['artworkUrls'] as List<dynamic>? ?? [])
+            ?_abs(u as String?),
+        ],
+      ),
+    );
+  }
+
+  /// Le flux d'une année (idée #80) : ses titres, mélangés côté serveur.
+  Future<List<Song>> yearSongs(int year, {int limit = 200}) async {
+    final data = await _client.get('library.php', query: {
+      'action': 'year_songs',
+      'year': year,
+      'limit': limit,
+    });
+    return _list(data, _song);
+  }
+
   /// Les genres que le serveur propose (ils ne dépendent pas de ce que
   /// contient la bibliothèque) : la liste principale, puis ceux ajoutés à la
   /// main.
@@ -861,6 +894,27 @@ class GenreCount {
 
   /// Jusqu'à 4 pochettes d'albums du genre (les plus récentes).
   final List<String> artworkUrls;
+}
+
+/// Un millésime de la bibliothèque, ce qu'il pèse et un aperçu de ses
+/// pochettes (mosaïque de la vue « Années », idée #80).
+class YearCount {
+  const YearCount(
+    this.year, {
+    this.albumCount = 0,
+    this.songCount = 0,
+    this.artworkUrls = const [],
+  });
+
+  final int year;
+  final int albumCount;
+  final int songCount;
+
+  /// Jusqu'à 4 pochettes d'albums de l'année.
+  final List<String> artworkUrls;
+
+  /// La décennie à laquelle l'année appartient (1994 → 1990).
+  int get decade => year - year % 10;
 }
 
 /// État d'un scan de la bibliothèque.

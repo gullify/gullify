@@ -53,6 +53,16 @@ final albumsByGenreProvider = FutureProvider.family<List<Album>, String>(
   (ref, genre) => ref.watch(libraryRepositoryProvider).albums(genre: genre),
 );
 
+/// Les millésimes présents dans la bibliothèque (vue « Années », idée #80).
+final yearsProvider = FutureProvider<List<YearCount>>(
+  (ref) => ref.watch(libraryRepositoryProvider).years(),
+);
+
+/// Albums d'une année donnée.
+final albumsByYearProvider = FutureProvider.family<List<Album>, int>(
+  (ref, year) => ref.watch(libraryRepositoryProvider).albums(year: year),
+);
+
 final albumsProvider = FutureProvider<List<Album>>(
   (ref) => ref.watch(libraryRepositoryProvider).albums(),
 );

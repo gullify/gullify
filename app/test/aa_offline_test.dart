@@ -16,7 +16,12 @@ class _Repository extends LibraryRepository {
   bool online = false;
 
   @override
-  Future<List<Album>> albums({int limit = 5000, int offset = 0, String? genre}) async {
+  Future<List<Album>> albums({
+    int limit = 5000,
+    int offset = 0,
+    String? genre,
+    int? year,
+  }) async {
     if (!online) throw ApiException('network', 'pas de réseau');
     return const [Album(id: 1, name: 'Un album', artistName: 'Quelqu\'un')];
   }

@@ -8,6 +8,18 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.10.0', [
+    'La bibliothèque se parcourt aussi par année : nouvel onglet « Années », '
+        'entre Genres et Favoris. Les millésimes sont rangés par décennie, du '
+        'plus récent au plus ancien, avec la mosaïque de leurs pochettes',
+    'Chaque année a sa radio : « Radio 1994 » lance les titres sortis cette '
+        'année-là, mélangés — une machine à remonter le temps qui ne pioche '
+        'que dans ta collection',
+    'La page d\'une année montre aussi tous ses albums, comme une page de '
+        'genre',
+    'L\'année vient de l\'album : un album sans date n\'apparaît nulle part '
+        'ici. Sa date se complète depuis l\'éditeur de tags',
+  ]),
   ReleaseNote('3.9.0', [
     'Le fondu enchaîné se cale enfin sur la musique et non sur le chronomètre : '
         'le serveur écoute les bords de chaque titre (son niveau, une demi-'

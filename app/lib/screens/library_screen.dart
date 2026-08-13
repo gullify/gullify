@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../api/library_repository.dart' show GenreCount;
+import '../api/library_repository.dart' show GenreCount, YearCount;
 import '../models/album.dart';
 import '../models/artist.dart';
 import '../state/favorites.dart';
@@ -22,11 +22,12 @@ import '../widgets/song_tile.dart';
 import '../widgets/mascot_empty.dart';
 
 /// Vues du contrôle segmenté de la bibliothèque.
-enum _LibView { artistes, albums, genres, favoris, playlists }
+enum _LibView { artistes, albums, genres, annees, favoris, playlists }
 
 /// Onglet « Bibliothèque » : titre + bouton d'ajout, contrôle segmenté en
-/// verre Artistes / Albums / Genres / Favoris / Playlists. Filtre instantané,
-/// barre A-Z et aléatoire global conservés sur Artistes, Albums et Genres.
+/// verre Artistes / Albums / Genres / Années / Favoris / Playlists. Filtre
+/// instantané, barre A-Z et aléatoire global conservés sur Artistes, Albums
+/// et Genres.
 class LibraryScreen extends ConsumerStatefulWidget {
   const LibraryScreen({super.key});
 
@@ -80,6 +81,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                 _LibView.artistes => const _ArtistsView(),
                 _LibView.albums => const _AlbumsView(),
                 _LibView.genres => const _GenresView(),
+                _LibView.annees => const _YearsView(),
                 _LibView.favoris => const _FavoritesView(),
                 _LibView.playlists => const _PlaylistsView(),
               },
@@ -103,6 +105,7 @@ class _SegmentedControl extends StatelessWidget {
     _LibView.artistes: 'Artistes',
     _LibView.albums: 'Albums',
     _LibView.genres: 'Genres',
+    _LibView.annees: 'Années',
     _LibView.favoris: 'Favoris',
     _LibView.playlists: 'Playlists',
   };
@@ -363,6 +366,127 @@ class _GenreCard extends StatelessWidget {
           const SizedBox(height: 9),
           Text(
             genre.name,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+          ),
+          Text(
+            subtitle,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ───────────────────────── Vue Années ─────────────────────────
+
+/// Les millésimes de la bibliothèque (idée #80), par décennie, du plus récent
+/// au plus ancien. Une année s'ouvre sur sa page : sa radio et ses albums.
+class _YearsView extends ConsumerWidget {
+  const _YearsView();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final years = ref.watch(yearsProvider);
+    return years.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (e, _) => Center(child: Text('Erreur: $e')),
+      data: (list) {
+        if (list.isEmpty) {
+          return const MascotEmpty(
+            message: 'Aucune année pour l\'instant',
+            hint: 'L\'année vient de l\'album : elle apparaît ici dès qu\'un '
+                'album de la bibliothèque en porte une.',
+          );
+        }
+        // Les années arrivent déjà triées du plus récent au plus ancien : on
+        // se contente de les couper en décennies.
+        final decades = <int, List<YearCount>>{};
+        for (final y in list) {
+          (decades[y.decade] ??= []).add(y);
+        }
+
+        return RefreshIndicator(
+          onRefresh: () => ref.refresh(yearsProvider.future),
+          child: CustomScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            slivers: [
+              for (final decade in decades.keys) ...[
+                SliverToBoxAdapter(
+                  child: SectionTitle('Années ${decade % 100 ~/ 10}0'),
+                ),
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
+                  sliver: SliverGrid(
+                    gridDelegate:
+                        const SliverGridDelegateWithMaxCrossAxisExtent(
+                      maxCrossAxisExtent: 200,
+                      childAspectRatio: 0.75,
+                      mainAxisSpacing: 16,
+                      crossAxisSpacing: 16,
+                    ),
+                    delegate: SliverChildBuilderDelegate(
+                      (context, i) => _YearCard(year: decades[decade]![i]),
+                      childCount: decades[decade]!.length,
+                    ),
+                  ),
+                ),
+              ],
+              SliverToBoxAdapter(
+                child: SizedBox(
+                  height: MediaQuery.paddingOf(context).bottom + 18,
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// Carte d'année : mosaïque des pochettes, le millésime en gros, et ce
+/// qu'il pèse.
+class _YearCard extends StatelessWidget {
+  const _YearCard({required this.year});
+
+  final YearCount year;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final subtitle = [
+      '${year.albumCount} album${year.albumCount > 1 ? 's' : ''}',
+      if (year.songCount > 0)
+        '${year.songCount} titre${year.songCount > 1 ? 's' : ''}',
+    ].join(' · ');
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(20),
+      onTap: () => context.push('/year/${year.year}'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          AspectRatio(
+            aspectRatio: 1,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: const [kArtShadow],
+              ),
+              child: GenreMosaic(
+                urls: year.artworkUrls,
+                icon: Icons.history,
+              ),
+            ),
+          ),
+          const SizedBox(height: 9),
+          Text(
+            '${year.year}',
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
