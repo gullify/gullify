@@ -163,6 +163,9 @@ class GullifyAudioHandler extends BaseAudioHandler
       _flushPlay();
       _startTracking(q[index]);
       _prefetchKaraoke(index);
+      // Les bords du titre qui commence et de celui qui suit : demandés
+      // maintenant, ils seront là bien avant le croisement (idée #79).
+      _fetchEdges();
       mediaItem.add(q[index]);
       // Rafraîchit le cœur (favori) pour la nouvelle piste courante.
       playbackState.add(
@@ -448,8 +451,9 @@ class GullifyAudioHandler extends BaseAudioHandler
     // Un titre croisé avec le suivant (idée #76) est déclaré fini alors qu'il
     // lui reste la durée du fondu à jouer : sans cette marge, un fondu enchaîné
     // long ferait passer chaque écoute complète pour une écoute abandonnée.
-    final tolerance = const Duration(seconds: 5) +
-        (fade.fadesTracks ? fade.duration : Duration.zero);
+    // Le croisement intelligent (idée #79) peut partir plus tôt encore —
+    // fade.crossfadeReach dit de combien, au pire.
+    final tolerance = const Duration(seconds: 5) + fade.crossfadeReach;
     final completed = _trackedDuration > Duration.zero &&
         played >= _trackedDuration - tolerance;
     repository
@@ -867,10 +871,13 @@ class GullifyAudioHandler extends BaseAudioHandler
     // battement de position ne ferait que le rater de nouveau.
     final crossable = fade.fadesTracks && _hasNextTrack && !_endFading;
     if (crossable) {
+      // La forme du croisement, taillée sur ce que le serveur a mesuré aux
+      // bords des deux titres quand il a su le dire (idée #79).
+      final plan = _crossfadePlan(total);
       switch (crossfadeAt(
         position: position,
         total: total,
-        fade: fade.duration,
+        span: plan.trigger,
         playing: _player.playing,
         live: live,
         hasNext: _hasNextTrack,
@@ -882,7 +889,7 @@ class GullifyAudioHandler extends BaseAudioHandler
         case Crossfade.arm:
           unawaited(_armCrossfade());
         case Crossfade.start:
-          unawaited(_startCrossfade(total! - position));
+          unawaited(_startCrossfade(plan, total! - position));
         case Crossfade.disarm:
           unawaited(_disarmCrossfade());
       }
@@ -965,11 +972,80 @@ class GullifyAudioHandler extends BaseAudioHandler
     return next != null && next >= 0 && next < queue.value.length;
   }
 
+  // ─────────────────────────── le croisement intelligent (#79) ──
+  //
+  // Le serveur mesure les bords des titres (silence de fin, descente
+  // naturelle, entrée en matière). L'app les demande dès qu'une piste
+  // commence — bien avant d'en avoir besoin — et taille son croisement
+  // dessus. Sans réseau, sans serveur ou sur un titre inanalysable, tout
+  // retombe sur le croisement à durée fixe de l'idée #76.
+
+  /// Bords mesurés, par id de titre. Une entrée nulle veut dire « demandé,
+  /// le serveur n'a rien à en dire » : on ne le redemande pas à chaque piste.
+  final _edges = <int, TrackEdges?>{};
+
+  /// Titres dont la mesure est en route (pas deux appels pour le même).
+  final _edgesAsked = <int>{};
+
+  int? _songIdAt(int? index) {
+    final q = queue.value;
+    if (index == null || index < 0 || index >= q.length) return null;
+    return q[index].extras?['songId'] as int?;
+  }
+
+  /// Demande au serveur les bords du titre en cours et du suivant. Appelé au
+  /// changement de piste : la mesure a alors tout le morceau pour arriver.
+  void _fetchEdges() {
+    final repo = repository;
+    if (repo == null || !fade.measuresTracks) return;
+    final wanted = <int>[];
+    for (final id in [_currentSongId, _songIdAt(_player.nextIndex)]) {
+      if (id == null || _edges.containsKey(id)) continue;
+      if (_edgesAsked.add(id)) wanted.add(id);
+    }
+    if (wanted.isEmpty) return;
+    unawaited(repo.songTransitions(wanted).then(
+      (found) {
+        // Un titre absent de la réponse est un titre que le serveur ne sait
+        // pas analyser : on le note pour ne plus le redemander.
+        for (final id in wanted) {
+          _edges[id] = found[id];
+        }
+        _edgesAsked.removeAll(wanted);
+      },
+      onError: (Object e) {
+        // Hors ligne, ou serveur muet : on réessaiera à la piste suivante.
+        _edgesAsked.removeAll(wanted);
+      },
+    ));
+  }
+
+  /// La forme du croisement pour la piste en cours. Le calcul est synchrone —
+  /// il tombe à chaque battement de position — et se contente de ce que la
+  /// mesure a déjà rapporté.
+  CrossfadePlan _crossfadePlan(Duration? total) {
+    if (!fade.measuresTracks) {
+      return crossfadePlan(fade: fade.duration, total: total);
+    }
+    final currentId = _currentSongId;
+    final nextId = _songIdAt(_player.nextIndex);
+    return crossfadePlan(
+      fade: fade.duration,
+      total: total,
+      current: currentId == null ? null : _edges[currentId],
+      next: nextId == null ? null : _edges[nextId],
+    );
+  }
+
   /// Charge le titre suivant sur le lecteur d'à côté, sans le lancer. Le
   /// tampon a le temps de se remplir : au moment du croisement, il démarre à
   /// la note près au lieu d'arriver en retard.
   Future<void> _armCrossfade() async {
     if (_outgoingBusy) return;
+    // Filet de sécurité : si la mesure des bords n'a pas abouti au début du
+    // titre (réseau coupé), il reste l'avance de la préparation pour la
+    // rattraper avant le croisement.
+    _fetchEdges();
     final q = queue.value;
     final next = _player.nextIndex;
     if (next == null || next < 0 || next >= q.length) return;
@@ -1008,13 +1084,16 @@ class GullifyAudioHandler extends BaseAudioHandler
   }
 
   /// Croise les deux titres : le suivant monte sur le lecteur d'à côté pendant
-  /// que celui en cours descend sur le sien, [over] durant (ce qu'il reste du
-  /// titre sortant). C'est le lecteur entrant qui devient tout de suite le
-  /// lecteur courant — fiche, notification, position et suivi d'écoute suivent
-  /// ce qui commence, pas ce qui s'efface.
-  Future<void> _startCrossfade(Duration over) async {
+  /// que celui en cours descend sur le sien. C'est le lecteur entrant qui
+  /// devient tout de suite le lecteur courant — fiche, notification, position
+  /// et suivi d'écoute suivent ce qui commence, pas ce qui s'efface.
+  ///
+  /// [plan] donne la forme du croisement (idée #79) et [remaining] ce qu'il
+  /// reste vraiment du titre sortant : les rampes ne débordent jamais dessus.
+  Future<void> _startCrossfade(CrossfadePlan plan, Duration remaining) async {
     if (_crossfading) return;
     _crossfading = true;
+    final over = plan.rise < remaining ? plan.rise : remaining;
     try {
       final q = queue.value;
       final next = _player.nextIndex;
@@ -1055,7 +1134,14 @@ class GullifyAudioHandler extends BaseAudioHandler
 
       // Les deux rampes se croisent à puissance constante : deux droites qui
       // se croisent creuseraient un trou au milieu du passage.
-      unawaited(_fadeOutgoing(outgoing, over, token));
+      //
+      // Le sortant descend sur la part du croisement où les deux titres
+      // s'entendent vraiment : quand le titre entrant a démarré en avance
+      // (intro qui met du temps à venir, idée #79), la descente attend
+      // d'autant — ce n'est pas parce que le suivant s'installe qu'il faut
+      // effacer celui qui joue.
+      final fall = over < plan.fall ? over : plan.fall;
+      unawaited(_fadeOutgoing(outgoing, fall, token, after: over - fall));
       await _fadeTo(1, over: over, constantPower: true);
     } catch (e) {
       logPlayback('fondu enchaîné : abandon ($e)');
@@ -1067,11 +1153,19 @@ class GullifyAudioHandler extends BaseAudioHandler
   /// Descente du titre sortant, sur son propre lecteur, puis extinction. La
   /// descente finit avec le titre : au-delà, le lecteur sortant partirait tout
   /// seul sur la piste suivante de sa file — celle-là même qui joue déjà.
+  ///
+  /// [after] retarde la descente : le sortant tient son volume pendant que le
+  /// titre entrant traverse son intro (idée #79).
   Future<void> _fadeOutgoing(
     AudioPlayer outgoing,
     Duration over,
-    int token,
-  ) async {
+    int token, {
+    Duration after = Duration.zero,
+  }) async {
+    if (after > Duration.zero) {
+      await Future<void>.delayed(after);
+      if (token != _outgoingToken) return;
+    }
     final ramp = fadeRamp(
       from: outgoing.volume,
       to: 0,

@@ -3,10 +3,17 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
+import '../models/track_edges.dart';
+
+// Les mesures du serveur voyagent avec la décision qui les consomme : qui lit
+// crossfadePlan n'a qu'un fichier à importer.
+export '../models/track_edges.dart';
+
 const _storage = FlutterSecureStorage();
 const _kEnabled = 'gullify_fade_enabled';
 const _kSeconds = 'gullify_fade_seconds';
 const _kTracks = 'gullify_fade_tracks';
+const _kSmart = 'gullify_fade_smart';
 
 /// Bornes du réglage de durée. En dessous d'une demi-seconde le fondu ne
 /// s'entend plus (autant l'éteindre), au-delà de huit secondes on n'appuie
@@ -124,13 +131,14 @@ enum Crossfade {
 /// prise ici, à part du lecteur, pour être vérifiable : c'est elle qui met deux
 /// titres dans les oreilles en même temps.
 ///
-/// [fade] est la durée du croisement — nulle quand le réglage est éteint.
+/// [span] est le reste de piste à partir duquel le croisement part — nul quand
+/// le réglage est éteint. Il sort de [crossfadePlan], qui l'a déjà borné.
 /// [armed] dit si le titre suivant est déjà chargé à côté, [running] si le
 /// croisement est déjà lancé.
 Crossfade crossfadeAt({
   required Duration position,
   required Duration? total,
-  required Duration fade,
+  required Duration span,
   required bool playing,
   required bool live,
   required bool hasNext,
@@ -141,7 +149,7 @@ Crossfade crossfadeAt({
   if (running) return Crossfade.none;
   // Rien à croiser : radio (pas de fin), durée inconnue, dernier titre de la
   // file, lecture arrêtée, ou réglage éteint.
-  final crossable = fade > Duration.zero &&
+  final crossable = span > Duration.zero &&
       !live &&
       hasNext &&
       playing &&
@@ -149,7 +157,6 @@ Crossfade crossfadeAt({
       total > Duration.zero;
   if (!crossable) return armed ? Crossfade.disarm : Crossfade.none;
 
-  final span = crossfadeSpan(fade, total);
   final remaining = total - position;
   if (remaining <= Duration.zero) return Crossfade.none;
   if (remaining <= span) return Crossfade.start;
@@ -161,6 +168,111 @@ Crossfade crossfadeAt({
   return armed ? Crossfade.disarm : Crossfade.none;
 }
 
+// ──────────────────────────────────── le fondu enchaîné intelligent (#79) ──
+
+/// Ce qu'un titre entrant peut se voir donner d'avance à cause de son entrée
+/// en matière. Au-delà, on ne « cale » plus la transition : on couvre l'intro
+/// du titre suivant, qui a le droit de s'entendre.
+const kSmartLeadMax = Duration(seconds: 3);
+
+/// Silence de fin qu'on accepte de sauter. Un blanc plus long qu'une gorgée
+/// est le signe d'un fichier bizarre (piste cachée, plage de fin) : on ne
+/// démarre pas le titre suivant une éternité avant la fin annoncée.
+const kSmartTailMax = Duration(seconds: 6);
+
+/// Le croisement intelligent ne s'écarte jamais de plus du double de la durée
+/// réglée : le réglage reste le maître, la mesure ne fait que l'étirer pour
+/// couvrir une longue descente naturelle.
+const kSmartStretch = 2;
+
+/// La forme d'un croisement : quand il part, et comment les deux volumes se
+/// croisent une fois parti.
+class CrossfadePlan {
+  const CrossfadePlan({
+    required this.trigger,
+    required this.rise,
+    required this.fall,
+  });
+
+  /// Le croisement part quand il ne reste plus que ça du titre en cours.
+  final Duration trigger;
+
+  /// Montée du titre entrant.
+  final Duration rise;
+
+  /// Descente du titre sortant. Plus courte que [rise] quand le titre entrant
+  /// démarre en avance à cause de son entrée en matière.
+  final Duration fall;
+
+  /// Ce que le titre sortant garde de son volume avant d'entamer sa descente.
+  Duration get hold => rise - fall;
+
+  bool get idle => trigger <= Duration.zero;
+}
+
+/// Taille le croisement sur ce que le serveur a mesuré (idée #79).
+///
+/// Sans mesure — serveur muet, titre sur un stockage distant, réglage
+/// « intelligent » éteint —, on retombe exactement sur le croisement fixe de
+/// l'idée #76 : la durée réglée, jamais plus du tiers du titre.
+///
+/// Avec mesure :
+///   - le blanc de fin du titre sortant est sauté (le suivant part avant) ;
+///   - le croisement s'étire pour couvrir une longue descente naturelle,
+///     sans jamais dépasser le double de la durée réglée ;
+///   - le titre entrant part en avance de son entrée en matière, pour que sa
+///     première vraie note tombe à la fin de la précédente. Le sortant, lui,
+///     garde son volume pendant cette avance : ce n'est pas une raison pour
+///     l'effacer plus tôt.
+CrossfadePlan crossfadePlan({
+  required Duration fade,
+  required Duration? total,
+  TrackEdges? current,
+  TrackEdges? next,
+}) {
+  const none = CrossfadePlan(
+    trigger: Duration.zero,
+    rise: Duration.zero,
+    fall: Duration.zero,
+  );
+  if (fade <= Duration.zero || total == null || total <= Duration.zero) {
+    return none;
+  }
+
+  final plain = crossfadeSpan(fade, total);
+  if (current == null && next == null) {
+    return CrossfadePlan(trigger: plain, rise: plain, fall: plain);
+  }
+
+  // Jamais plus du tiers du titre dans les oreilles à deux : la règle de
+  // l'idée #76 tient toujours, silence de fin non compris (il ne s'entend pas).
+  final third = total ~/ 3;
+
+  final decay = current?.decay ?? Duration.zero;
+  var overlap = decay > fade ? decay : fade;
+  if (overlap > fade * kSmartStretch) overlap = fade * kSmartStretch;
+  if (overlap > third) overlap = third;
+
+  var lead = next?.lead ?? Duration.zero;
+  if (lead > kSmartLeadMax) lead = kSmartLeadMax;
+  if (overlap + lead > third) lead = third - overlap;
+  if (lead < Duration.zero) lead = Duration.zero;
+
+  var tail = current?.tail ?? Duration.zero;
+  if (tail > kSmartTailMax) tail = kSmartTailMax;
+
+  final rise = overlap + lead;
+  var trigger = rise + tail;
+  // Un croisement ne mange jamais plus de la moitié du titre, blanc compris :
+  // sur une piste courte au long blanc de fin, mieux vaut laisser du silence
+  // que de faire disparaître le morceau. (La montée, elle, tient déjà dans le
+  // tiers : ce plafond ne peut pas passer sous elle.)
+  final half = total ~/ 2;
+  if (trigger > half) trigger = half;
+
+  return CrossfadePlan(trigger: trigger, rise: rise, fall: overlap);
+}
+
 /// Réglage du fondu à la lecture, à la pause et entre les titres (idée #75).
 ///
 /// Vit à côté du lecteur, comme l'égaliseur : le handler le lit à chaque
@@ -169,6 +281,7 @@ class PlaybackFade extends ChangeNotifier {
   bool _enabled = true;
   double _seconds = kFadeDefaultSeconds;
   bool _betweenTracks = false;
+  bool _smart = true;
   bool _loaded = false;
 
   /// Fondu à la lecture et à la pause.
@@ -183,6 +296,13 @@ class PlaybackFade extends ChangeNotifier {
   /// le monde.
   bool get betweenTracks => _betweenTracks;
 
+  /// Tailler le croisement sur le titre plutôt que sur le chronomètre
+  /// (idée #79) : le serveur mesure les bords des morceaux, l'app saute les
+  /// blancs de fin, couvre les descentes naturelles et donne au titre suivant
+  /// l'avance que réclame son intro. Sans serveur ni mesure, le croisement
+  /// reste celui de la durée réglée.
+  bool get smart => _smart;
+
   /// Durée effective d'un fondu — nulle quand le réglage est éteint, ce qui
   /// rend la lecture et la pause franches.
   Duration get duration => _enabled
@@ -191,6 +311,20 @@ class PlaybackFade extends ChangeNotifier {
 
   /// Fondu enchaîné réellement actif.
   bool get fadesTracks => _betweenTracks && duration > Duration.zero;
+
+  /// Croisement intelligent réellement actif : il n'a de sens que là où il y a
+  /// un croisement.
+  bool get measuresTracks => _smart && fadesTracks;
+
+  /// De combien un titre peut être déclaré fini avant sa vraie fin. Sert au
+  /// suivi d'écoute : un titre croisé n'est pas un titre abandonné. Le
+  /// croisement intelligent peut partir plus tôt que la durée réglée (blanc de
+  /// fin sauté, descente couverte, avance donnée au suivant).
+  Duration get crossfadeReach => !fadesTracks
+      ? Duration.zero
+      : _smart
+          ? duration * kSmartStretch + kSmartLeadMax + kSmartTailMax
+          : duration;
 
   /// Relit les réglages mémorisés (au démarrage de l'app).
   Future<void> loadSaved() async {
@@ -204,6 +338,8 @@ class PlaybackFade extends ChangeNotifier {
         _seconds = seconds.clamp(kFadeMinSeconds, kFadeMaxSeconds);
       }
       _betweenTracks = await _storage.read(key: _kTracks) == '1';
+      final smart = await _storage.read(key: _kSmart);
+      if (smart != null) _smart = smart == '1';
     } catch (_) {
       // Réglages illisibles : on garde le fondu par défaut.
     }
@@ -226,6 +362,12 @@ class PlaybackFade extends ChangeNotifier {
     _betweenTracks = value;
     notifyListeners();
     await _save(_kTracks, value ? '1' : '0');
+  }
+
+  Future<void> setSmart(bool value) async {
+    _smart = value;
+    notifyListeners();
+    await _save(_kSmart, value ? '1' : '0');
   }
 
   Future<void> _save(String key, String value) async {

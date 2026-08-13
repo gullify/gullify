@@ -61,6 +61,16 @@ class FadeScreen extends ConsumerWidget {
               value: fade.betweenTracks,
               onChanged: fade.enabled ? fade.setBetweenTracks : null,
             ),
+            SwitchListTile(
+              secondary: const Icon(Icons.auto_awesome_outlined),
+              title: const Text('Croisement intelligent'),
+              subtitle: const Text(
+                'Le passage se cale sur le morceau : blanc de fin sauté, '
+                'descente naturelle couverte, intro du suivant anticipée',
+              ),
+              value: fade.smart,
+              onChanged: fade.fadesTracks ? fade.setSmart : null,
+            ),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
               child: Text(
@@ -69,7 +79,16 @@ class FadeScreen extends ConsumerWidget {
                 'file n\'a personne avec qui se croiser : il s\'éteint seul. '
                 'Une radio n\'est pas concernée : elle n\'a pas de fin à '
                 'annoncer. Un fondu long retarde d\'autant la pause — le son '
-                'descend d\'abord, la musique s\'arrête ensuite.',
+                'descend d\'abord, la musique s\'arrête ensuite.\n\n'
+                'Le croisement intelligent, lui, écoute d\'abord : le serveur '
+                'mesure le niveau sonore des bords de chaque titre. Un morceau '
+                'qui finit sur un blanc voit le suivant partir avant ce blanc ; '
+                'un morceau qui s\'éteint tout seul se fait couvrir pendant '
+                'toute sa descente, jusqu\'au double de la durée réglée ; un '
+                'titre qui met du temps à démarrer part en avance, mais celui '
+                'qui joue garde son volume tant que rien ne vient. Sans réseau, '
+                'ou sur un titre que le serveur ne sait pas mesurer, le '
+                'croisement reprend la durée réglée.',
                 style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
               ),
             ),

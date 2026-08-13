@@ -5,6 +5,7 @@ import '../models/game_track.dart';
 import '../models/server_user.dart';
 import '../models/song.dart';
 import '../models/song_chords.dart';
+import '../models/track_edges.dart';
 import 'api_client.dart';
 
 /// Detail payload for an artist page.
@@ -302,6 +303,33 @@ class LibraryRepository {
       ],
       albums: _list(data['albums'], _album),
     );
+  }
+
+  /// Ce que le serveur a mesuré aux bords des titres demandés (idée #79) :
+  /// silence de fin, descente naturelle et entrée en matière, de quoi tailler
+  /// le fondu enchaîné sur le morceau. Les titres que le serveur ne sait pas
+  /// analyser (stockage distant, fichier illisible) sont simplement absents du
+  /// résultat — le lecteur retombe alors sur le croisement réglé à la main.
+  Future<Map<int, TrackEdges>> songTransitions(List<int> songIds) async {
+    if (songIds.isEmpty) return const {};
+    final data = await _client.get('library.php', query: {
+      'action': 'song_transitions',
+      'ids': songIds.join(','),
+    }) as Map<String, dynamic>;
+    final edges = <int, TrackEdges>{};
+    for (final e in data['transitions'] as List<dynamic>? ?? []) {
+      final row = e as Map<String, dynamic>;
+      final id = (row['songId'] as num?)?.toInt();
+      if (id == null) continue;
+      Duration ms(String key) =>
+          Duration(milliseconds: (row[key] as num?)?.round() ?? 0);
+      edges[id] = TrackEdges(
+        tail: ms('tailMs'),
+        decay: ms('decayMs'),
+        lead: ms('leadMs'),
+      );
+    }
+    return edges;
   }
 
   /// Titres récemment écoutés (distincts), du plus récent au plus ancien.

@@ -8,6 +8,22 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.9.0', [
+    'Le fondu enchaîné se cale enfin sur la musique et non sur le chronomètre : '
+        'le serveur écoute les bords de chaque titre (son niveau, une demi-'
+        'seconde à la fois) et le lecteur taille son passage dessus',
+    'Un titre qui finit sur un blanc de fichier ne fait plus attendre : le '
+        'suivant démarre avant le silence, jamais de trou entre deux morceaux',
+    'Un titre qui s\'éteint tout seul se fait couvrir pendant toute sa '
+        'descente — jusqu\'au double de la durée réglée. Un titre qui s\'arrête '
+        'net, lui, garde le croisement réglé : c\'est là qu\'il sert vraiment',
+    'Un morceau qui met du temps à démarrer part en avance, pour que sa '
+        'première vraie note tombe pile à la fin de la précédente. Celui qui '
+        'joue, lui, garde son volume tant que rien ne vient le remplacer',
+    'Réglable dans Paramètres → Lecture → Fondu → « Croisement intelligent ». '
+        'Sans réseau, ou sur un titre que le serveur ne sait pas mesurer, le '
+        'croisement reprend simplement la durée réglée',
+  ]),
   ReleaseNote('3.8.0', [
     'La photo d\'un artiste se change à la main : page de l\'artiste → les '
         'trois points en haut à droite → « Changer l\'image », au même endroit '

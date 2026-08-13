@@ -20,6 +20,7 @@ require_once __DIR__ . '/../../src/GameSource.php';
 require_once __DIR__ . '/../../src/GenreTaxonomy.php';
 require_once __DIR__ . '/../../src/PathHelper.php';
 require_once __DIR__ . '/../../src/TrackArtist.php';
+require_once __DIR__ . '/../../src/TransitionAnalysis.php';
 
 /**
  * Build an artworkUrl for an album that busts the browser cache when the
@@ -864,6 +865,33 @@ try {
             ];
         }
         $response['data'] = $songs;
+
+    } elseif ($action === 'song_transitions') {
+        // Fondu enchaîné intelligent (idée #79) : ce que fait le son aux bords
+        // des titres demandés (silence de fin, descente naturelle, entrée en
+        // matière), pour que l'app taille son croisement dessus au lieu de
+        // fondre X secondes quoi qu'il arrive. Voir src/TransitionAnalysis.php.
+        //
+        // L'app n'en demande que deux à la fois (le titre en cours et le
+        // suivant) ; la borne est là pour qu'un appel bricolé ne lance pas
+        // ffmpeg cinquante fois d'affilée.
+        $ids = array_slice(
+            array_map('intval', array_filter(explode(',', (string)($_GET['ids'] ?? '')))),
+            0,
+            4
+        );
+        $profiles = $ids ? TransitionAnalysis::forSongs($conn, $user, $ids) : [];
+        $transitions = [];
+        foreach ($profiles as $songId => $p) {
+            $transitions[] = [
+                'songId'  => (int)$songId,
+                'tailMs'  => $p['tailMs'],
+                'decayMs' => $p['decayMs'],
+                'leadMs'  => $p['leadMs'],
+                'levelDb' => $p['levelDb'],
+            ];
+        }
+        $response['data'] = ['transitions' => $transitions];
 
     } elseif ($action === 'discovery_songs') {
         // « Découverte » : titres jamais joués (absents de play_history),

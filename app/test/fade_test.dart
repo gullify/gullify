@@ -165,7 +165,8 @@ void main() {
         crossfadeAt(
           position: position,
           total: length,
-          fade: duration,
+          // Sans mesure des bords, le plan rend le croisement fixe de #76.
+          span: crossfadePlan(fade: duration, total: length).trigger,
           playing: playing,
           live: live,
           hasNext: hasNext,
@@ -270,6 +271,134 @@ void main() {
     });
   });
 
+  group('croisement intelligent (#79)', () {
+    const fade = Duration(seconds: 4);
+    const total = Duration(minutes: 3);
+
+    test('sans mesure, on retombe sur le croisement à durée fixe', () {
+      final plan = crossfadePlan(fade: fade, total: total);
+
+      expect(plan.trigger, fade);
+      expect(plan.rise, fade);
+      expect(plan.fall, fade);
+      expect(plan.hold, Duration.zero);
+      // Réglage éteint, durée inconnue : aucun croisement.
+      expect(crossfadePlan(fade: Duration.zero, total: total).idle, isTrue);
+      expect(crossfadePlan(fade: fade, total: null).idle, isTrue);
+    });
+
+    test('le blanc de fin est sauté : le suivant part avant', () {
+      final plan = crossfadePlan(
+        fade: fade,
+        total: total,
+        current: const TrackEdges(tail: Duration(seconds: 5)),
+      );
+
+      // Le croisement part cinq secondes plus tôt, mais dure toujours autant :
+      // ce sont bien les deux musiques qui se croisent, pas le silence.
+      expect(plan.trigger, const Duration(seconds: 9));
+      expect(plan.rise, fade);
+      expect(plan.fall, fade);
+    });
+
+    test('un blanc de fin à rallonge ne fait pas disparaître le titre', () {
+      final plan = crossfadePlan(
+        fade: fade,
+        total: total,
+        current: const TrackEdges(tail: Duration(seconds: 30)),
+      );
+
+      expect(plan.trigger, fade + kSmartTailMax);
+    });
+
+    test('une longue descente naturelle se fait couvrir en entier', () {
+      final plan = crossfadePlan(
+        fade: fade,
+        total: total,
+        current: const TrackEdges(decay: Duration(seconds: 7)),
+      );
+
+      expect(plan.rise, const Duration(seconds: 7));
+      expect(plan.fall, const Duration(seconds: 7));
+      // Jamais plus du double de la durée réglée : le réglage reste le maître.
+      final long = crossfadePlan(
+        fade: fade,
+        total: total,
+        current: const TrackEdges(decay: Duration(seconds: 20)),
+      );
+      expect(long.rise, fade * kSmartStretch);
+    });
+
+    test('un titre qui s\'arrête net garde la durée réglée', () {
+      final plan = crossfadePlan(
+        fade: fade,
+        total: total,
+        current: const TrackEdges(decay: Duration(milliseconds: 500)),
+      );
+
+      expect(plan.rise, fade);
+      expect(plan.fall, fade);
+    });
+
+    test('le titre entrant part en avance, le sortant tient son volume', () {
+      final plan = crossfadePlan(
+        fade: fade,
+        total: total,
+        next: const TrackEdges(lead: Duration(seconds: 2)),
+      );
+
+      expect(plan.trigger, const Duration(seconds: 6));
+      expect(plan.rise, const Duration(seconds: 6));
+      // La descente, elle, ne s'allonge pas : elle attend l'intro du suivant.
+      expect(plan.fall, fade);
+      expect(plan.hold, const Duration(seconds: 2));
+      // Une intro interminable n'est pas couverte pour autant.
+      final slow = crossfadePlan(
+        fade: fade,
+        total: total,
+        next: const TrackEdges(lead: Duration(seconds: 30)),
+      );
+      expect(slow.hold, kSmartLeadMax);
+    });
+
+    test('un titre court n\'est jamais croisé de bout en bout', () {
+      const court = Duration(seconds: 30);
+      final plan = crossfadePlan(
+        fade: fade,
+        total: court,
+        current: const TrackEdges(
+          tail: Duration(seconds: 8),
+          decay: Duration(seconds: 12),
+        ),
+        next: const TrackEdges(lead: Duration(seconds: 3)),
+      );
+
+      // Le tiers pour les deux musiques réunies, la moitié blanc compris.
+      expect(plan.rise, lessThanOrEqualTo(court ~/ 3));
+      expect(plan.trigger, lessThanOrEqualTo(court ~/ 2));
+      expect(plan.rise, greaterThan(Duration.zero));
+      expect(plan.fall, lessThanOrEqualTo(plan.rise));
+    });
+
+    test('le suivi d\'écoute sait de combien un titre peut partir tôt', () {
+      final fade = PlaybackFade();
+
+      expect(fade.crossfadeReach, Duration.zero);
+      fade.setBetweenTracks(true);
+      fade.setSmart(false);
+      expect(fade.crossfadeReach, fade.duration);
+      fade.setSmart(true);
+      expect(
+        fade.crossfadeReach,
+        fade.duration * kSmartStretch + kSmartLeadMax + kSmartTailMax,
+      );
+      // Le croisement intelligent n'existe que là où il y a un croisement.
+      fade.setBetweenTracks(false);
+      expect(fade.measuresTracks, isFalse);
+      expect(fade.crossfadeReach, Duration.zero);
+    });
+  });
+
   test('la durée s\'écrit à la française', () {
     expect(formatFadeSeconds(0.5), '0,5 s');
     expect(formatFadeSeconds(2), '2 s');
@@ -293,6 +422,29 @@ void main() {
     await tester.tap(find.text('Fondu enchaîné'));
     await tester.pumpAndSettle();
     expect(fade.betweenTracks, isTrue);
+  });
+
+  testWidgets('le croisement intelligent attend qu\'il y ait un croisement',
+      (tester) async {
+    final fade = PlaybackFade();
+    await tester.pumpWidget(_wrap(fade));
+
+    SwitchListTile smart() => tester.widget<SwitchListTile>(
+          find.widgetWithText(SwitchListTile, 'Croisement intelligent'),
+        );
+
+    // Fondu enchaîné éteint : rien à tailler, le réglage est hors service.
+    expect(smart().onChanged, isNull);
+
+    await tester.tap(find.text('Fondu enchaîné'));
+    await tester.pumpAndSettle();
+    expect(smart().onChanged, isNotNull);
+    // Actif par défaut : c'est le passage qu'on veut entendre.
+    expect(fade.smart, isTrue);
+
+    await tester.tap(find.text('Croisement intelligent'));
+    await tester.pumpAndSettle();
+    expect(fade.smart, isFalse);
   });
 
   testWidgets('fondu éteint, les réglages de durée sont hors service',
