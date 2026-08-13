@@ -34,6 +34,12 @@ class ArtistImage
     private const SEARCH_TIMEOUT   = 6;
     private const DOWNLOAD_TIMEOUT = 10;
 
+    /** Poids maximal d'une image acceptée (collée, téléversée ou trouvée). */
+    public const MAX_BYTES = 8388608; // 8 Mo
+
+    /** Côté maximal de l'image rangée dans le cache. */
+    private const MAX_SIDE = 1000;
+
     public static function cacheDir(): string
     {
         return AppConfig::getDataPath() . '/cache/artwork';
@@ -44,42 +50,196 @@ class ArtistImage
         return self::cacheDir() . '/artist_' . $artistId . '.jpg';
     }
 
+    /** Ce que YouTube Music répond pour ce nom d'artiste (nom + vignette). */
+    private static function ytMusicResults(string $name, int $limit = 5): array
+    {
+        $script = AppConfig::getPythonPath() . '/ytmusic_search.py';
+        if (!file_exists($script)) return [];
+        $python = is_executable('/opt/ytdlp/bin/python3') ? '/opt/ytdlp/bin/python3' : 'python3';
+        $cmd = sprintf(
+            'timeout %d %s %s artist %s %d 2>/dev/null',
+            self::YT_TIMEOUT,
+            $python,
+            escapeshellarg($script),
+            escapeshellarg($name),
+            $limit
+        );
+        $out = @shell_exec($cmd);
+        if (!$out) return [];
+        $data = json_decode($out, true);
+        return is_array($data['results'] ?? null) ? $data['results'] : [];
+    }
+
+    /** Ce que Deezer répond pour ce nom d'artiste. */
+    private static function deezerResults(string $name, int $limit = 5): array
+    {
+        $url = 'https://api.deezer.com/search/artist?limit=' . $limit
+             . '&q=' . urlencode($name);
+        $bin = self::curl($url, self::SEARCH_TIMEOUT);
+        if ($bin === null) return [];
+        $data = json_decode($bin, true);
+        return is_array($data['data'] ?? null) ? $data['data'] : [];
+    }
+
     /**
      * Image de l'artiste sur YouTube Music, en 1000 px si YouTube veut bien.
      */
     public static function ytMusicUrl(string $name): ?string
     {
-        $script = AppConfig::getPythonPath() . '/ytmusic_search.py';
-        if (!file_exists($script)) return null;
-        $python = is_executable('/opt/ytdlp/bin/python3') ? '/opt/ytdlp/bin/python3' : 'python3';
-        $cmd = sprintf(
-            'timeout %d %s %s artist %s 2>/dev/null',
-            self::YT_TIMEOUT,
-            $python,
-            escapeshellarg($script),
-            escapeshellarg($name)
-        );
-        $out = @shell_exec($cmd);
-        if (!$out) return null;
-        $data = json_decode($out, true);
-        $best = self::bestMatch($name, $data['results'] ?? [], 'name');
-        $thumb = $best['thumbnail'] ?? '';
-        if (!$thumb) return null;
-        // Les vignettes YouTube reviennent parfois en petit format : on force
-        // la taille dans l'URL.
-        return preg_replace('/=w\d+-h\d+/', '=w1000-h1000', $thumb);
+        $best = self::bestMatch($name, self::ytMusicResults($name), 'name');
+        $thumb = (string)($best['thumbnail'] ?? '');
+        return $thumb === '' ? null : self::ytFullSize($thumb);
     }
 
     /** Image de l'artiste chez Deezer (picture_xl, 1000×1000). */
     public static function deezerUrl(string $name): ?string
     {
-        $url = 'https://api.deezer.com/search/artist?limit=5&q=' . urlencode($name);
-        $bin = self::curl($url, self::SEARCH_TIMEOUT);
-        if ($bin === null) return null;
-        $data = json_decode($bin, true);
-        $best = self::bestMatch($name, $data['data'] ?? [], 'name');
+        $best = self::bestMatch($name, self::deezerResults($name), 'name');
         if (!$best) return null;
         return $best['picture_xl'] ?? $best['picture_big'] ?? null;
+    }
+
+    /**
+     * Les artistes que YouTube Music et Deezer proposent sous ce nom, avec
+     * leur photo (idée #78).
+     *
+     * Contrairement à [fetch], AUCUN filtrage sur le nom : c'est précisément
+     * quand la reconnaissance automatique s'est trompée d'homonyme qu'on vient
+     * choisir à la main, et le nom cherché n'est alors pas celui du dossier.
+     * Chaque proposition porte donc le nom que le service lui donne, à lire
+     * avant de choisir.
+     *
+     * @return array<int, array{name: string, thumbnail: string, source: string}>
+     */
+    public static function candidates(string $name, int $limit = 12): array
+    {
+        $name = trim($name);
+        if ($name === '') return [];
+
+        $out  = [];
+        $seen = [];
+        foreach (['ytmusic', 'deezer'] as $source) {
+            $hits = $source === 'ytmusic'
+                ? self::ytMusicResults($name, 8)
+                : self::deezerResults($name, 8);
+            foreach ($hits as $hit) {
+                $label = trim((string)($hit['name'] ?? ''));
+                $thumb = $source === 'ytmusic'
+                    ? self::ytFullSize((string)($hit['thumbnail'] ?? ''))
+                    : (string)($hit['picture_xl'] ?? $hit['picture_big'] ?? '');
+                if ($label === '' || $thumb === '') continue;
+                if (isset($seen[$thumb])) continue;
+                $seen[$thumb] = true;
+                $out[] = ['name' => $label, 'thumbnail' => $thumb, 'source' => $source];
+                if (count($out) >= $limit) return $out;
+            }
+        }
+        return $out;
+    }
+
+    /**
+     * Les vignettes YouTube reviennent parfois en petit format : on force la
+     * taille dans l'URL.
+     */
+    private static function ytFullSize(string $thumb): string
+    {
+        return $thumb === ''
+            ? ''
+            : (string)preg_replace('/=w\d+-h\d+/', '=w1000-h1000', $thumb);
+    }
+
+    /**
+     * Télécharge une image dont on a l'adresse (lien collé, ou proposition
+     * choisie dans la liste). Renvoie les octets, ou null si l'adresse ne
+     * donne rien d'exploitable.
+     */
+    public static function download(string $url): ?string
+    {
+        $url = trim($url);
+        if (!filter_var($url, FILTER_VALIDATE_URL) || !preg_match('~^https?://~i', $url)) {
+            return null;
+        }
+        $bin = self::curl($url, self::DOWNLOAD_TIMEOUT, self::MAX_BYTES);
+        if ($bin === null || strlen($bin) < 200 || strlen($bin) > self::MAX_BYTES) {
+            return null;
+        }
+        return $bin;
+    }
+
+    /**
+     * Range une image choisie à la main comme photo de l'artiste : elle prend
+     * la place du fichier de cache, que `serve_image.php` sert avant tout le
+     * reste — l'image du dossier comme celle du web passent après.
+     *
+     * L'image est re-encodée en JPEG (le cache s'appelle `.jpg` et est servi
+     * comme tel : y déposer un PNG donnerait un type MIME menteur) et ramenée
+     * à 1000 px de côté au plus. Renvoie false si ce n'était pas une image.
+     */
+    public static function store(int $artistId, string $bin): bool
+    {
+        if (!function_exists('imagecreatefromstring')) return false;
+        $src = @imagecreatefromstring($bin);
+        if (!$src) return false;
+
+        try {
+            $w = imagesx($src);
+            $h = imagesy($src);
+            if ($w < 1 || $h < 1) return false;
+
+            $ratio = min(1, self::MAX_SIDE / max($w, $h));
+            $nw = max(1, (int)round($w * $ratio));
+            $nh = max(1, (int)round($h * $ratio));
+
+            // Fond blanc : un PNG transparent aplati en JPEG virerait au noir.
+            $dst = imagecreatetruecolor($nw, $nh);
+            imagefilledrectangle($dst, 0, 0, $nw, $nh, imagecolorallocate($dst, 255, 255, 255));
+            imagecopyresampled($dst, $src, 0, 0, 0, 0, $nw, $nh, $w, $h);
+            ob_start();
+            imagejpeg($dst, null, 90);
+            $jpeg = ob_get_clean();
+            imagedestroy($dst);
+            if ($jpeg === false || $jpeg === '') return false;
+
+            $file = self::cacheFile($artistId);
+            $dir  = dirname($file);
+            if (!is_dir($dir)) @mkdir($dir, 0775, true);
+            // Écriture en deux temps : une requête qui sert l'image pendant ce
+            // temps-là voit l'ancienne ou la nouvelle, jamais une moitié.
+            $tmp = $file . '.tmp' . getmypid();
+            if (@file_put_contents($tmp, $jpeg) === false) return false;
+            @chmod($tmp, 0644);
+            if (!@rename($tmp, $file)) {
+                @unlink($tmp);
+                return false;
+            }
+            self::dropDerived($artistId);
+            return true;
+        } finally {
+            imagedestroy($src);
+        }
+    }
+
+    /**
+     * Oublie la photo rangée pour cet artiste : la prochaine requête la
+     * cherchera de nouveau (dossier de l'artiste, puis web).
+     */
+    public static function forget(int $artistId): void
+    {
+        @unlink(self::cacheFile($artistId));
+        self::dropDerived($artistId);
+    }
+
+    /**
+     * Efface ce qui découlait de l'ancienne image : les versions carrées
+     * (Android Auto, notification) et le marqueur « personne n'a cet
+     * artiste », qui n'a plus lieu d'être une fois qu'on en a une.
+     */
+    private static function dropDerived(int $artistId): void
+    {
+        @unlink(self::cacheFile($artistId) . '.miss');
+        foreach (glob(self::cacheDir() . '/artist_' . $artistId . '_sq*.jpg') ?: [] as $sq) {
+            @unlink($sq);
+        }
     }
 
     /**
@@ -200,8 +360,11 @@ class ArtistImage
         return preg_replace('/^(the|les|le|la|l) /', '', $s);
     }
 
-    /** GET borné dans le temps. Renvoie le corps, ou null hors 200. */
-    private static function curl(string $url, int $timeout): ?string
+    /**
+     * GET borné dans le temps (et, si demandé, en taille). Renvoie le corps,
+     * ou null hors 200.
+     */
+    private static function curl(string $url, int $timeout, int $maxBytes = 0): ?string
     {
         if (!function_exists('curl_init')) return null;
         $ch = curl_init($url);
@@ -211,7 +374,12 @@ class ArtistImage
             CURLOPT_CONNECTTIMEOUT => 5,
             CURLOPT_FOLLOWLOCATION => true,
             CURLOPT_USERAGENT      => 'Gullify/1.0 (self-hosted music player)',
+            // Une adresse collée à la main peut rebondir n'importe où : la
+            // redirection reste cantonnée au web.
+            CURLOPT_PROTOCOLS       => CURLPROTO_HTTP | CURLPROTO_HTTPS,
+            CURLOPT_REDIR_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS,
         ]);
+        if ($maxBytes > 0) curl_setopt($ch, CURLOPT_MAXFILESIZE, $maxBytes);
         $body = curl_exec($ch);
         $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         curl_close($ch);

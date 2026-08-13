@@ -3,8 +3,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../api/api_client.dart';
 import '../api/library_repository.dart';
 import '../api/yt_downloads_repository.dart';
 import '../state/genre_medley.dart';
@@ -552,7 +554,7 @@ class _SimilarArtists extends ConsumerWidget {
   }
 }
 
-/// Menu d'un artiste : suppression définitive (fichiers + base).
+/// Menu d'un artiste : genre, photo, suppression définitive (fichiers + base).
 void _artistMenu(BuildContext context, WidgetRef ref, ArtistDetail d) {
   showModalBottomSheet<void>(
     context: context,
@@ -575,6 +577,15 @@ void _artistMenu(BuildContext context, WidgetRef ref, ArtistDetail d) {
                 d.artist.genre,
                 artistName: d.artist.name,
               );
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.image_outlined),
+            title: const Text("Changer l'image"),
+            subtitle: const Text('Proposition, lien ou photo du téléphone'),
+            onTap: () {
+              Navigator.pop(sheetContext);
+              _artistImageDialog(context, d.artist.id, d.artist.name);
             },
           ),
           const Divider(height: 1),
@@ -1101,6 +1112,330 @@ class _MedleyButton extends ConsumerWidget {
             ),
           ),
       ],
+    );
+  }
+}
+
+/// Dialogue « Changer l'image » (idée #78), et ce qu'il faut faire après :
+/// la fiche et la bibliothèque reprennent l'URL neuve — elle porte la date de
+/// la photo, sans quoi le cache d'images de l'app continuerait d'afficher
+/// l'ancienne et le changement n'aurait l'air de rien.
+Future<void> _artistImageDialog(
+  BuildContext context,
+  int artistId,
+  String artistName,
+) async {
+  final messenger = ScaffoldMessenger.of(context);
+  final container = ProviderScope.containerOf(context, listen: false);
+
+  final done = await showDialog<String>(
+    context: context,
+    builder: (_) => _ArtistImageDialog(artistId: artistId, name: artistName),
+  );
+  if (done == null) return; // Refermé sans rien changer.
+
+  container.invalidate(artistDetailProvider(artistId));
+  container.invalidate(artistsProvider);
+  messenger.showSnackBar(SnackBar(content: Text(done)));
+}
+
+/// Choisir la photo d'un artiste : une proposition de YouTube Music ou de
+/// Deezer, un lien collé, ou une image du téléphone.
+///
+/// Les propositions portent le nom que le service leur donne, et le nom
+/// cherché se change : la reconnaissance automatique tombe parfois sur un
+/// homonyme, et c'est le seul moyen de lui dire de quel artiste il s'agit.
+class _ArtistImageDialog extends ConsumerStatefulWidget {
+  const _ArtistImageDialog({required this.artistId, required this.name});
+
+  final int artistId;
+  final String name;
+
+  @override
+  ConsumerState<_ArtistImageDialog> createState() => _ArtistImageDialogState();
+}
+
+class _ArtistImageDialogState extends ConsumerState<_ArtistImageDialog> {
+  late final _searchCtrl = TextEditingController(text: widget.name);
+  final _linkCtrl = TextEditingController();
+
+  /// La recherche en cours. Elle part à l'ouverture : arriver sur une liste
+  /// vide à remplir soi-même serait un tap de trop pour le cas courant.
+  late Future<List<ArtistImageCandidate>> _candidates = _search(widget.name);
+
+  bool _busy = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    _linkCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<List<ArtistImageCandidate>> _search(String query) => ref
+      .read(libraryRepositoryProvider)
+      .artistImageCandidates(widget.artistId, query: query);
+
+  void _runSearch() {
+    final q = _searchCtrl.text.trim();
+    if (q.isEmpty) return;
+    setState(() {
+      _error = null;
+      _candidates = _search(q);
+    });
+  }
+
+  /// Enregistre, puis referme en disant ce qui a été fait. Un échec reste
+  /// dans le dialogue : la photo n'a pas changé, autant pouvoir réessayer
+  /// sans tout rouvrir.
+  Future<void> _apply(Future<void> Function() work, String done) async {
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      await work();
+      if (mounted) Navigator.pop(context, done);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _busy = false;
+        _error = e is ApiException ? e.message : '$e';
+      });
+    }
+  }
+
+  void _useUrl(String url) => _apply(
+        () => ref
+            .read(libraryRepositoryProvider)
+            .setArtistImageFromUrl(widget.artistId, url),
+        'Image mise à jour',
+      );
+
+  Future<void> _pickFile() async {
+    final picked = await ImagePicker().pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 1000,
+      maxHeight: 1000,
+    );
+    if (picked == null || !mounted) return;
+    await _apply(
+      () => ref
+          .read(libraryRepositoryProvider)
+          .uploadArtistImage(widget.artistId, picked.path),
+      'Image mise à jour',
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+
+    return AlertDialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+      titlePadding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
+      contentPadding: const EdgeInsets.fromLTRB(20, 10, 20, 0),
+      title: Text(
+        'Image de « ${widget.name} »',
+        style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+      ),
+      content: SizedBox(
+        width: 380,
+        child: _busy
+            ? const Padding(
+                padding: EdgeInsets.symmetric(vertical: 28),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CircularProgressIndicator(),
+                    SizedBox(height: 12),
+                    Text('Envoi de l\'image…'),
+                  ],
+                ),
+              )
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Le nom cherché se change : quand la photo trouvée est
+                  // celle d'un homonyme, c'est ici qu'on rattrape le tir.
+                  TextField(
+                    controller: _searchCtrl,
+                    style: const TextStyle(fontSize: 14),
+                    textInputAction: TextInputAction.search,
+                    onSubmitted: (_) => _runSearch(),
+                    decoration: InputDecoration(
+                      isDense: true,
+                      labelText: 'Chercher un artiste',
+                      suffixIcon: IconButton(
+                        icon: const Icon(Icons.search),
+                        tooltip: 'Chercher',
+                        onPressed: _runSearch,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Flexible(
+                    child: SingleChildScrollView(
+                      child: FutureBuilder<List<ArtistImageCandidate>>(
+                        future: _candidates,
+                        builder: (context, snap) {
+                          if (snap.connectionState != ConnectionState.done) {
+                            return const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 20),
+                              child: Center(
+                                child: Column(
+                                  children: [
+                                    CircularProgressIndicator(),
+                                    SizedBox(height: 10),
+                                    Text(
+                                      'YouTube Music et Deezer…',
+                                      style: TextStyle(fontSize: 12),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          }
+                          final list = snap.data ?? const [];
+                          if (list.isEmpty) {
+                            return Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              child: Text(
+                                snap.hasError
+                                    ? 'Recherche impossible pour le moment.'
+                                    : 'Aucune photo trouvée sous ce nom.',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: scheme.onSurfaceVariant,
+                                ),
+                              ),
+                            );
+                          }
+                          return Wrap(
+                            spacing: 10,
+                            runSpacing: 10,
+                            children: [
+                              for (final c in list)
+                                _CandidateTile(
+                                  candidate: c,
+                                  onTap: () => _useUrl(c.thumbnail),
+                                ),
+                            ],
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                  const Divider(height: 20),
+                  // Ce que ni YouTube ni Deezer n'ont : un lien trouvé
+                  // ailleurs, ou une photo prise soi-même.
+                  TextField(
+                    controller: _linkCtrl,
+                    style: const TextStyle(fontSize: 14),
+                    keyboardType: TextInputType.url,
+                    textInputAction: TextInputAction.done,
+                    onSubmitted: (v) {
+                      if (v.trim().isNotEmpty) _useUrl(v.trim());
+                    },
+                    decoration: InputDecoration(
+                      isDense: true,
+                      labelText: 'Coller un lien',
+                      hintText: 'https://…',
+                      suffixIcon: IconButton(
+                        icon: const Icon(Icons.check),
+                        tooltip: 'Utiliser ce lien',
+                        onPressed: () {
+                          final url = _linkCtrl.text.trim();
+                          if (url.isNotEmpty) _useUrl(url);
+                        },
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  OutlinedButton.icon(
+                    onPressed: _pickFile,
+                    icon: const Icon(Icons.photo_library_outlined),
+                    label: const Text('Choisir une image'),
+                  ),
+                  if (_error != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 10),
+                      child: Text(
+                        _error!,
+                        style: TextStyle(fontSize: 13, color: scheme.error),
+                      ),
+                    ),
+                ],
+              ),
+      ),
+      actionsPadding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+      actions: [
+        // Défaire son choix : l'image du dossier de l'artiste, ou celle du
+        // web, reprend la main.
+        TextButton(
+          style: _compactAction,
+          onPressed: _busy
+              ? null
+              : () => _apply(
+                    () => ref
+                        .read(libraryRepositoryProvider)
+                        .resetArtistImage(widget.artistId),
+                    'Image automatique rétablie',
+                  ),
+          child: const Text('Image automatique'),
+        ),
+        TextButton(
+          style: _compactAction,
+          onPressed: _busy ? null : () => Navigator.pop(context),
+          child: const Text('Fermer'),
+        ),
+      ],
+    );
+  }
+}
+
+/// Une photo proposée : la vignette, et le nom que le service lui donne —
+/// c'est ce nom qui trahit l'homonyme.
+class _CandidateTile extends StatelessWidget {
+  const _CandidateTile({required this.candidate, required this.onTap});
+
+  final ArtistImageCandidate candidate;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+
+    return SizedBox(
+      width: 104,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Column(
+          children: [
+            Artwork(
+              url: candidate.thumbnail,
+              size: 96,
+              borderRadius: 48,
+              icon: Icons.person,
+            ),
+            const SizedBox(height: 6),
+            Text(
+              candidate.name,
+              maxLines: 2,
+              textAlign: TextAlign.center,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+            ),
+            Text(
+              candidate.source == 'deezer' ? 'Deezer' : 'YouTube Music',
+              style: TextStyle(fontSize: 10.5, color: scheme.onSurfaceVariant),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

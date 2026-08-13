@@ -181,4 +181,33 @@ class ApiClient {
   /// Supprime la photo de profil de l'utilisateur courant.
   Future<void> removeAvatar() =>
       post('profile.php', query: {'action': 'remove_avatar'});
+
+  /// Envoie une image du téléphone comme photo d'un artiste (idée #78).
+  /// Renvoie ce que le serveur répond (`artist_id`, `imageUrl`, `version`).
+  Future<Map<String, dynamic>> uploadArtistImage(
+    int artistId,
+    String filePath,
+  ) async {
+    final ext = filePath.split('.').last.toLowerCase();
+    final subtype = ext == 'png'
+        ? 'png'
+        : ext == 'webp'
+            ? 'webp'
+            : 'jpeg';
+    final form = FormData();
+    form.fields.add(MapEntry('artist_id', '$artistId'));
+    form.files.add(MapEntry(
+      'image',
+      await MultipartFile.fromFile(
+        filePath,
+        contentType: DioMediaType('image', subtype),
+      ),
+    ));
+    final data = await post(
+      'library.php',
+      body: form,
+      query: {'action': 'set_artist_image'},
+    );
+    return data is Map<String, dynamic> ? data : <String, dynamic>{};
+  }
 }

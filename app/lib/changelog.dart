@@ -8,6 +8,21 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.8.0', [
+    'La photo d\'un artiste se change à la main : page de l\'artiste → les '
+        'trois points en haut à droite → « Changer l\'image », au même endroit '
+        'que le genre',
+    'Le dialogue montre d\'abord ce que YouTube Music et Deezer ont sous ce '
+        'nom : une tape sur la bonne photo, c\'est réglé',
+    'Chaque proposition porte le nom que le service lui donne — c\'est là '
+        'qu\'on voit que c\'est l\'homonyme qui avait été trouvé. Le nom '
+        'cherché se change alors dans le champ du haut, pour tomber sur le bon '
+        'artiste',
+    'Sinon : coller un lien vers n\'importe quelle image du web, ou choisir '
+        'une photo du téléphone',
+    '« Image automatique » défait le choix : l\'image du dossier de l\'artiste, '
+        'ou celle trouvée sur le web, reprend la main',
+  ]),
   ReleaseNote('3.7.0', [
     'Les jeux ressemblent enfin à des jeux : un vinyle tourne pendant '
         'l\'extrait, le chrono fait le tour du disque et rougit sur la fin, et '

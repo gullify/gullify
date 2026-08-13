@@ -42,6 +42,23 @@ class NewsArticle {
   final String date;
 }
 
+/// Une photo que YouTube Music ou Deezer propose pour un nom d'artiste
+/// (idée #78). Le [name] est celui du service, pas celui de la bibliothèque :
+/// c'est à lui qu'on voit qu'on tient l'homonyme plutôt que le bon artiste.
+class ArtistImageCandidate {
+  const ArtistImageCandidate({
+    required this.name,
+    required this.thumbnail,
+    required this.source,
+  });
+
+  final String name;
+  final String thumbnail;
+
+  /// `ytmusic` ou `deezer`.
+  final String source;
+}
+
 /// Bio et actualités d'un artiste (sources externes, meilleur effort).
 class ArtistExtras {
   const ArtistExtras({
@@ -134,13 +151,26 @@ class LibraryRepository {
     return _client.resourceUrl(url);
   }
 
+  /// Les artistes dont la photo a changé depuis le lancement (idée #78), et
+  /// quand. La date entre dans l'URL : sans elle, le cache d'images de l'app
+  /// (comme celui d'Android) continuerait de servir l'ancienne photo, et
+  /// changer d'image n'aurait l'air de rien.
+  final Map<int, int> _imageVersion = {};
+
+  /// Le suffixe d'URL qui distingue la photo courante de la précédente.
+  String _imageV(int artistId) {
+    final v = _imageVersion[artistId];
+    return v == null ? '' : '&v=$v';
+  }
+
   Artist _artist(Map<String, dynamic> j) {
     // Le serveur omet imageUrl quand l'image n'est pas en DB, mais
     // serve_image.php sait aussi la trouver dans le dossier de l'artiste.
     // fallback=404 : pas d'image nulle part → l'app garde son icône.
+    final id = (j['id'] as num?)?.toInt() ?? 0;
     final url = j['imageUrl'] as String? ??
-        'serve_image.php?artist_id=${j['id']}&fallback=404';
-    return Artist.fromJson(j).copyWith(imageUrl: _abs(url));
+        'serve_image.php?artist_id=$id&fallback=404';
+    return Artist.fromJson(j).copyWith(imageUrl: _abs('$url${_imageV(id)}'));
   }
 
   /// L'image de l'en-tête d'un artiste (idée #67). `fetch=1` autorise le
@@ -149,7 +179,7 @@ class LibraryRepository {
   /// n'a rien, et restait sur le logo Gullify. Réservé à la page d'un artiste :
   /// une liste en déclencherait des centaines.
   String artistImageUrl(int id) => _client.resourceUrl(
-        'serve_image.php?artist_id=$id&fetch=1&fallback=404',
+        'serve_image.php?artist_id=$id&fetch=1&fallback=404${_imageV(id)}',
       );
 
   Album _album(Map<String, dynamic> j) =>
@@ -476,6 +506,70 @@ class LibraryRepository {
         query: {'action': 'delete_artist'},
         form: {'artist_id': artistId},
       );
+
+  // ─────────────── Photo d'un artiste (idée #78) ───────────────
+
+  /// Les photos que YouTube Music et Deezer proposent pour cet artiste — sous
+  /// son nom, ou sous [query] quand c'est un homonyme qui a été trouvé.
+  Future<List<ArtistImageCandidate>> artistImageCandidates(
+    int artistId, {
+    String? query,
+  }) async {
+    final data = await _client.get('library.php', query: {
+      'action': 'artist_image_candidates',
+      'artist_id': artistId,
+      'q': ?query,
+    }) as Map<String, dynamic>;
+    return [
+      for (final c in data['candidates'] as List<dynamic>? ?? [])
+        if (c is Map<String, dynamic>)
+          ArtistImageCandidate(
+            name: c['name'] as String? ?? '',
+            thumbnail: c['thumbnail'] as String? ?? '',
+            source: c['source'] as String? ?? '',
+          ),
+    ];
+  }
+
+  /// Donne à l'artiste la photo qui se trouve à cette adresse (lien collé, ou
+  /// proposition choisie dans la liste).
+  Future<void> setArtistImageFromUrl(int artistId, String url) async {
+    final data = await _client.post(
+      'library.php',
+      query: {'action': 'set_artist_image'},
+      form: {'artist_id': artistId, 'url': url},
+    );
+    _noteImageChange(artistId, data);
+  }
+
+  /// Envoie une image du téléphone comme photo de l'artiste.
+  Future<void> uploadArtistImage(int artistId, String filePath) async {
+    _noteImageChange(
+      artistId,
+      await _client.uploadArtistImage(artistId, filePath),
+    );
+  }
+
+  /// Défait le choix manuel : l'image du dossier de l'artiste, ou celle du
+  /// web, reprend la main.
+  Future<void> resetArtistImage(int artistId) async {
+    final data = await _client.post(
+      'library.php',
+      query: {'action': 'reset_artist_image'},
+      form: {'artist_id': artistId},
+    );
+    _noteImageChange(artistId, data);
+  }
+
+  /// Retient que la photo a changé, pour que les URL construites ensuite ne
+  /// ressemblent pas à celles d'avant. La date vient du serveur quand il la
+  /// donne (elle vaut 0 après une remise à zéro) ; sinon celle du téléphone,
+  /// qui suffit à distinguer l'avant de l'après.
+  void _noteImageChange(int artistId, dynamic data) {
+    final v = data is Map ? (data['version'] as num?)?.toInt() ?? 0 : 0;
+    _imageVersion[artistId] =
+        v > 0 ? v : DateTime.now().millisecondsSinceEpoch ~/ 1000;
+  }
 
   // ─────────────── Genres ───────────────
 

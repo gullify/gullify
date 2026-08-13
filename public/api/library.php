@@ -36,6 +36,34 @@ function albumArtworkUrl(int $albumId): string {
 }
 
 /**
+ * L'artiste, à condition qu'il appartienne bien à cet utilisateur — sinon
+ * null, et l'appelant répond « Artist not found or access denied ».
+ *
+ * @return array{id: int, name: string}|null
+ */
+function artistOfUser(PDO $conn, int $artistId, string $user): ?array {
+    if (!$artistId) return null;
+    $stmt = $conn->prepare('SELECT id, name FROM artists WHERE id = ? AND user = ?');
+    $stmt->execute([$artistId, $user]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    return $row ?: null;
+}
+
+/**
+ * Ce que rend un changement de photo d'artiste : l'adresse de l'image, avec la
+ * date du fichier en `v=` pour que le cache du client ne serve pas l'ancienne.
+ */
+function artistImagePayload(int $artistId): array {
+    clearstatcache();
+    $v = @filemtime(ArtistImage::cacheFile($artistId)) ?: 0;
+    return [
+        'artist_id' => $artistId,
+        'imageUrl'  => 'serve_image.php?artist_id=' . $artistId . ($v ? '&v=' . $v : ''),
+        'version'   => $v,
+    ];
+}
+
+/**
  * La table des genres ajoutés à la main. La liste principale
  * (GenreTaxonomy::ALL) est fermée et la même pour tout le monde ; ce qu'on y
  * ajoute appartient à l'utilisateur, comme le reste de son rangement.
@@ -1407,6 +1435,88 @@ try {
                      ->execute([$g, $artistId]);
                 $response['data'] = ['artist_id' => $artistId, 'genre' => $g];
             }
+        }
+
+    } elseif ($action === 'artist_image_candidates') {
+        // Les photos que YouTube Music et Deezer proposent pour cet artiste
+        // (idée #78). La reconnaissance automatique n'accepte que le nom exact
+        // et se tait au moindre doute ; ici on montre tout, avec le nom que
+        // chaque service donne, pour choisir soi-même — et `q` permet de
+        // chercher sous un autre nom quand c'est l'homonyme qui a été trouvé.
+        require_once __DIR__ . '/../../src/ArtistImage.php';
+        $artistId = (int)($_GET['artist_id'] ?? $_POST['artist_id'] ?? 0);
+        $query    = trim((string)($_GET['q'] ?? $_POST['q'] ?? ''));
+        $artist   = artistOfUser($conn, $artistId, $user);
+        if (!$artist) {
+            $response['error']   = true;
+            $response['message'] = 'Artist not found or access denied';
+        } else {
+            $name = $query !== '' ? $query : (string)$artist['name'];
+            $response['data'] = [
+                'query'      => $name,
+                'candidates' => ArtistImage::candidates($name),
+            ];
+        }
+
+    } elseif ($action === 'set_artist_image') {
+        // Change la photo d'un artiste (idée #78) : soit une adresse (lien
+        // collé, ou proposition choisie dans la liste), soit une image
+        // téléversée depuis le téléphone. Elle est rangée dans le cache, que
+        // `serve_image.php` sert avant le dossier et avant le web : le choix
+        // fait à la main tient donc jusqu'à ce qu'on le défasse.
+        require_once __DIR__ . '/../../src/ArtistImage.php';
+        $artistId = (int)($_POST['artist_id'] ?? $_GET['artist_id'] ?? 0);
+        $url      = trim((string)($_POST['url'] ?? $_GET['url'] ?? ''));
+        $artist   = artistOfUser($conn, $artistId, $user);
+        $upload   = $_FILES['image'] ?? null;
+
+        if (!$artist) {
+            $response['error']   = true;
+            $response['message'] = 'Artist not found or access denied';
+        } elseif ($upload && ($upload['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
+            if ($upload['error'] !== UPLOAD_ERR_OK) {
+                $response['error']   = true;
+                $response['message'] = "L'image n'est pas arrivée entière.";
+            } elseif (($upload['size'] ?? 0) > ArtistImage::MAX_BYTES) {
+                $response['error']   = true;
+                $response['message'] = 'Image trop volumineuse (8 Mo au plus).';
+            } else {
+                $bin = @file_get_contents($upload['tmp_name']);
+                if ($bin === false || !ArtistImage::store($artistId, $bin)) {
+                    $response['error']   = true;
+                    $response['message'] = "Image illisible (JPEG ou PNG attendu).";
+                } else {
+                    $response['data'] = artistImagePayload($artistId);
+                }
+            }
+        } elseif ($url !== '') {
+            $bin = ArtistImage::download($url);
+            if ($bin === null) {
+                $response['error']   = true;
+                $response['message'] = "Rien à télécharger à cette adresse.";
+            } elseif (!ArtistImage::store($artistId, $bin)) {
+                $response['error']   = true;
+                $response['message'] = "Cette adresse ne donne pas une image (JPEG ou PNG attendu).";
+            } else {
+                $response['data'] = artistImagePayload($artistId);
+            }
+        } else {
+            $response['error']   = true;
+            $response['message'] = 'Aucune image reçue.';
+        }
+
+    } elseif ($action === 'reset_artist_image') {
+        // Défait le choix manuel : l'image du dossier de l'artiste, ou celle
+        // du web, reprend la main à la prochaine requête (idée #78).
+        require_once __DIR__ . '/../../src/ArtistImage.php';
+        $artistId = (int)($_POST['artist_id'] ?? $_GET['artist_id'] ?? 0);
+        $artist   = artistOfUser($conn, $artistId, $user);
+        if (!$artist) {
+            $response['error']   = true;
+            $response['message'] = 'Artist not found or access denied';
+        } else {
+            ArtistImage::forget($artistId);
+            $response['data'] = artistImagePayload($artistId);
         }
 
     } elseif ($action === 'get_favorites') {
