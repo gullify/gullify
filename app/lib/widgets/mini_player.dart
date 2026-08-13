@@ -130,42 +130,74 @@ class MiniPlayer extends ConsumerWidget {
                                 icon: Icons.music_note,
                               ),
                               const SizedBox(width: 12),
+                              // Rétro Winamp (idée #85) : titre et artiste
+                              // passent DERRIÈRE une vitre — le creux noir
+                              // verdâtre et le phosphore, comme la ligne
+                              // défilante du lecteur d'origine.
                               Expanded(
-                                child: Column(
-                                  // min obligatoire : en bottomNavigationBar
-                                  // (contrainte bornée), max étendait la
-                                  // Column — et le mini-lecteur — à tout
-                                  // l'écran (bug « lecteur plein écran »).
-                                  mainAxisSize: MainAxisSize.min,
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      item.title,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      // Rétro Winamp (idée #82) : le titre
-                                      // passe en chasse fixe verte, comme sur
-                                      // l'afficheur du lecteur complet.
-                                      style: retro
-                                          ? lcdTextStyle(size: 13.5)
-                                          : const TextStyle(
+                                child: retro
+                                    ? RetroLcdPanel(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                          vertical: 4,
+                                        ),
+                                        child: Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              item.title,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: lcdTextStyle(size: 17),
+                                            ),
+                                            if (item.artist != null)
+                                              Text(
+                                                item.artist!,
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: lcdTextStyle(
+                                                  size: 14,
+                                                  color: winampGreenDim,
+                                                ),
+                                              ),
+                                          ],
+                                        ),
+                                      )
+                                    : Column(
+                                        // min obligatoire : en
+                                        // bottomNavigationBar (contrainte
+                                        // bornée), max étendait la Column —
+                                        // et le mini-lecteur — à tout l'écran
+                                        // (bug « lecteur plein écran »).
+                                        mainAxisSize: MainAxisSize.min,
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            item.title,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(
                                               fontWeight: FontWeight.w700,
                                               fontSize: 14.5,
                                             ),
-                                    ),
-                                    if (item.artist != null)
-                                      Text(
-                                        item.artist!,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: TextStyle(
-                                          fontSize: 12.5,
-                                          color: scheme.onSurfaceVariant,
-                                        ),
+                                          ),
+                                          if (item.artist != null)
+                                            Text(
+                                              item.artist!,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: TextStyle(
+                                                fontSize: 12.5,
+                                                color: scheme.onSurfaceVariant,
+                                              ),
+                                            ),
+                                        ],
                                       ),
-                                  ],
-                                ),
                               ),
                             ],
                           ),

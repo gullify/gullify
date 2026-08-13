@@ -12,23 +12,6 @@ import 'retro_chrome.dart';
 bool isRetroSkin(BuildContext context) =>
     Theme.of(context).extension<GullifySurfaces>()?.retro ?? false;
 
-/// Le lettrage de l'afficheur : chasse fixe, vert sur noir. `monospace` est
-/// la famille générique d'Android — aucune police à embarquer pour retrouver
-/// le grain des lecteurs de 1999.
-TextStyle lcdTextStyle({
-  double size = 13,
-  FontWeight weight = FontWeight.w700,
-  Color color = winampGreen,
-}) => TextStyle(
-  fontFamily: 'monospace',
-  fontFamilyFallback: const ['Roboto Mono', 'Courier'],
-  fontSize: size,
-  fontWeight: weight,
-  letterSpacing: 0.5,
-  color: color,
-  height: 1.2,
-);
-
 /// L'afficheur du lecteur, façon Winamp : le temps en chiffres à segments,
 /// l'analyseur de spectre à sa gauche, les voyants à droite et le titre qui
 /// défile en dessous.
@@ -101,7 +84,7 @@ class RetroLcd extends ConsumerWidget {
             ],
           ),
           const SizedBox(height: 6),
-          _Marquee(text: line.toString(), style: lcdTextStyle(size: 12.5)),
+          _Marquee(text: line.toString(), style: lcdTextStyle(size: 16)),
         ],
       ),
     );
@@ -285,16 +268,16 @@ class _LcdBox extends StatelessWidget {
   @override
   Widget build(BuildContext context) => RetroBevel(
     sunken: true,
-    fill: const Color(0xFF0D1010),
+    fill: const Color(0xFF04120A),
     padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
     // Largeur plancher : les deux cases restent alignées, que le mot dedans
     // fasse « MP3 » ou « FLAC ».
     child: ConstrainedBox(
-      constraints: const BoxConstraints(minWidth: 26),
+      constraints: const BoxConstraints(minWidth: 30),
       child: Text(
         text,
         textAlign: TextAlign.center,
-        style: lcdTextStyle(size: 8.5, weight: FontWeight.w600),
+        style: lcdTextStyle(size: 12),
       ),
     ),
   );
@@ -311,9 +294,10 @@ class _Indicator extends StatelessWidget {
   Widget build(BuildContext context) => Text(
     label,
     style: lcdTextStyle(
-      size: 8,
-      weight: FontWeight.w700,
-      color: lit ? winampGreen : winampGreen.withValues(alpha: 0.22),
+      size: 11,
+      // Éteint, le voyant reste gravé : c'est le vert mort du design
+      // (idée #85), pas du vert vif rendu transparent.
+      color: lit ? winampGreen : winampGreenDim,
     ).copyWith(letterSpacing: 1),
   );
 }

@@ -42,11 +42,9 @@ enum GullifyAccent {
 /// surfaces biseautées, un fond métal et un afficheur vert.
 enum GullifySkin { glass, winamp }
 
-/// Le vert de l'afficheur Winamp, et le noir sur lequel il vit. Un vert
-/// franc, presque pur (idée #83) : l'émeraude de départ était une jolie
-/// couleur d'app, pas la lueur d'un tube de 1999.
-const winampGreen = Color(0xFF00F000);
-const winampLcd = Color(0xFF06070A);
+/// Le vert de l'afficheur et le noir sur lequel il vit sont désormais rangés
+/// avec le reste de la palette du châssis (retro_chrome.dart) : le design de
+/// l'idée #85 les donne comme des jetons, à côté du chrome et de l'ambre.
 
 /// Réglages de rendu propres à la structure de verre, lus par les widgets
 /// (mini-lecteur, barre de navigation, en-têtes) pour l'effet.
@@ -248,11 +246,14 @@ ThemeData _winamp() {
     primary: winampGreen,
     // Le vert de l'afficheur est trop lumineux pour porter du texte blanc :
     // sur les boutons pleins, l'encre est noire, comme sur un vrai LCD.
-    onPrimary: const Color(0xFF06180C),
-    secondary: winampInk,
-    surface: const Color(0xFF34373D),
-    onSurface: const Color(0xFFDDE1E6),
-    onSurfaceVariant: const Color(0xFF9AA0AA),
+    onPrimary: const Color(0xFF05170A),
+    // L'ambre du design (idée #85) : la seconde voix du châssis, celle des
+    // actions qui ne sont pas la lecture.
+    secondary: winampAmber,
+    onSecondary: const Color(0xFF14141A),
+    surface: const Color(0xFF2A2A33),
+    onSurface: const Color(0xFFE6E6EF),
+    onSurfaceVariant: const Color(0xFF9A9AAC),
     outline: winampBevelLight,
     outlineVariant: winampBevelShade,
     surfaceContainerHighest: winampChassis,
@@ -267,17 +268,64 @@ ThemeData _winamp() {
       bevelLight: winampBevelLight,
       bevelDark: winampBevelDark,
       // Pas de halo d'accent : un châssis de 1999 ne brille pas.
-      // Un gris neutre, plus sombre que les plaques : sans cet écart, les
-      // biseaux ne se détachent pas du fond (idée #83).
+      // Un gris à peine violacé, plus sombre que les plaques : sans cet
+      // écart, les biseaux ne se détachent pas du fond (idée #83). Les
+      // teintes viennent du design de l'idée #85.
       background: LinearGradient(
         begin: Alignment.topCenter,
         end: Alignment.bottomCenter,
-        colors: [Color(0xFF2C2E33), Color(0xFF25272B), Color(0xFF1D1F23)],
+        colors: [Color(0xFF1E1E25), Color(0xFF191920), Color(0xFF15151B)],
       ),
     ),
     corner: 0,
     cardCorner: 0,
-  ).copyWith(sliderTheme: retroSliderTheme);
+  ).copyWith(
+    sliderTheme: retroSliderTheme,
+    // Tout champ de saisie devient une vitre : creux, fond noir verdâtre,
+    // lettrage VT323 en phosphore (idée #85). C'est ce qui transforme la
+    // recherche et les filtres en « afficheurs » sans toucher aux écrans.
+    inputDecorationTheme: InputDecorationTheme(
+      filled: true,
+      fillColor: winampLcd,
+      hintStyle: lcdTextStyle(size: 17, color: winampGreenDim),
+      labelStyle: lcdTextStyle(size: 17, color: winampGreenDim),
+      prefixIconColor: winampGreenDim,
+      suffixIconColor: winampGreenDim,
+      border: const OutlineInputBorder(
+        borderRadius: BorderRadius.zero,
+        borderSide: BorderSide(color: winampBevelDark),
+      ),
+      enabledBorder: const OutlineInputBorder(
+        borderRadius: BorderRadius.zero,
+        borderSide: BorderSide(color: winampBevelDark),
+      ),
+      focusedBorder: const OutlineInputBorder(
+        borderRadius: BorderRadius.zero,
+        borderSide: BorderSide(color: winampGreenDim, width: 1.5),
+      ),
+    ),
+    textSelectionTheme: const TextSelectionThemeData(
+      cursorColor: winampGreen,
+      selectionColor: Color(0x5522E04A),
+      selectionHandleColor: winampGreen,
+    ),
+    // Les filtres (genres, années, onglets de bibliothèque) deviennent les
+    // petits onglets de chrome du design : carrés, gravés, allumés en vert
+    // quand ils sont choisis.
+    chipTheme: ChipThemeData(
+      backgroundColor: winampPanel,
+      selectedColor: const Color(0xFF1A1F1C),
+      side: const BorderSide(color: winampBevelShade),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.zero,
+        side: BorderSide(color: winampBevelDark),
+      ),
+      labelStyle: retroLabelStyle(size: 8.5),
+      secondaryLabelStyle: retroLabelStyle(size: 8.5, color: winampGreen),
+      checkmarkColor: winampGreen,
+      showCheckmark: false,
+    ),
+  );
 }
 
 ThemeData gullifyThemeFor(GullifyAccent accent, {required bool dark}) =>

@@ -1,8 +1,16 @@
 import 'package:flutter/material.dart';
 
+import 'retro_chrome.dart';
+import 'retro_lcd.dart';
+
 /// Petits composants du langage « Liquid Glass Player » :
 /// boutons ronds de verre, pilule Lecture accent, titres de section,
 /// barres d'égaliseur animées pour la piste en cours.
+///
+/// Sous le rétro Winamp, les deux premiers changent de peau (idée #85) : le
+/// rond de verre devient une plaque de chrome carrée, le titre de section un
+/// libellé bitmap gravé. Même place, même rôle — c'est là que le skin se
+/// gagne, dans les composants partagés, pas écran par écran.
 
 /// Bouton rond de verre (retour, actions secondaires) — 44 px.
 class GlassIconButton extends StatelessWidget {
@@ -21,6 +29,18 @@ class GlassIconButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Rétro Winamp : une plaque de chrome carrée, comme les cases STAT /
+    // NOTIF / MOI du design (idée #85). Un rond de verre au-dessus d'un
+    // châssis se voit à dix mètres.
+    if (isRetroSkin(context)) {
+      return RetroButton(
+        width: size,
+        height: size * 0.82,
+        tooltip: tooltip,
+        onPressed: onPressed,
+        child: Icon(icon, size: size * 0.44, color: winampInk),
+      );
+    }
     final light = Theme.of(context).brightness == Brightness.light;
     // Pas de BackdropFilter ici : sur un petit bouton le flou est invisible,
     // et multiplier les filtres cause des artefacts GPU sur certains
@@ -107,11 +127,17 @@ class SectionTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Rétro Winamp : le titre de section est GRAVÉ dans la tôle — bitmap,
+    // capitales, très espacé (idée #85). C'est le lettrage qui date l'objet,
+    // pas la couleur.
+    final retro = isRetroSkin(context);
     return Padding(
       padding: padding ?? const EdgeInsets.fromLTRB(20, 16, 20, 2),
       child: Text(
-        text,
-        style: const TextStyle(fontSize: 16.5, fontWeight: FontWeight.w700),
+        retro ? text.toUpperCase() : text,
+        style: retro
+            ? retroLabelStyle(size: 11, color: const Color(0xFFE6E6EF))
+            : const TextStyle(fontSize: 16.5, fontWeight: FontWeight.w700),
       ),
     );
   }

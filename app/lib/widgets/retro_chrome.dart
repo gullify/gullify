@@ -11,23 +11,99 @@ import 'package:flutter/material.dart';
 /// trait on ne dessine qu'un cadre, et un cadre, ce n'est qu'un carré. Le gris
 /// n'est jamais un aplat non plus : la tôle a son grain de rayures.
 ///
+/// Idée #85 : Maxime a dessiné le skin plutôt que de le décrire — « chrome &
+/// LCD ». Les teintes ci-dessous sont SES jetons, repris tels quels ; le
+/// chrome n'est plus un aplat mais un dégradé, et le lettrage devient bitmap
+/// (Silkscreen gravé dans le châssis, VT323 derrière les vitres).
+///
 /// Ce fichier ne connaît pas le thème : il ne peint que du châssis, avec ses
 /// propres teintes. C'est theme.dart qui vient y chercher sa palette (sens
 /// unique : rien ici n'importe theme.dart).
 
-/// Le gris du châssis et les quatre teintes de ses arêtes.
-const winampChassis = Color(0xFF3F4249);
-const winampBevelLight = Color(0xFF8E939E);
-const winampBevelHighlight = Color(0xFFC3C8D2);
-const winampBevelDark = Color(0xFF121419);
-const winampBevelShade = Color(0xFF2B2E34);
+/// Le chrome du châssis : un dégradé haut-clair / bas-sombre, jamais un
+/// aplat — c'est lui qui donne la tôle emboutie (jetons de l'idée #85).
+const winampChromeTop = Color(0xFF4B4B5A);
+const winampChromeBottom = Color(0xFF2C2C36);
+
+/// La teinte moyenne du chrome, pour tout ce qui ne peut pas porter de
+/// dégradé (curseurs peints, plaques minuscules).
+const winampChassis = Color(0xFF3C3C48);
+
+/// Les quatre teintes des arêtes : le trait de lumière et le trait d'ombre,
+/// puis leurs seconds traits (c'est la paire qui fait le relief, idée #83).
+const winampBevelLight = Color(0xFF757589);
+const winampBevelHighlight = Color(0xFFA0A0B6);
+const winampBevelDark = Color(0xFF14141A);
+const winampBevelShade = Color(0xFF26262F);
 
 /// L'encre claire des glyphes et des étiquettes gravées dans le châssis.
-const winampInk = Color(0xFFD7DBE3);
+const winampInk = Color(0xFFC9C9D8);
 
-/// Le bleu nuit de la barre de titre.
-const winampTitleTop = Color(0xFF4A568E);
-const winampTitleBottom = Color(0xFF1B2039);
+/// L'ambre des accents secondaires : ce que le vert ne doit pas dire.
+const winampAmber = Color(0xFFFFD23F);
+
+/// Les plaques plates (rangées de liste, cases d'action) : plus sombres que
+/// le chrome, sans relief — elles reçoivent, elles ne dépassent pas.
+const winampPanel = Color(0xFF22222A);
+const winampPanelAlt = Color(0xFF1C1C23);
+
+/// Le phosphore de l'afficheur, son vert éteint, et le noir verdâtre sur
+/// lequel ils vivent (jetons de l'idée #85). Le vert franc de l'idée #83 a
+/// perdu deux crans de saturation : sur une vitre, un vert pur bave.
+const winampGreen = Color(0xFF22E04A);
+const winampGreenDim = Color(0xFF157A2B);
+const winampLcd = Color(0xFF05170A);
+
+/// Le dégradé du chrome, celui des boutons et des barres.
+const winampChrome = LinearGradient(
+  begin: Alignment.topCenter,
+  end: Alignment.bottomCenter,
+  colors: [winampChromeTop, winampChromeBottom],
+);
+
+/// Le même, enfoncé : la lumière ne vient plus du haut.
+const winampChromePressed = LinearGradient(
+  begin: Alignment.topCenter,
+  end: Alignment.bottomCenter,
+  colors: [Color(0xFF272730), Color(0xFF35353F)],
+);
+
+/// Le lettrage GRAVÉ du châssis : bitmap, minuscule, très espacé. Tout ce
+/// qui est peint sur la tôle (libellés de boutons, titres de section, nom de
+/// l'écran) le porte ; ce qui vit derrière une vitre prend le VT323 de
+/// retro_lcd.dart.
+TextStyle retroLabelStyle({
+  double size = 9,
+  Color color = winampInk,
+  FontWeight weight = FontWeight.w400,
+  double letterSpacing = 1.2,
+}) => TextStyle(
+  fontFamily: 'Silkscreen',
+  fontFamilyFallback: const ['monospace'],
+  fontSize: size,
+  fontWeight: weight,
+  letterSpacing: letterSpacing,
+  color: color,
+  height: 1.3,
+);
+
+/// Le lettrage de l'AFFICHEUR : VT323, la chasse fixe des terminaux à tube
+/// (idée #85). Le `monospace` générique d'Android avait la bonne chasse mais
+/// pas le bon dessin — ses lettres sont celles de 2024, arrondies et
+/// antialiassées ; VT323 a les angles carrés d'un caractère tramé.
+TextStyle lcdTextStyle({
+  double size = 16,
+  FontWeight weight = FontWeight.w400,
+  Color color = winampGreen,
+}) => TextStyle(
+  fontFamily: 'VT323',
+  fontFamilyFallback: const ['monospace', 'Roboto Mono'],
+  fontSize: size,
+  fontWeight: weight,
+  letterSpacing: 0.6,
+  color: color,
+  height: 1.15,
+);
 
 /// Une plaque biseautée : en relief par défaut, en creux pour tout ce qui
 /// s'enfonce (afficheur, glissière, bouton pressé).
@@ -172,15 +248,17 @@ class _BrushedMetal extends CustomPainter {
   bool shouldRepaint(_BrushedMetal oldDelegate) => false;
 }
 
-/// La barre de titre : dégradé bleu nuit, hachures de part et d'autre du nom,
-/// et la petite croix carrée à droite. C'est l'élément qu'on reconnaît en
-/// premier — plus encore que le vert.
+/// La barre de titre du châssis (idée #85) : une réglette de chrome, la
+/// sortie gravée à gauche, les hachures au milieu, le nom de l'écran en
+/// phosphore à droite et le petit tenon carré au bout. C'est l'élément qu'on
+/// reconnaît en premier — plus encore que le vert.
 class RetroTitleBar extends StatelessWidget implements PreferredSizeWidget {
   const RetroTitleBar({
     super.key,
     required this.title,
     this.onTitleTap,
     this.onClose,
+    this.leadingLabel,
   });
 
   final String title;
@@ -189,6 +267,9 @@ class RetroTitleBar extends StatelessWidget implements PreferredSizeWidget {
   /// titre en cours, idée #64) : l'habillage ne retire pas de chemin.
   final VoidCallback? onTitleTap;
   final VoidCallback? onClose;
+
+  /// Ce que dit la sortie, à gauche : « RETOUR » par défaut.
+  final String? leadingLabel;
 
   @override
   Size get preferredSize => const Size.fromHeight(30);
@@ -199,14 +280,26 @@ class RetroTitleBar extends StatelessWidget implements PreferredSizeWidget {
     child: SizedBox(
       height: 30,
       child: RetroBevel(
-        gradient: const LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [winampTitleTop, winampTitleBottom],
-        ),
-        padding: const EdgeInsets.symmetric(horizontal: 4),
+        gradient: winampChrome,
+        padding: const EdgeInsets.symmetric(horizontal: 5),
         child: Row(
           children: [
+            if (onClose != null) ...[
+              GestureDetector(
+                onTap: onClose,
+                behavior: HitTestBehavior.opaque,
+                child: Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  // Silkscreen n'a que du latin : les jolies flèches du
+                  // design y feraient des tofus. Un chevron ASCII, c'est
+                  // d'époque de toute façon.
+                  child: Text(
+                    '< ${leadingLabel ?? 'RETOUR'}',
+                    style: retroLabelStyle(size: 8, letterSpacing: 1.5),
+                  ),
+                ),
+              ),
+            ],
             const Expanded(child: _TitleHatching()),
             Flexible(
               flex: 6,
@@ -217,35 +310,83 @@ class RetroTitleBar extends StatelessWidget implements PreferredSizeWidget {
                   child: Text(
                     title.toUpperCase(),
                     maxLines: 1,
-                    textAlign: TextAlign.center,
+                    textAlign: TextAlign.right,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontFamily: 'monospace',
-                      fontFamilyFallback: ['Roboto Mono', 'Courier'],
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 2,
-                      color: winampInk,
+                    style: retroLabelStyle(
+                      size: 9,
+                      color: winampGreen,
+                      letterSpacing: 1.4,
                     ),
                   ),
                 ),
               ),
             ),
-            const Expanded(child: _TitleHatching()),
-            if (onClose != null)
-              Padding(
-                padding: const EdgeInsets.only(left: 6),
-                child: RetroButton(
-                  width: 18,
-                  height: 16,
-                  tooltip: 'Fermer',
-                  onPressed: onClose,
-                  child: const RetroGlyph(RetroGlyphKind.close, size: 7),
-                ),
-              ),
+            const RetroStud(),
           ],
         ),
       ),
+    ),
+  );
+}
+
+/// La réglette qui coiffe chaque onglet (idée #85) : le nom de l'app gravé à
+/// gauche, les hachures au milieu, le nom de l'écran en phosphore à droite.
+/// Elle ne fait rien — c'est un bandeau de façade, comme sur le meuble d'une
+/// chaîne hi-fi, et c'est ce qui donne à chaque écran l'air d'un module du
+/// même appareil plutôt que d'une page.
+class RetroScreenBar extends StatelessWidget {
+  const RetroScreenBar({super.key, required this.screen});
+
+  final String screen;
+
+  static const height = 26.0;
+
+  @override
+  Widget build(BuildContext context) => SafeArea(
+    bottom: false,
+    child: SizedBox(
+      height: height,
+      child: RetroBevel(
+        gradient: winampChrome,
+        padding: const EdgeInsets.symmetric(horizontal: 5),
+        child: Row(
+          children: [
+            Text('GULLIFY', style: retroLabelStyle(size: 8)),
+            const SizedBox(width: 8),
+            const Expanded(child: _TitleHatching()),
+            const SizedBox(width: 8),
+            Flexible(
+              flex: 5,
+              child: Text(
+                screen.toUpperCase(),
+                maxLines: 1,
+                textAlign: TextAlign.right,
+                overflow: TextOverflow.ellipsis,
+                style: retroLabelStyle(size: 8, color: winampGreen),
+              ),
+            ),
+            const RetroStud(),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+/// Le tenon du coin : un carré de chrome de 12 px, purement décoratif. Il ne
+/// fait rien — c'est exactement pour ça qu'il date l'objet.
+class RetroStud extends StatelessWidget {
+  const RetroStud({super.key, this.size = 12});
+
+  final double size;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(left: 6),
+    child: SizedBox(
+      width: size,
+      height: size,
+      child: const RetroBevel(gradient: winampChrome, child: SizedBox.expand()),
     ),
   );
 }
@@ -323,9 +464,11 @@ class _RetroButtonState extends State<RetroButton> {
         child: Opacity(
           opacity: enabled ? 1 : 0.4,
           child: RetroBevel(
-            fill: _down || widget.active
-                ? const Color(0xFF34373D)
-                : winampChassis,
+            // Le chrome se retourne quand la plaque s'enfonce : la lumière
+            // passe en bas, le dégradé avec elle (idée #85).
+            gradient: _down || widget.active
+                ? winampChromePressed
+                : winampChrome,
             sunken: _down || widget.active,
             child: Center(child: widget.child),
           ),
@@ -336,6 +479,53 @@ class _RetroButtonState extends State<RetroButton> {
     if (tooltip != null) button = Tooltip(message: tooltip, child: button);
     return button;
   }
+}
+
+/// Une vitre : le creux noir verdâtre sur lequel le phosphore s'écrit. Champ
+/// de recherche, bandeau de file, ligne de titre du mini-lecteur — tout ce
+/// qui « affiche » passe derrière (idée #85).
+class RetroLcdPanel extends StatelessWidget {
+  const RetroLcdPanel({
+    super.key,
+    required this.child,
+    this.padding = const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+  });
+
+  final Widget child;
+  final EdgeInsetsGeometry padding;
+
+  @override
+  Widget build(BuildContext context) => RetroBevel(
+    sunken: true,
+    fill: winampLcd,
+    padding: padding,
+    child: child,
+  );
+}
+
+/// Une plaque PLATE : pas de biseau, juste un fond sombre et un liseré. Les
+/// cases secondaires du design (idée #85) sont peintes comme ça — le relief
+/// est réservé à ce qui se presse vraiment.
+class RetroPlate extends StatelessWidget {
+  const RetroPlate({
+    super.key,
+    required this.child,
+    this.fill = winampPanel,
+    this.padding = EdgeInsets.zero,
+  });
+
+  final Widget child;
+  final Color fill;
+  final EdgeInsetsGeometry padding;
+
+  @override
+  Widget build(BuildContext context) => DecoratedBox(
+    decoration: BoxDecoration(
+      color: fill,
+      border: Border.all(color: winampBevelShade),
+    ),
+    child: Padding(padding: padding, child: child),
+  );
 }
 
 /// Les glyphes gravés sur les boutons de transport. Dessinés au trait plutôt
@@ -420,48 +610,6 @@ class _GlyphPainter extends CustomPainter {
   @override
   bool shouldRepaint(_GlyphPainter oldDelegate) =>
       oldDelegate.kind != kind || oldDelegate.color != color;
-}
-
-/// La glissière de position du lecteur : une rainure creuse et un bloc
-/// biseauté qui coulisse dedans. Le geste (taper, glisser) reste à l'écran
-/// qui l'affiche — ici, on ne fait que peindre.
-class RetroSeekBar extends StatelessWidget {
-  const RetroSeekBar({super.key, required this.progress, this.height = 22});
-
-  final double progress;
-  final double height;
-
-  @override
-  Widget build(BuildContext context) => SizedBox(
-    height: height,
-    width: double.infinity,
-    child: CustomPaint(painter: _SeekPainter(progress.clamp(0.0, 1.0))),
-  );
-}
-
-class _SeekPainter extends CustomPainter {
-  const _SeekPainter(this.progress);
-
-  final double progress;
-
-  static const _thumbWidth = 13.0;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    // La rainure : creuse, à peine plus haute que le trait.
-    final groove = Rect.fromLTWH(0, (size.height - 9) / 2, size.width, 9);
-    paintRetroBevel(canvas, groove, fill: winampBevelDark, sunken: true);
-    final left = (size.width - _thumbWidth) * progress;
-    paintRetroBevel(
-      canvas,
-      Rect.fromLTWH(left, 0, _thumbWidth, size.height),
-      fill: winampChassis,
-    );
-  }
-
-  @override
-  bool shouldRepaint(_SeekPainter oldDelegate) =>
-      oldDelegate.progress != progress;
 }
 
 /// Le curseur des glissières de 1999 : un petit bloc biseauté qui coulisse

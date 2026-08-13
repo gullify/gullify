@@ -18,7 +18,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # of the product and file versions while build-number is used as the build suffix.
 # versionCode : doit rester supérieur à 26 (dernier code de l'ancienne app
 # pixelplay) pour que son auto-updater propose la migration vers la v2.
-version: 3.14.0+148
+version: 3.15.0+149
 
 environment:
   sdk: ^3.12.2
@@ -100,6 +100,18 @@ flutter:
     - family: HankenGrotesk
       fonts:
         - asset: assets/fonts/HankenGrotesk.ttf
+    # Les deux polices du thème rétro Winamp (idée #85, licence OFL) :
+    # Silkscreen pour les libellés gravés du châssis, VT323 pour tout ce qui
+    # s'affiche derrière une vitre. Sans elles, le rétro n'était que du
+    # monospace vert — c'est le lettrage bitmap qui date l'objet.
+    - family: Silkscreen
+      fonts:
+        - asset: assets/fonts/Silkscreen-Regular.ttf
+        - asset: assets/fonts/Silkscreen-Bold.ttf
+          weight: 700
+    - family: VT323
+      fonts:
+        - asset: assets/fonts/VT323-Regular.ttf
 
   # To add assets to your application, add an assets section, like this:
   # assets:

@@ -21,7 +21,7 @@ import '../widgets/retro_chrome.dart';
 import '../widgets/retro_lcd.dart';
 import '../widgets/update_dialog.dart';
 
-const appVersion = '3.14.0';
+const appVersion = '3.15.0';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -474,7 +474,7 @@ class _RetroSkinTile extends ConsumerWidget {
             width: 44,
             height: 40,
             child: RetroBevel(
-              fill: winampChassis,
+              gradient: winampChrome,
               padding: const EdgeInsets.all(3),
               child: RetroBevel(
                 sunken: true,
@@ -485,9 +485,8 @@ class _RetroSkinTile extends ConsumerWidget {
           ),
           title: const Text('Rétro Winamp'),
           subtitle: const Text(
-            'Châssis de tôle brossée, plaques biseautées, afficheur à '
-            'segments et analyseur de spectre — les mêmes écrans, habillés '
-            'en 1999',
+            'Chrome biseauté, écrans LCD vert phosphore et lettrage bitmap — '
+            'les mêmes écrans, habillés en 1999',
           ),
           value: retro,
           onChanged: (on) => ref

@@ -11,7 +11,6 @@ import '../state/karaoke.dart';
 import '../state/library.dart';
 import '../state/player.dart';
 import '../state/sleep_timer.dart';
-import '../theme.dart';
 import '../widgets/artwork.dart';
 import '../widgets/chords_sheet.dart';
 import '../widgets/retro_chrome.dart';
@@ -123,19 +122,24 @@ class NowPlayingScreen extends ConsumerWidget {
                         child: AspectRatio(
                           aspectRatio: 1,
                           child: retro
-                              // La pochette prend le cadre creux de la
-                              // fenêtre de visualisation : pas d'ombre
-                              // portée, un châssis ne flotte pas.
+                              // La pochette est SERTIE dans une plaque de
+                              // chrome (idée #85) : le cadre est en relief,
+                              // la vitre en creux dessous. Pas d'ombre
+                              // portée — un châssis ne flotte pas.
                               ? RetroBevel(
-                                  sunken: true,
-                                  fill: winampLcd,
-                                  padding: const EdgeInsets.all(3),
-                                  child: Artwork(
-                                    url: item.artUri?.toString(),
-                                    borderRadius: 0,
-                                    icon: isRadio
-                                        ? Icons.radio
-                                        : Icons.music_note,
+                                  gradient: winampChrome,
+                                  padding: const EdgeInsets.all(7),
+                                  child: RetroBevel(
+                                    sunken: true,
+                                    fill: winampLcd,
+                                    padding: const EdgeInsets.all(2),
+                                    child: Artwork(
+                                      url: item.artUri?.toString(),
+                                      borderRadius: 0,
+                                      icon: isRadio
+                                          ? Icons.radio
+                                          : Icons.music_note,
+                                    ),
                                   ),
                                 )
                               : DecoratedBox(
@@ -178,11 +182,17 @@ class NowPlayingScreen extends ConsumerWidget {
                                 item.title,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                // Sous le rétro, le titre passe en chasse
-                                // fixe verte : à côté d'un afficheur, une
-                                // graisse de 2024 se voit tout de suite.
+                                // Sous le rétro, le titre reste écrit en
+                                // clair sur la tôle (idée #85) : le vert est
+                                // réservé à ce qui vit derrière une vitre —
+                                // et l'afficheur juste au-dessus le dit déjà.
                                 style: retro
-                                    ? lcdTextStyle(size: 18)
+                                    ? const TextStyle(
+                                        fontSize: 22,
+                                        fontWeight: FontWeight.w700,
+                                        letterSpacing: -0.2,
+                                        color: Color(0xFFF2F2F7),
+                                      )
                                     : const TextStyle(
                                         fontSize: 24,
                                         fontWeight: FontWeight.w800,
@@ -198,11 +208,8 @@ class NowPlayingScreen extends ConsumerWidget {
                                   chevronSize: 18,
                                   style: retro
                                       ? lcdTextStyle(
-                                          size: 13,
-                                          weight: FontWeight.w600,
-                                          color: winampGreen.withValues(
-                                            alpha: 0.65,
-                                          ),
+                                          size: 18,
+                                          color: const Color(0xFF8F8FA0),
                                         )
                                       : TextStyle(
                                           fontSize: 15,
@@ -281,45 +288,57 @@ class NowPlayingScreen extends ConsumerWidget {
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                       children: [
                         if (!isRadio)
-                          IconButton(
-                            icon: const Icon(Icons.lyrics_outlined),
-                            tooltip: 'Paroles',
-                            onPressed: () => _showLyrics(context, ref, item),
-                          ),
-                        if (!isRadio)
-                          IconButton(
-                            icon: const ChordsIcon(),
-                            tooltip: 'Accords guitare',
-                            onPressed: () => showChordsSheet(
-                              context,
-                              item.extras?['filePath'] as String?,
+                          _actionPlate(
+                            retro,
+                            IconButton(
+                              icon: const Icon(Icons.lyrics_outlined),
+                              tooltip: 'Paroles',
+                              onPressed: () => _showLyrics(context, ref, item),
                             ),
                           ),
-                        const _SleepTimerButton(),
+                        if (!isRadio)
+                          _actionPlate(
+                            retro,
+                            IconButton(
+                              icon: const ChordsIcon(),
+                              tooltip: 'Accords guitare',
+                              onPressed: () => showChordsSheet(
+                                context,
+                                item.extras?['filePath'] as String?,
+                              ),
+                            ),
+                          ),
+                        _actionPlate(retro, const _SleepTimerButton()),
                         if (!isRadio && songId != null)
-                          IconButton(
-                            icon: const Icon(Icons.ios_share_rounded),
-                            tooltip: 'Partager',
-                            onPressed: () => showShareSheet(
-                              context,
-                              Song(
-                                id: songId,
-                                title: item.title,
-                                filePath:
-                                    item.extras?['filePath'] as String? ?? '',
-                                albumId: albumId,
-                                albumName: item.album,
-                                artistId: artistId,
-                                artistName: item.artist,
-                                artworkUrl: artUrl,
+                          _actionPlate(
+                            retro,
+                            IconButton(
+                              icon: const Icon(Icons.ios_share_rounded),
+                              tooltip: 'Partager',
+                              onPressed: () => showShareSheet(
+                                context,
+                                Song(
+                                  id: songId,
+                                  title: item.title,
+                                  filePath:
+                                      item.extras?['filePath'] as String? ?? '',
+                                  albumId: albumId,
+                                  albumName: item.album,
+                                  artistId: artistId,
+                                  artistName: item.artist,
+                                  artworkUrl: artUrl,
+                                ),
                               ),
                             ),
                           ),
                         if (!isRadio)
-                          IconButton(
-                            icon: const Icon(Icons.queue_music),
-                            tooltip: "File d'attente",
-                            onPressed: () => _showQueue(context),
+                          _actionPlate(
+                            retro,
+                            IconButton(
+                              icon: const Icon(Icons.queue_music),
+                              tooltip: "File d'attente",
+                              onPressed: () => _showQueue(context),
+                            ),
                           ),
                       ],
                     ),
@@ -334,6 +353,12 @@ class NowPlayingScreen extends ConsumerWidget {
     );
   }
 }
+
+/// Les actions secondaires du lecteur (paroles, accords, minuterie, partage,
+/// file) prennent chacune leur case sous le rétro — des plaques plates, sans
+/// relief : elles ne sont pas les commandes de transport (idée #85).
+Widget _actionPlate(bool retro, Widget child) =>
+    retro ? RetroPlate(child: child) : child;
 
 /// Ouvre une page de détail depuis le lecteur plein écran : il se referme
 /// d'abord, la destination s'ouvre au-dessus de la page d'où l'on vient
@@ -626,8 +651,10 @@ class _Waveform extends ConsumerWidget {
         : 0.0;
     final bars = _bars();
     final retro = isRetroSkin(context);
+    // Les temps sont écrits sur la tôle, pas derrière la vitre (idée #85) :
+    // gris, en VT323 — le phosphore est réservé à ce qui s'affiche.
     final labelStyle = retro
-        ? lcdTextStyle(size: 11, weight: FontWeight.w600)
+        ? lcdTextStyle(size: 15, color: const Color(0xFF8F8FA0))
         : TextStyle(
             fontSize: 11.5,
             fontWeight: FontWeight.w600,
@@ -645,8 +672,30 @@ class _Waveform extends ConsumerWidget {
                 _seekTo(ref, d.localPosition.dx, constraints.maxWidth),
             child: SizedBox(
               height: 56,
+              // Rétro Winamp (idée #85) : la forme d'onde ne disparaît pas,
+              // elle passe DERRIÈRE une vitre — barres carrées, phosphore
+              // pour ce qui est joué, vert éteint pour la suite. Le geste de
+              // navigation (taper, glisser) est le même qu'ailleurs.
               child: retro
-                  ? Center(child: RetroSeekBar(progress: progress))
+                  ? RetroLcdPanel(
+                      padding: const EdgeInsets.all(5),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          for (final (i, h) in bars.indexed) ...[
+                            Expanded(
+                              child: ColoredBox(
+                                color: (i + 0.5) / _barCount <= progress
+                                    ? winampGreen
+                                    : winampGreenDim,
+                                child: SizedBox(height: 6 + 40 * h),
+                              ),
+                            ),
+                            if (i < _barCount - 1) const SizedBox(width: 1),
+                          ],
+                        ],
+                      ),
+                    )
                   : Row(
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [

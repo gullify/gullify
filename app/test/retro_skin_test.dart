@@ -15,6 +15,7 @@ import 'package:gullify/screens/now_playing_screen.dart';
 import 'package:gullify/state/player.dart';
 import 'package:gullify/theme.dart';
 import 'package:gullify/widgets/glass_box.dart';
+import 'package:gullify/widgets/glass_kit.dart';
 import 'package:gullify/widgets/retro_chrome.dart';
 import 'package:gullify/widgets/retro_lcd.dart';
 
@@ -100,7 +101,7 @@ void main() {
       ),
     );
 
-    testWidgets('rétro : plaque opaque biseautée, sans flou', (tester) async {
+    testWidgets('rétro : plaque de chrome biseautée, sans flou', (tester) async {
       await tester.pumpWidget(box(retro()));
       final decorated = tester
           .widgetList<DecoratedBox>(find.byType(DecoratedBox))
@@ -110,8 +111,18 @@ void main() {
           .toList();
       expect(decorated, isNotEmpty);
       final plate = decorated.first;
-      // Opaque : le verre translucide n'a rien à faire ici.
-      expect(plate.color!.a, 1.0);
+      // Le chrome est un dégradé opaque, pas un aplat gris (idée #85) : c'est
+      // ce qui fait la tôle emboutie plutôt qu'un rectangle.
+      final chrome = plate.gradient! as LinearGradient;
+      expect(chrome.colors.first, isNot(chrome.colors.last));
+      for (final color in chrome.colors) {
+        expect(color.a, 1.0);
+      }
+      // Le haut est plus clair que le bas : la lumière vient d'en haut.
+      expect(
+        chrome.colors.first.computeLuminance(),
+        greaterThan(chrome.colors.last.computeLuminance()),
+      );
       // Biseau : le bord haut et le bord bas n'ont pas la même couleur.
       final border = plate.border! as Border;
       expect(border.top.color, isNot(border.bottom.color));
@@ -147,8 +158,76 @@ void main() {
 
     test('écrit en chasse fixe, vert sur noir', () {
       final style = lcdTextStyle();
-      expect(style.fontFamily, 'monospace');
+      // Idée #85 : VT323, le caractère tramé des terminaux à tube. Le
+      // monospace générique gardait la chasse mais rendait des lettres de
+      // 2024 — arrondies, antialiassées.
+      expect(style.fontFamily, 'VT323');
+      expect(style.fontFamilyFallback, contains('monospace'));
       expect(style.color, winampGreen);
+    });
+  });
+
+  // Idée #85 : Maxime a DESSINÉ le skin (« chrome & LCD ») au lieu de le
+  // décrire. Ce qui s'y joue tient en trois choses — deux lettrages bitmap,
+  // un chrome en dégradé, et de l'ambre à côté du vert.
+  group('le design « chrome & LCD »', () {
+    test('deux lettrages, chacun à sa place', () {
+      // Ce qui est GRAVÉ dans la tôle : Silkscreen, minuscule et espacé.
+      final engraved = retroLabelStyle();
+      expect(engraved.fontFamily, 'Silkscreen');
+      expect(engraved.letterSpacing, greaterThan(0));
+      // Ce qui s'AFFICHE derrière une vitre : VT323, en phosphore.
+      expect(lcdTextStyle().fontFamily, 'VT323');
+      expect(engraved.fontFamily, isNot(lcdTextStyle().fontFamily));
+    });
+
+    test('l\'ambre est la seconde voix du châssis', () {
+      expect(retro().colorScheme.secondary, winampAmber);
+      // …et il ne déteint pas sur le verre.
+      expect(glass().colorScheme.secondary, isNot(winampAmber));
+    });
+
+    testWidgets('tout champ de saisie devient une vitre', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: retro(),
+          home: const Scaffold(
+            body: TextField(decoration: InputDecoration(hintText: 'Filtrer…')),
+          ),
+        ),
+      );
+      final decoration = Theme.of(
+        tester.element(find.byType(TextField)),
+      ).inputDecorationTheme;
+      expect(decoration.filled, isTrue);
+      expect(decoration.fillColor, winampLcd);
+      // Le texte fantôme est en phosphore éteint, en VT323.
+      expect(decoration.hintStyle!.fontFamily, 'VT323');
+      expect(decoration.hintStyle!.color, winampGreenDim);
+      // Angles vifs : un champ arrondi trahit le châssis.
+      final border = decoration.border! as OutlineInputBorder;
+      expect(border.borderRadius, BorderRadius.zero);
+    });
+
+    testWidgets('le titre de section est gravé en capitales', (tester) async {
+      Future<Text> title(ThemeData theme) async {
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: theme,
+            home: const Scaffold(body: SectionTitle('Derniers joués')),
+          ),
+        );
+        await tester.pump(const Duration(milliseconds: 500));
+        return tester.widget<Text>(find.byType(Text));
+      }
+
+      final engraved = await title(retro());
+      expect(engraved.data, 'DERNIERS JOUÉS');
+      expect(engraved.style!.fontFamily, 'Silkscreen');
+      // Le verre, lui, ne bouge pas d'un pixel.
+      final glassy = await title(glass());
+      expect(glassy.data, 'Derniers joués');
+      expect(glassy.style!.fontFamily, isNull);
     });
   });
 

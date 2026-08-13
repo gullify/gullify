@@ -8,6 +8,33 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.15.0', [
+    'Le rétro Winamp prend le design que tu as dessiné : « chrome & LCD ». '
+        'Le gris du châssis devient un vrai chrome en dégradé, les vitres '
+        'passent au noir verdâtre et le vert au phosphore',
+    'Deux polices bitmap embarquées : Silkscreen pour tout ce qui est GRAVÉ '
+        'dans la tôle (titres de section, libellés de boutons, nom de '
+        'l\'écran), VT323 pour tout ce qui s\'AFFICHE derrière une vitre. '
+        'C\'est le lettrage, plus que la couleur, qui date l\'objet',
+    'La barre de navigation devient la rangée de boutons d\'un lecteur de '
+        '1999 : des plaques de chrome gravées LIB, SRC, VID, RAD, FAV, JEU, '
+        'enfoncées et allumées en vert quand on y est (l\'appui long donne '
+        'toujours le nom complet)',
+    'Chaque onglet se coiffe de la réglette du châssis : « GULLIFY », les '
+        'hachures, et le nom de l\'écran en phosphore à droite',
+    'Tout champ de saisie devient un afficheur : recherche, filtres, tout ce '
+        'qui se tape s\'écrit en vert sur noir. Les filtres de genre et '
+        'd\'année deviennent des onglets de chrome carrés',
+    'Dans le lecteur : la pochette est sertie dans une plaque de chrome, la '
+        'forme d\'onde passe derrière une vitre (vert vif pour ce qui est '
+        'joué, vert éteint pour la suite), et les actions du bas prennent '
+        'chacune leur case',
+    'L\'ambre rejoint le vert comme seconde couleur du châssis, et la barre '
+        'de titre du lecteur passe du bleu au chrome, nom d\'album gravé en '
+        'phosphore',
+    'Le mini-lecteur affiche le titre et l\'artiste derrière une vitre, comme '
+        'la ligne défilante de l\'original',
+  ]),
   ReleaseNote('3.14.0', [
     'Une idée peut désormais porter des pièces jointes : captures d\'écran, '
         'maquettes, logs, n\'importe quel fichier (10 Mo chacun, 20 par '

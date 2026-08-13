@@ -34,8 +34,10 @@ class GlassBox extends StatelessWidget {
     // dessinait qu'un cadre, et un cadre n'est qu'un carré. Même boîte, même
     // place, même taille : seule la peinture change.
     if (surfaces?.retro ?? false) {
+      // Idée #85 : le chrome est un dégradé, pas un aplat — c'est lui qui
+      // fait la tôle emboutie plutôt qu'un rectangle gris.
       return RetroBevel(
-        fill: surfaces!.barColor ?? scheme.surfaceContainerHighest,
+        gradient: winampChrome,
         child: ClipRect(child: child),
       );
     }

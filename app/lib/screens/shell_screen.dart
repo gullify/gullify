@@ -8,7 +8,6 @@ import '../state/app_update.dart';
 import '../state/background_playback.dart';
 import '../state/home_widget_sync.dart';
 import '../state/player.dart';
-import '../theme.dart';
 import '../widgets/glass_box.dart';
 import '../widgets/keyboard_guard.dart';
 import '../widgets/mini_player.dart';
@@ -59,7 +58,10 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     return Scaffold(
       // Le contenu défile sous les barres de verre (elles sont translucides).
       extendBody: true,
-      body: navigationShell,
+      body: _RetroScreenFrame(
+        index: navigationShell.currentIndex,
+        child: navigationShell,
+      ),
       bottomNavigationBar: HubDock(
         currentIndex: navigationShell.currentIndex,
         onSelect: (i) => navigationShell.goBranch(
@@ -67,6 +69,49 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
           initialLocation: i == navigationShell.currentIndex,
         ),
       ),
+    );
+  }
+}
+
+/// Sous le rétro, chaque onglet se coiffe de la réglette du châssis (idée
+/// #85) : nom de l'app gravé, hachures, nom de l'écran en phosphore. Elle est
+/// posée ICI, une seule fois, plutôt qu'écran par écran — et l'encoche du
+/// haut lui revient : les écrans en dessous n'ont plus à la reprendre, sinon
+/// ils laisseraient deux fois la place du statut.
+class _RetroScreenFrame extends StatelessWidget {
+  const _RetroScreenFrame({required this.index, required this.child});
+
+  final int index;
+  final Widget child;
+
+  static const _names = [
+    'Accueil',
+    'Media library',
+    'Recherche',
+    'Radio',
+    'Favoris',
+    'Jeux',
+    'Vidéos',
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    if (!isRetroSkin(context)) return child;
+    return Column(
+      children: [
+        RetroScreenBar(
+          screen: index >= 0 && index < _names.length
+              ? _names[index]
+              : 'Gullify',
+        ),
+        Expanded(
+          child: MediaQuery.removePadding(
+            context: context,
+            removeTop: true,
+            child: child,
+          ),
+        ),
+      ],
     );
   }
 }
@@ -95,11 +140,22 @@ class DetailDock extends StatelessWidget {
 /// Un onglet satellite du dock : icône (variante remplie/arrondie), teinte
 /// accent + point animé quand actif.
 class _DockDest {
-  const _DockDest(this.branch, this.iconOff, this.iconOn, this.tooltip);
+  const _DockDest(
+    this.branch,
+    this.iconOff,
+    this.iconOn,
+    this.tooltip,
+    this.retroLabel,
+  );
   final int branch;
   final IconData iconOff;
   final IconData iconOn;
   final String tooltip;
+
+  /// Le mot de trois lettres gravé sur la plaque sous le rétro (idée #85) :
+  /// les lecteurs de 1999 étiquetaient leurs boutons, ils ne les
+  /// pictogrammaient pas.
+  final String retroLabel;
 }
 
 /// Dock de navigation réinventé : mini-lecteur + pilule de verre flottante,
@@ -123,23 +179,32 @@ class HubDock extends StatelessWidget {
       Icons.library_music_outlined,
       Icons.library_music_rounded,
       'Bibliothèque',
+      'LIB',
     ),
-    _DockDest(2, Icons.search_rounded, Icons.search_rounded, 'Recherche'),
-    _DockDest(6, Icons.movie_outlined, Icons.movie_rounded, 'Vidéos'),
+    _DockDest(
+      2,
+      Icons.search_rounded,
+      Icons.search_rounded,
+      'Recherche',
+      'SRC',
+    ),
+    _DockDest(6, Icons.movie_outlined, Icons.movie_rounded, 'Vidéos', 'VID'),
   ];
   static const _right = [
-    _DockDest(3, Icons.radio_outlined, Icons.radio_rounded, 'Radio'),
+    _DockDest(3, Icons.radio_outlined, Icons.radio_rounded, 'Radio', 'RAD'),
     _DockDest(
       4,
       Icons.favorite_border_rounded,
       Icons.favorite_rounded,
       'Favoris',
+      'FAV',
     ),
     _DockDest(
       5,
       Icons.sports_esports_outlined,
       Icons.sports_esports_rounded,
       'Jeux',
+      'JEU',
     ),
   ];
 
@@ -235,7 +300,8 @@ class _HomeOrb extends StatelessWidget {
   Widget build(BuildContext context) {
     final accent = scheme.primary;
     // Rétro Winamp (idée #83) : un châssis n'a pas d'orbe qui brille. Le
-    // bouton d'accueil devient une plaque carrée, enfoncée quand on y est.
+    // bouton d'accueil devient une plaque carrée, enfoncée quand on y est —
+    // et gravée « HOME » comme le reste de la barre (idée #85).
     if (isRetroSkin(context)) {
       return RetroButton(
         width: 60,
@@ -243,10 +309,23 @@ class _HomeOrb extends StatelessWidget {
         active: selected,
         onPressed: onTap,
         tooltip: 'Accueil',
-        child: Icon(
-          Icons.home_rounded,
-          size: 26,
-          color: selected ? winampGreen : winampInk,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.home_rounded,
+              size: 20,
+              color: selected ? winampGreen : winampInk,
+            ),
+            Text(
+              'HOME',
+              style: retroLabelStyle(
+                size: 7,
+                color: selected ? winampGreen : winampInk,
+                letterSpacing: 0.8,
+              ),
+            ),
+          ],
         ),
       );
     }
@@ -300,6 +379,31 @@ class _Satellite extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Rétro Winamp (idée #85) : une plaque de chrome gravée de trois lettres,
+    // enfoncée et allumée en vert quand on y est. C'est la barre de boutons
+    // d'un lecteur de 1999 — l'infobulle garde le nom complet pour ceux qui
+    // n'ont pas connu.
+    if (isRetroSkin(context)) {
+      return Center(
+        child: LayoutBuilder(
+          builder: (context, constraints) => RetroButton(
+            width: math.min(38, constraints.maxWidth),
+            height: 26,
+            active: selected,
+            tooltip: dest.tooltip,
+            onPressed: onTap,
+            child: Text(
+              dest.retroLabel,
+              style: retroLabelStyle(
+                size: 8,
+                color: selected ? winampGreen : winampInk,
+                letterSpacing: 0.6,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
     // Icône centrée verticalement; l'état actif = pastille de verre
     // accent derrière l'icône (pas de point qui déséquilibre l'alignement).
     return Tooltip(
