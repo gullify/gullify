@@ -8,6 +8,29 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.13.0', [
+    'Le rétro Winamp ressemble enfin à un Winamp : ce qui manquait n\'était '
+        'pas la couleur mais le relief. Les plaques ont un vrai biseau à deux '
+        'traits (clair puis très clair en haut, sombre puis très sombre en '
+        'bas) et le gris a le grain de la tôle brossée',
+    'Le lecteur a sa barre de titre bleu nuit hachurée, avec le nom de '
+        'l\'album gravé au milieu (toujours cliquable) et la petite croix '
+        'carrée à droite',
+    'Le temps n\'est plus écrit mais DESSINÉ, segment par segment, segments '
+        'éteints visibles en filigrane comme sur un vrai afficheur',
+    'L\'analyseur de spectre passe en colonnes de blocs, du vert à l\'ambre, '
+        'avec le plot de crête gris qui retombe',
+    'Deux cases creuses à côté du temps : le format du fichier (MP3, FLAC…) '
+        'et le rang du titre dans la file, plus les voyants MONO/STEREO',
+    'Boutons de transport gravés à la place des ronds : précédent, '
+        'lecture/pause, suivant, et les bascules aléatoire/répétition qui '
+        'restent enfoncées quand elles sont actives',
+    'La barre de position devient une rainure creuse avec son bloc '
+        'coulissant, la pochette s\'encastre dans un cadre creux, et le '
+        'bouton d\'accueil du dock devient une plaque carrée',
+    'Correction : un titre assez court pour ne pas défiler pouvait faire '
+        'râler l\'afficheur au moment de quitter le lecteur',
+  ]),
   ReleaseNote('3.12.0', [
     'Un thème rétro Winamp, à part des autres : Paramètres → Apparence → '
         '« Rétro Winamp ». Châssis gris métal, plaques biseautées (lumière en '

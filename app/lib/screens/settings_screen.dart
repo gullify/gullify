@@ -17,9 +17,11 @@ import '../state/background_playback.dart';
 import '../state/offline.dart';
 import '../state/player.dart';
 import '../theme.dart';
+import '../widgets/retro_chrome.dart';
+import '../widgets/retro_lcd.dart';
 import '../widgets/update_dialog.dart';
 
-const appVersion = '3.12.0';
+const appVersion = '3.13.0';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -466,35 +468,26 @@ class _RetroSkinTile extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         SwitchListTile(
-          secondary: Container(
-            width: 40,
+          // L'aperçu montre ce qu'on va allumer : plaque biseautée, afficheur
+          // creux, chiffres à segments. C'est le châssis en miniature.
+          secondary: SizedBox(
+            width: 44,
             height: 40,
-            decoration: BoxDecoration(
-              color: const Color(0xFF343845),
-              borderRadius: BorderRadius.circular(3),
-              border: const Border(
-                top: BorderSide(color: Color(0xFF6A7082), width: 1.5),
-                left: BorderSide(color: Color(0xFF6A7082), width: 1.5),
-                right: BorderSide(color: Color(0xFF14161C), width: 1.5),
-                bottom: BorderSide(color: Color(0xFF14161C), width: 1.5),
-              ),
-            ),
-            child: Center(
-              child: Text(
-                '||||',
-                style: TextStyle(
-                  fontFamily: 'monospace',
-                  fontSize: 13,
-                  fontWeight: FontWeight.w800,
-                  color: winampGreen,
-                ),
+            child: RetroBevel(
+              fill: winampChassis,
+              padding: const EdgeInsets.all(3),
+              child: RetroBevel(
+                sunken: true,
+                fill: winampLcd,
+                child: const Center(child: SevenSegment('12', height: 16)),
               ),
             ),
           ),
           title: const Text('Rétro Winamp'),
           subtitle: const Text(
-            'Châssis gris métal, biseaux et afficheur vert — les mêmes '
-            'écrans, habillés en 1999',
+            'Châssis de tôle brossée, plaques biseautées, afficheur à '
+            'segments et analyseur de spectre — les mêmes écrans, habillés '
+            'en 1999',
           ),
           value: retro,
           onChanged: (on) => ref

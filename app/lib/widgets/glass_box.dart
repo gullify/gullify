@@ -3,6 +3,7 @@ import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
 
 import '../theme.dart';
+import 'retro_chrome.dart';
 
 /// Carte « liquid glass » : flou + saturation du contenu dessous, fond
 /// translucide, liseré lumineux, ombre douce. Recette commune du
@@ -29,26 +30,12 @@ class GlassBox extends StatelessWidget {
     final light = scheme.brightness == Brightness.light;
 
     // Rétro Winamp (idée #82) : le verre laisse la place à une plaque opaque
-    // biseautée — lumière en haut à gauche, ombre en bas à droite, angles à
-    // peine cassés. Même boîte, même place, même taille : seule la peinture
-    // change.
+    // biseautée. Le biseau se pose à deux traits (idée #83) — un seul ne
+    // dessinait qu'un cadre, et un cadre n'est qu'un carré. Même boîte, même
+    // place, même taille : seule la peinture change.
     if (surfaces?.retro ?? false) {
-      final bevelLight = surfaces!.bevelLight ?? Colors.white24;
-      final bevelDark = surfaces.bevelDark ?? Colors.black54;
-      return DecoratedBox(
-        // Angles vifs, pas de rayon : un biseau a deux couleurs (lumière en
-        // haut à gauche, ombre en bas à droite), et Flutter refuse d'arrondir
-        // une bordure qui n'est pas d'une seule teinte. Ça tombe bien — un
-        // châssis de 1999 est parfaitement carré.
-        decoration: BoxDecoration(
-          color: surfaces.barColor ?? scheme.surfaceContainerHighest,
-          border: Border(
-            top: BorderSide(color: bevelLight, width: 1.5),
-            left: BorderSide(color: bevelLight, width: 1.5),
-            right: BorderSide(color: bevelDark, width: 1.5),
-            bottom: BorderSide(color: bevelDark, width: 1.5),
-          ),
-        ),
+      return RetroBevel(
+        fill: surfaces!.barColor ?? scheme.surfaceContainerHighest,
         child: ClipRect(child: child),
       );
     }

@@ -10,6 +10,7 @@ import 'state/app_theme.dart';
 import 'state/player.dart';
 import 'theme.dart';
 import 'widgets/keyboard_guard.dart';
+import 'widgets/retro_chrome.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -116,10 +117,16 @@ class _GullifyAppState extends ConsumerState<GullifyApp>
         if (bg == null || child == null) return child ?? const SizedBox();
         // Le garde vit au-dessus du navigateur : il doit survivre aux
         // changements d'écran pour rattraper un inset de clavier resté collé.
+        // Rétro Winamp : la tôle brossée passe entre le dégradé et les écrans
+        // — c'est son grain, plus que le gris, qui fait la façade de 1999
+        // (idée #83).
+        Widget chassis(Widget child) =>
+            (surfaces?.retro ?? false) ? RetroChassis(child: child) : child;
         return KeyboardInsetGuard(
           child: DecoratedBox(
             decoration: BoxDecoration(gradient: bg),
-            child: Stack(
+            child: chassis(
+              Stack(
               children: [
                 // Halo d'accent diffus (design) : lueur douce en haut d'écran.
                 if (surfaces?.accentBlob != null)
@@ -142,6 +149,7 @@ class _GullifyAppState extends ConsumerState<GullifyApp>
                   ),
                 child,
               ],
+              ),
             ),
           ),
         );

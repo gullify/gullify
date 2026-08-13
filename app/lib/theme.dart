@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'widgets/retro_chrome.dart';
+
 /// Identité Gullify : UNE structure « Liquid Glass » (verre translucide,
 /// images en filigrane, mise en page constante). Seuls changent la COULEUR
 /// d'accent choisie et la base claire/sombre — la personnalité vient de la
@@ -40,9 +42,11 @@ enum GullifyAccent {
 /// surfaces biseautées, un fond métal et un afficheur vert.
 enum GullifySkin { glass, winamp }
 
-/// Le vert de l'afficheur Winamp, et le noir sur lequel il vit.
-const winampGreen = Color(0xFF00E653);
-const winampLcd = Color(0xFF0A0C0A);
+/// Le vert de l'afficheur Winamp, et le noir sur lequel il vit. Un vert
+/// franc, presque pur (idée #83) : l'émeraude de départ était une jolie
+/// couleur d'app, pas la lueur d'un tube de 1999.
+const winampGreen = Color(0xFF00F000);
+const winampLcd = Color(0xFF06070A);
 
 /// Réglages de rendu propres à la structure de verre, lus par les widgets
 /// (mini-lecteur, barre de navigation, en-têtes) pour l'effet.
@@ -163,9 +167,12 @@ ThemeData _base(
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(cardCorner),
           side: BorderSide(
-            color: scheme.brightness == Brightness.light
-                ? const Color(0xB3FFFFFF)
-                : const Color(0x26FFFFFF),
+            color: switch (scheme.brightness) {
+              // Rétro : l'arête claire du châssis, pas un liseré de verre.
+              _ when surfaces.retro => winampBevelLight,
+              Brightness.light => const Color(0xB3FFFFFF),
+              Brightness.dark => const Color(0x26FFFFFF),
+            },
           ),
         ),
       ),
@@ -242,13 +249,13 @@ ThemeData _winamp() {
     // Le vert de l'afficheur est trop lumineux pour porter du texte blanc :
     // sur les boutons pleins, l'encre est noire, comme sur un vrai LCD.
     onPrimary: const Color(0xFF06180C),
-    secondary: const Color(0xFFB8BCC8),
-    surface: const Color(0xFF2A2D36),
-    onSurface: const Color(0xFFDDE1E8),
-    onSurfaceVariant: const Color(0xFF9AA0AE),
-    outline: const Color(0xFF5A5F6D),
-    outlineVariant: const Color(0xFF3A3E49),
-    surfaceContainerHighest: const Color(0xFF343845),
+    secondary: winampInk,
+    surface: const Color(0xFF34373D),
+    onSurface: const Color(0xFFDDE1E6),
+    onSurfaceVariant: const Color(0xFF9AA0AA),
+    outline: winampBevelLight,
+    outlineVariant: winampBevelShade,
+    surfaceContainerHighest: winampChassis,
   );
   return _base(
     scheme,
@@ -256,19 +263,21 @@ ThemeData _winamp() {
       frosted: false,
       retro: true,
       // Panneaux opaques : le verre translucide n'a rien à faire ici.
-      barColor: Color(0xFF343845),
-      bevelLight: Color(0xFF6A7082),
-      bevelDark: Color(0xFF14161C),
+      barColor: winampChassis,
+      bevelLight: winampBevelLight,
+      bevelDark: winampBevelDark,
       // Pas de halo d'accent : un châssis de 1999 ne brille pas.
+      // Un gris neutre, plus sombre que les plaques : sans cet écart, les
+      // biseaux ne se détachent pas du fond (idée #83).
       background: LinearGradient(
         begin: Alignment.topCenter,
         end: Alignment.bottomCenter,
-        colors: [Color(0xFF2E313B), Color(0xFF23262E), Color(0xFF1B1D24)],
+        colors: [Color(0xFF2C2E33), Color(0xFF25272B), Color(0xFF1D1F23)],
       ),
     ),
-    corner: 3,
-    cardCorner: 3,
-  );
+    corner: 0,
+    cardCorner: 0,
+  ).copyWith(sliderTheme: retroSliderTheme);
 }
 
 ThemeData gullifyThemeFor(GullifyAccent accent, {required bool dark}) =>

@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../state/player.dart';
 import 'artwork.dart';
 import 'glass_box.dart';
+import 'retro_chrome.dart';
 import 'retro_lcd.dart';
 
 /// Mini-lecteur flottant, style Liquid Glass Player : carte de verre avec
@@ -107,7 +108,7 @@ class MiniPlayer extends ConsumerWidget {
                       height: 3,
                       decoration: BoxDecoration(
                         color: scheme.primary,
-                        borderRadius: BorderRadius.circular(3),
+                        borderRadius: BorderRadius.circular(retro ? 0 : 3),
                       ),
                     ),
                   ),
@@ -171,29 +172,50 @@ class MiniPlayer extends ConsumerWidget {
                         ),
                       ),
                       const SizedBox(width: 8),
-                      // Lecture/pause : rond plein accent, signature du style.
-                      SizedBox(
-                        width: 44,
-                        height: 44,
-                        child: IconButton.filled(
-                          style: IconButton.styleFrom(
-                            backgroundColor: scheme.primary,
-                            foregroundColor: scheme.onPrimary,
-                            shape: retro
-                                ? RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(3),
-                                  )
-                                : null,
-                          ),
-                          icon: Icon(playing ? Icons.pause : Icons.play_arrow),
+                      // Rétro Winamp (idée #83) : les mêmes commandes, mais en
+                      // plaques gravées — le rond plein accent est la
+                      // signature du verre, pas celle d'un châssis.
+                      if (retro) ...[
+                        RetroButton(
+                          width: 44,
+                          height: 36,
+                          tooltip: playing ? 'Pause' : 'Lecture',
                           onPressed: actions.togglePlayPause,
+                          child: RetroGlyph(
+                            playing ? RetroGlyphKind.pause : RetroGlyphKind.play,
+                            size: 12,
+                          ),
                         ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.skip_next),
-                        iconSize: 28,
-                        onPressed: actions.next,
-                      ),
+                        const SizedBox(width: 6),
+                        RetroButton(
+                          width: 38,
+                          height: 36,
+                          tooltip: 'Titre suivant',
+                          onPressed: actions.next,
+                          child: const RetroGlyph(RetroGlyphKind.next, size: 10),
+                        ),
+                      ] else ...[
+                        // Lecture/pause : rond plein accent, signature du style.
+                        SizedBox(
+                          width: 44,
+                          height: 44,
+                          child: IconButton.filled(
+                            style: IconButton.styleFrom(
+                              backgroundColor: scheme.primary,
+                              foregroundColor: scheme.onPrimary,
+                            ),
+                            icon: Icon(
+                              playing ? Icons.pause : Icons.play_arrow,
+                            ),
+                            onPressed: actions.togglePlayPause,
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.skip_next),
+                          iconSize: 28,
+                          onPressed: actions.next,
+                        ),
+                      ],
                     ],
                   ),
                 ),

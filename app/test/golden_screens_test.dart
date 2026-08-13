@@ -34,6 +34,7 @@ import 'package:gullify/state/stats.dart';
 import 'package:gullify/state/yt_downloads.dart';
 import 'package:gullify/theme.dart';
 import 'package:gullify/widgets/mini_player.dart';
+import 'package:gullify/widgets/retro_chrome.dart';
 
 const _songs = [
   Song(id: 1, title: 'Première chanson', filePath: 'a.mp3', duration: 215,
@@ -246,14 +247,17 @@ Widget _wrap(
       theme: theme ?? gullifyThemeFor(GullifyAccent.indigo, dark: false),
       home: Builder(
         builder: (context) {
-          final bg = Theme.of(context)
-              .extension<GullifySurfaces>()
-              ?.background;
+          final surfaces = Theme.of(context).extension<GullifySurfaces>();
+          final bg = surfaces?.background;
           return DecoratedBox(
             decoration: BoxDecoration(
               gradient: bg ?? const LinearGradient(colors: [Colors.white, Colors.white]),
             ),
-            child: child,
+            // Comme main.dart : sous le rétro, la tôle brossée passe entre le
+            // fond et les écrans (idée #83).
+            child: (surfaces?.retro ?? false)
+                ? RetroChassis(child: child)
+                : child,
           );
         },
       ),

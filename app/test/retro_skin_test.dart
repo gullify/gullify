@@ -2,10 +2,20 @@
 // à part (le verre ne bouge pas d'un pixel quand il est éteint) et qu'il se
 // reconnaisse à ce qui fait un Winamp — surfaces opaques biseautées, angles
 // carrés, afficheur vert.
+//
+// Depuis l'idée #83 (« des carrés et du texte vert, ça ne ressemble pas
+// vraiment »), on vérifie aussi le RELIEF : le biseau à deux traits et les
+// chiffres dessinés segment par segment, qui sont ce qui manquait.
+import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
+import 'package:gullify/screens/now_playing_screen.dart';
+import 'package:gullify/state/player.dart';
 import 'package:gullify/theme.dart';
 import 'package:gullify/widgets/glass_box.dart';
+import 'package:gullify/widgets/retro_chrome.dart';
 import 'package:gullify/widgets/retro_lcd.dart';
 
 void main() {
@@ -141,4 +151,199 @@ void main() {
       expect(style.color, winampGreen);
     });
   });
+
+  // Idée #83 : ce qui manquait au premier jet.
+  group('le relief', () {
+    testWidgets('un biseau se pose à deux traits, pas à un', (tester) async {
+      await tester.pumpWidget(
+        const Directionality(
+          textDirection: TextDirection.ltr,
+          child: RetroBevel(
+            fill: winampChassis,
+            child: SizedBox(width: 60, height: 40),
+          ),
+        ),
+      );
+      final borders = tester
+          .widgetList<DecoratedBox>(find.byType(DecoratedBox))
+          .map((d) => d.decoration)
+          .whereType<BoxDecoration>()
+          .map((d) => d.border)
+          .whereType<Border>()
+          .toList();
+      // Deux cadres emboîtés : c'est le second qui donne le relief.
+      expect(borders.length, 2);
+      for (final border in borders) {
+        expect(border.top.color, border.left.color);
+        expect(border.bottom.color, border.right.color);
+        expect(border.top.color, isNot(border.bottom.color));
+      }
+      // Et le trait intérieur est plus clair en haut que le trait extérieur.
+      expect(
+        borders[1].top.color.computeLuminance(),
+        greaterThan(borders[0].top.color.computeLuminance()),
+      );
+    });
+
+    testWidgets('en creux, la lumière passe en bas', (tester) async {
+      Future<Border> outer(bool sunken) async {
+        await tester.pumpWidget(
+          Directionality(
+            textDirection: TextDirection.ltr,
+            child: RetroBevel(
+              sunken: sunken,
+              fill: winampChassis,
+              child: const SizedBox(width: 60, height: 40),
+            ),
+          ),
+        );
+        return tester
+            .widgetList<DecoratedBox>(find.byType(DecoratedBox))
+            .map((d) => d.decoration)
+            .whereType<BoxDecoration>()
+            .map((d) => d.border)
+            .whereType<Border>()
+            .first;
+      }
+
+      final raised = await outer(false);
+      final sunken = await outer(true);
+      expect(sunken.top.color, raised.bottom.color);
+      expect(sunken.bottom.color, raised.top.color);
+    });
+
+    testWidgets('le temps est dessiné segment par segment', (tester) async {
+      await tester.pumpWidget(
+        const Directionality(
+          textDirection: TextDirection.ltr,
+          child: Center(child: SevenSegment('03:12', height: 26)),
+        ),
+      );
+      // Pas de texte : rien à lire dans l'arbre, tout est peint.
+      expect(find.byType(Text), findsNothing);
+      expect(find.byType(CustomPaint), findsWidgets);
+      // Les deux points prennent moins de place qu'un chiffre.
+      const digits = SevenSegment('00000', height: 26);
+      const withColon = SevenSegment('00:00', height: 26);
+      expect(withColon.width, lessThan(digits.width));
+    });
+  });
+
+  group('l\'afficheur du lecteur', () {
+    final item = MediaItem(
+      id: 'stream-1',
+      title: 'Première chanson',
+      artist: 'Artiste Test',
+      album: 'Album Test',
+      duration: const Duration(seconds: 215),
+      extras: const {'songId': 1, 'filePath': '/musique/premiere.flac'},
+    );
+
+    Widget lcd({required bool playing}) => ProviderScope(
+      overrides: [
+        positionProvider.overrideWith(
+          (ref) => Stream.value(const Duration(seconds: 72)),
+        ),
+        playbackStateProvider.overrideWith(
+          (ref) => Stream.value(PlaybackState(playing: playing)),
+        ),
+        queueProvider.overrideWith(
+          (ref) => Stream.value([item, item.copyWith(id: 'stream-2')]),
+        ),
+      ],
+      child: MaterialApp(
+        theme: gullifyTheme(GullifySkin.winamp, GullifyAccent.indigo,
+            dark: true),
+        home: Scaffold(
+          body: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: RetroLcd(item: item),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    testWidgets('rend le châssis du lecteur', (tester) async {
+      tester.view.physicalSize = const Size(412, 200);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(lcd(playing: true));
+      // Durées fixes : l'analyseur et le titre défilant sont animés, le
+      // golden doit tomber toujours au même instant.
+      await tester.pump(const Duration(milliseconds: 300));
+      await expectLater(
+        find.byType(RetroLcd),
+        matchesGoldenFile('goldens/retro_lcd.png'),
+      );
+    });
+
+    testWidgets('annonce le format du fichier et le rang dans la file',
+        (tester) async {
+      await tester.pumpWidget(lcd(playing: true));
+      await tester.pump();
+      expect(find.text('FLAC'), findsOneWidget);
+      expect(find.text('1/2'), findsOneWidget);
+    });
+
+    // Le golden du lecteur entier : c'est LUI qu'on regarde pour savoir si
+    // « ça ressemble » — barre de titre hachurée, pochette encastrée,
+    // afficheur, boutons gravés et glissière à bloc.
+    testWidgets('le lecteur complet a la tête d\'un châssis', (tester) async {
+      tester.view.physicalSize = const Size(412, 892);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            playerActionsProvider.overrideWithValue(_FakePlayerActions()),
+            currentMediaItemProvider.overrideWith((ref) => Stream.value(item)),
+            playbackStateProvider.overrideWith(
+              (ref) => Stream.value(PlaybackState(playing: true)),
+            ),
+            positionProvider.overrideWith(
+              (ref) => Stream.value(const Duration(seconds: 72)),
+            ),
+            queueProvider.overrideWith((ref) => Stream.value([item])),
+          ],
+          child: MaterialApp.router(
+            theme: gullifyTheme(GullifySkin.winamp, GullifyAccent.indigo,
+                dark: true),
+            // Un routeur, même minimal : le lecteur se referme avec
+            // `context.pop()` dès qu'il n'a plus rien à jouer.
+            routerConfig: GoRouter(
+              routes: [
+                GoRoute(
+                  path: '/',
+                  builder: (context, state) => Builder(
+                    builder: (context) => DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: Theme.of(context)
+                            .extension<GullifySurfaces>()!
+                            .background,
+                      ),
+                      // Comme main.dart : la tôle brossée derrière l'écran.
+                      child: const RetroChassis(child: NowPlayingScreen()),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+      // Durées fixes : afficheur et titre défilant sont animés.
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pump(const Duration(milliseconds: 50));
+      await expectLater(
+        find.byType(NowPlayingScreen),
+        matchesGoldenFile('goldens/now_playing_winamp.png'),
+      );
+    });
+  });
 }
+
+/// Le golden ne déclenche aucune lecture : un Fake suffit (le vrai
+/// PlayerActions exigerait le handler audio et ses plugins).
+class _FakePlayerActions extends Fake implements PlayerActions {}

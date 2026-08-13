@@ -8,9 +8,12 @@ import '../state/app_update.dart';
 import '../state/background_playback.dart';
 import '../state/home_widget_sync.dart';
 import '../state/player.dart';
+import '../theme.dart';
 import '../widgets/glass_box.dart';
 import '../widgets/keyboard_guard.dart';
 import '../widgets/mini_player.dart';
+import '../widgets/retro_chrome.dart';
+import '../widgets/retro_lcd.dart';
 import '../widgets/update_dialog.dart';
 
 /// Tab shell: content + mini player + bottom navigation.
@@ -231,6 +234,22 @@ class _HomeOrb extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final accent = scheme.primary;
+    // Rétro Winamp (idée #83) : un châssis n'a pas d'orbe qui brille. Le
+    // bouton d'accueil devient une plaque carrée, enfoncée quand on y est.
+    if (isRetroSkin(context)) {
+      return RetroButton(
+        width: 60,
+        height: 54,
+        active: selected,
+        onPressed: onTap,
+        tooltip: 'Accueil',
+        child: Icon(
+          Icons.home_rounded,
+          size: 26,
+          color: selected ? winampGreen : winampInk,
+        ),
+      );
+    }
     return GestureDetector(
       onTap: onTap,
       child: AnimatedScale(
@@ -301,7 +320,9 @@ class _Satellite extends StatelessWidget {
                 color: selected
                     ? scheme.primary.withValues(alpha: 0.16)
                     : Colors.transparent,
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(
+                  isRetroSkin(context) ? 0 : 14,
+                ),
               ),
               child: Icon(
                 selected ? dest.iconOn : dest.iconOff,

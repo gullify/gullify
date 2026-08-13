@@ -11,8 +11,10 @@ import '../state/karaoke.dart';
 import '../state/library.dart';
 import '../state/player.dart';
 import '../state/sleep_timer.dart';
+import '../theme.dart';
 import '../widgets/artwork.dart';
 import '../widgets/chords_sheet.dart';
+import '../widgets/retro_chrome.dart';
 import '../widgets/retro_lcd.dart';
 import '../widgets/share_sheet.dart';
 
@@ -41,6 +43,10 @@ class NowPlayingScreen extends ConsumerWidget {
     // La pochette floutée remplit l'arrière-plan (design Liquid Glass).
     final light = scheme.brightness == Brightness.light;
     final artUrl = item.artUri?.toString();
+    // Rétro Winamp (idée #82) : le lecteur devient un châssis. Barre de titre
+    // hachurée, afficheur à segments, boutons de transport carrés — et pas de
+    // pochette floutée derrière : une façade de 1999 est opaque (idée #83).
+    final retro = isRetroSkin(context);
 
     // Swipe vers le bas pour fermer le lecteur (en plus de la flèche).
     return Dismissible(
@@ -49,49 +55,62 @@ class NowPlayingScreen extends ConsumerWidget {
       onDismissed: (_) => context.pop(),
       child: Scaffold(
         extendBodyBehindAppBar: true,
-        appBar: AppBar(
-          backgroundColor: Colors.transparent,
-          leading: IconButton(
-            icon: const Icon(Icons.keyboard_arrow_down, size: 32),
-            onPressed: () => context.pop(),
-          ),
-          centerTitle: true,
-          title: Column(
-            children: [
-              Text(
-                isRadio ? 'RADIO' : 'EN LECTURE DEPUIS',
-                style: TextStyle(
-                  fontSize: 10,
-                  letterSpacing: 1.6,
-                  fontWeight: FontWeight.w700,
-                  color: scheme.onSurfaceVariant,
+        appBar: retro
+            ? RetroTitleBar(
+                title: isRadio ? 'Radio' : item.album ?? 'Gullify',
+                onTitleTap: albumId == null
+                    ? null
+                    : () => _openDetail(context, '/album/$albumId'),
+                onClose: () => context.pop(),
+              )
+            : AppBar(
+                backgroundColor: Colors.transparent,
+                leading: IconButton(
+                  icon: const Icon(Icons.keyboard_arrow_down, size: 32),
+                  onPressed: () => context.pop(),
+                ),
+                centerTitle: true,
+                title: Column(
+                  children: [
+                    Text(
+                      isRadio ? 'RADIO' : 'EN LECTURE DEPUIS',
+                      style: TextStyle(
+                        fontSize: 10,
+                        letterSpacing: 1.6,
+                        fontWeight: FontWeight.w700,
+                        color: scheme.onSurfaceVariant,
+                      ),
+                    ),
+                    if (item.album != null)
+                      _DetailLink(
+                        text: item.album!,
+                        path: albumId == null ? null : '/album/$albumId',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                  ],
                 ),
               ),
-              if (item.album != null)
-                _DetailLink(
-                  text: item.album!,
-                  path: albumId == null ? null : '/album/$albumId',
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-            ],
-          ),
-        ),
         body: Stack(
           fit: StackFit.expand,
           children: [
-            if (artUrl != null)
+            // Sous le rétro, rien de tout ça : le châssis gris est opaque, la
+            // pochette floutée en filigrane appartient au verre.
+            if (artUrl != null && !retro)
               ImageFiltered(
                 imageFilter: ImageFilter.blur(sigmaX: 60, sigmaY: 60),
                 child: Artwork(url: artUrl, borderRadius: 0),
               ),
-            DecoratedBox(
-              decoration: BoxDecoration(
-                color: light ? const Color(0xD9FFFFFF) : const Color(0xBF0A0C12),
+            if (!retro)
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  color: light
+                      ? const Color(0xD9FFFFFF)
+                      : const Color(0xBF0A0C12),
+                ),
               ),
-            ),
             SafeArea(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -103,36 +122,50 @@ class NowPlayingScreen extends ConsumerWidget {
                         constraints: const BoxConstraints(maxWidth: 340),
                         child: AspectRatio(
                           aspectRatio: 1,
-                          child: DecoratedBox(
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(28),
-                              boxShadow: const [
-                                BoxShadow(
-                                  color: Color(0x59141932),
-                                  blurRadius: 44,
-                                  offset: Offset(0, 22),
+                          child: retro
+                              // La pochette prend le cadre creux de la
+                              // fenêtre de visualisation : pas d'ombre
+                              // portée, un châssis ne flotte pas.
+                              ? RetroBevel(
+                                  sunken: true,
+                                  fill: winampLcd,
+                                  padding: const EdgeInsets.all(3),
+                                  child: Artwork(
+                                    url: item.artUri?.toString(),
+                                    borderRadius: 0,
+                                    icon: isRadio
+                                        ? Icons.radio
+                                        : Icons.music_note,
+                                  ),
+                                )
+                              : DecoratedBox(
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(28),
+                                    boxShadow: const [
+                                      BoxShadow(
+                                        color: Color(0x59141932),
+                                        blurRadius: 44,
+                                        offset: Offset(0, 22),
+                                      ),
+                                    ],
+                                  ),
+                                  child: Artwork(
+                                    url: item.artUri?.toString(),
+                                    borderRadius: 28,
+                                    icon: isRadio
+                                        ? Icons.radio
+                                        : Icons.music_note,
+                                  ),
                                 ),
-                              ],
-                            ),
-                            child: Artwork(
-                              url: item.artUri?.toString(),
-                              borderRadius: 28,
-                              icon: isRadio ? Icons.radio : Icons.music_note,
-                            ),
-                          ),
                         ),
                       ),
                     ),
                     const Spacer(),
-                    // Rétro Winamp (idée #82) : l'afficheur vert du lecteur de
-                    // 1999 se glisse au-dessus du titre — temps en gros
-                    // chiffres, titre qui défile, analyseur de spectre.
-                    if (isRetroSkin(context)) ...[
-                      RetroLcd(
-                        title: item.title,
-                        artist: item.artist,
-                        duration: item.duration,
-                      ),
+                    // Rétro Winamp (idée #82) : l'afficheur du lecteur de 1999
+                    // se glisse au-dessus du titre — temps à segments, cases
+                    // creuses, voyants et analyseur de spectre.
+                    if (retro) ...[
+                      RetroLcd(item: item),
                       const SizedBox(height: 12),
                     ],
                     Row(
@@ -145,11 +178,16 @@ class NowPlayingScreen extends ConsumerWidget {
                                 item.title,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  fontSize: 24,
-                                  fontWeight: FontWeight.w800,
-                                  letterSpacing: -0.5,
-                                ),
+                                // Sous le rétro, le titre passe en chasse
+                                // fixe verte : à côté d'un afficheur, une
+                                // graisse de 2024 se voit tout de suite.
+                                style: retro
+                                    ? lcdTextStyle(size: 18)
+                                    : const TextStyle(
+                                        fontSize: 24,
+                                        fontWeight: FontWeight.w800,
+                                        letterSpacing: -0.5,
+                                      ),
                               ),
                               if (item.artist != null)
                                 _DetailLink(
@@ -158,11 +196,19 @@ class NowPlayingScreen extends ConsumerWidget {
                                       ? null
                                       : '/artist/$artistId',
                                   chevronSize: 18,
-                                  style: TextStyle(
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w500,
-                                    color: scheme.onSurfaceVariant,
-                                  ),
+                                  style: retro
+                                      ? lcdTextStyle(
+                                          size: 13,
+                                          weight: FontWeight.w600,
+                                          color: winampGreen.withValues(
+                                            alpha: 0.65,
+                                          ),
+                                        )
+                                      : TextStyle(
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.w500,
+                                          color: scheme.onSurfaceVariant,
+                                        ),
                                 ),
                             ],
                           ),
@@ -174,59 +220,62 @@ class NowPlayingScreen extends ConsumerWidget {
                     if (!isRadio)
                       _Waveform(duration: item.duration, seed: item.title),
                     const SizedBox(height: 8),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: [
-                        IconButton(
-                          icon: Icon(
-                            Icons.shuffle,
-                            color:
-                                (state?.shuffleMode ??
-                                        AudioServiceShuffleMode.none) !=
-                                    AudioServiceShuffleMode.none
-                                ? scheme.primary
-                                : null,
+                    if (retro)
+                      _RetroControls(state: state, isRadio: isRadio)
+                    else
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: [
+                          IconButton(
+                            icon: Icon(
+                              Icons.shuffle,
+                              color:
+                                  (state?.shuffleMode ??
+                                          AudioServiceShuffleMode.none) !=
+                                      AudioServiceShuffleMode.none
+                                  ? scheme.primary
+                                  : null,
+                            ),
+                            onPressed: isRadio ? null : actions.toggleShuffle,
                           ),
-                          onPressed: isRadio ? null : actions.toggleShuffle,
-                        ),
-                        IconButton(
-                          iconSize: 40,
-                          icon: const Icon(Icons.skip_previous),
-                          onPressed: isRadio ? null : actions.previous,
-                        ),
-                        IconButton(
-                          iconSize: 72,
-                          icon: Icon(
-                            (state?.playing ?? false)
-                                ? Icons.pause_circle_filled
-                                : Icons.play_circle_fill,
-                            color: scheme.primary,
+                          IconButton(
+                            iconSize: 40,
+                            icon: const Icon(Icons.skip_previous),
+                            onPressed: isRadio ? null : actions.previous,
                           ),
-                          onPressed: actions.togglePlayPause,
-                        ),
-                        IconButton(
-                          iconSize: 40,
-                          icon: const Icon(Icons.skip_next),
-                          onPressed: isRadio ? null : actions.next,
-                        ),
-                        IconButton(
-                          icon: Icon(
-                            switch (state?.repeatMode ??
-                                AudioServiceRepeatMode.none) {
-                              AudioServiceRepeatMode.one => Icons.repeat_one,
-                              _ => Icons.repeat,
-                            },
-                            color:
-                                (state?.repeatMode ??
-                                        AudioServiceRepeatMode.none) !=
-                                    AudioServiceRepeatMode.none
-                                ? scheme.primary
-                                : null,
+                          IconButton(
+                            iconSize: 72,
+                            icon: Icon(
+                              (state?.playing ?? false)
+                                  ? Icons.pause_circle_filled
+                                  : Icons.play_circle_fill,
+                              color: scheme.primary,
+                            ),
+                            onPressed: actions.togglePlayPause,
                           ),
-                          onPressed: isRadio ? null : actions.cycleRepeat,
-                        ),
-                      ],
-                    ),
+                          IconButton(
+                            iconSize: 40,
+                            icon: const Icon(Icons.skip_next),
+                            onPressed: isRadio ? null : actions.next,
+                          ),
+                          IconButton(
+                            icon: Icon(
+                              switch (state?.repeatMode ??
+                                  AudioServiceRepeatMode.none) {
+                                AudioServiceRepeatMode.one => Icons.repeat_one,
+                                _ => Icons.repeat,
+                              },
+                              color:
+                                  (state?.repeatMode ??
+                                          AudioServiceRepeatMode.none) !=
+                                      AudioServiceRepeatMode.none
+                                  ? scheme.primary
+                                  : null,
+                            ),
+                            onPressed: isRadio ? null : actions.cycleRepeat,
+                          ),
+                        ],
+                      ),
                     const SizedBox(height: 8),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -450,8 +499,91 @@ class _FavoriteButton extends ConsumerWidget {
   }
 }
 
+/// Les boutons de transport du châssis (idée #83) : des plaques carrées
+/// gravées, serrées les unes contre les autres comme sur la façade d'origine,
+/// à la place des ronds de Material. Les bascules (aléatoire, répétition)
+/// restent enfoncées tant qu'elles sont actives — en 1999, un état se lisait
+/// au relief, pas à la couleur.
+class _RetroControls extends ConsumerWidget {
+  const _RetroControls({required this.state, required this.isRadio});
+
+  final PlaybackState? state;
+  final bool isRadio;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final actions = ref.read(playerActionsProvider);
+    final playing = state?.playing ?? false;
+    final shuffle =
+        (state?.shuffleMode ?? AudioServiceShuffleMode.none) !=
+        AudioServiceShuffleMode.none;
+    final repeat = state?.repeatMode ?? AudioServiceRepeatMode.none;
+    final repeating = repeat != AudioServiceRepeatMode.none;
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        RetroButton(
+          width: 38,
+          height: 30,
+          tooltip: 'Lecture aléatoire',
+          active: shuffle,
+          onPressed: isRadio ? null : actions.toggleShuffle,
+          child: Icon(
+            Icons.shuffle,
+            size: 15,
+            color: shuffle ? winampGreen : winampInk,
+          ),
+        ),
+        const SizedBox(width: 8),
+        RetroButton(
+          width: 44,
+          height: 36,
+          tooltip: 'Titre précédent',
+          onPressed: isRadio ? null : actions.previous,
+          child: const RetroGlyph(RetroGlyphKind.previous, size: 11),
+        ),
+        RetroButton(
+          width: 56,
+          height: 36,
+          tooltip: playing ? 'Pause' : 'Lecture',
+          onPressed: actions.togglePlayPause,
+          child: RetroGlyph(
+            playing ? RetroGlyphKind.pause : RetroGlyphKind.play,
+            size: 13,
+          ),
+        ),
+        RetroButton(
+          width: 44,
+          height: 36,
+          tooltip: 'Titre suivant',
+          onPressed: isRadio ? null : actions.next,
+          child: const RetroGlyph(RetroGlyphKind.next, size: 11),
+        ),
+        const SizedBox(width: 8),
+        RetroButton(
+          width: 38,
+          height: 30,
+          tooltip: 'Répétition',
+          active: repeating,
+          onPressed: isRadio ? null : actions.cycleRepeat,
+          child: Icon(
+            repeat == AudioServiceRepeatMode.one
+                ? Icons.repeat_one
+                : Icons.repeat,
+            size: 15,
+            color: repeating ? winampGreen : winampInk,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 /// Scrubber « forme d'onde » du design : barres déterministes par titre,
-/// portion écoulée en couleur accent, glisser/taper pour naviguer.
+/// portion écoulée en couleur accent, glisser/taper pour naviguer. Sous le
+/// rétro (idée #83), la même prise devient la rainure et le bloc coulissant
+/// du lecteur de 1999 — une onde dessinée n'existait pas encore.
 class _Waveform extends ConsumerWidget {
   const _Waveform({required this.duration, required this.seed});
 
@@ -493,6 +625,14 @@ class _Waveform extends ConsumerWidget {
         ? (position.inMilliseconds / total.inMilliseconds).clamp(0.0, 1.0)
         : 0.0;
     final bars = _bars();
+    final retro = isRetroSkin(context);
+    final labelStyle = retro
+        ? lcdTextStyle(size: 11, weight: FontWeight.w600)
+        : TextStyle(
+            fontSize: 11.5,
+            fontWeight: FontWeight.w600,
+            color: scheme.onSurfaceVariant,
+          );
 
     return Column(
       children: [
@@ -505,25 +645,27 @@ class _Waveform extends ConsumerWidget {
                 _seekTo(ref, d.localPosition.dx, constraints.maxWidth),
             child: SizedBox(
               height: 56,
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  for (final (i, h) in bars.indexed) ...[
-                    Expanded(
-                      child: Container(
-                        height: 8 + 44 * h,
-                        decoration: BoxDecoration(
-                          color: (i + 0.5) / _barCount <= progress
-                              ? scheme.primary
-                              : scheme.onSurface.withValues(alpha: 0.18),
-                          borderRadius: BorderRadius.circular(3),
-                        ),
-                      ),
+              child: retro
+                  ? Center(child: RetroSeekBar(progress: progress))
+                  : Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        for (final (i, h) in bars.indexed) ...[
+                          Expanded(
+                            child: Container(
+                              height: 8 + 44 * h,
+                              decoration: BoxDecoration(
+                                color: (i + 0.5) / _barCount <= progress
+                                    ? scheme.primary
+                                    : scheme.onSurface.withValues(alpha: 0.18),
+                                borderRadius: BorderRadius.circular(3),
+                              ),
+                            ),
+                          ),
+                          if (i < _barCount - 1) const SizedBox(width: 2),
+                        ],
+                      ],
                     ),
-                    if (i < _barCount - 1) const SizedBox(width: 2),
-                  ],
-                ],
-              ),
             ),
           ),
         ),
@@ -531,22 +673,8 @@ class _Waveform extends ConsumerWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
-              _fmt(position),
-              style: TextStyle(
-                fontSize: 11.5,
-                fontWeight: FontWeight.w600,
-                color: scheme.onSurfaceVariant,
-              ),
-            ),
-            Text(
-              _fmt(total),
-              style: TextStyle(
-                fontSize: 11.5,
-                fontWeight: FontWeight.w600,
-                color: scheme.onSurfaceVariant,
-              ),
-            ),
+            Text(_fmt(position), style: labelStyle),
+            Text(_fmt(total), style: labelStyle),
           ],
         ),
       ],

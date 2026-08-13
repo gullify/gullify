@@ -45,7 +45,7 @@ class Artwork extends StatelessWidget {
         Theme.of(context).extension<GullifySurfaces>()?.retro ?? false;
 
     return ClipRRect(
-      borderRadius: BorderRadius.circular(retro ? 1 : borderRadius),
+      borderRadius: BorderRadius.circular(retro ? 0 : borderRadius),
       child: url == null
           ? SizedBox(width: size, height: size, child: placeholder)
           : CachedNetworkImage(
