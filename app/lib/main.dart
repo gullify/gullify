@@ -89,6 +89,7 @@ class _GullifyAppState extends ConsumerState<GullifyApp>
   @override
   Widget build(BuildContext context) {
     final accent = ref.watch(accentColorProvider);
+    final skin = ref.watch(skinProvider);
     // Le réveil sonne : l'écran du réveil passe devant tout le reste, quel que
     // soit l'endroit où l'app avait été laissée la veille.
     ref.listen(alarmProvider, (prev, next) {
@@ -98,9 +99,12 @@ class _GullifyAppState extends ConsumerState<GullifyApp>
     });
     return MaterialApp.router(
       title: 'Gullify',
-      // Même structure de verre, teintée par l'accent; clair et sombre.
-      theme: gullifyThemeFor(accent, dark: false),
-      darkTheme: gullifyThemeFor(accent, dark: true),
+      // Même structure de verre, teintée par l'accent; clair et sombre. Le
+      // rétro Winamp (idée #82), lui, n'a qu'une seule tête : les deux
+      // entrées valent alors le même thème, et le mode clair/sombre n'a plus
+      // de prise dessus.
+      theme: gullifyTheme(skin, accent, dark: false),
+      darkTheme: gullifyTheme(skin, accent, dark: true),
       themeMode: ref.watch(themeModeProvider),
       routerConfig: ref.watch(routerProvider),
       debugShowCheckedModeBanner: false,

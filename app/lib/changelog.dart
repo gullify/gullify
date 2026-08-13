@@ -8,6 +8,21 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.12.0', [
+    'Un thème rétro Winamp, à part des autres : Paramètres → Apparence → '
+        '« Rétro Winamp ». Châssis gris métal, plaques biseautées (lumière en '
+        'haut, ombre en bas), angles carrés, pochettes carrées et vert '
+        'd\'afficheur partout',
+    'Le lecteur retrouve son afficheur : temps en gros chiffres verts (les '
+        'deux points clignotent à la pause, comme avant), titre qui défile '
+        'quand il est trop long, et l\'analyseur de spectre qui saute à côté',
+    'Le mini-lecteur passe lui aussi en chasse fixe verte',
+    'Rien n\'a bougé d\'un pixel : mêmes écrans, même mise en page, mêmes '
+        'gestes — seule la peinture change. En l\'éteignant, le verre revient '
+        'exactement comme il était, avec ta couleur et ton mode',
+    'Tant qu\'il est levé, l\'accent et le mode clair/sombre n\'ont pas de '
+        'prise : Winamp n\'a qu\'une seule tête',
+  ]),
   ReleaseNote('3.11.0', [
     'Un réveil matinal : Paramètres → Lecture → « Réveil ». Une heure, des '
         'jours, et la musique de ton choix — le réveil pioche dans toute la '

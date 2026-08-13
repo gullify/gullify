@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../state/player.dart';
 import 'artwork.dart';
 import 'glass_box.dart';
+import 'retro_lcd.dart';
 
 /// Mini-lecteur flottant, style Liquid Glass Player : carte de verre avec
 /// barre de progression fine sur le bord supérieur, bouton lecture rond
@@ -57,6 +58,7 @@ class MiniPlayer extends ConsumerWidget {
     final position = ref.watch(positionProvider).value ?? Duration.zero;
     final actions = ref.read(playerActionsProvider);
     final scheme = Theme.of(context).colorScheme;
+    final retro = isRetroSkin(context);
 
     final total = item.duration?.inMilliseconds ?? 0;
     final progress = total > 0
@@ -141,10 +143,15 @@ class MiniPlayer extends ConsumerWidget {
                                       item.title,
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.w700,
-                                        fontSize: 14.5,
-                                      ),
+                                      // Rétro Winamp (idée #82) : le titre
+                                      // passe en chasse fixe verte, comme sur
+                                      // l'afficheur du lecteur complet.
+                                      style: retro
+                                          ? lcdTextStyle(size: 13.5)
+                                          : const TextStyle(
+                                              fontWeight: FontWeight.w700,
+                                              fontSize: 14.5,
+                                            ),
                                     ),
                                     if (item.artist != null)
                                       Text(
@@ -172,6 +179,11 @@ class MiniPlayer extends ConsumerWidget {
                           style: IconButton.styleFrom(
                             backgroundColor: scheme.primary,
                             foregroundColor: scheme.onPrimary,
+                            shape: retro
+                                ? RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(3),
+                                  )
+                                : null,
                           ),
                           icon: Icon(playing ? Icons.pause : Icons.play_arrow),
                           onPressed: actions.togglePlayPause,

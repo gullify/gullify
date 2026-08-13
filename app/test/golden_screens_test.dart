@@ -183,7 +183,12 @@ final _mediaItem = MediaItem(
   extras: const {'songId': 1},
 );
 
-Widget _wrap(Widget child, {MediaItem? item, String? searchQuery}) {
+Widget _wrap(
+  Widget child, {
+  MediaItem? item,
+  String? searchQuery,
+  ThemeData? theme,
+}) {
   return ProviderScope(
     // NB : liste inline — riverpod 3 n'exporte pas le nom `Override`
     // (collision avec dart:core), le type est donc déduit du paramètre.
@@ -238,7 +243,7 @@ Widget _wrap(Widget child, {MediaItem? item, String? searchQuery}) {
       ytArtistAlbumsProvider('Artiste Test').overrideWith((ref) async => []),
     ],
     child: MaterialApp(
-      theme: gullifyThemeFor(GullifyAccent.indigo, dark: false),
+      theme: theme ?? gullifyThemeFor(GullifyAccent.indigo, dark: false),
       home: Builder(
         builder: (context) {
           final bg = Theme.of(context)
@@ -262,6 +267,7 @@ Widget _shellWrap(
   MediaItem? item,
   int tab = 0,
   String? searchQuery,
+  ThemeData? theme,
 }) {
   return _wrap(
     KeyedSubtree(
@@ -280,6 +286,7 @@ Widget _shellWrap(
     ),
     item: item,
     searchQuery: searchQuery,
+    theme: theme,
   );
 }
 
@@ -322,6 +329,28 @@ void main() {
     await expectLater(
       find.byKey(const Key('golden-root')),
       matchesGoldenFile('goldens/home_playing.png'),
+    );
+  });
+
+  // Le thème rétro Winamp (idée #82) : mêmes écrans, même mise en page —
+  // seules les surfaces changent. Le golden est là pour qu'un jour où
+  // l'habillage de verre bouge, on voie tout de suite si le rétro a suivi.
+  testWidgets('home screen renders in the retro Winamp skin', (tester) async {
+    await pumpScreen(
+      tester,
+      _shellWrap(
+        const HomeScreen(),
+        item: _mediaItem,
+        theme: gullifyTheme(
+          GullifySkin.winamp,
+          GullifyAccent.indigo,
+          dark: true,
+        ),
+      ),
+    );
+    await expectLater(
+      find.byKey(const Key('golden-root')),
+      matchesGoldenFile('goldens/home_winamp.png'),
     );
   });
 

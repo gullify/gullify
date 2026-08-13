@@ -7,6 +7,36 @@ import '../theme.dart';
 const _storage = FlutterSecureStorage();
 const _kAccent = 'theme_accent';
 const _kMode = 'theme_mode';
+const _kSkin = 'theme_skin';
+
+/// Habillage choisi : le verre de toujours, ou le rétro Winamp (idée #82).
+/// Défaut : le verre — le rétro se demande, il ne s'impose pas.
+final skinProvider =
+    NotifierProvider<SkinNotifier, GullifySkin>(SkinNotifier.new);
+
+class SkinNotifier extends Notifier<GullifySkin> {
+  @override
+  GullifySkin build() {
+    _restore();
+    return GullifySkin.glass;
+  }
+
+  Future<void> _restore() async {
+    try {
+      final raw = await _storage.read(key: _kSkin);
+      if (raw == null) return;
+      state = GullifySkin.values.firstWhere(
+        (s) => s.name == raw,
+        orElse: () => GullifySkin.glass,
+      );
+    } catch (_) {}
+  }
+
+  Future<void> set(GullifySkin skin) async {
+    state = skin;
+    await _storage.write(key: _kSkin, value: skin.name);
+  }
+}
 
 /// Couleur d'accent choisie (structure de verre inchangée). Défaut : indigo.
 final accentColorProvider =

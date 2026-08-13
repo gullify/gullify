@@ -39,8 +39,13 @@ class Artwork extends StatelessWidget {
       ),
     );
 
+    // Rétro Winamp (idée #82) : les pochettes se carrent, comme tout le
+    // reste du châssis. Un seul endroit à changer pour toute l'app.
+    final retro =
+        Theme.of(context).extension<GullifySurfaces>()?.retro ?? false;
+
     return ClipRRect(
-      borderRadius: BorderRadius.circular(borderRadius),
+      borderRadius: BorderRadius.circular(retro ? 1 : borderRadius),
       child: url == null
           ? SizedBox(width: size, height: size, child: placeholder)
           : CachedNetworkImage(

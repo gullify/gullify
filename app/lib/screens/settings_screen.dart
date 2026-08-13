@@ -19,7 +19,7 @@ import '../state/player.dart';
 import '../theme.dart';
 import '../widgets/update_dialog.dart';
 
-const appVersion = '3.11.0';
+const appVersion = '3.12.0';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -109,6 +109,7 @@ class SettingsScreen extends ConsumerWidget {
           const _ModePicker(),
           const _AccentPicker(),
           const SizedBox(height: 8),
+          const _RetroSkinTile(),
           const Divider(),
           const _SectionHeader('Développement'),
           ListTile(
@@ -448,6 +449,69 @@ class _AccentPicker extends ConsumerWidget {
             ),
         ],
       ),
+    );
+  }
+}
+
+/// Le thème rétro Winamp (idée #82) : un interrupteur à part des accents,
+/// parce que c'en est un autre, pas une teinte de plus.
+class _RetroSkinTile extends ConsumerWidget {
+  const _RetroSkinTile();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final retro = ref.watch(skinProvider) == GullifySkin.winamp;
+    final scheme = Theme.of(context).colorScheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SwitchListTile(
+          secondary: Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: const Color(0xFF343845),
+              borderRadius: BorderRadius.circular(3),
+              border: const Border(
+                top: BorderSide(color: Color(0xFF6A7082), width: 1.5),
+                left: BorderSide(color: Color(0xFF6A7082), width: 1.5),
+                right: BorderSide(color: Color(0xFF14161C), width: 1.5),
+                bottom: BorderSide(color: Color(0xFF14161C), width: 1.5),
+              ),
+            ),
+            child: Center(
+              child: Text(
+                '||||',
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                  color: winampGreen,
+                ),
+              ),
+            ),
+          ),
+          title: const Text('Rétro Winamp'),
+          subtitle: const Text(
+            'Châssis gris métal, biseaux et afficheur vert — les mêmes '
+            'écrans, habillés en 1999',
+          ),
+          value: retro,
+          onChanged: (on) => ref
+              .read(skinProvider.notifier)
+              .set(on ? GullifySkin.winamp : GullifySkin.glass),
+        ),
+        if (retro)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            child: Text(
+              'Tant qu\'il est levé, la couleur d\'accent et le mode '
+              'clair/sombre n\'ont pas de prise : Winamp n\'a qu\'une seule '
+              'tête. Ils reviennent tels quels en l\'éteignant.',
+              style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+            ),
+          ),
+      ],
     );
   }
 }

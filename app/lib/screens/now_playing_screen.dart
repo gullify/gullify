@@ -13,6 +13,7 @@ import '../state/player.dart';
 import '../state/sleep_timer.dart';
 import '../widgets/artwork.dart';
 import '../widgets/chords_sheet.dart';
+import '../widgets/retro_lcd.dart';
 import '../widgets/share_sheet.dart';
 
 class NowPlayingScreen extends ConsumerWidget {
@@ -123,6 +124,17 @@ class NowPlayingScreen extends ConsumerWidget {
                       ),
                     ),
                     const Spacer(),
+                    // Rétro Winamp (idée #82) : l'afficheur vert du lecteur de
+                    // 1999 se glisse au-dessus du titre — temps en gros
+                    // chiffres, titre qui défile, analyseur de spectre.
+                    if (isRetroSkin(context)) ...[
+                      RetroLcd(
+                        title: item.title,
+                        artist: item.artist,
+                        duration: item.duration,
+                      ),
+                      const SizedBox(height: 12),
+                    ],
                     Row(
                       children: [
                         Expanded(

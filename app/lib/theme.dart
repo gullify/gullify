@@ -31,6 +31,19 @@ enum GullifyAccent {
   final String label;
 }
 
+/// L'habillage de l'app.
+///
+/// Le verre est l'identité de Gullify : une seule structure, seule la couleur
+/// change (voir plus haut). Le rétro Winamp (idée #82) est un écart assumé,
+/// rangé à part des accents — la nostalgie, « de temps en temps ». Il ne
+/// change rien à la mise en page : mêmes écrans, mêmes gestes, seulement des
+/// surfaces biseautées, un fond métal et un afficheur vert.
+enum GullifySkin { glass, winamp }
+
+/// Le vert de l'afficheur Winamp, et le noir sur lequel il vit.
+const winampGreen = Color(0xFF00E653);
+const winampLcd = Color(0xFF0A0C0A);
+
 /// Réglages de rendu propres à la structure de verre, lus par les widgets
 /// (mini-lecteur, barre de navigation, en-têtes) pour l'effet.
 class GullifySurfaces extends ThemeExtension<GullifySurfaces> {
@@ -39,6 +52,9 @@ class GullifySurfaces extends ThemeExtension<GullifySurfaces> {
     this.barColor,
     this.background,
     this.accentBlob,
+    this.retro = false,
+    this.bevelLight,
+    this.bevelDark,
   });
 
   /// Surfaces givrées : flou réel (BackdropFilter) sous les barres.
@@ -53,25 +69,49 @@ class GullifySurfaces extends ThemeExtension<GullifySurfaces> {
   /// Halo d'accent diffus en haut de l'écran.
   final Color? accentBlob;
 
+  /// Habillage rétro (idée #82) : surfaces opaques biseautées, angles à peine
+  /// arrondis, afficheur vert. Les widgets communs (GlassBox, mini-lecteur)
+  /// se peignent autrement quand il est levé — la mise en page, elle, ne
+  /// bouge pas d'un pixel.
+  final bool retro;
+
+  /// Arêtes du biseau : la lumière en haut à gauche, l'ombre en bas à droite.
+  final Color? bevelLight;
+  final Color? bevelDark;
+
   @override
   GullifySurfaces copyWith({
     bool? frosted,
     Color? barColor,
     Gradient? background,
     Color? accentBlob,
+    bool? retro,
+    Color? bevelLight,
+    Color? bevelDark,
   }) =>
       GullifySurfaces(
         frosted: frosted ?? this.frosted,
         barColor: barColor ?? this.barColor,
         background: background ?? this.background,
         accentBlob: accentBlob ?? this.accentBlob,
+        retro: retro ?? this.retro,
+        bevelLight: bevelLight ?? this.bevelLight,
+        bevelDark: bevelDark ?? this.bevelDark,
       );
 
   @override
   GullifySurfaces lerp(GullifySurfaces? other, double t) => this;
 }
 
-ThemeData _base(ColorScheme scheme, GullifySurfaces surfaces) => ThemeData(
+/// [corner] arrondit les champs et les boutons, [cardCorner] les cartes.
+/// Le verre est tout en pilules ; le rétro Winamp est presque carré.
+ThemeData _base(
+  ColorScheme scheme,
+  GullifySurfaces surfaces, {
+  double corner = 12,
+  double cardCorner = 18,
+}) =>
+    ThemeData(
       useMaterial3: true,
       colorScheme: scheme,
       fontFamily: 'HankenGrotesk',
@@ -91,11 +131,11 @@ ThemeData _base(ColorScheme scheme, GullifySurfaces surfaces) => ThemeData(
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(corner),
           borderSide: BorderSide.none,
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(corner),
           borderSide: BorderSide(color: scheme.primary, width: 1.5),
         ),
       ),
@@ -106,8 +146,9 @@ ThemeData _base(ColorScheme scheme, GullifySurfaces surfaces) => ThemeData(
           // Jamais Size.fromHeight : sa largeur infinie casse le layout des
           // boutons dans un Row.
           minimumSize: const Size(64, 48),
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(corner),
+          ),
           textStyle: const TextStyle(fontWeight: FontWeight.w600),
         ),
       ),
@@ -120,7 +161,7 @@ ThemeData _base(ColorScheme scheme, GullifySurfaces surfaces) => ThemeData(
         color: surfaces.barColor,
         elevation: 0,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(cardCorner),
           side: BorderSide(
             color: scheme.brightness == Brightness.light
                 ? const Color(0xB3FFFFFF)
@@ -186,5 +227,60 @@ ThemeData _darkGlass(Color accent) {
   );
 }
 
+/// Le thème rétro Winamp (idée #82) : le châssis gris métal des lecteurs de
+/// 1999, ses biseaux, son afficheur vert sur noir.
+///
+/// Un seul thème, sombre : un Winamp clair n'a jamais existé, et c'est bien
+/// tout l'intérêt. Il reste rangé à part des accents — on le met « de temps
+/// en temps », il ne remplace pas l'identité de verre.
+ThemeData _winamp() {
+  final scheme = ColorScheme.fromSeed(
+    seedColor: winampGreen,
+    brightness: Brightness.dark,
+  ).copyWith(
+    primary: winampGreen,
+    // Le vert de l'afficheur est trop lumineux pour porter du texte blanc :
+    // sur les boutons pleins, l'encre est noire, comme sur un vrai LCD.
+    onPrimary: const Color(0xFF06180C),
+    secondary: const Color(0xFFB8BCC8),
+    surface: const Color(0xFF2A2D36),
+    onSurface: const Color(0xFFDDE1E8),
+    onSurfaceVariant: const Color(0xFF9AA0AE),
+    outline: const Color(0xFF5A5F6D),
+    outlineVariant: const Color(0xFF3A3E49),
+    surfaceContainerHighest: const Color(0xFF343845),
+  );
+  return _base(
+    scheme,
+    const GullifySurfaces(
+      frosted: false,
+      retro: true,
+      // Panneaux opaques : le verre translucide n'a rien à faire ici.
+      barColor: Color(0xFF343845),
+      bevelLight: Color(0xFF6A7082),
+      bevelDark: Color(0xFF14161C),
+      // Pas de halo d'accent : un châssis de 1999 ne brille pas.
+      background: LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [Color(0xFF2E313B), Color(0xFF23262E), Color(0xFF1B1D24)],
+      ),
+    ),
+    corner: 3,
+    cardCorner: 3,
+  );
+}
+
 ThemeData gullifyThemeFor(GullifyAccent accent, {required bool dark}) =>
     dark ? _darkGlass(accent.color) : _lightGlass(accent.color);
+
+/// Le thème à appliquer : le verre teinté par l'accent, ou le rétro Winamp
+/// (qui ignore accent et mode — il n'a qu'une seule tête).
+ThemeData gullifyTheme(
+  GullifySkin skin,
+  GullifyAccent accent, {
+  required bool dark,
+}) => switch (skin) {
+  GullifySkin.winamp => _winamp(),
+  GullifySkin.glass => gullifyThemeFor(accent, dark: dark),
+};
