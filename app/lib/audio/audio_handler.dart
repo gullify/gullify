@@ -700,6 +700,65 @@ class GullifyAudioHandler extends BaseAudioHandler
     await play();
   }
 
+  // ── Le réveil matinal (idée #81) ───────────────────────────────────────────
+
+  /// La sonnerie embarquée dans l'app. Un réveil doit sonner même sans réseau
+  /// ni serveur : c'est le seul son de Gullify qui ne vienne pas de la
+  /// bibliothèque.
+  static const alarmToneAsset = 'asset:///assets/audio/buzz.wav';
+
+  /// Assez de tours pour un quart d'heure de sonnerie. Passé ce délai, un
+  /// téléphone oublié cesse de sonner tout seul.
+  static const _alarmToneLoops = 350;
+
+  /// Fait sonner la sonnerie, en boucle, par le lecteur principal — service de
+  /// premier plan, notification et écran verrouillé compris (idée #57).
+  Future<void> playAlarmTone() async {
+    _flushPlay();
+    await _cancelFade();
+    _switchingSource = true;
+    final item = MediaItem(
+      id: alarmToneAsset,
+      title: 'Réveil',
+      artist: 'Gullify',
+      extras: const {'alarm': true},
+    );
+    queue.add([item]);
+    mediaItem.add(item);
+    await _player.setAudioSources([
+      // just_audio propose de remplacer LoopingAudioSource par une liste de
+      // N fois la même source : ici ce serait 350 entrées de file pour une
+      // seule fiche affichée, et la file du lecteur ne collerait plus à celle
+      // de l'app (le titre courant se lit par index).
+      // ignore: deprecated_member_use
+      LoopingAudioSource(
+        count: _alarmToneLoops,
+        child: AudioSource.uri(Uri.parse(alarmToneAsset)),
+      ),
+    ]);
+    await play();
+  }
+
+  /// La montée du réveil : le son entre à volume nul et met [over] à atteindre
+  /// le volume plein. À lancer juste après avoir posé la file — c'est un fondu
+  /// comme un autre, donc la moindre action (pause, saut, arrêt) le remplace et
+  /// rend le volume, plutôt que de laisser la musique en sourdine.
+  ///
+  /// Ne pas attendre le résultat : la montée dure des minutes.
+  Future<void> startWakeFade(Duration over) async {
+    if (over <= Duration.zero) return;
+    _endFading = false;
+    // Le jeton d'abord : sans ça, le fondu d'entrée lancé par play() aurait le
+    // temps de remonter le volume juste après qu'on l'a mis à zéro.
+    final token = ++_fadeToken;
+    await _player.setVolume(0);
+    if (token != _fadeToken) return;
+    // Un pas toutes les deux secondes : sur une montée de plusieurs minutes,
+    // les pas de 40 ms du fondu ordinaire feraient des milliers d'appels pour
+    // une différence que personne n'entend.
+    await _fadeTo(1, over: over, tick: const Duration(seconds: 2));
+  }
+
   // ── Manipulation de la file de lecture ─────────────────────────────────────
 
   /// Insère juste après la piste en cours.
@@ -823,6 +882,7 @@ class GullifyAudioHandler extends BaseAudioHandler
     double target, {
     Duration? over,
     bool constantPower = false,
+    Duration tick = kFadeTick,
   }) async {
     final token = ++_fadeToken;
     final player = _player;
@@ -831,10 +891,11 @@ class GullifyAudioHandler extends BaseAudioHandler
       to: target,
       over: over ?? fade.duration,
       constantPower: constantPower,
+      tick: tick,
     );
     final instant = ramp.length <= 1;
     for (final volume in ramp) {
-      if (!instant) await Future<void>.delayed(kFadeTick);
+      if (!instant) await Future<void>.delayed(tick);
       // Le lecteur a pu changer sous nos pieds (fondu enchaîné) : la rampe
       // d'avant ne doit surtout pas continuer de pousser le volume de celui
       // qui vient de prendre l'antenne.

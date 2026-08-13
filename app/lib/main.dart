@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'audio/audio_handler.dart';
 import 'router.dart';
+import 'state/alarm.dart';
 import 'state/app_theme.dart';
 import 'state/player.dart';
 import 'theme.dart';
@@ -31,6 +32,11 @@ Future<void> main() async {
     (_, _) {},
     fireImmediately: true,
   );
+  // Le réveil (idée #81) vit lui aussi hors de l'arbre de widgets : il doit
+  // relire son réglage et reposer son alarme dès le démarrage, même quand
+  // l'app est ouverte sans interface (Android Auto), et rattraper une
+  // sonnerie qui vient de retentir.
+  container.listen(alarmProvider, (_, _) {}, fireImmediately: true);
 
   runApp(
     UncontrolledProviderScope(container: container, child: const GullifyApp()),
@@ -73,11 +79,23 @@ class _GullifyAppState extends ConsumerState<GullifyApp>
       AppLifecycleState.inactive || AppLifecycleState.hidden => null,
     };
     if (label != null) ref.read(audioHandlerProvider).logLifecycle(label);
+    // Retour au premier plan : une sonnerie a pu retentir pendant que l'app
+    // dormait (notification touchée après coup, alarme reçue sans interface).
+    if (state == AppLifecycleState.resumed) {
+      unawaited(ref.read(alarmProvider.notifier).checkPending());
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final accent = ref.watch(accentColorProvider);
+    // Le réveil sonne : l'écran du réveil passe devant tout le reste, quel que
+    // soit l'endroit où l'app avait été laissée la veille.
+    ref.listen(alarmProvider, (prev, next) {
+      if (next.ringing && !(prev?.ringing ?? false)) {
+        ref.read(routerProvider).push('/alarm');
+      }
+    });
     return MaterialApp.router(
       title: 'Gullify',
       // Même structure de verre, teintée par l'accent; clair et sombre.

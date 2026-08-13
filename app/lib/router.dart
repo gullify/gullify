@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 
 import 'screens/aa_diagnostic_screen.dart';
 import 'screens/playback_diagnostic_screen.dart';
+import 'screens/alarm_ring_screen.dart';
+import 'screens/alarm_screen.dart';
 import 'screens/album_screen.dart';
 import 'screens/artist_screen.dart';
 import 'screens/changelog_screen.dart';
@@ -183,6 +185,13 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (_, _) => const FadeScreen(),
       ),
       GoRoute(
+        path: '/settings/alarm',
+        builder: (_, _) => const AlarmScreen(),
+      ),
+      // Le réveil qui sonne (idée #81) : hors du shell, plein écran — il
+      // s'ouvre souvent par-dessus l'écran verrouillé.
+      GoRoute(path: '/alarm', builder: (_, _) => const AlarmRingScreen()),
+      GoRoute(
         path: '/settings/downloads',
         builder: (_, _) => const DownloadsScreen(),
       ),
@@ -237,6 +246,10 @@ final routerProvider = Provider<GoRouter>((ref) {
     redirect: (context, state) {
       final status = ref.read(authProvider).status;
       final loc = state.matchedLocation;
+      // Le réveil sonne quoi qu'il arrive : sa sonnerie est embarquée, elle ne
+      // demande ni session ni réseau. Le renvoyer vers l'écran de connexion à
+      // 7 h du matin serait le pire moment pour demander un mot de passe.
+      if (loc == '/alarm') return null;
       final onAuthScreen =
           loc == '/splash' || loc == '/server' || loc == '/login';
       switch (status) {

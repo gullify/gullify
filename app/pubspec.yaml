@@ -18,7 +18,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # of the product and file versions while build-number is used as the build suffix.
 # versionCode : doit rester supérieur à 26 (dernier code de l'ancienne app
 # pixelplay) pour que son auto-updater propose la migration vers la v2.
-version: 3.10.0+144
+version: 3.11.0+145
 
 environment:
   sdk: ^3.12.2
@@ -87,6 +87,8 @@ flutter:
   assets:
     - assets/icon/logo.png
     - assets/icon/mascot.png
+    # Sonnerie du réveil (idée #81) : embarquée, pour sonner sans réseau.
+    - assets/audio/buzz.wav
 
   fonts:
     - family: HankenGrotesk

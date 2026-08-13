@@ -13,22 +13,38 @@ import 'game_kit.dart';
 ///
 /// Rend le réglage retenu, ou `null` si la feuille a été refermée sans rien
 /// valider — l'appelant ne change alors rien.
+///
+/// [subtitle] remplace la phrase d'explication : le même choix sert au réveil
+/// matinal (idée #81), qui n'a rien à voir avec les jeux.
 Future<GameSource?> showGameSourceSheet(
   BuildContext context,
-  GameSource current,
-) => showModalBottomSheet<GameSource>(
+  GameSource current, {
+  String? subtitle,
+}) => showModalBottomSheet<GameSource>(
   context: context,
   isScrollControlled: true,
   backgroundColor: Colors.transparent,
-  builder: (context) => _GameSourceSheet(initial: current),
+  builder: (context) => _GameSourceSheet(initial: current, subtitle: subtitle),
 );
 
 /// La tuile de réglage qui ouvre la feuille et montre le vivier retenu.
 class GameSourceTile extends ConsumerWidget {
-  const GameSourceTile({super.key, required this.source, required this.onChanged});
+  const GameSourceTile({
+    super.key,
+    required this.source,
+    required this.onChanged,
+    this.label = 'Les jeux piochent dans',
+    this.subtitle,
+  });
 
   final GameSource source;
   final ValueChanged<GameSource> onChanged;
+
+  /// Ce que la tuile annonce au-dessus du vivier retenu.
+  final String label;
+
+  /// Explication passée à la feuille de choix.
+  final String? subtitle;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -39,7 +55,11 @@ class GameSourceTile extends ConsumerWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(18),
         onTap: () async {
-          final picked = await showGameSourceSheet(context, source);
+          final picked = await showGameSourceSheet(
+            context,
+            source,
+            subtitle: subtitle,
+          );
           if (picked != null) onChanged(picked);
         },
         child: Padding(
@@ -54,7 +74,7 @@ class GameSourceTile extends ConsumerWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      'Les jeux piochent dans',
+                      label,
                       style: TextStyle(
                         fontSize: 11.5,
                         fontWeight: FontWeight.w700,
@@ -93,9 +113,10 @@ IconData gameSourceIcon(GameSource source) => switch (source.effectiveMode) {
 };
 
 class _GameSourceSheet extends ConsumerStatefulWidget {
-  const _GameSourceSheet({required this.initial});
+  const _GameSourceSheet({required this.initial, this.subtitle});
 
   final GameSource initial;
+  final String? subtitle;
 
   @override
   ConsumerState<_GameSourceSheet> createState() => _GameSourceSheetState();
@@ -174,8 +195,9 @@ class _GameSourceSheetState extends ConsumerState<_GameSourceSheet> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Le même vivier sert à tous les jeux, seul comme à '
-                      'plusieurs.',
+                      widget.subtitle ??
+                          'Le même vivier sert à tous les jeux, seul comme à '
+                              'plusieurs.',
                       style: TextStyle(
                         fontSize: 13,
                         height: 1.3,

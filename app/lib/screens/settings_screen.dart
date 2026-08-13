@@ -6,8 +6,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../audio/alarm_platform.dart';
 import '../audio/equalizer.dart';
 import '../audio/fade.dart';
+import '../state/alarm.dart';
 import '../state/app_theme.dart';
 import '../state/app_update.dart';
 import '../state/auth.dart';
@@ -17,7 +19,7 @@ import '../state/player.dart';
 import '../theme.dart';
 import '../widgets/update_dialog.dart';
 
-const appVersion = '3.10.0';
+const appVersion = '3.11.0';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -85,6 +87,7 @@ class SettingsScreen extends ConsumerWidget {
               onTap: () => context.push('/settings/downloads'),
             ),
           if (!kIsWeb && Platform.isAndroid) const _BackgroundPlaybackTile(),
+          if (alarmSupported) const _AlarmTile(),
           const Divider(),
           const _SectionHeader('Bibliothèque'),
           ListTile(
@@ -313,6 +316,29 @@ class _FadeTile extends ConsumerWidget {
         trailing: const Icon(Icons.chevron_right),
         onTap: () => context.push('/settings/fade'),
       ),
+    );
+  }
+}
+
+/// Réveil matinal (idée #81) : le réglage vit dans son écran, la ligne en
+/// résume l'état — l'heure, les jours, et ce qu'on entendra.
+class _AlarmTile extends ConsumerWidget {
+  const _AlarmTile();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final alarm = ref.watch(alarmProvider);
+    final config = alarm.config;
+    return ListTile(
+      leading: Icon(config.enabled ? Icons.alarm_on : Icons.alarm),
+      title: const Text('Réveil'),
+      subtitle: Text(
+        config.enabled
+            ? '${config.timeLabel} · ${config.daysLabel} · ${config.soundLabel}'
+            : 'Éteint',
+      ),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () => context.push('/settings/alarm'),
     );
   }
 }

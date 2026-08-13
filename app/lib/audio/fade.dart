@@ -38,14 +38,20 @@ const kFadeTick = Duration(milliseconds: 40);
 /// croiser DEUX sons — c'est celui du fondu enchaîné et du medley : deux
 /// rampes linéaires qui se croisent creusent un trou au milieu, là où la racine
 /// garde le niveau. Sur un son seul, à l'inverse, c'est la racine qui creuse.
+///
+/// [tick] est l'écart entre deux pas. Le fondu du lecteur garde [kFadeTick] ;
+/// la montée du réveil (idée #81), qui s'étale sur plusieurs minutes, prend un
+/// pas plus large — des milliers d'appels de volume pour une différence que
+/// l'oreille n'entend pas.
 List<double> fadeRamp({
   required double from,
   required double to,
   required Duration over,
   bool constantPower = false,
+  Duration tick = kFadeTick,
 }) {
   if (over <= Duration.zero) return [to];
-  final steps = (over.inMicroseconds / kFadeTick.inMicroseconds).round();
+  final steps = (over.inMicroseconds / tick.inMicroseconds).round();
   if (steps <= 1) return [to];
   return [
     for (var i = 1; i <= steps; i++)

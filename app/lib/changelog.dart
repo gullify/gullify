@@ -8,6 +8,27 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.11.0', [
+    'Un réveil matinal : Paramètres → Lecture → « Réveil ». Une heure, des '
+        'jours, et la musique de ton choix — le réveil pioche dans toute la '
+        'bibliothèque, un genre, une playlist ou tes favoris, comme les jeux',
+    'Le son monte doucement : la musique démarre à volume nul et met le temps '
+        'réglé (5 min par défaut, jusqu\'à 20) à atteindre son niveau. Le '
+        'volume média est monté tout seul au réveil, puis remis comme il était '
+        'quand tu arrêtes',
+    'À l\'heure dite, Android réveille le téléphone et Gullify s\'ouvre tout '
+        'seul, par-dessus l\'écran verrouillé : « Encore 9 min », « Garder la '
+        'musique » ou « Arrêter », les trois dans le bas de l\'écran',
+    'Ou un buzz, au choix : une sonnerie embarquée dans l\'app. Elle prend '
+        'aussi le relais toute seule si le serveur est injoignable au petit '
+        'matin — un réveil ne dépend pas du réseau',
+    'Et un filet : si l\'app ne démarrait pas, la sonnerie du système se '
+        'déclenche 90 secondes plus tard. L\'alarme se repose seule après un '
+        'redémarrage du téléphone',
+    'Avant de lui faire confiance : « Sonner dans une minute », en bas de '
+        'l\'écran du réveil — écran éteint, téléphone posé, pour vérifier une '
+        'bonne fois que la sonnerie ouvre bien l\'app',
+  ]),
   ReleaseNote('3.10.0', [
     'La bibliothèque se parcourt aussi par année : nouvel onglet « Années », '
         'entre Genres et Favoris. Les millésimes sont rangés par décennie, du '

@@ -17,6 +17,20 @@
          le réseau de l'app en sommeil profond et le flux s'arrête. -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"/>
 
+    <!-- Réveil matinal (idée #81). Une alarme « à l'heure dite » est la seule
+         qu'Android ne décale pas en sommeil profond :
+           · USE_EXACT_ALARM (Android 13+) est accordée à l'installation ;
+           · SCHEDULE_EXACT_ALARM couvre Android 12, où elle se règle à la main
+             (l'écran du réveil le dit et propose d'ouvrir le réglage).
+         RECEIVE_BOOT_COMPLETED repose l'alarme après un redémarrage — sinon
+         Android l'oublie et le réveil ne sonne jamais. -->
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM"/>
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+    <!-- Ouverture plein écran du réveil par-dessus l'écran verrouillé. -->
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT"/>
+    <uses-permission android:name="android.permission.VIBRATE"/>
+
     <application
         android:label="Gullify"
         android:name="${applicationName}"
@@ -74,6 +88,22 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths"/>
         </provider>
+
+        <!-- Réveil matinal : l'alarme, son filet audible, et la repose de
+             l'alarme après un redémarrage du téléphone (idée #81). -->
+        <receiver
+            android:name=".AlarmReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="app.gullify.gullify.ALARM_RING"/>
+                <action android:name="app.gullify.gullify.ALARM_SAFETY"/>
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED"/>
+                <action android:name="android.intent.action.QUICKBOOT_POWERON"/>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED"/>
+            </intent-filter>
+        </receiver>
 
         <!-- Widget d'écran d'accueil -->
         <receiver

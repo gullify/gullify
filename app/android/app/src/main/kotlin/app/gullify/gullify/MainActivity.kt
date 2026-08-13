@@ -4,7 +4,9 @@ import android.content.Context
 import android.content.Intent
 import android.media.audiofx.Equalizer
 import android.net.wifi.WifiManager
+import android.os.Build
 import android.os.PowerManager
+import android.view.WindowManager
 import androidx.core.content.FileProvider
 import com.ryanheise.audioservice.AudioServiceActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -13,8 +15,121 @@ import java.io.File
 import kotlin.math.roundToInt
 
 class MainActivity : AudioServiceActivity() {
+    /// Voie du réveil (idée #81) : l'app y demande la programmation, et le
+    /// natif y annonce une sonnerie quand l'activité est déjà ouverte.
+    private var alarmChannel: MethodChannel? = null
+
+    /// Sonnerie arrivée avant que Flutter n'écoute (démarrage à froid) : elle
+    /// attend ici que l'app vienne la chercher.
+    private var alarmLaunch = false
+
+    override fun onCreate(savedInstanceState: android.os.Bundle?) {
+        super.onCreate(savedInstanceState)
+        if (intent?.getBooleanExtra(GullifyAlarm.EXTRA_ALARM, false) == true) {
+            alarmLaunch = true
+            showOverLockScreen()
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        if (intent.getBooleanExtra(GullifyAlarm.EXTRA_ALARM, false)) {
+            alarmLaunch = true
+            showOverLockScreen()
+            // L'app tournait déjà : personne ne viendra relire le drapeau au
+            // démarrage, on la prévient tout de suite.
+            alarmChannel?.invokeMethod("ring", null)
+        }
+    }
+
+    /// Le réveil s'affiche par-dessus l'écran verrouillé et rallume l'écran :
+    /// sinon, la sonnerie se joue derrière un écran noir.
+    private fun showOverLockScreen() {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+                setShowWhenLocked(true)
+                setTurnScreenOn(true)
+            } else {
+                @Suppress("DEPRECATION")
+                window.addFlags(
+                    WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
+                        WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON or
+                        WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON,
+                )
+            }
+        } catch (_: Exception) {
+        }
+    }
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+
+        // Réveil matinal (idée #81) : la programmation vit côté natif (une
+        // alarme exacte survit à l'app fermée et au redémarrage du téléphone),
+        // le choix de la musique côté Flutter.
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            "gullify/alarm",
+        ).also { channel ->
+            alarmChannel = channel
+            channel.setMethodCallHandler { call, result ->
+                try {
+                    when (call.method) {
+                        "configure" -> result.success(
+                            GullifyAlarm.configure(
+                                applicationContext,
+                                call.argument<Boolean>("enabled") ?: false,
+                                call.argument<Int>("hour") ?: 7,
+                                call.argument<Int>("minute") ?: 0,
+                                call.argument<Int>("days") ?: 0,
+                            ),
+                        )
+                        "armAt" -> {
+                            GullifyAlarm.armAt(
+                                applicationContext,
+                                (call.argument<Number>("at") ?: 0).toLong(),
+                            )
+                            result.success(true)
+                        }
+                        "cancel" -> {
+                            GullifyAlarm.cancel(applicationContext)
+                            result.success(true)
+                        }
+                        "nextRing" -> result.success(GullifyAlarm.nextRing(applicationContext))
+                        "pendingRing" ->
+                            result.success(GullifyAlarm.pendingRing(applicationContext))
+                        "handled" -> {
+                            GullifyAlarm.handled(applicationContext)
+                            result.success(true)
+                        }
+                        "canRingExactly" ->
+                            result.success(GullifyAlarm.canRingExactly(applicationContext))
+                        "requestExactPermission" -> {
+                            GullifyAlarm.requestExactPermission(this)
+                            result.success(true)
+                        }
+                        "setMediaVolume" -> result.success(
+                            GullifyAlarm.setMediaVolume(
+                                applicationContext,
+                                call.argument<Int>("percent") ?: 60,
+                            ),
+                        )
+                        "restoreMediaVolume" -> {
+                            GullifyAlarm.restoreMediaVolume(applicationContext)
+                            result.success(true)
+                        }
+                        // Drapeau du démarrage à froid, consommé une seule fois.
+                        "launchedByAlarm" -> {
+                            result.success(alarmLaunch)
+                            alarmLaunch = false
+                        }
+                        else -> result.notImplemented()
+                    }
+                } catch (e: Exception) {
+                    result.error("alarm_failed", e.message, null)
+                }
+            }
+        }
 
         // Verrous réseau tenus pendant la lecture. just_audio (0.10) ne pose
         // aucun WAKE_MODE sur ExoPlayer : écran éteint, la radio Wi-Fi passe en
