@@ -8,6 +8,22 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.7.0', [
+    'Les jeux ressemblent enfin à des jeux : un vinyle tourne pendant '
+        'l\'extrait, le chrono fait le tour du disque et rougit sur la fin, et '
+        'une onde sonore montre que ça joue même le son au minimum',
+    'Bonne réponse : la carte s\'illumine, des étincelles partent et le '
+        'téléphone donne une petite tape. Mauvaise réponse : l\'écran encaisse '
+        'le coup. La pochette, elle, se retourne pour se montrer',
+    'Tout ce sur quoi on tape vite est descendu dans la zone du pouce, en plus '
+        'gros : réponses franches qui s\'enfoncent sous le doigt, et zones de '
+        'dépôt de la frise Chrono deux fois plus larges et lumineuses',
+    'Le score saute quand il monte, le record se porte en médaille dorée, et '
+        'la fin de partie fête les records comme il se doit',
+    'La page des invités d\'une partie reçoit le même traitement : vinyle, '
+        'onde, chrono en anneau, vibrations et étincelles — sans rien alourdir '
+        'au chargement',
+  ]),
   ReleaseNote('3.6.0', [
     'Le fondu entre les titres devient un vrai fondu enchaîné : le titre '
         'suivant démarre et monte pendant que celui en cours descend, les deux '

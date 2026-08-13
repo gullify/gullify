@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../state/games.dart';
 import '../widgets/glass_box.dart';
+import 'games/game_fx.dart';
 import 'games/game_source_sheet.dart';
 
 /// Onglet « Jeux » : le catalogue des jeux musicaux, jouables avec sa propre
@@ -24,16 +25,26 @@ class GamesScreen extends ConsumerWidget {
             bottom: MediaQuery.paddingOf(context).bottom + 110,
           ),
           children: [
-            const Padding(
-              padding: EdgeInsets.fromLTRB(20, 14, 20, 2),
-              child: Text(
-                'Jeux',
-                style: TextStyle(
-                  fontSize: 30,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.6,
-                  height: 1.02,
-                ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 14, 20, 2),
+              child: Row(
+                children: [
+                  const Text(
+                    'Jeux',
+                    style: TextStyle(
+                      fontSize: 34,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.8,
+                      height: 1.02,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Icon(
+                    Icons.sports_esports_rounded,
+                    size: 26,
+                    color: scheme.primary,
+                  ),
+                ],
               ),
             ),
             Padding(
@@ -96,12 +107,9 @@ class _PartyCard extends StatelessWidget {
           ),
         ],
       ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(22),
-          onTap: () => context.push('/games/party'),
-          child: Padding(
+      child: PressPop(
+        onTap: () => context.push('/games/party'),
+        child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 15, 14, 15),
             child: Row(
               children: [
@@ -140,7 +148,6 @@ class _PartyCard extends StatelessWidget {
                 Icon(Icons.chevron_right_rounded, color: scheme.onSurfaceVariant),
               ],
             ),
-          ),
         ),
       ),
     );
@@ -159,8 +166,7 @@ class _GameCard extends StatelessWidget {
     return GlassBox(
       radius: 22,
       blur: false,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(22),
+      child: PressPop(
         onTap: () => context.push(game.route),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
@@ -168,10 +174,10 @@ class _GameCard extends StatelessWidget {
             children: [
               // Pastille accent : la signature colorée du design.
               Container(
-                width: 54,
-                height: 54,
+                width: 58,
+                height: 58,
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(18),
+                  borderRadius: BorderRadius.circular(19),
                   gradient: LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
@@ -188,7 +194,7 @@ class _GameCard extends StatelessWidget {
                     ),
                   ],
                 ),
-                child: Icon(game.icon, color: Colors.white, size: 27),
+                child: Icon(game.icon, color: Colors.white, size: 29),
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -214,31 +220,69 @@ class _GameCard extends StatelessWidget {
                       ),
                     ),
                     if (best != null && best! > 0) ...[
-                      const SizedBox(height: 7),
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.emoji_events_rounded,
-                            size: 14,
-                            color: scheme.primary,
+                      const SizedBox(height: 8),
+                      // Le record se porte comme une médaille, pas comme une
+                      // ligne de plus (idée #77).
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 9,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(11),
+                          color: gameGold.withValues(alpha: 0.16),
+                          border: Border.all(
+                            color: gameGold.withValues(alpha: 0.5),
                           ),
-                          const SizedBox(width: 5),
-                          Text(
-                            '${game.scoreLabel} : $best',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              color: scheme.primary,
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.emoji_events_rounded,
+                              size: 14,
+                              color: gameGold,
                             ),
-                          ),
-                        ],
+                            const SizedBox(width: 5),
+                            Text(
+                              '${game.scoreLabel} : $best',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
+                                color: gameGold,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ],
                   ],
                 ),
               ),
-              Icon(Icons.chevron_right_rounded, color: scheme.onSurfaceVariant),
+              // La pilule qui donne envie d'appuyer, à la place du chevron
+              // d'une page de réglages.
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  color: scheme.primary.withValues(alpha: 0.16),
+                  border: Border.all(
+                    color: scheme.primary.withValues(alpha: 0.45),
+                  ),
+                ),
+                child: Text(
+                  'Jouer',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.1,
+                    color: scheme.primary,
+                  ),
+                ),
+              ),
             ],
           ),
         ),

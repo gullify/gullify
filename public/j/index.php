@@ -105,11 +105,14 @@ if (strlen($code) > 8) $code = substr($code, 0, 8);
   button.ghost { background: transparent; border-color: transparent; color: var(--muted); font-weight: 600; }
 
   /* Choix de réponse */
-  .choice { text-align: left; display: block; margin-bottom: 9px; }
-  .choice .t { font-size: 15.5px; font-weight: 700; }
+  .choice { text-align: left; display: block; margin-bottom: 10px; padding: 16px 18px; }
+  .choice .t { font-size: 16.5px; font-weight: 800; letter-spacing: -.2px; }
   .choice .s { font-size: 12.5px; color: var(--muted); margin-top: 1px; }
-  .choice.correct { border-color: var(--ok); background: rgba(47,163,107,.18); }
-  .choice.wrong   { border-color: var(--ko); background: rgba(229,72,77,.18); }
+  .choice:active:not([disabled]) { transform: scale(.97); }
+  .choice.correct { border-color: var(--ok); background: rgba(47,163,107,.18);
+                    box-shadow: 0 6px 20px rgba(47,163,107,.3); }
+  .choice.wrong   { border-color: var(--ko); background: rgba(229,72,77,.18);
+                    box-shadow: 0 6px 20px rgba(229,72,77,.3); }
   .choice.faded   { opacity: .45; }
   .choice.picked  { box-shadow: 0 0 0 2px var(--accent) inset; }
 
@@ -141,12 +144,18 @@ if (strlen($code) > 8) $code = substr($code, 0, 8);
   .tl-card .y { font-size: 19px; font-weight: 800; letter-spacing: -.5px; }
   .tl-card .t { font-size: 11px; color: var(--muted); margin-top: 2px;
                 overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .tl-gap { flex: 0 0 42px; display: flex; align-items: center; justify-content: center; }
+  .tl-gap { flex: 0 0 56px; display: flex; align-items: center; justify-content: center; }
   .tl-gap button {
-    width: 34px; height: 34px; padding: 0; border-radius: 12px; font-size: 20px; line-height: 1;
-    border-style: dashed; color: var(--accent);
+    width: 46px; height: 92px; padding: 0; border-radius: 16px; font-size: 22px; line-height: 1;
+    color: var(--accent); border-color: rgba(108,123,255,.6);
+    background: rgba(108,123,255,.12);
+    animation: dropglow 1.5s ease-in-out infinite alternate;
   }
-  .tl-gap.off button { opacity: .18; border-style: solid; color: var(--muted); }
+  .tl-gap.off button { opacity: .18; color: var(--muted); animation: none; background: transparent; }
+  @keyframes dropglow {
+    from { box-shadow: 0 0 8px rgba(108,123,255,.18); }
+    to   { box-shadow: 0 0 20px rgba(108,123,255,.45); }
+  }
 
   /* Joueurs */
   .players { list-style: none; margin: 0; padding: 0; }
@@ -168,8 +177,90 @@ if (strlen($code) > 8) $code = substr($code, 0, 8);
   .eq i:nth-child(4){ animation-delay:.45s } .eq i:nth-child(5){ animation-delay:.6s }
   @keyframes eqb { 0%,100%{height:6px} 50%{height:24px} }
 
-  .verdict { font-weight: 800; font-size: 17px; }
-  .verdict.ok { color: var(--ok); } .verdict.ko { color: var(--ko); }
+  /* ─────────────────────────────────── ça se joue, ça ne se consulte pas ──
+     Idée #77 : l'invité doit avoir un jeu dans les mains, pas un formulaire.
+     Le vinyle tourne, l'onde ondule, le chrono fait le tour de l'extrait, et
+     la manche se fête ou se secoue. Tout est en CSS : la page reste autonome
+     et légère à ouvrir en 4G. */
+
+  /* Le chrono en anneau, avec le vinyle au milieu. */
+  .ring {
+    --p: 100;
+    width: 176px; height: 176px; margin: 6px auto 4px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    background: conic-gradient(var(--accent) calc(var(--p) * 1%), rgba(255,255,255,.10) 0);
+    box-shadow: 0 0 26px rgba(108,123,255,.35);
+    transition: box-shadow .3s ease;
+  }
+  .ring.low { background: conic-gradient(var(--ko) calc(var(--p) * 1%), rgba(255,255,255,.10) 0);
+              box-shadow: 0 0 26px rgba(229,72,77,.45); animation: beat .48s ease-in-out infinite; }
+  .ring > .hole {
+    width: 162px; height: 162px; border-radius: 50%; background: var(--bg);
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  /* Le vinyle. */
+  .disc {
+    width: 132px; height: 132px; border-radius: 50%; position: relative;
+    background:
+      repeating-radial-gradient(circle at 50% 50%, rgba(255,255,255,.055) 0 1px, transparent 1px 7px),
+      linear-gradient(135deg, #2A2D36, #101218);
+    border: 1px solid rgba(108,123,255,.55);
+    box-shadow: 0 12px 30px rgba(108,123,255,.35);
+  }
+  .disc::before {
+    content: ''; position: absolute; inset: 12%;
+    border-radius: 50%; border: 10px solid rgba(255,255,255,.05);
+    border-color: rgba(255,255,255,.07) transparent transparent transparent;
+  }
+  .disc::after {
+    content: '?'; position: absolute; left: 50%; top: 50%;
+    width: 46px; height: 46px; margin: -23px 0 0 -23px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px; font-weight: 800; color: #fff;
+    background: linear-gradient(135deg, #9AA5FF, var(--accent));
+  }
+  .disc.on { animation: spin 1.8s linear infinite; }
+  .disc.on::after { animation: spin 1.8s linear infinite reverse; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes beat { 0%,100%{ transform: scale(1) } 50%{ transform: scale(1.04) } }
+
+  /* L'onde sonore : plus large que l'égaliseur, elle occupe l'attente. */
+  .wave { display: flex; align-items: center; gap: 3px; height: 30px; justify-content: center; }
+  .wave i { width: 4px; height: 5px; border-radius: 3px; background: var(--accent); opacity: .5; }
+  .wave.on i { animation: wv 1.1s ease-in-out infinite; opacity: 1; }
+  .wave i:nth-child(2){animation-delay:.08s} .wave i:nth-child(3){animation-delay:.16s}
+  .wave i:nth-child(4){animation-delay:.24s} .wave i:nth-child(5){animation-delay:.32s}
+  .wave i:nth-child(6){animation-delay:.40s} .wave i:nth-child(7){animation-delay:.48s}
+  .wave i:nth-child(8){animation-delay:.56s} .wave i:nth-child(9){animation-delay:.64s}
+  .wave i:nth-child(10){animation-delay:.72s} .wave i:nth-child(11){animation-delay:.80s}
+  @keyframes wv { 0%,100%{ height:5px } 50%{ height:28px } }
+
+  /* La manche encaisse le coup, ou fait la fête. */
+  .shake { animation: shk .42s ease; }
+  @keyframes shk {
+    0%,100%{ transform: translateX(0) } 15%{ transform: translateX(-9px) }
+    35%{ transform: translateX(7px) } 55%{ transform: translateX(-5px) }
+    75%{ transform: translateX(3px) }
+  }
+  .sparks { position: fixed; inset: 0; pointer-events: none; z-index: 30; overflow: hidden; }
+  .sparks i {
+    position: absolute; left: 50%; top: 42%; width: 8px; height: 13px; border-radius: 3px;
+    animation: spark 1.2s ease-out forwards;
+  }
+  @keyframes spark {
+    from { transform: translate(0,0) rotate(0); opacity: 1; }
+    to   { transform: translate(var(--dx), var(--dy)) rotate(var(--rot)); opacity: 0; }
+  }
+
+  .verdict {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-weight: 800; font-size: 17px; padding: 8px 16px; border-radius: 18px;
+    animation: pop .42s cubic-bezier(.2,1.5,.4,1);
+  }
+  .verdict.ok { color: var(--ok); background: rgba(47,163,107,.16); border: 1px solid rgba(47,163,107,.5); }
+  .verdict.ko { color: var(--ko); background: rgba(229,72,77,.16); border: 1px solid rgba(229,72,77,.5); }
+  @keyframes pop { from { transform: scale(.6) } to { transform: scale(1) } }
   .big { font-size: 42px; font-weight: 800; letter-spacing: -1.5px; color: var(--accent); }
   .err { color: var(--ko); font-size: 14px; min-height: 18px; }
 
@@ -196,7 +287,11 @@ if (strlen($code) > 8) $code = substr($code, 0, 8);
   .talkbar .icon { flex: 0 0 50px; width: 50px; padding: 13px 0; font-size: 18px; }
   .talkbar .icon.off { opacity: .4; }
 
-  @media (prefers-reduced-motion: reduce) { .eq.on i { animation: none; } }
+  @media (prefers-reduced-motion: reduce) {
+    .eq.on i, .wave.on i, .disc.on, .disc.on::after, .ring.low,
+    .tl-gap button, .shake, .verdict, .sparks i { animation: none; }
+    .sparks { display: none; }
+  }
 </style>
 </head>
 <body>
@@ -287,12 +382,70 @@ if (strlen($code) > 8) $code = substr($code, 0, 8);
   // ────────────────────────────────────────────────────────── sondage ──
 
   function applyState(s) {
+    var was = revealKey(state);
     state = s;
     clockOffset = s.serverNow - Date.now();
     errorMsg = '';
     syncAudio();
     syncVoice();
     render();
+    // La révélation arrive du serveur : c'est là qu'on fête, qu'on encaisse
+    // et qu'on fait vibrer (idée #77) — une seule fois par manche.
+    // `!== null` et pas un simple test de vérité : la manche 0 est un index
+    // valide, et c'est justement la première fête de la partie.
+    var now = revealKey(state);
+    if (now !== null && now !== was) celebrate(myAnswerWasRight());
+  }
+
+  /** Identifie une manche révélée (null tant qu'elle ne l'est pas). */
+  function revealKey(s) {
+    if (!s || s.status !== 'playing' || s.phase !== 'revealed') return null;
+    return s.roundIndex;
+  }
+
+  function myAnswerWasRight() {
+    var r = state && state.round;
+    if (!r || r.answerId === undefined || r.myAnswer == null) return false;
+    return String(r.myAnswer) === String(r.answerId);
+  }
+
+  /** Vibration courte. Sans moteur (ordinateur, iOS), il ne se passe rien. */
+  function haptic(pattern) {
+    try { if (navigator.vibrate) navigator.vibrate(pattern); } catch (e) {}
+  }
+
+  /**
+   * La petite fête d'une bonne réponse, la secousse d'une mauvaise. Tout est
+   * jetable : les étincelles s'effacent d'elles-mêmes, et rien n'attend la fin
+   * d'une animation pour continuer à jouer.
+   */
+  function celebrate(good) {
+    haptic(good ? 26 : [0, 40, 60, 40]);
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    if (!good) {
+      var card = app.firstChild;
+      if (card && card.classList) {
+        card.classList.remove('shake');
+        void card.offsetWidth;   // relance l'animation même deux fois de suite
+        card.classList.add('shake');
+      }
+      return;
+    }
+    var box = el('div', 'sparks');
+    var colors = ['var(--accent)', 'var(--ok)', 'var(--gold)'];
+    for (var i = 0; i < 22; i++) {
+      var sp = el('i');
+      var a = -Math.PI / 2 + (i / 22 - 0.5) * 2.2;
+      var d = 150 + (i % 5) * 45;
+      sp.style.setProperty('--dx', (Math.cos(a) * d).toFixed(0) + 'px');
+      sp.style.setProperty('--dy', (Math.sin(a) * d + 260).toFixed(0) + 'px');
+      sp.style.setProperty('--rot', ((i % 7) * 90) + 'deg');
+      sp.style.background = colors[i % 3];
+      sp.style.animationDelay = ((i % 4) * 40) + 'ms';
+      box.appendChild(sp);
+    }
+    document.body.appendChild(box);
+    setTimeout(function () { if (box.parentNode) box.parentNode.removeChild(box); }, 1600);
   }
 
   function poll() {
@@ -373,6 +526,7 @@ if (strlen($code) > 8) $code = substr($code, 0, 8);
   function doAnswer(answer) {
     if (busy || !state || state.phase !== 'guessing') return;
     busy = true;
+    haptic(12);
     // La réponse est affichée tout de suite : le serveur confirmera.
     if (state.round) state.round.myAnswer = String(answer);
     render();
@@ -725,10 +879,10 @@ if (strlen($code) > 8) $code = substr($code, 0, 8);
       parent.appendChild(p);
       return;
     }
-    var eq = el('div', 'eq' + (audioBlocked ? '' : ' on'));
-    for (var i = 0; i < 5; i++) eq.appendChild(el('i'));
-    eq.style.margin = '16px 0 10px';
-    parent.appendChild(eq);
+    var wave = el('div', 'wave' + (audioBlocked ? '' : ' on'));
+    for (var i = 0; i < 11; i++) wave.appendChild(el('i'));
+    wave.style.margin = '12px 0 10px';
+    parent.appendChild(wave);
 
     var b = el('button', audioBlocked ? 'accent' : '', audioBlocked ? '▶ Lancer l’extrait' : '↻ Réécouter');
     b.onclick = replay;
@@ -754,10 +908,12 @@ if (strlen($code) > 8) $code = substr($code, 0, 8);
   }
 
   function revealBanner(parent, r, correct) {
-    var v = el('p', 'verdict center ' + (correct ? 'ok' : 'ko'),
-      correct ? 'Bien vu !' : (r.myAnswer == null ? 'Temps écoulé' : 'Raté'));
-    v.style.margin = '14px 0 6px';
-    parent.appendChild(v);
+    var v = el('span', 'verdict ' + (correct ? 'ok' : 'ko'),
+      (correct ? '✓ Bien vu !' : (r.myAnswer == null ? '✕ Temps écoulé' : '✕ Raté')));
+    var line = el('p', 'center');
+    line.style.margin = '14px 0 6px';
+    line.appendChild(v);
+    parent.appendChild(line);
     if (r.title) {
       var t = el('p', 'center', r.title);
       t.style.fontWeight = '700';
@@ -768,6 +924,14 @@ if (strlen($code) > 8) $code = substr($code, 0, 8);
 
   function buildBlind(c, r) {
     if (state.phase === 'guessing') {
+      // Le vinyle tourne au centre du chrono : on écoute un disque, pas un
+      // formulaire (idée #77).
+      var ring = el('div', 'ring');
+      ring.id = 'timerRing';
+      var hole = el('div', 'hole');
+      hole.appendChild(el('div', 'disc' + (audioBlocked ? '' : ' on')));
+      ring.appendChild(hole);
+      c.appendChild(ring);
       c.appendChild(el('h2', 'center', 'Quel est ce titre ?'));
       audioControls(c);
     } else {
@@ -1214,6 +1378,11 @@ if (strlen($code) > 8) $code = substr($code, 0, 8);
     if (bar) {
       bar.firstChild.style.width = (ratio * 100).toFixed(1) + '%';
       bar.className = 'bar' + (state.phase === 'guessing' && ratio < 0.25 ? ' low' : '');
+    }
+    var ring = document.getElementById('timerRing');
+    if (ring) {
+      ring.style.setProperty('--p', (ratio * 100).toFixed(1));
+      ring.className = 'ring' + (state.phase === 'guessing' && ratio < 0.25 ? ' low' : '');
     }
     var cd = document.getElementById('countdown');
     if (cd) {

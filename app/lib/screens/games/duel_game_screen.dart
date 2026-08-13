@@ -8,6 +8,7 @@ import '../../models/game_track.dart';
 import '../../state/games.dart';
 import '../../widgets/artwork.dart';
 import '../../widgets/glass_box.dart';
+import 'game_fx.dart';
 import 'game_kit.dart';
 
 /// « Duel d'années » : deux albums s'affrontent, le joueur désigne le plus
@@ -34,6 +35,10 @@ class _DuelGameScreenState extends ConsumerState<DuelGameScreen> {
   int _streak = 0;
   bool _exhausted = false;
   Timer? _advance;
+
+  /// Compteurs d'effets : une valeur qui change lance la fête ou la secousse.
+  int _cheers = 0;
+  int _shakes = 0;
 
   @override
   void initState() {
@@ -124,10 +129,17 @@ class _DuelGameScreenState extends ConsumerState<DuelGameScreen> {
     final right = _right!;
     final oldest = left.year <= right.year ? left : right;
     final correct = pick.year == oldest.year;
+    // Le verdict se sent avant de se lire (idée #77).
+    gameHaptic(correct ? GameFeel.good : GameFeel.bad);
     setState(() {
       _picked = pick;
       _phase = _Phase.revealed;
-      if (correct) _streak++;
+      if (correct) {
+        _streak++;
+        _cheers++;
+      } else {
+        _shakes++;
+      }
     });
     _advance?.cancel();
     _advance = Timer(
@@ -206,7 +218,11 @@ class _DuelGameScreenState extends ConsumerState<DuelGameScreen> {
     final right = _right!;
     final oldest = left.year <= right.year ? left : right;
 
-    return Column(
+    return Celebration(
+      trigger: _cheers,
+      child: ShakeBox(
+      trigger: _shakes,
+      child: Column(
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 10, 20, 2),
@@ -236,7 +252,11 @@ class _DuelGameScreenState extends ConsumerState<DuelGameScreen> {
                 // Le « VS » sépare les deux prétendants.
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 6),
-                  child: Container(
+                  child: BeatPulse(
+                    playing: !revealed,
+                    period: const Duration(milliseconds: 900),
+                    depth: 0.09,
+                    child: Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 14,
                       vertical: 4,
@@ -248,12 +268,13 @@ class _DuelGameScreenState extends ConsumerState<DuelGameScreen> {
                     child: Text(
                       'VS',
                       style: TextStyle(
-                        fontSize: 13,
+                        fontSize: 15,
                         fontWeight: FontWeight.w800,
-                        letterSpacing: 1,
+                        letterSpacing: 1.5,
                         color: scheme.primary,
                       ),
                     ),
+                  ),
                   ),
                 ),
                 Expanded(
@@ -270,6 +291,8 @@ class _DuelGameScreenState extends ConsumerState<DuelGameScreen> {
           ),
         ),
       ],
+    ),
+    ),
     );
   }
 }
@@ -301,8 +324,8 @@ class _DuelCard extends StatelessWidget {
     final color = !revealed
         ? null
         : picked
-        ? (winner ? const Color(0xFF2FA36B) : const Color(0xFFE5484D))
-        : (winner ? const Color(0xFF2FA36B) : null);
+        ? (winner ? gameGood : gameBad)
+        : (winner ? gameGood : null);
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 250),
@@ -311,12 +334,20 @@ class _DuelCard extends StatelessWidget {
         border: color == null
             ? null
             : Border.all(color: color.withValues(alpha: 0.9), width: 2),
+        boxShadow: color == null
+            ? null
+            : [
+                BoxShadow(
+                  color: color.withValues(alpha: 0.3),
+                  blurRadius: 22,
+                  offset: const Offset(0, 8),
+                ),
+              ],
       ),
       child: GlassBox(
         radius: 22,
         blur: false,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(22),
+        child: PressPop(
           onTap: revealed ? null : onTap,
           child: Padding(
             padding: const EdgeInsets.all(12),

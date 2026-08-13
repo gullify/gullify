@@ -10,6 +10,7 @@ import '../../state/player.dart';
 import '../../widgets/artwork.dart';
 import '../../widgets/glass_box.dart';
 import '../../widgets/glass_kit.dart';
+import 'game_fx.dart';
 import 'game_kit.dart';
 
 /// « Chrono » : le Hitster solo. Un extrait mystère est joué, il faut le
@@ -45,6 +46,10 @@ class _ChronoGameScreenState extends ConsumerState<ChronoGameScreen> {
   /// Résultat de la manche révélée : trou choisi et verdict (null = passée).
   int? _lastGap;
   bool? _lastCorrect;
+
+  /// Compteurs d'effets : une valeur qui change lance la fête ou la secousse.
+  int _cheers = 0;
+  int _shakes = 0;
 
   @override
   void initState() {
@@ -133,6 +138,8 @@ class _ChronoGameScreenState extends ConsumerState<ChronoGameScreen> {
     if (track == null || _phase != _Phase.placing) return;
     final years = [for (final t in _timeline) t.year];
     final correct = chronoPlacementIsCorrect(years, gap, track.year);
+    // Le verdict d'abord dans la main, ensuite à l'écran (idée #77).
+    gameHaptic(correct ? GameFeel.good : GameFeel.bad);
     setState(() {
       _lastGap = gap;
       _lastCorrect = correct;
@@ -140,8 +147,10 @@ class _ChronoGameScreenState extends ConsumerState<ChronoGameScreen> {
       if (correct) {
         _timeline.insert(gap, track);
         _score++;
+        _cheers++;
       } else {
         _lives--;
+        _shakes++;
       }
     });
     if (correct) _scrollToPlacedCard(gap);
@@ -174,7 +183,7 @@ class _ChronoGameScreenState extends ConsumerState<ChronoGameScreen> {
   void _scrollToPlacedCard(int index) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!_timelineScroll.hasClients) return;
-      const cardWidth = _TimelineCard.width + _TimelineGap.width;
+      const cardWidth = _TimelineCard.width + kDropZoneWidth;
       final target = (index * cardWidth) - 60;
       _timelineScroll.animateTo(
         target.clamp(0.0, _timelineScroll.position.maxScrollExtent),
@@ -237,17 +246,24 @@ class _ChronoGameScreenState extends ConsumerState<ChronoGameScreen> {
 
   Widget _buildBoard() {
     final revealed = _phase == _Phase.revealed;
-    return Column(
-      children: [
-        Expanded(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
-            child: revealed ? _buildReveal() : _buildMystery(),
-          ),
+    return Celebration(
+      trigger: _cheers,
+      child: ShakeBox(
+        trigger: _shakes,
+        child: Column(
+          children: [
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
+                child: revealed ? _buildReveal() : _buildMystery(),
+              ),
+            ),
+            // La frise reste sous le pouce : c'est là qu'on dépose.
+            _buildTimeline(),
+            const SizedBox(height: 10),
+          ],
         ),
-        _buildTimeline(),
-        const SizedBox(height: 10),
-      ],
+      ),
     );
   }
 
@@ -271,38 +287,11 @@ class _ChronoGameScreenState extends ConsumerState<ChronoGameScreen> {
                 return Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Container(
-                      width: 92,
-                      height: 92,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [
-                            Color.lerp(scheme.primary, Colors.white, 0.3)!,
-                            scheme.primary,
-                          ],
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: scheme.primary.withValues(alpha: 0.45),
-                            blurRadius: 26,
-                            offset: const Offset(0, 12),
-                          ),
-                        ],
-                      ),
-                      child: const Icon(
-                        Icons.question_mark_rounded,
-                        color: Colors.white,
-                        size: 42,
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    SizedBox(
-                      height: 20,
-                      child: EqBars(playing: playing, height: 20),
-                    ),
+                    // Le vinyle mystère : il tourne tant que l'extrait joue
+                    // (idée #77).
+                    MysteryDisc(playing: playing, size: 116),
+                    const SizedBox(height: 12),
+                    SoundWave(playing: playing, height: 26),
                     const SizedBox(height: 8),
                     Text(
                       'Extrait mystère',
@@ -329,7 +318,10 @@ class _ChronoGameScreenState extends ConsumerState<ChronoGameScreen> {
                         GlassIconButton(
                           icon: Icons.replay_rounded,
                           tooltip: 'Réécouter depuis le début de l\'extrait',
-                          onPressed: () => _snippet.replay(_start),
+                          onPressed: () {
+                            gameHaptic(GameFeel.tap);
+                            _snippet.replay(_start);
+                          },
                         ),
                         const SizedBox(width: 14),
                         AccentPlayButton(
@@ -337,7 +329,10 @@ class _ChronoGameScreenState extends ConsumerState<ChronoGameScreen> {
                           icon: playing
                               ? Icons.pause_rounded
                               : Icons.play_arrow_rounded,
-                          onPressed: _snippet.toggle,
+                          onPressed: () {
+                            gameHaptic(GameFeel.tap);
+                            _snippet.toggle();
+                          },
                         ),
                         const SizedBox(width: 14),
                         GlassIconButton(
@@ -379,40 +374,41 @@ class _ChronoGameScreenState extends ConsumerState<ChronoGameScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      passed
-                          ? Icons.skip_next_rounded
-                          : correct
-                          ? Icons.check_circle_rounded
-                          : Icons.cancel_rounded,
-                      color: color,
-                      size: 20,
-                    ),
-                    const SizedBox(width: 8),
-                    // Flexible : « Raté — une vie en moins » est long, il doit
-                    // pouvoir passer à la ligne plutôt que déborder.
-                    Flexible(
-                      child: Text(
-                        passed
-                            ? 'Extrait passé'
-                            : correct
-                            ? 'Bien vu !'
-                            : 'Raté — une vie en moins',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w800,
-                          color: color,
+                // Un extrait passé n'est ni gagné ni perdu : il garde sa
+                // ligne discrète plutôt que la pilule de verdict.
+                if (passed)
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.skip_next_rounded, color: color, size: 20),
+                      const SizedBox(width: 8),
+                      Flexible(
+                        child: Text(
+                          'Extrait passé',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                            color: color,
+                          ),
                         ),
                       ),
-                    ),
-                  ],
-                ),
+                    ],
+                  )
+                else
+                  GameVerdict(
+                    correct: correct,
+                    text: correct ? 'Bien vu !' : 'Raté — une vie en moins',
+                  ),
                 const SizedBox(height: 14),
-                Artwork(url: track.song.artworkUrl, size: 96, borderRadius: 18),
+                FlipReveal(
+                  size: 96,
+                  child: Artwork(
+                    url: track.song.artworkUrl,
+                    size: 96,
+                    borderRadius: 18,
+                  ),
+                ),
                 const SizedBox(height: 12),
                 Text(
                   '${track.year}',
@@ -478,14 +474,14 @@ class _ChronoGameScreenState extends ConsumerState<ChronoGameScreen> {
           ),
         ),
         SizedBox(
-          height: 150,
+          height: 158,
           child: ListView(
             controller: _timelineScroll,
             scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 10),
             children: [
               for (var i = 0; i < _timeline.length; i++) ...[
-                _TimelineGap(enabled: active, onTap: () => _place(i)),
+                GlowDropZone(enabled: active, onTap: () => _place(i)),
                 _TimelineCard(
                   track: _timeline[i],
                   highlight:
@@ -494,7 +490,7 @@ class _ChronoGameScreenState extends ConsumerState<ChronoGameScreen> {
                       _lastGap == i,
                 ),
               ],
-              _TimelineGap(
+              GlowDropZone(
                 enabled: active,
                 onTap: () => _place(_timeline.length),
               ),
@@ -502,53 +498,6 @@ class _ChronoGameScreenState extends ConsumerState<ChronoGameScreen> {
           ),
         ),
       ],
-    );
-  }
-}
-
-/// Un trou de la frise : la zone où déposer la carte mystère.
-class _TimelineGap extends StatelessWidget {
-  const _TimelineGap({required this.enabled, required this.onTap});
-
-  static const double width = 40;
-
-  final bool enabled;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return SizedBox(
-      width: width,
-      child: Center(
-        child: AnimatedOpacity(
-          duration: const Duration(milliseconds: 200),
-          opacity: enabled ? 1 : 0.25,
-          child: Material(
-            color: Colors.transparent,
-            child: InkWell(
-              borderRadius: BorderRadius.circular(14),
-              onTap: enabled ? onTap : null,
-              child: Container(
-                width: 32,
-                height: 96,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(14),
-                  color: enabled
-                      ? scheme.primary.withValues(alpha: 0.12)
-                      : Colors.transparent,
-                  border: Border.all(
-                    color: scheme.primary.withValues(
-                      alpha: enabled ? 0.5 : 0.2,
-                    ),
-                  ),
-                ),
-                child: Icon(Icons.add_rounded, size: 18, color: scheme.primary),
-              ),
-            ),
-          ),
-        ),
-      ),
     );
   }
 }

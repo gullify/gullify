@@ -11,6 +11,7 @@ import '../../state/player.dart';
 import '../../widgets/artwork.dart';
 import '../../widgets/glass_box.dart';
 import '../../widgets/glass_kit.dart';
+import 'game_fx.dart';
 import 'game_kit.dart';
 
 /// « Blind test » : dix extraits, quatre réponses, quinze secondes. Plus la
@@ -46,6 +47,11 @@ class _BlindTestGameScreenState extends ConsumerState<BlindTestGameScreen> {
   Duration _left = _roundTime;
   Timer? _timer;
   Timer? _advance;
+
+  /// Compteurs de fête et de secousse : ils ne servent qu'à déclencher les
+  /// animations (une valeur qui change = un effet qui part).
+  int _cheers = 0;
+  int _shakes = 0;
 
   @override
   void initState() {
@@ -161,6 +167,14 @@ class _BlindTestGameScreenState extends ConsumerState<BlindTestGameScreen> {
     _timer?.cancel();
     final target = _targets[_round];
     final correct = picked != null && picked.id == target.id;
+    // Le verdict se sent dans la main avant même d'être lu (idée #77) : une
+    // tape franche pour la bonne réponse, un coup sec pour la mauvaise.
+    gameHaptic(correct ? GameFeel.good : GameFeel.bad);
+    if (correct) {
+      _cheers++;
+    } else {
+      _shakes++;
+    }
     // 30 points pour la bonne réponse, jusqu'à 70 de plus pour la vitesse.
     final speed = (_left.inMilliseconds / _roundTime.inMilliseconds).clamp(
       0.0,
@@ -245,7 +259,14 @@ class _BlindTestGameScreenState extends ConsumerState<BlindTestGameScreen> {
     final target = _targets[_round];
     final ratio = _left.inMilliseconds / _roundTime.inMilliseconds;
 
-    return Column(
+    // La fête (bonne réponse) se peint par-dessus toute la manche, la secousse
+    // (mauvaise) la fait encaisser en entier : c'est le jeu qui réagit, pas
+    // une pastille dans un coin.
+    return Celebration(
+      trigger: _cheers,
+      child: ShakeBox(
+      trigger: _shakes,
+      child: Column(
       children: [
         Expanded(
           child: Padding(
@@ -269,7 +290,9 @@ class _BlindTestGameScreenState extends ConsumerState<BlindTestGameScreen> {
             ),
           ),
         ),
-        Padding(
+        // Les réponses vivent dans la zone du pouce : c'est là qu'on tape
+        // vite, l'écran du haut ne sert qu'à écouter.
+        ThumbZone(
           padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
           child: Column(
             children: [
@@ -301,11 +324,15 @@ class _BlindTestGameScreenState extends ConsumerState<BlindTestGameScreen> {
           ),
         ),
       ],
+    ),
+    ),
     );
   }
 
   Widget _buildMystery(double ratio) {
     final scheme = Theme.of(context).colorScheme;
+    final left = ratio.clamp(0.0, 1.0);
+    final seconds = (_left.inMilliseconds / 1000).ceil();
     return StreamBuilder<bool>(
       stream: _snippet.playingStream,
       initialData: false,
@@ -314,35 +341,33 @@ class _BlindTestGameScreenState extends ConsumerState<BlindTestGameScreen> {
         return Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            SizedBox(height: 26, child: EqBars(playing: playing, height: 26)),
-            const SizedBox(height: 10),
-            Text(
-              'Quel est ce titre ?',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w800,
-                letterSpacing: -0.3,
-                color: scheme.onSurface,
-              ),
-            ),
-            const SizedBox(height: 12),
-            // Le chrono, en barre : il se vide, la couleur reste sobre.
-            ClipRRect(
-              borderRadius: BorderRadius.circular(6),
-              child: LinearProgressIndicator(
-                value: ratio.clamp(0.0, 1.0),
-                minHeight: 7,
-                backgroundColor: scheme.onSurface.withValues(alpha: 0.08),
-                color: ratio < 0.25 ? const Color(0xFFE5484D) : scheme.primary,
-              ),
+            // Le vinyle tourne au centre du chrono : le temps qui reste fait
+            // le tour de ce qu'on écoute, au lieu d'une barre posée à côté.
+            CountdownRing(
+              ratio: left,
+              size: 168,
+              child: MysteryDisc(playing: playing, size: 126),
             ),
             const SizedBox(height: 6),
             Text(
-              '${(_left.inMilliseconds / 1000).ceil()} s',
+              '$seconds s',
               style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                color: scheme.onSurfaceVariant,
+                fontSize: 15,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.2,
+                color: left < 0.25 ? gameBad : scheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 6),
+            SoundWave(playing: playing, height: 30),
+            const SizedBox(height: 8),
+            Text(
+              'Quel est ce titre ?',
+              style: TextStyle(
+                fontSize: 19,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.3,
+                color: scheme.onSurface,
               ),
             ),
             const SizedBox(height: 10),
@@ -352,7 +377,10 @@ class _BlindTestGameScreenState extends ConsumerState<BlindTestGameScreen> {
                 GlassIconButton(
                   icon: Icons.replay_rounded,
                   tooltip: 'Réécouter l\'extrait',
-                  onPressed: () => _snippet.replay(_start),
+                  onPressed: () {
+                    gameHaptic(GameFeel.tap);
+                    _snippet.replay(_start);
+                  },
                 ),
                 const SizedBox(width: 14),
                 GlassIconButton(
@@ -361,7 +389,10 @@ class _BlindTestGameScreenState extends ConsumerState<BlindTestGameScreen> {
                       : Icons.play_arrow_rounded,
                   tooltip: playing ? 'Pause' : 'Écouter',
                   size: 52,
-                  onPressed: _snippet.toggle,
+                  onPressed: () {
+                    gameHaptic(GameFeel.tap);
+                    _snippet.toggle();
+                  },
                 ),
               ],
             ),
@@ -377,35 +408,21 @@ class _BlindTestGameScreenState extends ConsumerState<BlindTestGameScreen> {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              correct ? Icons.check_circle_rounded : Icons.cancel_rounded,
-              size: 20,
-              color: correct
-                  ? const Color(0xFF2FA36B)
-                  : const Color(0xFFE5484D),
-            ),
-            const SizedBox(width: 8),
-            Text(
-              correct
-                  ? 'Bien vu !'
-                  : _picked == null
-                  ? 'Temps écoulé'
-                  : 'Raté',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w800,
-                color: correct
-                    ? const Color(0xFF2FA36B)
-                    : const Color(0xFFE5484D),
-              ),
-            ),
-          ],
+        GameVerdict(
+          correct: correct,
+          text: correct
+              ? 'Bien vu !'
+              : _picked == null
+              ? 'Temps écoulé'
+              : 'Raté',
         ),
         const SizedBox(height: 12),
-        Artwork(url: target.artworkUrl, size: 84, borderRadius: 16),
+        // La pochette se retourne pour se montrer : la réponse s'ouvre, elle
+        // n'apparaît pas.
+        FlipReveal(
+          size: 104,
+          child: Artwork(url: target.artworkUrl, size: 104, borderRadius: 18),
+        ),
         const SizedBox(height: 10),
         Text(
           target.title,

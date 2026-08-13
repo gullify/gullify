@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/album.dart';
 import '../../state/games.dart';
 import '../../widgets/artwork.dart';
+import 'game_fx.dart';
 import 'game_kit.dart';
 
 /// « Pochette mystère » : une pochette très floue se précise seconde après
@@ -42,6 +43,10 @@ class _CoverGameScreenState extends ConsumerState<CoverGameScreen> {
   Duration _left = _roundTime;
   Timer? _timer;
   Timer? _advance;
+
+  /// Compteurs d'effets : une valeur qui change lance la fête ou la secousse.
+  int _cheers = 0;
+  int _shakes = 0;
 
   @override
   void initState() {
@@ -139,6 +144,13 @@ class _CoverGameScreenState extends ConsumerState<CoverGameScreen> {
     _timer?.cancel();
     final target = _targets[_round];
     final correct = picked != null && picked.id == target.id;
+    // Le verdict se sent avant de se lire (idée #77).
+    gameHaptic(correct ? GameFeel.good : GameFeel.bad);
+    if (correct) {
+      _cheers++;
+    } else {
+      _shakes++;
+    }
     final speed = (_left.inMilliseconds / _roundTime.inMilliseconds).clamp(
       0.0,
       1.0,
@@ -223,7 +235,35 @@ class _CoverGameScreenState extends ConsumerState<CoverGameScreen> {
     final blur = revealed ? 0.0 : _minBlur + (_maxBlur - _minBlur) * ratio;
     final correct = _picked?.id == target.id;
 
-    return Column(
+    // La pochette floue, sertie dans un cadre qui s'allume : une manche doit
+    // avoir l'air d'un plateau de jeu, pas d'une image posée là (idée #77).
+    final cover = ClipRRect(
+      borderRadius: BorderRadius.circular(22),
+      child: SizedBox(
+        width: 196,
+        height: 196,
+        child: blur > 0
+            ? ImageFiltered(
+                imageFilter: ImageFilter.blur(
+                  sigmaX: blur,
+                  sigmaY: blur,
+                  tileMode: TileMode.decal,
+                ),
+                child: Artwork(
+                  url: target.artworkUrl,
+                  size: 196,
+                  borderRadius: 0,
+                ),
+              )
+            : Artwork(url: target.artworkUrl, size: 196, borderRadius: 0),
+      ),
+    );
+
+    return Celebration(
+      trigger: _cheers,
+      child: ShakeBox(
+      trigger: _shakes,
+      child: Column(
       children: [
         Expanded(
           child: Padding(
@@ -233,65 +273,35 @@ class _CoverGameScreenState extends ConsumerState<CoverGameScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // La pochette, nette seulement à la révélation. Le clip
-                    // évite que le flou ne bave hors du cadre.
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(22),
-                      child: SizedBox(
-                        width: 196,
-                        height: 196,
-                        child: blur > 0
-                            ? ImageFiltered(
-                                imageFilter: ImageFilter.blur(
-                                  sigmaX: blur,
-                                  sigmaY: blur,
-                                  tileMode: TileMode.decal,
-                                ),
-                                child: Artwork(
-                                  url: target.artworkUrl,
-                                  size: 196,
-                                  borderRadius: 0,
-                                ),
-                              )
-                            : Artwork(
-                                url: target.artworkUrl,
-                                size: 196,
-                                borderRadius: 0,
-                              ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    if (revealed) ...[
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            correct
-                                ? Icons.check_circle_rounded
-                                : Icons.cancel_rounded,
-                            size: 20,
-                            color: correct
-                                ? const Color(0xFF2FA36B)
-                                : const Color(0xFFE5484D),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            correct
-                                ? 'Bien vu !'
-                                : _picked == null
-                                ? 'Temps écoulé'
-                                : 'Raté',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w800,
-                              color: correct
-                                  ? const Color(0xFF2FA36B)
-                                  : const Color(0xFFE5484D),
-                            ),
+                    DecoratedBox(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(22),
+                        boxShadow: [
+                          BoxShadow(
+                            color:
+                                (revealed
+                                        ? (correct ? gameGood : gameBad)
+                                        : scheme.primary)
+                                    .withValues(alpha: revealed ? 0.4 : 0.28),
+                            blurRadius: 30,
+                            offset: const Offset(0, 12),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 6),
+                      // Révélée, la pochette se retourne pour se montrer.
+                      child: revealed ? FlipReveal(size: 196, child: cover) : cover,
+                    ),
+                    const SizedBox(height: 14),
+                    if (revealed) ...[
+                      GameVerdict(
+                        correct: correct,
+                        text: correct
+                            ? 'Bien vu !'
+                            : _picked == null
+                            ? 'Temps écoulé'
+                            : 'Raté',
+                      ),
+                      const SizedBox(height: 8),
                       Text(
                         target.name,
                         maxLines: 2,
@@ -315,28 +325,35 @@ class _CoverGameScreenState extends ConsumerState<CoverGameScreen> {
                         ),
                       ),
                     ] else ...[
-                      SizedBox(
-                        width: 196,
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(6),
-                          child: LinearProgressIndicator(
-                            value: ratio,
-                            minHeight: 7,
-                            backgroundColor: scheme.onSurface.withValues(
-                              alpha: 0.08,
+                      // Le chrono bat de plus en plus fort à mesure que la
+                      // pochette se précise.
+                      BeatPulse(
+                        playing: ratio < 0.25,
+                        period: const Duration(milliseconds: 480),
+                        depth: 0.06,
+                        child: SizedBox(
+                          width: 196,
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(6),
+                            child: LinearProgressIndicator(
+                              value: ratio,
+                              minHeight: 9,
+                              backgroundColor: scheme.onSurface.withValues(
+                                alpha: 0.08,
+                              ),
+                              color: ratio < 0.25 ? gameBad : scheme.primary,
                             ),
-                            color: ratio < 0.25
-                                ? const Color(0xFFE5484D)
-                                : scheme.primary,
                           ),
                         ),
                       ),
-                      const SizedBox(height: 6),
+                      const SizedBox(height: 8),
                       Text(
                         'Quel album se cache là-dessous ?',
                         style: TextStyle(
-                          fontSize: 13.5,
-                          color: scheme.onSurfaceVariant,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.2,
+                          color: scheme.onSurface,
                         ),
                       ),
                     ],
@@ -346,7 +363,7 @@ class _CoverGameScreenState extends ConsumerState<CoverGameScreen> {
             ),
           ),
         ),
-        Padding(
+        ThumbZone(
           padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
           child: Column(
             children: [
@@ -370,6 +387,8 @@ class _CoverGameScreenState extends ConsumerState<CoverGameScreen> {
           ),
         ),
       ],
+    ),
+    ),
     );
   }
 }

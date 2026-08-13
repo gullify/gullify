@@ -9,15 +9,16 @@ import '../../state/party.dart';
 import '../../widgets/artwork.dart';
 import '../../widgets/glass_box.dart';
 import '../../widgets/glass_kit.dart';
+import 'game_fx.dart';
 import 'game_kit.dart';
 
-const _ok = Color(0xFF2FA36B);
-const _ko = Color(0xFFE5484D);
+const _ok = gameGood;
+const _ko = gameBad;
 
 /// La manche en cours, côté hôte : le même contenu que la page invité, dans
 /// le langage visuel de l'app. C'est toujours le serveur qui décide de ce qui
 /// est visible — l'écran ne fait que peindre ce qu'il reçoit.
-class PartyRoundView extends ConsumerWidget {
+class PartyRoundView extends ConsumerStatefulWidget {
   const PartyRoundView({
     super.key,
     required this.party,
@@ -28,7 +29,31 @@ class PartyRoundView extends ConsumerWidget {
   final SnippetPlayer snippet;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<PartyRoundView> createState() => _PartyRoundViewState();
+}
+
+class _PartyRoundViewState extends ConsumerState<PartyRoundView> {
+  /// Compteurs d'effets : la révélation vient du serveur, on la fête (ou on
+  /// l'encaisse) au moment où elle arrive (idée #77).
+  int _cheers = 0;
+  int _shakes = 0;
+
+  @override
+  void didUpdateWidget(PartyRoundView old) {
+    super.didUpdateWidget(old);
+    final round = widget.party.round;
+    // Même manche, déjà révélée : rien de neuf à fêter.
+    final was = old.party.isRevealed && old.party.round?.index == round?.index;
+    if (round == null || !widget.party.isRevealed || was) return;
+    final correct = round.myAnswer != null && round.myAnswer == round.answerId;
+    gameHaptic(correct ? GameFeel.good : GameFeel.bad);
+    setState(() => correct ? _cheers++ : _shakes++);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final party = widget.party;
+    final snippet = widget.snippet;
     final scheme = Theme.of(context).colorScheme;
     final round = party.round;
     if (round == null) {
@@ -38,7 +63,11 @@ class PartyRoundView extends ConsumerWidget {
     final revealed = party.isRevealed;
     final me = party.me;
 
-    return ListView(
+    return Celebration(
+      trigger: _cheers,
+      child: ShakeBox(
+      trigger: _shakes,
+      child: ListView(
       padding: const EdgeInsets.fromLTRB(16, 6, 16, 24),
       children: [
         GameStatusBar(
@@ -90,6 +119,8 @@ class PartyRoundView extends ConsumerWidget {
         const SizedBox(height: 18),
         PartyPlayerList(party: party, showScores: true),
       ],
+    ),
+    ),
     );
   }
 }
@@ -116,28 +147,10 @@ class _Verdict extends StatelessWidget {
   final bool answered;
 
   @override
-  Widget build(BuildContext context) {
-    final color = correct ? _ok : _ko;
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Icon(
-          correct ? Icons.check_circle_rounded : Icons.cancel_rounded,
-          size: 20,
-          color: color,
-        ),
-        const SizedBox(width: 8),
-        Text(
-          correct ? 'Bien vu !' : (answered ? 'Raté' : 'Temps écoulé'),
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w800,
-            color: color,
-          ),
-        ),
-      ],
-    );
-  }
+  Widget build(BuildContext context) => GameVerdict(
+    correct: correct,
+    text: correct ? 'Bien vu !' : (answered ? 'Raté' : 'Temps écoulé'),
+  );
 }
 
 /// Commandes d'écoute de l'extrait (l'hôte a toujours le son).
@@ -157,7 +170,9 @@ class _SnippetControls extends StatelessWidget {
         return Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            SizedBox(height: 26, child: EqBars(playing: playing, height: 26)),
+            MysteryDisc(playing: playing, size: 108),
+            const SizedBox(height: 10),
+            SoundWave(playing: playing, height: 26),
             const SizedBox(height: 12),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -219,10 +234,13 @@ class _BlindRound extends ConsumerWidget {
                     children: [
                       _Verdict(correct: correct, answered: round.answered),
                       const SizedBox(height: 12),
-                      Artwork(
-                        url: round.artworkUrl,
-                        size: 84,
-                        borderRadius: 16,
+                      FlipReveal(
+                        size: 96,
+                        child: Artwork(
+                          url: round.artworkUrl,
+                          size: 96,
+                          borderRadius: 18,
+                        ),
                       ),
                       const SizedBox(height: 10),
                       Text(

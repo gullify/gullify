@@ -12,6 +12,7 @@ import '../../state/playlists.dart';
 import '../../widgets/artwork.dart';
 import '../../widgets/glass_box.dart';
 import '../../widgets/glass_kit.dart';
+import 'game_fx.dart';
 import 'game_kit.dart';
 
 /// « Défricheur » : trente secondes d'un titre jamais écouté, on garde ou on
@@ -184,6 +185,8 @@ class _SwipeGameScreenState extends ConsumerState<SwipeGameScreen>
   /// Lance la sortie de carte : à droite on garde, à gauche on passe.
   void _decide(bool keep) {
     if (_phase != _Phase.playing || _flying) return;
+    // Garder, c'est un oui franc ; passer, un simple déclic (idée #77).
+    gameHaptic(keep ? GameFeel.good : GameFeel.tap);
     _timer?.cancel();
     _snippet.stop();
     setState(() {
@@ -549,8 +552,12 @@ class _SwipeGameScreenState extends ConsumerState<SwipeGameScreen>
             builder: (context, snap) => Row(
               children: [
                 SizedBox(
-                  width: 26,
-                  child: EqBars(playing: snap.data ?? false, height: 18),
+                  width: 42,
+                  child: SoundWave(
+                    playing: snap.data ?? false,
+                    height: 22,
+                    bars: 7,
+                  ),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
@@ -581,13 +588,13 @@ class _SwipeGameScreenState extends ConsumerState<SwipeGameScreen>
               _VerdictButton(
                 icon: Icons.close_rounded,
                 label: 'Passer',
-                color: const Color(0xFFE5484D),
+                color: gameBad,
                 onPressed: () => _decide(false),
               ),
               _VerdictButton(
                 icon: Icons.favorite_rounded,
                 label: 'Garder',
-                color: const Color(0xFF2FA36B),
+                color: gameGood,
                 onPressed: () => _decide(true),
               ),
             ],
@@ -607,7 +614,7 @@ class _VerdictBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = keeping ? const Color(0xFF2FA36B) : const Color(0xFFE5484D);
+    final color = keeping ? gameGood : gameBad;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
@@ -651,33 +658,40 @@ class _VerdictButton extends StatelessWidget {
   Widget build(BuildContext context) {
     // Le libellé fait partie du bouton : viser la pastille seule serait
     // inutilement précis.
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
+    return PressPop(
       onTap: onPressed,
+      scale: 0.92,
+      feel: null,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Material(
-            color: color.withValues(alpha: 0.16),
-            shape: CircleBorder(
-              side: BorderSide(color: color.withValues(alpha: 0.8), width: 1.6),
-            ),
-            child: InkWell(
-              customBorder: const CircleBorder(),
-              onTap: onPressed,
-              child: SizedBox(
-                width: 62,
-                height: 62,
-                child: Icon(icon, color: color, size: 28),
+          Container(
+            width: 72,
+            height: 72,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: color.withValues(alpha: 0.18),
+              border: Border.all(
+                color: color.withValues(alpha: 0.85),
+                width: 1.8,
               ),
+              boxShadow: [
+                BoxShadow(
+                  color: color.withValues(alpha: 0.3),
+                  blurRadius: 20,
+                  offset: const Offset(0, 8),
+                ),
+              ],
             ),
+            child: Icon(icon, color: color, size: 32),
           ),
           const SizedBox(height: 6),
           Text(
             label,
             style: TextStyle(
-              fontSize: 12.5,
-              fontWeight: FontWeight.w700,
+              fontSize: 13.5,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.1,
               color: color,
             ),
           ),

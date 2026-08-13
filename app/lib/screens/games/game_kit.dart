@@ -12,6 +12,7 @@ import '../../state/games.dart';
 import '../../widgets/glass_box.dart';
 import '../../widgets/glass_kit.dart';
 import '../../widgets/mascot_empty.dart';
+import 'game_fx.dart';
 import 'game_source_sheet.dart';
 
 /// Briques communes aux jeux : en-tête, feuille de règles, boutons de
@@ -388,9 +389,11 @@ class GameStatChip extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 2),
+            // Le score saute quand il monte : on doit le voir sans quitter la
+            // manche des yeux (idée #77).
             valueWidget ??
-                Text(
-                  value,
+                PoppingNumber(
+                  text: value,
                   style: const TextStyle(
                     fontSize: 17,
                     fontWeight: FontWeight.w800,
@@ -455,64 +458,86 @@ class GameChoiceTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final color = switch (state) {
-      GameChoiceState.correct => const Color(0xFF2FA36B),
-      GameChoiceState.wrong => const Color(0xFFE5484D),
+      GameChoiceState.correct => gameGood,
+      GameChoiceState.wrong => gameBad,
       GameChoiceState.idle || GameChoiceState.faded => null,
     };
-    return Opacity(
-      opacity: state == GameChoiceState.faded ? 0.45 : 1,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(18),
-          color: color?.withValues(alpha: 0.18),
-          border: color == null
-              ? null
-              : Border.all(color: color.withValues(alpha: 0.9), width: 1.6),
-        ),
-        child: GlassBox(
-          radius: 18,
-          blur: false,
-          child: InkWell(
-            borderRadius: BorderRadius.circular(18),
-            onTap: onTap,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        Text(
-                          subtitle,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 12.5,
-                            color: scheme.onSurfaceVariant,
-                          ),
-                        ),
-                      ],
+    // Une réponse se tape vite et sans viser : grande cible, texte franc, et
+    // la carte s'enfonce sous le doigt pour qu'on sache que c'est parti
+    // (idée #77).
+    return AnimatedOpacity(
+      duration: const Duration(milliseconds: 220),
+      opacity: state == GameChoiceState.faded ? 0.4 : 1,
+      child: AnimatedScale(
+        duration: const Duration(milliseconds: 260),
+        curve: Curves.easeOutBack,
+        scale: state == GameChoiceState.correct ? 1.03 : 1,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            color: color?.withValues(alpha: 0.18),
+            border: color == null
+                ? null
+                : Border.all(color: color.withValues(alpha: 0.9), width: 1.8),
+            boxShadow: color == null
+                ? null
+                : [
+                    BoxShadow(
+                      color: color.withValues(alpha: 0.32),
+                      blurRadius: 18,
+                      offset: const Offset(0, 6),
                     ),
-                  ),
-                  if (color != null)
-                    Icon(
-                      state == GameChoiceState.correct
-                          ? Icons.check_circle_rounded
-                          : Icons.cancel_rounded,
-                      color: color,
+                  ],
+          ),
+          child: GlassBox(
+            radius: 20,
+            blur: false,
+            child: PressPop(
+              onTap: onTap,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: -0.2,
+                            ),
+                          ),
+                          Text(
+                            subtitle,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 12.5,
+                              color: scheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                ],
+                    if (color != null)
+                      Icon(
+                        state == GameChoiceState.correct
+                            ? Icons.check_circle_rounded
+                            : Icons.cancel_rounded,
+                        color: color,
+                        size: 26,
+                      ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -629,7 +654,12 @@ class GameOverPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final record = score >= best && score > 0;
-    return Center(
+    // Un record se fête : étincelles par-dessus le panneau, et une vibration
+    // pour que ça se sente aussi dans la main (idée #77).
+    return Celebration(
+      trigger: record ? 1 : 0,
+      count: 34,
+      child: Center(
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: GlassBox(
@@ -640,10 +670,10 @@ class GameOverPanel extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(
-                  record ? Icons.emoji_events_rounded : game.icon,
-                  size: 44,
-                  color: record ? const Color(0xFFE0A32E) : scheme.primary,
+                _TrophyPop(
+                  icon: record ? Icons.emoji_events_rounded : game.icon,
+                  color: record ? gameGold : scheme.primary,
+                  record: record,
                 ),
                 const SizedBox(height: 10),
                 Text(
@@ -659,12 +689,21 @@ class GameOverPanel extends StatelessWidget {
                 Text(
                   '$score${scoreSuffix ?? ''}',
                   style: TextStyle(
-                    fontSize: 44,
+                    fontSize: 52,
                     fontWeight: FontWeight.w800,
-                    letterSpacing: -1.5,
-                    color: scheme.primary,
+                    letterSpacing: -1.8,
+                    height: 1,
+                    color: record ? gameGold : scheme.primary,
+                    shadows: [
+                      Shadow(
+                        color: (record ? gameGold : scheme.primary)
+                            .withValues(alpha: 0.45),
+                        blurRadius: 22,
+                      ),
+                    ],
                   ),
                 ),
+                const SizedBox(height: 6),
                 Text(
                   '${game.scoreLabel} : ${math.max(best, score)}',
                   style: TextStyle(
@@ -689,8 +728,67 @@ class GameOverPanel extends StatelessWidget {
           ),
         ),
       ),
+    ),
     );
   }
+}
+
+/// Le trophée (ou l'icône du jeu) qui arrive en sautant, et qui brille quand
+/// c'est un record.
+class _TrophyPop extends StatefulWidget {
+  const _TrophyPop({
+    required this.icon,
+    required this.color,
+    required this.record,
+  });
+
+  final IconData icon;
+  final Color color;
+  final bool record;
+
+  @override
+  State<_TrophyPop> createState() => _TrophyPopState();
+}
+
+class _TrophyPopState extends State<_TrophyPop>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 520),
+  )..forward();
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.record) gameHaptic(GameFeel.big);
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => ScaleTransition(
+    scale: CurvedAnimation(parent: _c, curve: Curves.elasticOut),
+    child: Container(
+      width: 78,
+      height: 78,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: widget.color.withValues(alpha: 0.14),
+        boxShadow: [
+          BoxShadow(
+            color: widget.color.withValues(alpha: widget.record ? 0.5 : 0.3),
+            blurRadius: 26,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Icon(widget.icon, size: 42, color: widget.color),
+    ),
+  );
 }
 
 /// Message affiché quand la bibliothèque ne fournit pas assez de matière.
