@@ -18,7 +18,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # of the product and file versions while build-number is used as the build suffix.
 # versionCode : doit rester supérieur à 26 (dernier code de l'ancienne app
 # pixelplay) pour que son auto-updater propose la migration vers la v2.
-version: 3.13.0+147
+version: 3.14.0+148
 
 environment:
   sdk: ^3.12.2
@@ -57,6 +57,12 @@ dependencies:
   video_player: ^2.9.2
   # Talkie-walkie des parties multijoueur : capture du micro.
   record: ^7.1.1
+  # Pièces jointes du carnet d'idées (idée #84) : choisir n'importe quel
+  # fichier du téléphone (image_picker ne sait ouvrir que la galerie).
+  # La 12 (beta) est la seule ligne alignée sur win32 ^6, comme le reste des
+  # plugins de l'app (package_info_plus, wakelock_plus) — la 11 stable épingle
+  # win32 ^5 et rend le paquet incompilable ici.
+  file_picker: ^12.0.0-beta.7
 
 dev_dependencies:
   flutter_test:

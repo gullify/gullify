@@ -1,11 +1,13 @@
 <?php
 /**
  * Carnet d'idées de développement (par utilisateur), stocké en base.
- * Actions : list | add | set_status | update | delete
+ * Actions : list | add | set_status | request | update | delete
+ *           | add_file | delete_file   (pièces jointes, idée #84)
  * Utilisé par l'app mobile et lu par Claude côté serveur.
  */
 require_once __DIR__ . '/../../src/AppConfig.php';
 require_once __DIR__ . '/../../src/auth_required.php';
+require_once __DIR__ . '/../../src/IdeaAttachments.php';
 
 header('Content-Type: application/json');
 header('Cache-Control: no-cache');
@@ -28,6 +30,7 @@ $db->exec("
         INDEX (user)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
 ");
+IdeaAttachments::ensureTable($db);
 
 $readBody = function (): array {
     $j = json_decode((string)file_get_contents('php://input'), true);
@@ -44,12 +47,15 @@ switch ($action) {
             ORDER BY (status = 'done') ASC, created_at DESC
         ");
         $stmt->execute([$user]);
+        $rows  = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $files = IdeaAttachments::listFor($db, array_column($rows, 'id'), $user);
         $ideas = array_map(fn($r) => [
-            'id'        => (int)$r['id'],
-            'text'      => $r['text'],
-            'status'    => $r['status'],
-            'createdAt' => $r['created_at'],
-        ], $stmt->fetchAll(PDO::FETCH_ASSOC));
+            'id'          => (int)$r['id'],
+            'text'        => $r['text'],
+            'status'      => $r['status'],
+            'createdAt'   => $r['created_at'],
+            'attachments' => $files[(int)$r['id']] ?? [],
+        ], $rows);
         echo json_encode(['success' => true, 'ideas' => $ideas]);
         break;
 
@@ -99,9 +105,61 @@ switch ($action) {
     case 'delete':
         $body = $readBody();
         $id   = (int)($body['id'] ?? $_REQUEST['id'] ?? 0);
+        IdeaAttachments::deleteForIdea($db, $id, $user);
         $db->prepare("DELETE FROM dev_ideas WHERE id = ? AND user = ?")
            ->execute([$id, $user]);
         echo json_encode(['success' => true]);
+        break;
+
+    case 'add_file':
+        // Multipart : idea_id + file. Joint une capture/maquette/log à une idée.
+        $ideaId = (int)($_POST['idea_id'] ?? $_REQUEST['idea_id'] ?? 0);
+        $owns = $db->prepare("SELECT COUNT(*) FROM dev_ideas WHERE id = ? AND user = ?");
+        $owns->execute([$ideaId, $user]);
+        if ((int)$owns->fetchColumn() === 0) {
+            echo json_encode(['success' => false, 'error' => 'idea not found']);
+            break;
+        }
+        $file = $_FILES['file'] ?? null;
+        if (!$file || ($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+            $tooBig = $file && in_array($file['error'], [UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE], true);
+            echo json_encode([
+                'success' => false,
+                'error'   => $tooBig ? 'Fichier trop volumineux' : 'Aucun fichier reçu',
+            ]);
+            break;
+        }
+        if ((int)$file['size'] > IdeaAttachments::MAX_BYTES) {
+            echo json_encode(['success' => false, 'error' => 'Fichier trop volumineux (max 10 Mo)']);
+            break;
+        }
+        if (IdeaAttachments::countFor($db, $ideaId, $user) >= IdeaAttachments::MAX_PER_IDEA) {
+            echo json_encode(['success' => false, 'error' => 'Trop de pièces jointes sur cette idée']);
+            break;
+        }
+        try {
+            $att = IdeaAttachments::store(
+                $db,
+                $ideaId,
+                $user,
+                $file['tmp_name'],
+                (string)($file['name'] ?? 'fichier'),
+                (string)($file['type'] ?? '')
+            );
+            echo json_encode(['success' => true, 'attachment' => $att]);
+        } catch (Throwable $e) {
+            error_log('ideas add_file: ' . $e->getMessage());
+            echo json_encode(['success' => false, 'error' => "Échec de l'enregistrement"]);
+        }
+        break;
+
+    case 'delete_file':
+        $body = $readBody();
+        $fid  = (int)($body['id'] ?? $_REQUEST['id'] ?? 0);
+        $ok   = IdeaAttachments::delete($db, $fid, $user);
+        echo json_encode($ok
+            ? ['success' => true]
+            : ['success' => false, 'error' => 'file not found']);
         break;
 
     default:

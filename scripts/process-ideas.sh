@@ -98,10 +98,31 @@ dbq "UPDATE dev_ideas SET status='in_progress' WHERE status='requested';"
 BATCH_IDS=$(dbq "SELECT GROUP_CONCAT(id) FROM dev_ideas WHERE status='in_progress';")
 BATCH_IDS="${BATCH_IDS:-}"
 
+# ── Pièces jointes (idée #84) ───────────────────────────────────────────────
+# Les fichiers joints depuis l'app vivent dans le volume docker (root côté
+# hôte) : on les sort dans /tmp pour que Claude puisse les LIRE (captures
+# d'écran comprises). Un nom lisible par idée, l'original en sous-dossier.
+ATT_DIR="/tmp/gullify-idea-files"
+rm -rf "$ATT_DIR"
+if [ -n "$BATCH_IDS" ] && [ "$BATCH_IDS" != "NULL" ]; then
+    mkdir -p "$ATT_DIR"
+    for IID in $(dbq "SELECT DISTINCT idea_id FROM dev_idea_files WHERE idea_id IN ($BATCH_IDS);"); do
+        if docker cp "gullify:/app/data/idea_files/$IID" "$ATT_DIR/$IID" >/dev/null 2>&1; then
+            log "pièces jointes de l'idée $IID exportées vers $ATT_DIR/$IID"
+        else
+            log "⚠️  pièces jointes de l'idée $IID introuvables dans le conteneur"
+        fi
+    done
+fi
+
 PROMPT="Tu es Claude Code, invoqué automatiquement sur le serveur de Maxime pour réaliser des idées de développement Gullify qu'il t'a confiées depuis l'app mobile.
 
 Lis les idées à faire :
   docker exec gullify-db sh -lc 'mysql --default-character-set=utf8mb4 -uroot -p\"\$MYSQL_ROOT_PASSWORD\" \"\$MYSQL_DATABASE\" -N -e \"SELECT id, text FROM dev_ideas WHERE status=\\\"in_progress\\\";\"'
+
+Certaines idées portent des pièces jointes (capture de ce qui cloche, maquette, log). Leur inventaire :
+  docker exec gullify-db sh -lc 'mysql --default-character-set=utf8mb4 -uroot -p\"\$MYSQL_ROOT_PASSWORD\" \"\$MYSQL_DATABASE\" -N -e \"SELECT idea_id, id, name, mime FROM dev_idea_files WHERE idea_id IN (SELECT id FROM dev_ideas WHERE status=\\\"in_progress\\\");\"'
+Les fichiers sont DÉJÀ sortis du conteneur dans /tmp/gullify-idea-files/<idea_id>/<id_du_fichier>.<ext> (l'outil Read affiche les images) : lis-les avant d'implémenter l'idée, ils font partie de la consigne.
 
 Ta mémoire projet (MEMORY.md + gullify-project-context) décrit tout le workflow (Flutter dans app/, build via ./build-app.sh \"changelog\", bump pubspec + appVersion dans settings_screen.dart + entrée changelog.dart, commit/push, docker rebuild si changement serveur PHP/python).
 

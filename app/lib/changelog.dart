@@ -8,6 +8,16 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.14.0', [
+    'Une idée peut désormais porter des pièces jointes : captures d\'écran, '
+        'maquettes, logs, n\'importe quel fichier (10 Mo chacun, 20 par '
+        'idée). Le trombone est à côté du champ de saisie pour une nouvelle '
+        'idée, et sous chaque idée déjà notée',
+    'Les fichiers joints se revoient dans l\'app (aperçu des images), '
+        's\'ouvrent hors de l\'app d\'un appui, et se retirent un par un',
+    'Claude LIT ces fichiers avant de coder quand tu lui confies l\'idée : '
+        'une capture de ce qui cloche vaut mieux qu\'un paragraphe',
+  ]),
   ReleaseNote('3.13.0', [
     'Le rétro Winamp ressemble enfin à un Winamp : ce qui manquait n\'était '
         'pas la couleur mais le relief. Les plaques ont un vrai biseau à deux '
