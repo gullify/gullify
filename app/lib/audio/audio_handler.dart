@@ -33,6 +33,29 @@ Future<GullifyAudioHandler> initAudioHandler() {
   );
 }
 
+/// L'ordre aléatoire tel qu'il est, repris d'un lecteur par l'autre au moment
+/// du fondu enchaîné (idée #76). just_audio retire les titres au sort dès qu'on
+/// lui pose une file : le lecteur qui prend l'antenne se retrouverait avec un
+/// ordre tout neuf, et rejouerait des titres déjà entendus. Ici le premier tirage
+/// est déjà fait — les suivants (bouton aléatoire) retombent sur le tirage
+/// normal.
+class _KeptShuffleOrder extends DefaultShuffleOrder {
+  _KeptShuffleOrder(this._kept);
+
+  final List<int> _kept;
+  bool _restored = false;
+
+  @override
+  void insert(int index, int count) {
+    if (!_restored && index == 0 && indices.isEmpty && count == _kept.length) {
+      _restored = true;
+      indices.addAll(_kept);
+      return;
+    }
+    super.insert(index, count);
+  }
+}
+
 /// Marque, dans les extras d'une fiche du lecteur principal, la pré-écoute
 /// d'un titre YouTube (idée #59) : c'est à ça que la recherche reconnaît « son »
 /// titre dans ce que joue le lecteur principal.
@@ -70,17 +93,34 @@ class GullifyAudioHandler extends BaseAudioHandler
     // LE signal d'un arrêt « écran éteint » causé par le système, pas par la
     // lecture elle-même.
     logPlayback('— démarrage de l\'app —');
-    _player.playbackEventStream.listen(
+    _listen();
+    _watchAudioSession();
+  }
+
+  /// Branche l'app sur le lecteur en cours. Tout ce qui suit l'écoute (fiche
+  /// courante, notification, suivi d'écoute, égaliseur, journal) vient d'ici.
+  ///
+  /// Rejoué à chaque fondu enchaîné : le titre entrant joue sur l'autre lecteur
+  /// (idée #76), et c'est LUI qui devient le lecteur courant dès que le
+  /// croisement commence. Les abonnements du sortant sont coupés d'abord — sans
+  /// quoi sa fin de piste et son propre enchaînement continueraient de piloter
+  /// la fiche affichée.
+  void _listen() {
+    for (final sub in _subs) {
+      unawaited(sub.cancel());
+    }
+    _subs.clear();
+    _subs.add(_player.playbackEventStream.listen(
       _broadcastState,
       // Une erreur du lecteur (flux coupé en veille, source injoignable…) est
       // la cause typique d'un arrêt écran éteint : on la journalise.
       onError: (Object e, StackTrace _) =>
           logPlayback('ERREUR lecteur : $e'),
-    );
+    ));
     // Changement d'état « joue / ne joue pas ». Capte AUSSI les pauses
     // spontanées (perte de focus audio, coupure système) qui ne passent pas
     // par notre pause() — exactement le symptôme à diagnostiquer en veille.
-    _player.playerStateStream.listen((s) {
+    _subs.add(_player.playerStateStream.listen((s) {
       if (s.playing == _lastLoggedPlaying) return;
       _lastLoggedPlaying = s.playing;
       // (Le verrou réseau qui garde la Wi-Fi et le CPU actifs écran éteint est
@@ -93,26 +133,26 @@ class GullifyAudioHandler extends BaseAudioHandler
       logPlayback(s.playing
           ? '▶ lecture$suffix'
           : '⏸ pause à ${_fmtPos(_player.position)}$suffix');
-    });
+    }));
     // Transitions du cycle de lecture (mise en tampon = stall réseau, etc.).
-    _player.processingStateStream.listen((s) {
+    _subs.add(_player.processingStateStream.listen((s) {
       if (s != _lastLoggedProcessing) {
         _lastLoggedProcessing = s;
         logPlayback('état : ${_processingLabel(s)}');
       }
-    });
-    _watchAudioSession();
+    }));
     // La session audio n'existe qu'une fois la lecture lancée (ExoPlayer la
     // génère en tâche de fond) : c'est le seul moment où l'égaliseur peut
-    // s'accrocher. Une nouvelle session = un nouvel effet à recréer.
+    // s'accrocher. Une nouvelle session = un nouvel effet à recréer — dont
+    // celle du lecteur qui prend l'antenne à chaque fondu enchaîné.
     if (equalizerSupported) {
-      _player.androidAudioSessionIdStream.listen((id) {
+      _subs.add(_player.androidAudioSessionIdStream.listen((id) {
         if (id == null) return;
         logPlayback('égaliseur : session audio $id');
         equalizer.attachSession(id);
-      });
+      }));
     }
-    _player.currentIndexStream.listen((index) {
+    _subs.add(_player.currentIndexStream.listen((index) {
       final q = queue.value;
       if (index == null || index < 0 || index >= q.length) return;
       // setAudioSources can emit the same index more than once.
@@ -130,28 +170,32 @@ class GullifyAudioHandler extends BaseAudioHandler
           controls: _controls(playbackState.value.playing),
         ),
       );
-    });
-    _player.positionStream.listen((pos) {
+    }));
+    _subs.add(_player.positionStream.listen((pos) {
       if (_trackedSongId != null) _lastPosition = pos;
       _watchTrackFade(pos);
-    });
+    }));
     // La durée d'un flux qu'on ne connaît pas d'avance (la pré-écoute d'un titre
     // YouTube : le serveur la découvre en le transcodant) n'arrive qu'une fois
     // le titre chargé. On complète alors sa fiche, sans quoi le scrubber du
     // lecteur et la barre de la recherche n'auraient jamais de fin. Une radio
     // n'en a pas non plus, mais elle est en direct : le lecteur ne rend rien.
-    _player.durationStream.listen((duration) {
+    _subs.add(_player.durationStream.listen((duration) {
       final item = mediaItem.value;
       if (duration == null || item == null || item.duration != null) return;
       mediaItem.add(item.copyWith(duration: duration));
-    });
-    _player.processingStateStream.listen((s) {
+    }));
+    _subs.add(_player.processingStateStream.listen((s) {
       if (s == ProcessingState.completed) {
         _lastPosition = _trackedDuration;
         stop();
       }
-    });
+    }));
   }
+
+  /// Ce qui écoute le lecteur courant, et rien d'autre. Vidé et rebranché à
+  /// chaque changement de lecteur (fondu enchaîné).
+  final _subs = <StreamSubscription<dynamic>>[];
 
   /// Égaliseur système (Android). Volontairement HORS de l'AudioPipeline de
   /// just_audio : celui-ci lisait les bandes avant qu'ExoPlayer n'ait de
@@ -165,7 +209,12 @@ class GullifyAudioHandler extends BaseAudioHandler
 
   // Réglage des tampons et verrou réseau : voir tuned_player.dart, d'où sortent
   // tous les lecteurs de l'app.
-  late final _player = createGullifyPlayer(use: PlayerUse.streaming);
+  //
+  // Pas `final` : le fondu enchaîné (idée #76) fait jouer le titre entrant sur
+  // un second lecteur, et celui-ci devient le lecteur courant dès que le
+  // croisement commence. Le sortant finit sa descente en coulisses puis se
+  // range comme lecteur de réserve, prêt pour le croisement suivant.
+  AudioPlayer _player = createGullifyPlayer(use: PlayerUse.streaming);
 
   /// Set after login so the media browser (Android Auto) can list the library.
   LibraryRepository? repository;
@@ -396,8 +445,13 @@ class GullifyAudioHandler extends BaseAudioHandler
     final played = _lastPosition <= elapsed ? _lastPosition : elapsed;
     _trackedSongId = null;
     if (songId == null || played < const Duration(seconds: 5)) return;
+    // Un titre croisé avec le suivant (idée #76) est déclaré fini alors qu'il
+    // lui reste la durée du fondu à jouer : sans cette marge, un fondu enchaîné
+    // long ferait passer chaque écoute complète pour une écoute abandonnée.
+    final tolerance = const Duration(seconds: 5) +
+        (fade.fadesTracks ? fade.duration : Duration.zero);
     final completed = _trackedDuration > Duration.zero &&
-        played >= _trackedDuration - const Duration(seconds: 5);
+        played >= _trackedDuration - tolerance;
     repository
         ?.trackPlay(
           songId: songId,
@@ -501,6 +555,7 @@ class GullifyAudioHandler extends BaseAudioHandler
     _queueIndex = index;
     _trackedQueue = swapped;
 
+    await _cancelFade();
     _switchingSource = true;
     queue.add(swapped);
     mediaItem.add(swapped[index]);
@@ -568,6 +623,9 @@ class GullifyAudioHandler extends BaseAudioHandler
       songs = playable;
     }
     _flushPlay();
+    // Une nouvelle file efface tout ce qui jouait, y compris le titre sortant
+    // d'un fondu enchaîné en cours.
+    await _cancelFade();
     _switchingSource = true;
     final items = songs.map(_toMediaItem).toList();
     queue.add(items);
@@ -584,6 +642,7 @@ class GullifyAudioHandler extends BaseAudioHandler
     String? logo,
   }) async {
     _flushPlay();
+    await _cancelFade();
     _switchingSource = true;
     final item = MediaItem(
       id: url,
@@ -615,6 +674,7 @@ class GullifyAudioHandler extends BaseAudioHandler
     String? artwork,
   }) async {
     _flushPlay();
+    await _cancelFade();
     _switchingSource = true;
     final item = MediaItem(
       id: url,
@@ -724,6 +784,7 @@ class GullifyAudioHandler extends BaseAudioHandler
     if (items.isEmpty) return;
     final at = index.clamp(0, items.length - 1);
     _flushPlay();
+    await _cancelFade();
     _switchingSource = true;
     queue.add(items);
     mediaItem.add(items[at]);
@@ -745,35 +806,48 @@ class GullifyAudioHandler extends BaseAudioHandler
   /// laisseraient le lecteur à un volume au hasard.
   int _fadeToken = 0;
 
-  /// Fondu de volume : reprise, pause et changement de titre en douceur plutôt
-  /// qu'à sec. Durée réglée par l'utilisateur (idée #75), sauf [over] imposé —
-  /// la fin d'une piste se fond sur ce qu'il en reste, jamais plus.
-  /// (Un vrai fondu enchaîné entre pistes exigerait deux lecteurs simultanés.)
+  /// Fondu de volume du lecteur courant : reprise, pause et changement de titre
+  /// en douceur plutôt qu'à sec. Durée réglée par l'utilisateur (idée #75),
+  /// sauf [over] imposé — la fin d'une piste se fond sur ce qu'il en reste,
+  /// jamais plus. [constantPower] pour la montée d'un fondu enchaîné, qui se
+  /// croise avec la descente du titre sortant.
   ///
   /// Renvoie sa marque : un appelant qui enchaîne (la pause, après son fondu)
   /// la compare à [_fadeToken] pour savoir si quelqu'un lui a pris la main
   /// entre-temps.
-  Future<int> _fadeTo(double target, {Duration? over}) async {
+  Future<int> _fadeTo(
+    double target, {
+    Duration? over,
+    bool constantPower = false,
+  }) async {
     final token = ++_fadeToken;
+    final player = _player;
     final ramp = fadeRamp(
-      from: _player.volume,
+      from: player.volume,
       to: target,
       over: over ?? fade.duration,
+      constantPower: constantPower,
     );
     final instant = ramp.length <= 1;
     for (final volume in ramp) {
       if (!instant) await Future<void>.delayed(kFadeTick);
-      if (token != _fadeToken) return token;
-      await _player.setVolume(volume);
+      // Le lecteur a pu changer sous nos pieds (fondu enchaîné) : la rampe
+      // d'avant ne doit surtout pas continuer de pousser le volume de celui
+      // qui vient de prendre l'antenne.
+      if (token != _fadeToken || !identical(player, _player)) return token;
+      await player.setVolume(volume);
     }
     return token;
   }
 
   /// Coupe court au fondu en cours et remet le volume à plein — un lecteur
-  /// laissé à mi-fondu jouerait le titre suivant en sourdine.
+  /// laissé à mi-fondu jouerait le titre suivant en sourdine. Coupe aussi le
+  /// titre sortant d'un fondu enchaîné : dès qu'on reprend la main (saut,
+  /// pause, arrêt), il n'a plus rien à faire dans les oreilles.
   Future<void> _cancelFade() async {
     _fadeToken++;
     _endFading = false;
+    await _hushOutgoing();
     if (_player.volume != 1) await _player.setVolume(1);
   }
 
@@ -784,12 +858,50 @@ class GullifyAudioHandler extends BaseAudioHandler
   /// rattraper tout seul après un saut ou une reprise.
   void _watchTrackFade(Duration position) {
     final total = _player.duration;
+    final live = mediaItem.value?.isLive == true;
+
+    // Le titre suivant, s'il y en a un : c'est lui qui décide entre un vrai
+    // croisement (deux titres à la fois) et la simple descente de fin de file.
+    // Une descente déjà entamée garde la main jusqu'au bout : c'est le repli
+    // quand le croisement n'a pas pu se faire, et le relancer à chaque
+    // battement de position ne ferait que le rater de nouveau.
+    final crossable = fade.fadesTracks && _hasNextTrack && !_endFading;
+    if (crossable) {
+      switch (crossfadeAt(
+        position: position,
+        total: total,
+        fade: fade.duration,
+        playing: _player.playing,
+        live: live,
+        hasNext: _hasNextTrack,
+        armed: _armedIndex != null,
+        running: _crossfading,
+      )) {
+        case Crossfade.none:
+          break;
+        case Crossfade.arm:
+          unawaited(_armCrossfade());
+        case Crossfade.start:
+          unawaited(_startCrossfade(total! - position));
+        case Crossfade.disarm:
+          unawaited(_disarmCrossfade());
+      }
+    } else if (_armedIndex != null) {
+      // Plus rien à croiser (réglage éteint, dernier titre de la file, descente
+      // déjà en cours) : le tampon préparé ne sert plus.
+      unawaited(_disarmCrossfade());
+    }
+
     switch (trackFadeAt(
       position: position,
       total: total,
-      fade: fade.fadesTracks ? fade.duration : Duration.zero,
+      // Un titre qui a un suivant se croise avec lui (le sortant descend sur
+      // son propre lecteur, hors du fondu du lecteur courant) : ici on ne
+      // s'occupe plus que du dernier titre de la file, qui n'a personne avec
+      // qui se croiser et s'éteint donc tout seul.
+      fade: fade.fadesTracks && !crossable ? fade.duration : Duration.zero,
       playing: _player.playing,
-      live: mediaItem.value?.isLive == true,
+      live: live,
       fadingOut: _endFading,
     )) {
       case TrackFade.none:
@@ -810,7 +922,9 @@ class GullifyAudioHandler extends BaseAudioHandler
   /// « suivant ». Sans lecture en cours, il n'y a rien à fondre — c'est
   /// [play] qui s'en chargera.
   void _fadeInNewTrack() {
-    if (!fade.fadesTracks || !_player.playing) return;
+    // Pendant un fondu enchaîné, la montée du titre entrant est déjà en
+    // route : la relancer d'ici la ferait repartir de zéro en plein milieu.
+    if (_crossfading || !fade.fadesTracks || !_player.playing) return;
     _endFading = false;
     unawaited(() async {
       final token = ++_fadeToken;
@@ -818,6 +932,181 @@ class GullifyAudioHandler extends BaseAudioHandler
       if (token != _fadeToken) return;
       await _fadeTo(1);
     }());
+  }
+
+  // ────────────────────────────────────────────── le fondu enchaîné (#76) ──
+
+  /// Le lecteur d'à côté : celui qui prépare le titre suivant, puis celui qui
+  /// finit de descendre pendant que le suivant monte. Créé au tout premier
+  /// croisement — fondu enchaîné éteint, l'app n'allume qu'un seul lecteur,
+  /// exactement comme avant.
+  AudioPlayer? _spare;
+
+  /// Index du titre chargé d'avance sur [_spare], et la file dans laquelle il
+  /// a été choisi (une file remplacée entre-temps le périme).
+  int? _armedIndex;
+  List<MediaItem>? _armedQueue;
+
+  /// Croisement en cours : les deux titres jouent en même temps.
+  bool _crossfading = false;
+
+  /// Le lecteur d'à côté fait encore du son (il finit sa descente) : on ne lui
+  /// charge surtout pas le titre d'après, ça couperait le sortant net.
+  bool _outgoingBusy = false;
+
+  /// Marque du titre sortant. L'incrémenter abandonne sa descente : c'est ce
+  /// qui le fait taire net quand on saute, met en pause ou arrête.
+  int _outgoingToken = 0;
+
+  /// Y a-t-il un titre après celui en cours ? (aléatoire et répétition
+  /// compris : c'est just_audio qui sait dans quel ordre il joue.)
+  bool get _hasNextTrack {
+    final next = _player.nextIndex;
+    return next != null && next >= 0 && next < queue.value.length;
+  }
+
+  /// Charge le titre suivant sur le lecteur d'à côté, sans le lancer. Le
+  /// tampon a le temps de se remplir : au moment du croisement, il démarre à
+  /// la note près au lieu d'arriver en retard.
+  Future<void> _armCrossfade() async {
+    if (_outgoingBusy) return;
+    final q = queue.value;
+    final next = _player.nextIndex;
+    if (next == null || next < 0 || next >= q.length) return;
+    if (_armedIndex == next && identical(_armedQueue, q)) return;
+    final spare = _spare ??= createGullifyPlayer(use: PlayerUse.streaming);
+    _armedIndex = next;
+    _armedQueue = q;
+    try {
+      await spare.setVolume(0);
+      await spare.setLoopMode(_player.loopMode);
+      await spare.setShuffleModeEnabled(_player.shuffleModeEnabled);
+      await spare.setSpeed(_player.speed);
+      await spare.setAudioSources(
+        [for (final item in q) AudioSource.uri(Uri.parse(item.id))],
+        initialIndex: next,
+        // Le lecteur qui prend l'antenne hérite de l'ordre aléatoire en cours :
+        // sans ça, chaque croisement retirerait les titres au sort et on
+        // réentendrait ceux déjà joués.
+        shuffleOrder: _KeptShuffleOrder(_player.shuffleIndices),
+      );
+    } catch (e) {
+      logPlayback('fondu enchaîné : préparation impossible ($e)');
+      _armedIndex = null;
+      _armedQueue = null;
+    }
+  }
+
+  /// Rend le tampon du titre préparé : il ne sera pas joué.
+  Future<void> _disarmCrossfade() async {
+    if (_armedIndex == null) return;
+    _armedIndex = null;
+    _armedQueue = null;
+    try {
+      await _spare?.stop();
+    } catch (_) {}
+  }
+
+  /// Croise les deux titres : le suivant monte sur le lecteur d'à côté pendant
+  /// que celui en cours descend sur le sien, [over] durant (ce qu'il reste du
+  /// titre sortant). C'est le lecteur entrant qui devient tout de suite le
+  /// lecteur courant — fiche, notification, position et suivi d'écoute suivent
+  /// ce qui commence, pas ce qui s'efface.
+  Future<void> _startCrossfade(Duration over) async {
+    if (_crossfading) return;
+    _crossfading = true;
+    try {
+      final q = queue.value;
+      final next = _player.nextIndex;
+      if (next == null || next < 0 || next >= q.length) return;
+      if (_armedIndex != next || !identical(_armedQueue, q)) {
+        // Préparation périmée (file changée) ou jamais faite : on charge
+        // maintenant. Le titre entrant partira avec un peu de retard, le
+        // croisement sera plus court, mais il aura lieu.
+        await _armCrossfade();
+      }
+      final incoming = _spare;
+      if (incoming == null || _armedIndex != next) {
+        // Rien à croiser : on retombe sur la descente de fin de piste, qui
+        // vaut toujours mieux qu'une coupure nette.
+        _endFading = true;
+        unawaited(_fadeTo(0, over: over));
+        return;
+      }
+
+      final outgoing = _player;
+      final token = ++_outgoingToken;
+      _outgoingBusy = true;
+      await incoming.setVolume(0);
+      // play() de just_audio ne se résout qu'à l'arrêt du son : ne pas
+      // l'attendre, sinon le croisement ne commence jamais.
+      unawaited(incoming.play().catchError((Object e) {
+        logPlayback('fondu enchaîné : lecture impossible ($e)');
+      }));
+
+      // Le titre entrant prend l'antenne : c'est lui qu'on annonce, et c'est
+      // sa position que le lecteur affiche.
+      _armedIndex = null;
+      _armedQueue = null;
+      _spare = outgoing;
+      _player = incoming;
+      _endFading = false;
+      _listen();
+
+      // Les deux rampes se croisent à puissance constante : deux droites qui
+      // se croisent creuseraient un trou au milieu du passage.
+      unawaited(_fadeOutgoing(outgoing, over, token));
+      await _fadeTo(1, over: over, constantPower: true);
+    } catch (e) {
+      logPlayback('fondu enchaîné : abandon ($e)');
+    } finally {
+      _crossfading = false;
+    }
+  }
+
+  /// Descente du titre sortant, sur son propre lecteur, puis extinction. La
+  /// descente finit avec le titre : au-delà, le lecteur sortant partirait tout
+  /// seul sur la piste suivante de sa file — celle-là même qui joue déjà.
+  Future<void> _fadeOutgoing(
+    AudioPlayer outgoing,
+    Duration over,
+    int token,
+  ) async {
+    final ramp = fadeRamp(
+      from: outgoing.volume,
+      to: 0,
+      over: over,
+      constantPower: true,
+    );
+    for (final volume in ramp) {
+      await Future<void>.delayed(kFadeTick);
+      if (token != _outgoingToken) return;
+      try {
+        await outgoing.setVolume(volume);
+      } catch (_) {
+        break;
+      }
+    }
+    await _hushOutgoing(token);
+  }
+
+  /// Fait taire le titre sortant pour de bon et range son lecteur : il devient
+  /// le lecteur de réserve du croisement suivant. Sans [token], c'est une
+  /// reprise en main (saut, pause, arrêt) : le sortant se tait tout de suite.
+  Future<void> _hushOutgoing([int? token]) async {
+    if (token != null && token != _outgoingToken) return;
+    if (token == null) _outgoingToken++;
+    _outgoingBusy = false;
+    final outgoing = _spare;
+    if (outgoing == null) return;
+    // Le lecteur d'à côté tenait peut-être le titre suivant tout prêt : il
+    // s'arrête aussi, et se rechargera de lui-même à l'approche de la fin.
+    _armedIndex = null;
+    _armedQueue = null;
+    try {
+      await outgoing.stop();
+      await outgoing.setVolume(1);
+    } catch (_) {}
   }
 
   @override
@@ -835,6 +1124,10 @@ class GullifyAudioHandler extends BaseAudioHandler
 
   @override
   Future<void> pause() async {
+    // Pause en plein croisement : le titre sortant se tait tout de suite, le
+    // titre courant descend comme d'habitude. Deux titres qui continueraient
+    // de jouer pendant qu'on demande le silence, c'est le contraire d'une pause.
+    unawaited(_hushOutgoing());
     final token = await _fadeTo(0);
     // Reprise de la lecture pendant le fondu de sortie : la pause n'a plus
     // lieu d'être, quelqu'un a repris la main sur le volume.
@@ -846,19 +1139,19 @@ class GullifyAudioHandler extends BaseAudioHandler
 
   @override
   Future<void> seek(Duration position) async {
-    if (_endFading) await _cancelFade();
+    if (_endFading || _outgoingBusy) await _cancelFade();
     await _player.seek(position);
   }
 
   @override
   Future<void> skipToNext() async {
-    if (_endFading) await _cancelFade();
+    if (_endFading || _outgoingBusy) await _cancelFade();
     await _player.seekToNext();
   }
 
   @override
   Future<void> skipToPrevious() async {
-    if (_endFading) await _cancelFade();
+    if (_endFading || _outgoingBusy) await _cancelFade();
     if (_player.position > const Duration(seconds: 3)) {
       await _player.seek(Duration.zero);
     } else {
@@ -868,7 +1161,7 @@ class GullifyAudioHandler extends BaseAudioHandler
 
   @override
   Future<void> skipToQueueItem(int index) async {
-    if (_endFading) await _cancelFade();
+    if (_endFading || _outgoingBusy) await _cancelFade();
     await _player.seek(Duration.zero, index: index);
     await play();
   }

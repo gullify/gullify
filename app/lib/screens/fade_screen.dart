@@ -53,10 +53,10 @@ class FadeScreen extends ConsumerWidget {
             const Divider(height: 24),
             SwitchListTile(
               secondary: const Icon(Icons.repeat_one_on_outlined),
-              title: const Text('Fondu entre les titres'),
+              title: const Text('Fondu enchaîné'),
               subtitle: const Text(
-                'Chaque titre s\'efface à la fin et le suivant se lève, sans '
-                'silence entre les deux',
+                'Le titre suivant démarre et monte pendant que celui en cours '
+                'descend : les deux se croisent, sans blanc entre les deux',
               ),
               value: fade.betweenTracks,
               onChanged: fade.enabled ? fade.setBetweenTracks : null,
@@ -64,6 +64,9 @@ class FadeScreen extends ConsumerWidget {
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
               child: Text(
+                'Le croisement dure la durée réglée plus haut, sans jamais '
+                'prendre plus du tiers d\'un titre. Le dernier titre d\'une '
+                'file n\'a personne avec qui se croiser : il s\'éteint seul. '
                 'Une radio n\'est pas concernée : elle n\'a pas de fin à '
                 'annoncer. Un fondu long retarde d\'autant la pause — le son '
                 'descend d\'abord, la musique s\'arrête ensuite.',

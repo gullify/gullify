@@ -8,6 +8,21 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.6.0', [
+    'Le fondu entre les titres devient un vrai fondu enchaîné : le titre '
+        'suivant démarre et monte pendant que celui en cours descend, les deux '
+        'dans les oreilles en même temps. Plus de silence au milieu du passage',
+    'Le croisement dure la durée réglée dans Paramètres → Lecture → Fondu, sans '
+        'jamais prendre plus du tiers d\'un titre : un interlude de vingt '
+        'secondes s\'entend encore tout seul',
+    'Le titre suivant se charge dix secondes à l\'avance : il part à l\'heure, '
+        'même en 4G. Le dernier titre d\'une file, lui, n\'a personne avec qui '
+        'se croiser — il s\'éteint seul, comme avant',
+    'Pause, saut, retour en arrière ou nouvelle file en plein croisement : le '
+        'titre sortant se tait aussitôt, jamais deux musiques qui traînent '
+        'ensemble. L\'ordre aléatoire en cours est conservé d\'un titre à '
+        'l\'autre',
+  ]),
   ReleaseNote('3.5.0', [
     'Le fondu du lecteur se règle enfin : Paramètres → Lecture → Fondu. Le '
         'son monte au démarrage et descend avant la pause, sur la durée que '

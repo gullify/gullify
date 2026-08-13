@@ -17,7 +17,7 @@ import '../state/player.dart';
 import '../theme.dart';
 import '../widgets/update_dialog.dart';
 
-const appVersion = '3.5.0';
+const appVersion = '3.6.0';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -308,7 +308,7 @@ class _FadeTile extends ConsumerWidget {
           !fade.enabled
               ? 'Lecture et pause franches'
               : '${formatFadeSeconds(fade.seconds)} à la lecture et à la pause'
-                  '${fade.betweenTracks ? ', et entre les titres' : ''}',
+                  '${fade.betweenTracks ? ', titres enchaînés' : ''}',
         ),
         trailing: const Icon(Icons.chevron_right),
         onTap: () => context.push('/settings/fade'),

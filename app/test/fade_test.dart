@@ -148,13 +148,135 @@ void main() {
     });
   });
 
+  group('fondu enchaîné', () {
+    const fade = Duration(seconds: 4);
+    const total = Duration(minutes: 3);
+
+    Crossfade at(
+      Duration position, {
+      bool armed = false,
+      bool running = false,
+      bool playing = true,
+      bool live = false,
+      bool hasNext = true,
+      Duration? length = total,
+      Duration duration = fade,
+    }) =>
+        crossfadeAt(
+          position: position,
+          total: length,
+          fade: duration,
+          playing: playing,
+          live: live,
+          hasNext: hasNext,
+          armed: armed,
+          running: running,
+        );
+
+    test('le titre suivant se prépare avant qu\'on en ait besoin', () {
+      // Loin de la fin : rien à faire.
+      expect(at(const Duration(minutes: 1)), Crossfade.none);
+      // Le croisement dure 4 s, la préparation prend les 10 s d'avant.
+      expect(at(total - const Duration(seconds: 13)), Crossfade.arm);
+      // Déjà préparé : on ne recharge pas à chaque battement de position.
+      expect(at(total - const Duration(seconds: 13), armed: true),
+          Crossfade.none);
+    });
+
+    test('le croisement part dans la dernière ligne droite', () {
+      expect(at(total - const Duration(seconds: 5)), Crossfade.arm);
+      expect(at(total - const Duration(seconds: 3), armed: true),
+          Crossfade.start);
+      // Même sans préparation : mieux vaut un croisement en retard que pas de
+      // croisement du tout.
+      expect(at(total - const Duration(seconds: 3)), Crossfade.start);
+    });
+
+    test('un croisement en cours se pilote seul', () {
+      expect(at(total - const Duration(seconds: 1), running: true),
+          Crossfade.none);
+    });
+
+    test('le tampon préparé est rendu dès qu\'il ne sert plus', () {
+      // Retour en arrière : la fin s'est éloignée.
+      expect(at(const Duration(seconds: 10), armed: true), Crossfade.disarm);
+      // Pause, réglage éteint, dernier titre de la file, radio : rien à croiser.
+      expect(at(total - const Duration(seconds: 5),
+          armed: true, playing: false), Crossfade.disarm);
+      expect(
+        at(total - const Duration(seconds: 5),
+            armed: true, duration: Duration.zero),
+        Crossfade.disarm,
+      );
+      expect(at(total - const Duration(seconds: 5),
+          armed: true, hasNext: false), Crossfade.disarm);
+      expect(at(total - const Duration(seconds: 5), armed: true, live: true),
+          Crossfade.disarm);
+      // Rien de préparé : rien à rendre.
+      expect(at(const Duration(seconds: 10)), Crossfade.none);
+    });
+
+    test('le dernier titre de la file ne croise personne', () {
+      expect(at(total - const Duration(seconds: 2), hasNext: false),
+          Crossfade.none);
+    });
+
+    test('une radio et un flux sans durée ne se croisent jamais', () {
+      expect(at(const Duration(hours: 2), live: true), Crossfade.none);
+      expect(at(const Duration(hours: 2), length: null), Crossfade.none);
+    });
+
+    test('un titre court ne se fait pas croiser de bout en bout', () {
+      // Un fondu de 4 s sur un titre de 9 s : le croisement se contente du
+      // tiers, sinon on n'entendrait jamais le titre seul.
+      expect(crossfadeSpan(fade, const Duration(seconds: 9)),
+          const Duration(seconds: 3));
+      expect(crossfadeSpan(fade, total), fade);
+      expect(
+        at(const Duration(seconds: 7), length: const Duration(seconds: 9)),
+        Crossfade.start,
+      );
+      expect(
+        at(const Duration(seconds: 5), length: const Duration(seconds: 9)),
+        Crossfade.arm,
+      );
+    });
+
+    test('la rampe à puissance constante garde le niveau au milieu', () {
+      final montee = fadeRamp(
+        from: 0,
+        to: 1,
+        over: const Duration(seconds: 1),
+        constantPower: true,
+      );
+      final descente = fadeRamp(
+        from: 1,
+        to: 0,
+        over: const Duration(seconds: 1),
+        constantPower: true,
+      );
+
+      expect(montee.last, 1.0);
+      expect(descente.last, 0.0);
+      // Au milieu du croisement, les deux titres réunis pèsent leur volume
+      // d'origine : c'est tout l'intérêt de la racine.
+      for (var i = 0; i < montee.length; i++) {
+        final somme = montee[i] * montee[i] + descente[i] * descente[i];
+        expect(somme, closeTo(1, 0.001));
+      }
+      // Une rampe linéaire, elle, creuse : à mi-parcours, 0,5² + 0,5² = 0,5.
+      final lineaire = fadeRamp(from: 0, to: 1, over: const Duration(seconds: 1));
+      expect(montee[12], greaterThan(lineaire[12]));
+    });
+  });
+
   test('la durée s\'écrit à la française', () {
     expect(formatFadeSeconds(0.5), '0,5 s');
     expect(formatFadeSeconds(2), '2 s');
     expect(formatFadeSeconds(8), '8 s');
   });
 
-  testWidgets('l\'écran règle la durée et le fondu entre les titres',
+  testWidgets('l\'écran règle la durée et le fondu enchaîné',
       (tester) async {
     final fade = PlaybackFade();
     await tester.pumpWidget(_wrap(fade));
@@ -168,7 +290,7 @@ void main() {
     expect(fade.seconds, kFadeMaxSeconds);
     expect(find.text('8 s'), findsOneWidget);
 
-    await tester.tap(find.text('Fondu entre les titres'));
+    await tester.tap(find.text('Fondu enchaîné'));
     await tester.pumpAndSettle();
     expect(fade.betweenTracks, isTrue);
   });
@@ -184,7 +306,7 @@ void main() {
     expect(fade.enabled, isFalse);
     expect(tester.widget<Slider>(find.byType(Slider)).onChanged, isNull);
     final tracks = tester.widget<SwitchListTile>(
-      find.widgetWithText(SwitchListTile, 'Fondu entre les titres'),
+      find.widgetWithText(SwitchListTile, 'Fondu enchaîné'),
     );
     expect(tracks.onChanged, isNull);
   });
