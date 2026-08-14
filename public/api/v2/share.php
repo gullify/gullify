@@ -1,18 +1,20 @@
 <?php
 /**
- * Gullify API v2 — partage d'une chanson par lien éphémère.
+ * Gullify API v2 — partage d'une chanson, d'un album ou d'un artiste par lien
+ * éphémère.
  *
- *   POST ?action=create  {songId}   → session requise, rend le lien
- *   GET  ?action=info&token=…       → carte de visite (public)
- *   GET  ?action=stream&token=…     → OCTETS audio (public, pas de JSON)
- *   GET  ?action=mine               → session requise, mes liens en cours
- *   POST ?action=revoke  {token}    → session requise, coupe un lien
+ *   POST ?action=create  {kind, id}   → session requise, rend le lien
+ *   GET  ?action=info&token=…         → carte de visite + titres (public)
+ *   GET  ?action=stream&token=…&song= → OCTETS audio (public, pas de JSON)
+ *   GET  ?action=mine                 → session requise, mes liens en cours
+ *   POST ?action=revoke  {token}      → session requise, coupe un lien
  *
  * Seules `create`, `mine` et `revoke` exigent un compte : `info` et `stream`
  * sont ouverts, sinon la personne à qui on envoie le lien ne pourrait rien en
- * faire. Ce que le jeton ouvre est étroit : une chanson, pendant 24 h. Il ne
- * permet ni de parcourir la bibliothèque, ni de connaître le chemin du
- * fichier — `stream` sert les octets et rien d'autre.
+ * faire. Ce que le jeton ouvre est étroit : ce qui a été partagé, pendant
+ * 24 h. Il ne permet ni de parcourir la bibliothèque, ni de connaître le
+ * chemin des fichiers — `stream` sert les octets et rien d'autre, et refuse
+ * tout titre qui ne fait pas partie du partage.
  */
 declare(strict_types=1);
 
@@ -65,16 +67,30 @@ try {
     switch ($action) {
         // ── Ouvrir un lien (seule action qui touche à la bibliothèque) ─────
         case 'create': {
-            $ctx    = v2_auth();
-            $songId = (int)s_in('songId', '0');
-            if ($songId <= 0) v2_fail('invalid_request', 'Chanson manquante', 400);
+            $ctx  = v2_auth();
+            $kind = s_in('kind', 'song');
+            // `songId` : la forme d'avant l'idée #89, quand on ne partageait
+            // que des chansons. Les anciennes versions de l'app l'envoient
+            // encore.
+            $id = (int)s_in('id', s_in('songId', '0'));
+            if ($id <= 0) v2_fail('invalid_request', 'Rien à partager', 400);
             try {
-                $share = SongShare::create((string)$ctx['user']['username'], $songId);
+                $share = SongShare::create((string)$ctx['user']['username'], $kind, $id);
             } catch (RuntimeException $e) {
-                $msg = $e->getMessage() === 'too_many_shares'
-                    ? 'Trop de liens en cours — attends que certains expirent.'
-                    : "Cette chanson n'est plus dans ta bibliothèque.";
-                $http = $e->getMessage() === 'too_many_shares' ? 429 : 404;
+                [$msg, $http] = match ($e->getMessage()) {
+                    'too_many_shares' =>
+                        ['Trop de liens en cours — attends que certains expirent.', 429],
+                    'invalid_kind' =>
+                        ['Ce genre de partage n\'existe pas.', 400],
+                    default => [
+                        match ($kind) {
+                            'album'  => "Cet album n'est plus dans ta bibliothèque.",
+                            'artist' => "Cet artiste n'est plus dans ta bibliothèque.",
+                            default  => "Cette chanson n'est plus dans ta bibliothèque.",
+                        },
+                        404,
+                    ],
+                };
                 v2_fail($e->getMessage(), $msg, $http);
             }
             v2_ok(s_view($share));
@@ -84,7 +100,9 @@ try {
         case 'info': {
             $share = SongShare::byToken(s_in('token'));
             if (!$share) v2_fail('share_expired', "Ce lien n'est plus valable.", 404);
-            v2_ok(s_view($share));
+            $view = s_view($share);
+            $view['tracks'] = share_track_views($share, $view['streamUrl']);
+            v2_ok($view);
         }
 
         // ── Mes liens en cours ────────────────────────────────────────────
@@ -105,11 +123,12 @@ try {
             v2_ok(['revoked' => true]);
         }
 
-        // ── Les octets de la chanson ──────────────────────────────────────
+        // ── Les octets d'un titre du partage ──────────────────────────────
         case 'stream': {
             $share = SongShare::byToken(s_in('token'));
             if (!$share) v2_fail('share_expired', "Ce lien n'est plus valable.", 404);
-            share_stream($share);
+            $songId = (int)s_in('song', '0');
+            share_stream($share, $songId > 0 ? $songId : null);
         }
 
         default:
@@ -121,7 +140,30 @@ try {
 }
 
 /**
- * Sert la chanson partagée.
+ * Les titres du partage tels qu'on les montre : de quoi les afficher et les
+ * écouter, rien de plus (surtout pas le chemin du fichier).
+ */
+function share_track_views(array $share, string $streamUrl): array {
+    $out = [];
+    foreach (SongShare::tracks($share) as $t) {
+        $out[] = [
+            'id'        => (int)$t['id'],
+            'title'     => (string)$t['title'],
+            'artist'    => (string)($t['artist_name'] ?? ''),
+            'album'     => (string)($t['album_name'] ?? ''),
+            'duration'  => (int)$t['duration'],
+            'streamUrl' => $streamUrl . '&song=' . (int)$t['id'],
+        ];
+    }
+    return $out;
+}
+
+/**
+ * Sert un titre du partage.
+ *
+ * `$songId` désigne le titre voulu ; il doit appartenir au partage, sinon rien
+ * ne sort. Sans précision, c'est le premier titre — la forme d'avant, quand un
+ * lien ne portait qu'une chanson.
  *
  * Un mp3 déjà sur disque part tel quel (avec ses requêtes Range, que les
  * navigateurs exigent pour se déplacer dans le morceau) ; tout autre format
@@ -129,8 +171,8 @@ try {
  * ou un wma ne se lit pas dans un navigateur, et rien n'oblige à renvoyer le
  * fichier d'origine. Le chemin réel ne sort jamais d'ici.
  */
-function share_stream(array $share): never {
-    $track = SongShare::track($share);
+function share_stream(array $share, ?int $songId): never {
+    $track = SongShare::track($share, $songId);
     if (!$track || empty($track['file_path'])) {
         v2_fail('song_gone', "Cette chanson n'est plus disponible.", 404);
     }
@@ -145,7 +187,7 @@ function share_stream(array $share): never {
         share_send($source);
     }
 
-    $file = SongShare::cacheFile((int)$share['id']);
+    $file = SongShare::cacheFile((int)$share['id'], (int)$track['id']);
     if (!is_file($file)) {
         // Un seul transcodage : les autres requêtes attendent puis relisent.
         $lock = fopen($file . '.lock', 'c');

@@ -8,6 +8,20 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.17.0', [
+    'Un album entier se prête maintenant comme une chanson : « Partager '
+        'l\'album » dans le menu de la page d\'album donne un lien de 24 h '
+        'qui s\'ouvre sur la pochette et la liste des titres, à écouter d\'un '
+        'bout à l\'autre sans compte',
+    'Un artiste se prête pareil, avec toute sa discographie dans l\'ordre des '
+        'albums — du plus récent au plus ancien',
+    'La page du lien enchaîne les titres toute seule et laisse choisir '
+        'lequel écouter ; l\'aperçu envoyé par SMS annonce le nombre de '
+        'titres et le temps qu\'il reste au lien',
+    'Le lien n\'ouvre que ce qui a été partagé : un titre qui n\'est pas dans '
+        'l\'album ou chez l\'artiste prêté reste inaccessible, et tout '
+        's\'efface au bout de 24 h comme avant',
+  ]),
   ReleaseNote('3.16.0', [
     'Les deux pages ouvertes hors de l\'app portent enfin la nouvelle '
         'mascotte : celle d\'une chanson prêtée (le lien de 24 h) et celle '

@@ -80,7 +80,7 @@ Future<void> showSongMenu(BuildContext context, Song song) {
                 subtitle: const Text('Lien d\'écoute valable 24 h'),
                 onTap: () {
                   Navigator.pop(context);
-                  showShareSheet(context, song);
+                  showShareSheet(context, ShareTarget.song(song));
                 },
               ),
               if (offlineSupported)

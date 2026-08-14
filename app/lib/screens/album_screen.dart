@@ -10,6 +10,7 @@ import '../state/player.dart';
 import '../widgets/artwork.dart';
 import '../widgets/glass_kit.dart';
 import 'shell_screen.dart';
+import '../widgets/share_sheet.dart';
 import '../widgets/song_menu.dart';
 import '../widgets/song_tile.dart';
 
@@ -152,7 +153,8 @@ class _DownloadAlbumButtonState extends ConsumerState<_DownloadAlbumButton> {
   }
 }
 
-/// Menu d'un album : suppression définitive (fichiers + base).
+/// Menu d'un album : partage éphémère, suppression définitive (fichiers +
+/// base).
 void _albumMenu(BuildContext context, WidgetRef ref, Album album) {
   showModalBottomSheet<void>(
     context: context,
@@ -161,6 +163,16 @@ void _albumMenu(BuildContext context, WidgetRef ref, Album album) {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          ListTile(
+            leading: const Icon(Icons.ios_share_rounded),
+            title: const Text("Partager l'album"),
+            subtitle: const Text('Lien d\'écoute valable 24 h'),
+            onTap: () {
+              Navigator.pop(sheetContext);
+              showShareSheet(context, ShareTarget.album(album));
+            },
+          ),
+          const Divider(height: 1),
           ListTile(
             leading: Icon(Icons.delete_outline,
                 color: Theme.of(sheetContext).colorScheme.error),

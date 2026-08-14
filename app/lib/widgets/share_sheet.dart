@@ -5,30 +5,91 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../api/api_client.dart';
 import '../api/share_repository.dart';
+import '../models/album.dart';
+import '../models/artist.dart';
 import '../models/song.dart';
 import '../state/shares.dart';
 import 'artwork.dart';
 import 'glass_kit.dart';
 
-/// Feuille « Partager » : un lien d'écoute vers une seule chanson, valable
-/// 24 h, à envoyer comme on envoie une invitation à une partie.
+/// Ce qu'on s'apprête à partager : une chanson, un album, un artiste.
+///
+/// Seuls [kind] et [id] partent au serveur — le reste ne sert qu'à montrer,
+/// dans la feuille, ce qu'on est en train de partager.
+class ShareTarget {
+  const ShareTarget({
+    required this.kind,
+    required this.id,
+    required this.title,
+    this.subtitle,
+    this.artworkUrl,
+  });
+
+  ShareTarget.song(Song song)
+    : kind = ShareKind.song,
+      id = song.id,
+      title = song.title,
+      subtitle = song.artistName,
+      artworkUrl = song.artworkUrl;
+
+  ShareTarget.album(Album album)
+    : kind = ShareKind.album,
+      id = album.id,
+      title = album.name,
+      subtitle = album.artistName,
+      artworkUrl = album.artworkUrl;
+
+  ShareTarget.artist(Artist artist)
+    : kind = ShareKind.artist,
+      id = artist.id,
+      title = artist.name,
+      subtitle = null,
+      artworkUrl = artist.imageUrl;
+
+  final ShareKind kind;
+  final int id;
+  final String title;
+  final String? subtitle;
+  final String? artworkUrl;
+
+  /// L'icône de remplacement quand il n'y a pas d'image.
+  IconData get icon => switch (kind) {
+    ShareKind.song => Icons.music_note,
+    ShareKind.album => Icons.album_outlined,
+    ShareKind.artist => Icons.person_outline,
+  };
+
+  /// Le message qu'on propose d'envoyer, tourné selon ce qu'on partage.
+  String smsBody(String url) {
+    final who = subtitle == null ? '' : ' de $subtitle';
+    return switch (kind) {
+      ShareKind.song => 'Écoute « $title »$who sur Gullify : $url',
+      ShareKind.album => 'Écoute l\'album « $title »$who sur Gullify : $url',
+      ShareKind.artist => 'Écoute $title sur Gullify : $url',
+    };
+  }
+}
+
+/// Feuille « Partager » : un lien d'écoute vers une chanson, un album ou un
+/// artiste, valable 24 h, à envoyer comme on envoie une invitation à une
+/// partie.
 ///
 /// Le lien est demandé au serveur dès l'ouverture de la feuille : c'est lui
 /// qui tire le jeton et qui fixe l'échéance, l'app ne fait que le présenter.
 /// « Désactiver le lien » le coupe avant l'heure, pour quand on se ravise.
-Future<void> showShareSheet(BuildContext context, Song song) {
+Future<void> showShareSheet(BuildContext context, ShareTarget target) {
   return showModalBottomSheet<void>(
     context: context,
     useRootNavigator: true,
     isScrollControlled: true,
-    builder: (context) => _ShareSheet(song: song),
+    builder: (context) => _ShareSheet(target: target),
   );
 }
 
 class _ShareSheet extends ConsumerStatefulWidget {
-  const _ShareSheet({required this.song});
+  const _ShareSheet({required this.target});
 
-  final Song song;
+  final ShareTarget target;
 
   @override
   ConsumerState<_ShareSheet> createState() => _ShareSheetState();
@@ -50,7 +111,7 @@ class _ShareSheetState extends ConsumerState<_ShareSheet> {
     try {
       final link = await ref
           .read(shareRepositoryProvider)
-          .create(widget.song.id);
+          .create(widget.target.kind, widget.target.id);
       if (mounted) setState(() => _link = link);
     } on ApiException catch (e) {
       if (mounted) setState(() => _error = e.message);
@@ -62,11 +123,7 @@ class _ShareSheetState extends ConsumerState<_ShareSheet> {
   }
 
   Future<void> _sms(String url) async {
-    final song = widget.song;
-    final who = song.artistName == null ? '' : ' de ${song.artistName}';
-    final body = Uri.encodeComponent(
-      'Écoute « ${song.title} »$who sur Gullify : $url',
-    );
+    final body = Uri.encodeComponent(widget.target.smsBody(url));
     final messenger = ScaffoldMessenger.of(context);
     if (!await launchUrl(Uri.parse('sms:?body=$body'))) {
       await Clipboard.setData(ClipboardData(text: url));
@@ -99,7 +156,7 @@ class _ShareSheetState extends ConsumerState<_ShareSheet> {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final song = widget.song;
+    final target = widget.target;
     final link = _link;
 
     return SafeArea(
@@ -123,9 +180,9 @@ class _ShareSheetState extends ConsumerState<_ShareSheet> {
             Row(
               children: [
                 Artwork(
-                  url: song.artworkUrl,
+                  url: target.artworkUrl,
                   size: 56,
-                  icon: Icons.music_note,
+                  icon: target.icon,
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -133,7 +190,7 @@ class _ShareSheetState extends ConsumerState<_ShareSheet> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        song.title,
+                        target.title,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
@@ -142,9 +199,9 @@ class _ShareSheetState extends ConsumerState<_ShareSheet> {
                           letterSpacing: -.3,
                         ),
                       ),
-                      if (song.artistName != null)
+                      if (target.subtitle != null)
                         Text(
-                          song.artistName!,
+                          target.subtitle!,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(color: scheme.onSurfaceVariant),
@@ -208,6 +265,11 @@ class _Ready extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    // Un album ou un artiste s'écoute d'affilée : on annonce combien de titres
+    // le lien ouvre, pour qu'on sache ce qu'on envoie.
+    final what = link.trackCount > 1
+        ? '${link.trackCount} titres, écoutables'
+        : 'Écoutable';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -218,7 +280,7 @@ class _Ready extends StatelessWidget {
         ),
         const SizedBox(height: 6),
         Text(
-          'Écoutable sans compte, puis le lien s\'efface dans '
+          '$what sans compte, puis le lien s\'efface dans '
           '${link.remainingLabel}.',
           textAlign: TextAlign.center,
           style: TextStyle(fontSize: 12.5, color: scheme.onSurfaceVariant),

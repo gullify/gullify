@@ -317,16 +317,19 @@ class NowPlayingScreen extends ConsumerWidget {
                               tooltip: 'Partager',
                               onPressed: () => showShareSheet(
                                 context,
-                                Song(
-                                  id: songId,
-                                  title: item.title,
-                                  filePath:
-                                      item.extras?['filePath'] as String? ?? '',
-                                  albumId: albumId,
-                                  albumName: item.album,
-                                  artistId: artistId,
-                                  artistName: item.artist,
-                                  artworkUrl: artUrl,
+                                ShareTarget.song(
+                                  Song(
+                                    id: songId,
+                                    title: item.title,
+                                    filePath:
+                                        item.extras?['filePath'] as String? ??
+                                        '',
+                                    albumId: albumId,
+                                    albumName: item.album,
+                                    artistId: artistId,
+                                    artistName: item.artist,
+                                    artworkUrl: artUrl,
+                                  ),
                                 ),
                               ),
                             ),

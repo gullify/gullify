@@ -16,6 +16,7 @@ import '../state/yt_downloads.dart';
 import '../widgets/artwork.dart';
 import '../widgets/glass_kit.dart';
 import 'shell_screen.dart';
+import '../widgets/share_sheet.dart';
 import '../widgets/song_menu.dart';
 import '../widgets/song_tile.dart';
 
@@ -554,7 +555,8 @@ class _SimilarArtists extends ConsumerWidget {
   }
 }
 
-/// Menu d'un artiste : genre, photo, suppression définitive (fichiers + base).
+/// Menu d'un artiste : partage éphémère, genre, photo, suppression définitive
+/// (fichiers + base).
 void _artistMenu(BuildContext context, WidgetRef ref, ArtistDetail d) {
   showModalBottomSheet<void>(
     context: context,
@@ -563,6 +565,16 @@ void _artistMenu(BuildContext context, WidgetRef ref, ArtistDetail d) {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          ListTile(
+            leading: const Icon(Icons.ios_share_rounded),
+            title: const Text("Partager l'artiste"),
+            subtitle: const Text('Lien d\'écoute valable 24 h'),
+            onTap: () {
+              Navigator.pop(sheetContext);
+              showShareSheet(context, ShareTarget.artist(d.artist));
+            },
+          ),
+          const Divider(height: 1),
           ListTile(
             leading: const Icon(Icons.label_outline),
             title: const Text('Définir le genre'),

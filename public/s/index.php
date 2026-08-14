@@ -1,15 +1,15 @@
 <?php
 /**
- * Gullify — page publique d'une chanson partagée.
+ * Gullify — page publique d'un partage : une chanson, un album, un artiste.
  *
  * Servie sur https://<domaine>/s/<JETON> (voir .htaccess). Comme la page
  * invité des parties : autonome, tout le style et tout le script en ligne,
  * aucune dépendance externe, pour qu'elle s'ouvre vite sur un téléphone en 4G.
  *
- * Les informations de la chanson sont rendues ici, côté serveur : le lien
- * envoyé par SMS montre alors sa pochette et son titre dans l'aperçu de la
+ * Les informations du partage sont rendues ici, côté serveur : le lien envoyé
+ * par SMS montre alors sa pochette et son titre dans l'aperçu de la
  * conversation, sans que le destinataire ait à l'ouvrir. Le son, lui, ne part
- * qu'à la demande, par `share.php?action=stream`.
+ * qu'à la demande, par `share.php?action=stream`, titre par titre.
  */
 declare(strict_types=1);
 
@@ -18,6 +18,12 @@ require_once __DIR__ . '/../../src/SongShare.php';
 
 $token = (string)($_GET['t'] ?? '');
 $share = SongShare::validToken($token) ? SongShare::byToken($token) : null;
+
+// Un partage dont plus rien n'est écoutable (album effacé depuis) vaut un lien
+// mort : mieux vaut le dire que d'ouvrir une page muette.
+$tracks = $share ? SongShare::tracks($share) : [];
+$emptied = $share !== null && !$tracks;
+if ($emptied) $share = null;
 
 $base = rtrim((string)AppConfig::get('app.url', ''), '/');
 if ($base === '' || str_contains($base, 'localhost')) {
@@ -29,6 +35,12 @@ if ($base === '' || str_contains($base, 'localhost')) {
 /** Échappement systématique : tout ce qui vient de la base passe par là. */
 function e(string $v): string { return htmlspecialchars($v, ENT_QUOTES, 'UTF-8'); }
 
+/** « 3:04 » — une durée de morceau. */
+function clock(int $seconds): string {
+    if ($seconds <= 0) return '--:--';
+    return sprintf('%d:%02d', intdiv($seconds, 60), $seconds % 60);
+}
+
 /** « 3 h 20 » / « 45 min » — ce qu'il reste à vivre au lien. */
 function human_left(int $ms): string {
     $min = (int)floor($ms / 60000);
@@ -39,8 +51,18 @@ function human_left(int $ms): string {
     return $rest > 0 ? $h . ' h ' . $rest : $h . ' h';
 }
 
+/** « 1 h 12 de musique » — le volume de ce qui est partagé. */
+function human_total(int $seconds): string {
+    $min = (int)round($seconds / 60);
+    if ($min < 60) return max(1, $min) . ' min';
+    $h = intdiv($min, 60);
+    $rest = $min % 60;
+    return $rest > 0 ? $h . ' h ' . $rest : $h . ' h';
+}
+
 if (!$share) {
     http_response_code(404);
+    $kind     = 'song';
     $title    = 'Lien expiré';
     $artist   = '';
     $album    = '';
@@ -49,6 +71,7 @@ if (!$share) {
     $leftMs   = 0;
 } else {
     $view     = SongShare::publicView($share);
+    $kind     = (string)$view['kind'];
     $title    = (string)$view['title'];
     $artist   = (string)$view['artist'];
     $album    = (string)$view['album'];
@@ -56,9 +79,31 @@ if (!$share) {
     $duration = (int)$view['duration'];
     $leftMs   = (int)$view['remainingMs'];
 }
-$streamUrl = $share
+
+$streamBase = $share
     ? $base . '/api/v2/share.php?action=stream&token=' . rawurlencode($token)
     : '';
+
+/** Ce que le lien montre de lui-même, selon ce qu'on a partagé. */
+$chip = match ($kind) {
+    'album'  => 'Album partagé',
+    'artist' => 'Artiste partagé',
+    default  => 'Écoute partagée',
+};
+
+// La liste passée au lecteur : rien d'autre que de quoi afficher et écouter.
+$playlist = [];
+foreach ($tracks as $t) {
+    $playlist[] = [
+        'id'     => (int)$t['id'],
+        'title'  => (string)$t['title'],
+        'artist' => (string)($t['artist_name'] ?? ''),
+        'album'  => (string)($t['album_name'] ?? ''),
+        'dur'    => (int)$t['duration'],
+        'src'    => $streamBase . '&song=' . (int)$t['id'],
+    ];
+}
+$multi = count($playlist) > 1;
 ?>
 <!DOCTYPE html>
 <html lang="fr">
@@ -70,10 +115,22 @@ $streamUrl = $share
 <title><?= $share ? e($title) . ' — Gullify' : 'Gullify' ?></title>
 <link rel="icon" href="/favicon.ico">
 <?php if ($share): ?>
-<meta property="og:type" content="music.song">
+<meta property="og:type" content="<?= $kind === 'album' ? 'music.album' : ($kind === 'artist' ? 'profile' : 'music.song') ?>">
 <meta property="og:site_name" content="Gullify">
 <meta property="og:title" content="<?= e($title) ?>">
-<meta property="og:description" content="<?= e($artist !== '' ? $artist . ' — écoute pendant ' . human_left($leftMs) : 'Une chanson partagée sur Gullify') ?>">
+<?php
+$og = match ($kind) {
+    'album'  => ($artist !== '' ? $artist . ' — ' : '')
+                . count($playlist) . ' titre' . (count($playlist) > 1 ? 's' : '')
+                . ', à écouter pendant ' . human_left($leftMs),
+    'artist' => count($playlist) . ' titre' . (count($playlist) > 1 ? 's' : '')
+                . ' à écouter pendant ' . human_left($leftMs),
+    default  => $artist !== ''
+                ? $artist . ' — écoute pendant ' . human_left($leftMs)
+                : 'Une chanson partagée sur Gullify',
+};
+?>
+<meta property="og:description" content="<?= e($og) ?>">
 <?php if ($artwork !== ''): ?>
 <meta property="og:image" content="<?= e($artwork) ?>">
 <meta name="twitter:card" content="summary_large_image">
@@ -158,6 +215,11 @@ $streamUrl = $share
   .play svg { width: 34px; height: 34px; fill: currentColor; }
   .play.loading { opacity: .7; }
 
+  /* Le titre en cours, quand le lien en porte plusieurs. */
+  .now { text-align: center; margin-top: 2px; }
+  .now .now-title { font-size: 15px; font-weight: 700; }
+  .now .now-artist { font-size: 12.5px; color: var(--muted); }
+
   .bar {
     position: relative; height: 6px; border-radius: 999px; margin: 18px 0 6px;
     background: rgba(255,255,255,.12); cursor: pointer;
@@ -167,6 +229,30 @@ $streamUrl = $share
     border-radius: 999px; background: var(--accent);
   }
   .times { display: flex; justify-content: space-between; font-size: 12.5px; color: var(--muted); }
+
+  /* Liste des titres d'un album ou d'un artiste partagé. */
+  .tracks { margin-top: 18px; border-top: 1px solid var(--line); }
+  .track {
+    display: flex; align-items: center; gap: 12px; width: 100%;
+    padding: 11px 4px; background: none; border: none; cursor: pointer;
+    color: var(--fg); font: inherit; text-align: left;
+    border-bottom: 1px solid rgba(255,255,255,.06);
+  }
+  .track .num {
+    width: 22px; flex: 0 0 22px; text-align: center;
+    font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums;
+  }
+  .track .meta { flex: 1 1 auto; min-width: 0; }
+  .track .t {
+    font-size: 14.5px; font-weight: 600;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .track .s {
+    font-size: 12px; color: var(--muted);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .track .d { font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .track.active .t, .track.active .num { color: var(--accent); }
 
   .note { margin-top: 16px; font-size: 13px; color: var(--muted); text-align: center; }
   .note b { color: #D5DAE4; font-weight: 700; }
@@ -183,15 +269,20 @@ $streamUrl = $share
       <img src="/logo_mark.png" alt="" width="27" height="38">
       <span>Gullify</span>
     </a>
-    <span class="chip"><?= $share ? 'Écoute partagée' : 'Lien expiré' ?></span>
+    <span class="chip"><?= $share ? e($chip) : 'Lien expiré' ?></span>
   </header>
 
 <?php if (!$share): ?>
   <div class="glass gone">
     <h1>Ce lien n'est plus valable</h1>
     <p class="muted">
-      Une chanson partagée s'écoute pendant <?= SongShare::TTL_HOURS ?> h, puis le
-      lien s'efface. Demande-en un nouveau à la personne qui te l'a envoyé.
+      <?php if ($emptied): ?>
+        La musique partagée n'est plus disponible. Demande un nouveau lien à la
+        personne qui te l'a envoyé.
+      <?php else: ?>
+        Un partage s'écoute pendant <?= SongShare::TTL_HOURS ?> h, puis le lien
+        s'efface. Demande-en un nouveau à la personne qui te l'a envoyé.
+      <?php endif; ?>
     </p>
   </div>
 <?php else: ?>
@@ -205,21 +296,51 @@ $streamUrl = $share
     <h1><?= e($title) ?></h1>
     <?php if ($artist !== ''): ?><div class="artist"><?= e($artist) ?></div><?php endif; ?>
     <?php if ($album !== ''): ?><div class="album"><?= e($album) ?></div><?php endif; ?>
+    <?php if ($multi): ?>
+      <div class="album">
+        <?= count($playlist) ?> titres · <?= e(human_total($duration)) ?>
+      </div>
+    <?php endif; ?>
 
     <button class="play" id="play" aria-label="Écouter">
       <svg id="icon" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
     </button>
+    <?php if ($multi): ?>
+      <div class="now">
+        <div class="now-title" id="nowTitle"><?= e($playlist[0]['title']) ?></div>
+        <div class="now-artist" id="nowArtist"><?= e($playlist[0]['artist']) ?></div>
+      </div>
+    <?php endif; ?>
     <div class="center muted" id="hint">Appuie pour écouter</div>
 
     <div class="bar" id="bar"><div class="fill" id="fill"></div></div>
-    <div class="times"><span id="cur">0:00</span><span id="dur"><?= $duration > 0 ? sprintf('%d:%02d', intdiv($duration, 60), $duration % 60) : '--:--' ?></span></div>
+    <div class="times">
+      <span id="cur">0:00</span>
+      <span id="dur"><?= e(clock((int)$playlist[0]['dur'])) ?></span>
+    </div>
+
+    <?php if ($multi): ?>
+      <div class="tracks" id="tracks">
+        <?php foreach ($playlist as $i => $t): ?>
+          <button class="track<?= $i === 0 ? ' active' : '' ?>" data-i="<?= $i ?>">
+            <span class="num"><?= $i + 1 ?></span>
+            <span class="meta">
+              <span class="t"><?= e($t['title']) ?></span>
+              <?php $sub = $kind === 'artist' ? $t['album'] : $t['artist']; ?>
+              <?php if ($sub !== ''): ?><span class="s"><?= e($sub) ?></span><?php endif; ?>
+            </span>
+            <span class="d"><?= e(clock((int)$t['dur'])) ?></span>
+          </button>
+        <?php endforeach; ?>
+      </div>
+    <?php endif; ?>
 
     <div class="note">
       Ce lien s'efface dans <b id="left"><?= e(human_left($leftMs)) ?></b>.
     </div>
   </div>
 
-  <audio id="audio" preload="none" src="<?= e($streamUrl) ?>"></audio>
+  <audio id="audio" preload="none" src="<?= e($playlist[0]['src']) ?>"></audio>
 <?php endif; ?>
 
   <footer><a href="/">Gullify</a></footer>
@@ -228,6 +349,11 @@ $streamUrl = $share
 <?php if ($share): ?>
 <script>
 (function () {
+  var TRACKS = <?= json_encode(
+      $playlist,
+      JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE
+  ) ?>;
+
   var audio = document.getElementById('audio');
   var play  = document.getElementById('play');
   var icon  = document.getElementById('icon');
@@ -237,7 +363,11 @@ $streamUrl = $share
   var cur   = document.getElementById('cur');
   var dur   = document.getElementById('dur');
   var left  = document.getElementById('left');
+  var list  = document.getElementById('tracks');
+  var nowTitle  = document.getElementById('nowTitle');
+  var nowArtist = document.getElementById('nowArtist');
   var leftMs = <?= (int)$leftMs ?>;
+  var index = 0;
 
   var PLAY  = 'M8 5v14l11-7z';
   var PAUSE = 'M6 5h4v14H6zM14 5h4v14h-4z';
@@ -249,21 +379,52 @@ $streamUrl = $share
     return m + ':' + (r < 10 ? '0' : '') + r;
   }
 
-  play.addEventListener('click', function () {
-    if (audio.paused) {
-      // La première lecture peut demander une préparation côté serveur (les
-      // formats que le navigateur ne sait pas lire sont convertis) : on le dit
-      // plutôt que de laisser le bouton muet.
-      play.classList.add('loading');
-      hint.textContent = 'Chargement…';
-      audio.play().catch(function () {
-        play.classList.remove('loading');
-        hint.textContent = 'Lecture impossible sur cet appareil';
-      });
-    } else {
-      audio.pause();
+  /** Amène le titre `i` dans le lecteur (sans le lancer). */
+  function select(i) {
+    index = i;
+    var t = TRACKS[i];
+    audio.src = t.src;
+    fill.style.width = '0';
+    cur.textContent = '0:00';
+    dur.textContent = t.dur > 0 ? fmt(t.dur) : '--:--';
+    if (nowTitle) nowTitle.textContent = t.title;
+    if (nowArtist) nowArtist.textContent = t.artist;
+    if (list) {
+      var rows = list.querySelectorAll('.track');
+      for (var k = 0; k < rows.length; k++) {
+        rows[k].classList.toggle('active', k === i);
+      }
     }
+  }
+
+  /** Lance la lecture — la préparation côté serveur peut prendre un instant. */
+  function start() {
+    play.classList.add('loading');
+    hint.textContent = 'Chargement…';
+    audio.play().catch(function () {
+      play.classList.remove('loading');
+      hint.textContent = 'Lecture impossible sur cet appareil';
+    });
+  }
+
+  play.addEventListener('click', function () {
+    // La première lecture peut demander une préparation côté serveur (les
+    // formats que le navigateur ne sait pas lire sont convertis) : on le dit
+    // plutôt que de laisser le bouton muet.
+    if (audio.paused) start(); else audio.pause();
   });
+
+  if (list) {
+    list.addEventListener('click', function (ev) {
+      var row = ev.target.closest('.track');
+      if (!row) return;
+      var i = parseInt(row.getAttribute('data-i'), 10);
+      if (isNaN(i)) return;
+      // Retaper le titre en cours le remet au début, comme partout ailleurs.
+      select(i);
+      start();
+    });
+  }
 
   audio.addEventListener('playing', function () {
     play.classList.remove('loading');
@@ -275,6 +436,9 @@ $streamUrl = $share
     hint.textContent = 'En pause';
   });
   audio.addEventListener('ended', function () {
+    // Album ou artiste : on enchaîne. Dernier titre (ou lien d'une seule
+    // chanson) : on s'arrête là.
+    if (index + 1 < TRACKS.length) { select(index + 1); start(); return; }
     icon.firstElementChild.setAttribute('d', PLAY);
     hint.textContent = 'Terminé';
   });
@@ -288,7 +452,7 @@ $streamUrl = $share
   audio.addEventListener('timeupdate', function () {
     var total = isFinite(audio.duration) && audio.duration > 0
       ? audio.duration
-      : <?= max(1, $duration) ?>;
+      : Math.max(1, TRACKS[index].dur);
     fill.style.width = Math.min(100, (audio.currentTime / total) * 100) + '%';
     cur.textContent = fmt(audio.currentTime);
   });
