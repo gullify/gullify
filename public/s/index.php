@@ -76,8 +76,12 @@ $streamUrl = $share
 <meta property="og:description" content="<?= e($artist !== '' ? $artist . ' — écoute pendant ' . human_left($leftMs) : 'Une chanson partagée sur Gullify') ?>">
 <?php if ($artwork !== ''): ?>
 <meta property="og:image" content="<?= e($artwork) ?>">
-<?php endif; ?>
 <meta name="twitter:card" content="summary_large_image">
+<?php else: ?>
+<?php /* Sans pochette, l'aperçu montre la mascotte plutôt qu'un cadre vide. */ ?>
+<meta property="og:image" content="<?= e($base . '/android-chrome-512x512.png') ?>">
+<meta name="twitter:card" content="summary">
+<?php endif; ?>
 <?php endif; ?>
 <style>
   :root {
@@ -117,7 +121,12 @@ $streamUrl = $share
     box-shadow: 0 10px 30px rgba(0,0,0,.28);
   }
   header.top { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
-  header.top img { height: 26px; opacity: .95; }
+  /* Marque : la mascotte détourée, puis le mot posé à côté en typo. L'ancien
+     lockup d'un seul tenant montrait la mouette d'avant ; son « Gullify »
+     manuscrit ne se sépare pas du dessin, d'où le mot écrit ici. */
+  .brand { display: flex; align-items: center; gap: 8px; text-decoration: none; color: var(--fg); }
+  .brand img { height: 38px; width: auto; display: block; }
+  .brand span { font-size: 19px; font-weight: 800; letter-spacing: -.5px; }
   .chip {
     font-size: 12.5px; font-weight: 700; letter-spacing: .3px;
     padding: 6px 12px; border-radius: 999px; color: var(--muted);
@@ -128,10 +137,10 @@ $streamUrl = $share
     width: 100%; aspect-ratio: 1 / 1; border-radius: 20px; object-fit: cover;
     display: block; background: var(--glass-strong); border: 1px solid var(--line);
   }
-  .cover-fallback {
-    display: flex; align-items: center; justify-content: center;
-    font-size: 64px; color: var(--muted);
-  }
+  /* Pas de pochette : la mascotte prend la place, comme la pochette par
+     défaut des albums sur le site. */
+  .cover-fallback { display: flex; align-items: center; justify-content: center; }
+  .cover-fallback img { width: 62%; height: auto; display: block; opacity: .92; }
   h1 { font-size: 25px; font-weight: 800; letter-spacing: -.6px; margin: 18px 0 2px; }
   .artist { font-size: 16px; font-weight: 600; color: #D5DAE4; }
   .album { font-size: 13.5px; color: var(--muted); margin-top: 2px; }
@@ -170,8 +179,11 @@ $streamUrl = $share
 <body>
 <div class="wrap">
   <header class="top">
-    <img src="/logo_gullify_wh.png" alt="Gullify">
-    <span class="chip"><?= $share ? 'Écoute partagée' : 'Gullify' ?></span>
+    <a class="brand" href="/">
+      <img src="/logo_mark.png" alt="" width="27" height="38">
+      <span>Gullify</span>
+    </a>
+    <span class="chip"><?= $share ? 'Écoute partagée' : 'Lien expiré' ?></span>
   </header>
 
 <?php if (!$share): ?>
@@ -187,7 +199,7 @@ $streamUrl = $share
     <?php if ($artwork !== ''): ?>
       <img class="cover" src="<?= e($artwork) ?>" alt="">
     <?php else: ?>
-      <div class="cover cover-fallback">♪</div>
+      <div class="cover cover-fallback"><img src="/logo_gullify_bo.png" alt=""></div>
     <?php endif; ?>
 
     <h1><?= e($title) ?></h1>

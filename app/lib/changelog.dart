@@ -8,6 +8,18 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.16.0', [
+    'Les deux pages ouvertes hors de l\'app portent enfin la nouvelle '
+        'mascotte : celle d\'une chanson prêtée (le lien de 24 h) et celle '
+        'où les invités rejoignent une partie. Elles montraient encore '
+        'l\'ancienne mouette de profil',
+    'La marque y est refaite en deux morceaux — la mouette détourée, puis '
+        '« Gullify » écrit à côté — au lieu de l\'ancienne image d\'un seul '
+        'tenant, dont le mot manuscrit ne se sépare pas du dessin',
+    'Une chanson prêtée sans pochette montre la mascotte plutôt qu\'une note '
+        'de musique, dans la page comme dans l\'aperçu du lien envoyé par '
+        'SMS',
+  ]),
   ReleaseNote('3.15.0', [
     'Le rétro Winamp prend le design que tu as dessiné : « chrome & LCD ». '
         'Le gris du châssis devient un vrai chrome en dégradé, les vitres '

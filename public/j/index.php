@@ -76,7 +76,12 @@ if (strlen($code) > 8) $code = substr($code, 0, 8);
   .stack > * + * { margin-top: 12px; }
 
   header.top { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
-  header.top img { height: 26px; opacity: .95; }
+  /* Marque : la mascotte détourée, puis le mot posé à côté en typo. L'ancien
+     lockup d'un seul tenant montrait la mouette d'avant ; son « Gullify »
+     manuscrit ne se sépare pas du dessin, d'où le mot écrit ici. */
+  .brand { display: flex; align-items: center; gap: 8px; text-decoration: none; color: var(--fg); }
+  .brand img { height: 38px; width: auto; display: block; }
+  .brand span { font-size: 19px; font-weight: 800; letter-spacing: -.5px; }
   .code-chip {
     font-weight: 800; letter-spacing: 2px; font-size: 14px;
     padding: 6px 12px; border-radius: 999px;
@@ -297,7 +302,10 @@ if (strlen($code) > 8) $code = substr($code, 0, 8);
 <body>
 <div class="wrap">
   <header class="top">
-    <img src="/logo_gullify_wh.png" alt="Gullify">
+    <a class="brand" href="/">
+      <img src="/logo_mark.png" alt="" width="27" height="38">
+      <span>Gullify</span>
+    </a>
     <div class="spacer"></div>
     <span class="code-chip" id="codeChip"><?= htmlspecialchars($code, ENT_QUOTES) ?></span>
   </header>
