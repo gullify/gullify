@@ -1371,19 +1371,43 @@ class GullifyAudioHandler extends BaseAudioHandler
       // Les deux rampes se croisent à puissance constante : deux droites qui
       // se croisent creuseraient un trou au milieu du passage.
       //
-      // Le sortant descend sur la part du croisement où les deux titres
+      // Elles se croisent sur la part du croisement où les deux titres
       // s'entendent vraiment : quand le titre entrant a démarré en avance
-      // (intro qui met du temps à venir, idée #79), la descente attend
-      // d'autant — ce n'est pas parce que le suivant s'installe qu'il faut
-      // effacer celui qui joue.
+      // (intro qui met du temps à venir, idée #79), les DEUX attendent
+      // d'autant. Le sortant garde son plein volume pendant cette avance — ce
+      // n'est pas parce que le suivant s'installe qu'il faut effacer celui qui
+      // joue — et l'entrant y reste muet : le faire monter par-dessus
+      // additionnerait deux musiques et rendrait le passage plus fort que les
+      // titres qu'il relie (idée #91).
       final fall = over < plan.fall ? over : plan.fall;
-      unawaited(_fadeOutgoing(outgoing, fall, token, after: over - fall));
-      await _fadeTo(1, over: over, constantPower: true);
+      final hold = over - fall;
+      unawaited(_fadeOutgoing(outgoing, fall, token, after: hold));
+      await _fadeIncoming(fall, after: hold);
     } catch (e) {
       logPlayback('fondu enchaîné : abandon ($e)');
     } finally {
       _crossfading = false;
     }
+  }
+
+  /// Montée du titre entrant, en miroir exact de la descente du sortant :
+  /// même attente, même durée, courbes complémentaires. À chaque instant, les
+  /// deux volumes réunis pèsent un seul titre.
+  ///
+  /// [after] est l'avance donnée au titre entrant pour son entrée en matière
+  /// (idée #79) : il la traverse muet, pendant que le sortant tient son
+  /// volume. Monter dès la première note d'intro, alors que le titre d'avant
+  /// joue encore à fond, faisait enfler le passage sans raison (idée #91).
+  Future<void> _fadeIncoming(Duration over, {Duration after = Duration.zero}) async {
+    if (after > Duration.zero) {
+      // Le jeton est pris AVANT l'attente : tout ce qui reprend la main
+      // entre-temps (pause, saut, arrêt) le fait avancer, et cette montée
+      // renonce plutôt que de repousser le volume dans le dos de l'autre.
+      final token = ++_fadeToken;
+      await Future<void>.delayed(after);
+      if (token != _fadeToken) return;
+    }
+    await _fadeTo(1, over: over, constantPower: true);
   }
 
   /// Descente du titre sortant, sur son propre lecteur, puis extinction. La

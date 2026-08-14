@@ -210,7 +210,11 @@ class CrossfadePlan {
   /// démarre en avance à cause de son entrée en matière.
   final Duration fall;
 
-  /// Ce que le titre sortant garde de son volume avant d'entamer sa descente.
+  /// L'attente que les DEUX rampes observent avant de se croiser : le temps
+  /// que le titre entrant met à sortir de son entrée en matière. Le sortant y
+  /// tient son plein volume, l'entrant y reste muet — le laisser monter
+  /// pendant que l'autre joue encore à fond additionnerait deux musiques, et
+  /// le passage sonnerait plus fort que les titres qu'il relie (idée #91).
   Duration get hold => rise - fall;
 
   bool get idle => trigger <= Duration.zero;
@@ -229,7 +233,8 @@ class CrossfadePlan {
 ///   - le titre entrant part en avance de son entrée en matière, pour que sa
 ///     première vraie note tombe à la fin de la précédente. Le sortant, lui,
 ///     garde son volume pendant cette avance : ce n'est pas une raison pour
-///     l'effacer plus tôt.
+///     l'effacer plus tôt. Le croisement à proprement parler n'a lieu qu'après
+///     ([hold] puis [fall]) : voir [CrossfadePlan.hold].
 CrossfadePlan crossfadePlan({
   required Duration fade,
   required Duration? total,

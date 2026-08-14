@@ -8,6 +8,16 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.19.0', [
+    'Correctif du fondu enchaîné : le passage d\'un titre à l\'autre enflait, '
+        'parce que le titre qui arrive commençait à monter pendant que le '
+        'précédent jouait encore à plein volume. Les deux musiques '
+        's\'ajoutaient — maintenant le suivant attend sagement, muet, le temps '
+        'de son intro, et les deux volumes réunis ne pèsent jamais plus qu\'un '
+        'seul titre',
+    'Accueil : la mouette et « Gullify » en en-tête, à la place du mot '
+        '« Accueil » — l\'onglet disait déjà où on est',
+  ]),
   ReleaseNote('3.18.0', [
     'Le tampon d\'avance : les prochains titres de la file descendent sur le '
         'téléphone pendant que tu écoutes celui d\'avant, et se jouent depuis '

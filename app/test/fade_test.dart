@@ -361,6 +361,39 @@ void main() {
       expect(slow.hold, kSmartLeadMax);
     });
 
+    test('le croisement ne sonne jamais plus fort qu\'un seul titre', () {
+      // Idée #91 : le passage enflait, parce que le titre entrant montait
+      // pendant que le sortant tenait encore son plein volume.
+      final plan = crossfadePlan(
+        fade: fade,
+        total: total,
+        next: const TrackEdges(lead: Duration(seconds: 2)),
+      );
+      expect(plan.hold, greaterThan(Duration.zero));
+
+      // Les deux rampes telles que le lecteur les joue : même attente, même
+      // durée, l'une vers 1 et l'autre vers 0 (voir _fadeIncoming et
+      // _fadeOutgoing dans audio_handler.dart).
+      final entrant = [
+        // L'attente, à volume nul.
+        for (var i = 0; i < plan.hold.inMicroseconds ~/ kFadeTick.inMicroseconds; i++)
+          0.0,
+        ...fadeRamp(from: 0, to: 1, over: plan.fall, constantPower: true),
+      ];
+      final sortant = [
+        // L'attente, à plein volume.
+        for (var i = 0; i < plan.hold.inMicroseconds ~/ kFadeTick.inMicroseconds; i++)
+          1.0,
+        ...fadeRamp(from: 1, to: 0, over: plan.fall, constantPower: true),
+      ];
+
+      expect(entrant.length, sortant.length);
+      for (var i = 0; i < entrant.length; i++) {
+        final somme = entrant[i] * entrant[i] + sortant[i] * sortant[i];
+        expect(somme, closeTo(1, 0.001));
+      }
+    });
+
     test('un titre court n\'est jamais croisé de bout en bout', () {
       const court = Duration(seconds: 30);
       final plan = crossfadePlan(

@@ -20,7 +20,7 @@ import '../widgets/song_menu.dart';
 import '../widgets/song_tile.dart';
 import 'stats_screen.dart' show relativeTime;
 
-/// Onglet « Accueil » : salutation + boutons de verre, « Nouveautés »
+/// Onglet « Accueil » : salutation + logo, boutons de verre, « Nouveautés »
 /// (albums récents + lecture aléatoire), « Les plus populaires » (top 5)
 /// et « Derniers joués » (historique récent des statistiques).
 class HomeScreen extends ConsumerWidget {
@@ -54,7 +54,7 @@ class HomeScreen extends ConsumerWidget {
               bottom: MediaQuery.paddingOf(context).bottom + 18,
             ),
             children: [
-              // En-tête : salutation + « Accueil » + boutons de verre 42.
+              // En-tête : salutation + logo « Gullify » + boutons de verre 42.
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 14, 20, 4),
                 child: Row(
@@ -76,14 +76,35 @@ class HomeScreen extends ConsumerWidget {
                               color: scheme.onSurfaceVariant,
                             ),
                           ),
-                          const Text(
-                            'Accueil',
-                            style: TextStyle(
-                              fontSize: 30,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: -0.6,
-                              height: 1.02,
-                            ),
+                          // La mouette et le nom plutôt que le mot « Accueil » :
+                          // l'onglet dit déjà où on est, l'en-tête dit chez
+                          // qui (idée #92).
+                          Row(
+                            children: [
+                              Image.asset(
+                                'assets/icon/mascot.png',
+                                width: 34,
+                                height: 34,
+                                // L'image fait 320 px pour 34 à l'écran :
+                                // sans filtre, la réduction crénellerait les
+                                // branches des lunettes.
+                                filterQuality: FilterQuality.medium,
+                              ),
+                              const SizedBox(width: 7),
+                              const Flexible(
+                                child: Text(
+                                  'Gullify',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 30,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: -0.6,
+                                    height: 1.02,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),
