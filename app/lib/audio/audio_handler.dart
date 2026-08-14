@@ -13,6 +13,7 @@ import '../models/game_source.dart';
 import '../models/song.dart';
 import 'equalizer.dart';
 import 'fade.dart';
+import 'prefetch.dart';
 import 'tuned_player.dart';
 
 export 'equalizer.dart' show equalizerSupported;
@@ -93,6 +94,9 @@ class GullifyAudioHandler extends BaseAudioHandler
     // LE signal d'un arrêt « écran éteint » causé par le système, pas par la
     // lecture elle-même.
     logPlayback('— démarrage de l\'app —');
+    // Un titre qui vient de descendre dans le tampon d'avance (idée #90) est
+    // aussitôt repris dans la file : c'est le fichier qui jouera, pas le flux.
+    buffer.onCached = (_) => unawaited(_adoptBuffered());
     _listen();
     _watchAudioSession();
   }
@@ -166,6 +170,10 @@ class GullifyAudioHandler extends BaseAudioHandler
       // Les bords du titre qui commence et de celui qui suit : demandés
       // maintenant, ils seront là bien avant le croisement (idée #79).
       _fetchEdges();
+      // Le tampon prend l'avance suivante, et ce qui est déjà descendu passe
+      // sur son fichier (idée #90).
+      _primeBuffer();
+      unawaited(_adoptBuffered());
       mediaItem.add(q[index]);
       // Rafraîchit le cœur (favori) pour la nouvelle piste courante.
       playbackState.add(
@@ -209,6 +217,12 @@ class GullifyAudioHandler extends BaseAudioHandler
   /// Réglage du fondu à la lecture, à la pause et entre les titres (idée #75).
   /// Réglable dans Paramètres → Lecture → Fondu ; voir fade.dart.
   final fade = PlaybackFade();
+
+  /// Le tampon d'avance (idée #90) : les prochains titres de la file
+  /// descendent sur le disque pendant qu'on écoute celui d'avant, et se jouent
+  /// de là. Réglable dans Paramètres → Lecture → Tampon d'avance ; voir
+  /// prefetch.dart.
+  final buffer = PlaybackBuffer();
 
   // Réglage des tampons et verrou réseau : voir tuned_player.dart, d'où sortent
   // tous les lecteurs de l'app.
@@ -506,6 +520,10 @@ class GullifyAudioHandler extends BaseAudioHandler
       final karaokeUrl = repository?.streamUrlForPath(s.filePath, karaoke: true);
       if (karaokeUrl != null) return karaokeUrl;
     }
+    // Le tampon d'avance (idée #90) : le titre est déjà descendu, on ne
+    // redemande pas au réseau ce qui est sur le disque.
+    final ahead = buffer.pathFor(s.id);
+    if (ahead != null) return Uri.file(ahead).toString();
     return repository?.streamUrl(s) ?? '';
   }
 
@@ -519,7 +537,11 @@ class GullifyAudioHandler extends BaseAudioHandler
     final repo = repository;
     if (path == null || repo == null) return item;
     final songId = item.extras?['songId'] as int?;
-    final local = songId == null ? null : offlinePaths[songId];
+    // Le fichier du titre : celui du téléchargement, sinon celui du tampon
+    // d'avance (idée #90) s'il est descendu et toujours là.
+    final local = songId == null
+        ? null
+        : offlinePaths[songId] ?? buffer.pathFor(songId);
     final url = karaoke
         ? repo.streamUrlForPath(path, karaoke: true)
         : (local != null
@@ -570,6 +592,9 @@ class GullifyAudioHandler extends BaseAudioHandler
     );
     if (wasPlaying) await play();
     _prefetchKaraoke(index + 1);
+    // Le tampon d'avance ne descend rien en karaoké, et reprend la main en
+    // sortant du mode (idée #90).
+    _primeBuffer();
   }
 
   /// Titres dont le rendu karaoké a déjà été demandé au serveur.
@@ -589,6 +614,147 @@ class GullifyAudioHandler extends BaseAudioHandler
       if (path == null || !_karaokeAsked.add(path)) continue;
       unawaited(repo.prepareKaraoke(path).then((_) {}, onError: (_) {}));
     }
+  }
+
+  // ── Le tampon d'avance (idée #90) ──────────────────────────────────────────
+  //
+  // La file dit ce qui va être joué : les prochains titres descendent sur le
+  // disque pendant qu'on écoute celui d'avant, puis remplacent leur flux dans
+  // la file du lecteur. Une mauvaise connexion ne coupe plus une musique dont
+  // le fichier est déjà là. Le réglage (combien d'avance, quelle place) vit
+  // dans prefetch.dart.
+
+  /// L'ordre dans lequel le lecteur va vraiment enchaîner la file (tirage
+  /// aléatoire compris). Le tirage est celui de just_audio : lui seul sait
+  /// dans quel ordre il joue.
+  List<int> _playOrder() {
+    final length = queue.value.length;
+    final order = _player.effectiveIndices;
+    if (order.length == length) return order;
+    return [for (var i = 0; i < length; i++) i];
+  }
+
+  static String _fileExt(String path) {
+    final dot = path.lastIndexOf('.');
+    final ext = dot >= 0 ? path.substring(dot + 1) : '';
+    return ext.isEmpty || ext.length > 5 ? 'mp3' : ext;
+  }
+
+  /// Dit au tampon ce qui arrive. Appelé à chaque changement de piste et à
+  /// chaque remaniement de la file.
+  ///
+  /// Rien à descendre sans session, sans file, sur une radio ou une pré-écoute
+  /// (pas de titre derrière), ni en mode karaoké : ce que le serveur rend là
+  /// n'est pas le fichier du titre. Les titres déjà téléchargés (offline.dart)
+  /// sont sur le disque depuis longtemps, on ne les descend pas deux fois.
+  void _primeBuffer() {
+    if (!bufferSupported) return;
+    final repo = repository;
+    final q = queue.value;
+    final current = _player.currentIndex;
+    if (repo == null || _karaoke || q.isEmpty || current == null) {
+      buffer.prime(const []);
+      return;
+    }
+    // Les titres de la file en cours ne s'effacent pas du tampon, même quand
+    // on ne descend plus rien : le lecteur pointe peut-être déjà dessus.
+    final keep = <int>{
+      for (final item in q)
+        if (item.extras?['songId'] is int) item.extras!['songId'] as int,
+    };
+    // En lecture aléatoire, aucun titre ne sait basculer sur son fichier (voir
+    // _adoptBuffered) : on ne descend rien plutôt que de télécharger pour
+    // rien. Ce qui est déjà dans le tampon sert quand même — une file bâtie
+    // par-dessus part directement des fichiers (voir _sourceUri).
+    if (_player.shuffleModeEnabled) {
+      buffer.prime(const [], keep: keep);
+      return;
+    }
+    final wanted = <BufferRequest>[];
+    for (final i in bufferTargets(
+      order: _playOrder(),
+      current: current,
+      ahead: buffer.ahead,
+      loop: _player.loopMode == LoopMode.all,
+      // Seuls les titres qui suivent la piste en cours dans la file savent
+      // basculer sur leur fichier (voir _adoptBuffered) : descendre les autres
+      // ne ferait que doubler la consommation de données.
+      usable: (i) => i > current,
+    )) {
+      if (i < 0 || i >= q.length) continue;
+      final songId = q[i].extras?['songId'] as int?;
+      final path = q[i].extras?['filePath'] as String?;
+      if (songId == null || path == null) continue;
+      if (offlinePaths.containsKey(songId)) continue;
+      wanted.add(BufferRequest(
+        songId: songId,
+        url: repo.streamUrlForPath(path),
+        ext: _fileExt(path),
+      ));
+    }
+    buffer.prime(wanted, keep: keep);
+  }
+
+  /// Vrai pendant une bascule vers le tampon : deux passages en même temps
+  /// travailleraient sur la même file avec des index périmés.
+  bool _adopting = false;
+
+  /// Fait jouer depuis le tampon les titres de la file qui y sont descendus.
+  ///
+  /// Seulement ceux qui viennent APRÈS la piste en cours : remplacer la source
+  /// d'un titre placé avant ferait glisser l'index du lecteur le temps de
+  /// l'échange, et l'app y lirait un changement de piste qui n'a pas eu lieu
+  /// (fiche, notification et suivi d'écoute avec). Le titre en cours, lui, ne
+  /// se remplace jamais sous ses pieds — il joue.
+  ///
+  /// Rien non plus en lecture aléatoire : changer la source d'un titre revient
+  /// à le retirer de la file puis à l'y remettre, et just_audio le replace
+  /// alors au hasard dans son tirage (DefaultShuffleOrder.insert). Un titre
+  /// pourrait ainsi atterrir derrière la piste en cours et ne jamais passer.
+  /// Le tampon ne descend donc rien tant que l'aléatoire est actif.
+  ///
+  /// Rien pendant un croisement (idée #76) : le lecteur d'à côté tient déjà sa
+  /// copie de la file. La bascule attendra le prochain changement de piste.
+  Future<void> _adoptBuffered() async {
+    if (_adopting || !bufferSupported || _karaoke) return;
+    if (_switchingSource || _crossfading || _outgoingBusy) return;
+    if (_player.shuffleModeEnabled) return;
+    final current = _player.currentIndex;
+    if (current == null) return;
+    final before = queue.value;
+    final q = [...before];
+    var changed = false;
+    _adopting = true;
+    try {
+      for (var i = current + 1; i < q.length; i++) {
+        final songId = q[i].extras?['songId'] as int?;
+        if (songId == null || offlinePaths.containsKey(songId)) continue;
+        final path = buffer.pathFor(songId);
+        if (path == null) continue;
+        final url = Uri.file(path).toString();
+        if (q[i].id == url) continue;
+        // La file a changé sous nous (nouvelle écoute lancée pendant qu'on
+        // basculait) : on s'arrête, celle qu'on tient n'existe plus.
+        if (!identical(queue.value, before)) break;
+        await _player.removeAudioSourceAt(i);
+        await _player.insertAudioSource(i, AudioSource.uri(Uri.parse(url)));
+        q[i] = q[i].copyWith(id: url);
+        changed = true;
+      }
+    } catch (e) {
+      // Ce qui a déjà basculé est publié quand même, plus bas : la file
+      // affichée doit dire ce que le lecteur joue vraiment.
+      logPlayback('tampon d\'avance : bascule impossible ($e)');
+    } finally {
+      _adopting = false;
+    }
+    if (!changed || !identical(queue.value, before)) return;
+    // Même file, mêmes titres, même piste en cours : seule la source a changé.
+    // Le suivi d'écoute doit suivre la nouvelle liste, sans quoi le prochain
+    // battement d'index la prendrait pour une autre file et déclarerait un
+    // changement de piste.
+    if (identical(_trackedQueue, before)) _trackedQueue = q;
+    queue.add(q);
   }
 
   MediaItem _toMediaItem(Song s) => MediaItem(
@@ -637,6 +803,7 @@ class GullifyAudioHandler extends BaseAudioHandler
       [for (final item in items) AudioSource.uri(Uri.parse(item.id))],
       initialIndex: startIndex,
     );
+    _primeBuffer();
     await play();
   }
 
@@ -771,6 +938,7 @@ class GullifyAudioHandler extends BaseAudioHandler
       index.clamp(0, q.length - 1),
       AudioSource.uri(Uri.parse(item.id)),
     );
+    _primeBuffer();
   }
 
   /// Ajoute en fin de file.
@@ -778,6 +946,7 @@ class GullifyAudioHandler extends BaseAudioHandler
     final item = _toMediaItem(song);
     queue.add([...queue.value, item]);
     await _player.addAudioSource(AudioSource.uri(Uri.parse(item.id)));
+    _primeBuffer();
   }
 
   Future<void> moveQueueItem(int from, int to) async {
@@ -786,6 +955,7 @@ class GullifyAudioHandler extends BaseAudioHandler
     q.insert(to, q.removeAt(from));
     queue.add(q);
     await _player.moveAudioSource(from, to);
+    _primeBuffer();
   }
 
   @override
@@ -795,6 +965,7 @@ class GullifyAudioHandler extends BaseAudioHandler
     q.removeAt(index);
     queue.add(q);
     await _player.removeAudioSourceAt(index);
+    _primeBuffer();
   }
 
   /// Vide la file en gardant la piste en cours.
@@ -809,6 +980,7 @@ class GullifyAudioHandler extends BaseAudioHandler
       await _player.removeAudioSourceRange(0, current);
     }
     queue.add([q[current]]);
+    _primeBuffer();
   }
 
   /// Ferme le lecteur : coupe le son, vide la file et efface la piste en
@@ -832,6 +1004,8 @@ class GullifyAudioHandler extends BaseAudioHandler
     _queueIndex = null;
     _trackedQueue = null;
     queue.add(const []);
+    // Plus de file, plus rien à prendre d'avance : le tampon rend le réseau.
+    _primeBuffer();
     mediaItem.add(null);
     await super.stop();
     return closed;
@@ -857,6 +1031,7 @@ class GullifyAudioHandler extends BaseAudioHandler
       // Une radio n'a pas de position à reprendre : elle est en direct.
       initialPosition: items[at].isLive == true ? Duration.zero : position,
     );
+    _primeBuffer();
     await play();
   }
 
@@ -1327,6 +1502,7 @@ class GullifyAudioHandler extends BaseAudioHandler
     if (enabled) await _player.shuffle();
     await _player.setShuffleModeEnabled(enabled);
     playbackState.add(playbackState.value.copyWith(shuffleMode: shuffleMode));
+    _primeBuffer();
   }
 
   @override
@@ -1339,6 +1515,7 @@ class GullifyAudioHandler extends BaseAudioHandler
       AudioServiceRepeatMode.none => LoopMode.off,
     });
     playbackState.add(playbackState.value.copyWith(repeatMode: repeatMode));
+    _primeBuffer();
   }
 
   @override

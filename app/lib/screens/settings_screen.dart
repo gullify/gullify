@@ -9,6 +9,7 @@ import 'package:image_picker/image_picker.dart';
 import '../audio/alarm_platform.dart';
 import '../audio/equalizer.dart';
 import '../audio/fade.dart';
+import '../audio/prefetch.dart';
 import '../state/alarm.dart';
 import '../state/app_theme.dart';
 import '../state/app_update.dart';
@@ -21,7 +22,7 @@ import '../widgets/retro_chrome.dart';
 import '../widgets/retro_lcd.dart';
 import '../widgets/update_dialog.dart';
 
-const appVersion = '3.17.0';
+const appVersion = '3.18.0';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -72,6 +73,7 @@ class SettingsScreen extends ConsumerWidget {
           const Divider(),
           const _SectionHeader('Lecture'),
           const _FadeTile(),
+          if (bufferSupported) const _BufferTile(),
           if (equalizerSupported)
             ListTile(
               leading: const Icon(Icons.equalizer),
@@ -318,6 +320,33 @@ class _FadeTile extends ConsumerWidget {
         ),
         trailing: const Icon(Icons.chevron_right),
         onTap: () => context.push('/settings/fade'),
+      ),
+    );
+  }
+}
+
+/// Tampon d'avance (idée #90) : le réglage vit dans son écran, la ligne en
+/// résume l'état — combien de titres sont pris d'avance, et ce que le tampon
+/// tient déjà.
+class _BufferTile extends ConsumerWidget {
+  const _BufferTile();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final buffer = ref.watch(playbackBufferProvider);
+    return ListenableBuilder(
+      listenable: buffer,
+      builder: (context, _) => ListTile(
+        leading: const Icon(Icons.cloud_download_outlined),
+        title: const Text('Tampon d\'avance'),
+        subtitle: Text(
+          buffer.ahead == 0
+              ? 'Tout passe par le réseau au moment de jouer'
+              : '${formatBufferAhead(buffer.ahead)}'
+                  '${buffer.count > 0 ? ' · ${buffer.count} en réserve' : ''}',
+        ),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () => context.push('/settings/buffer'),
       ),
     );
   }

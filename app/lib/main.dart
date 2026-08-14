@@ -20,6 +20,10 @@ Future<void> main() async {
   unawaited(audioHandler.equalizer.loadSaved().catchError((_) {}));
   // Idem pour le fondu : d'ici qu'il soit relu, le lecteur fond comme avant.
   unawaited(audioHandler.fade.loadSaved().catchError((_) {}));
+  // Le tampon d'avance (idée #90) relit son réglage et retrouve ce qu'il avait
+  // déjà descendu — la première file d'une session peut ainsi partir de ce qui
+  // est encore sur le disque.
+  unawaited(audioHandler.buffer.loadSaved().catchError((_) {}));
 
   // Container indépendant de l'arbre de widgets : quand Android Auto lance
   // l'app sans interface (téléphone verrouillé), aucun widget ne se

@@ -8,6 +8,7 @@ import 'screens/alarm_ring_screen.dart';
 import 'screens/alarm_screen.dart';
 import 'screens/album_screen.dart';
 import 'screens/artist_screen.dart';
+import 'screens/buffer_screen.dart';
 import 'screens/changelog_screen.dart';
 import 'screens/downloads_screen.dart';
 import 'screens/equalizer_screen.dart';
@@ -183,6 +184,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/settings/fade',
         builder: (_, _) => const FadeScreen(),
+      ),
+      GoRoute(
+        path: '/settings/buffer',
+        builder: (_, _) => const BufferScreen(),
       ),
       GoRoute(
         path: '/settings/alarm',

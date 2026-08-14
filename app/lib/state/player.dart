@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../audio/audio_handler.dart';
 import '../audio/equalizer.dart';
 import '../audio/fade.dart';
+import '../audio/prefetch.dart';
 import '../models/song.dart';
 import 'auth.dart';
 import 'favorites.dart';
@@ -29,6 +30,13 @@ final equalizerProvider = Provider<GullifyEqualizer>(
 /// que de lui.
 final playbackFadeProvider = Provider<PlaybackFade>(
   (ref) => ref.watch(audioHandlerProvider).fade,
+);
+
+/// Tampon d'avance (idée #90) : les prochains titres de la file descendus sur
+/// le disque pendant qu'on écoute. Exposé comme le fondu — l'écran de réglage
+/// n'a besoin que de lui.
+final playbackBufferProvider = Provider<PlaybackBuffer>(
+  (ref) => ref.watch(audioHandlerProvider).buffer,
 );
 
 /// Keeps the handler's repository in sync with auth (needed by Android Auto)

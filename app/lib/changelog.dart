@@ -8,6 +8,23 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.18.0', [
+    'Le tampon d\'avance : les prochains titres de la file descendent sur le '
+        'téléphone pendant que tu écoutes celui d\'avant, et se jouent depuis '
+        'là. Un tunnel, un ascenseur ou un bout de campagne ne coupent plus '
+        'la musique — il n\'y a plus rien à demander au réseau au moment de '
+        'l\'entendre',
+    'Réglable dans Paramètres → Lecture → Tampon d\'avance : de un titre à '
+        'toute la file, avec la place que tu lui accordes. Trois titres et '
+        '512 Mo par défaut',
+    'Le tampon se garde d\'une écoute à l\'autre et s\'efface tout seul : '
+        'les plus vieux titres partent quand la place est pleine, jamais ceux '
+        'de la file en cours. Rien à voir avec les téléchargements, qui '
+        'restent tant que tu ne les supprimes pas',
+    'Un titre à la fois, en arrière-plan, pour ne pas gêner ce qui joue. Les '
+        'titres déjà téléchargés ne sont pas repris ; le karaoké et la '
+        'lecture aléatoire, eux, continuent de passer par le serveur',
+  ]),
   ReleaseNote('3.17.0', [
     'Un album entier se prête maintenant comme une chanson : « Partager '
         'l\'album » dans le menu de la page d\'album donne un lien de 24 h '
