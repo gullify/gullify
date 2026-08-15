@@ -33,6 +33,7 @@ import 'package:gullify/state/radio.dart';
 import 'package:gullify/state/stats.dart';
 import 'package:gullify/state/yt_downloads.dart';
 import 'package:gullify/theme.dart';
+import 'package:gullify/widgets/liquid_glass.dart';
 import 'package:gullify/widgets/mini_player.dart';
 import 'package:gullify/widgets/retro_chrome.dart';
 
@@ -254,10 +255,24 @@ Widget _wrap(
               gradient: bg ?? const LinearGradient(colors: [Colors.white, Colors.white]),
             ),
             // Comme main.dart : sous le rétro, la tôle brossée passe entre le
-            // fond et les écrans (idée #83).
-            child: (surfaces?.retro ?? false)
-                ? RetroChassis(child: child)
-                : child,
+            // fond et les écrans (idée #83) ; sous l'Apple Liquid Glass, c'est
+            // le fond d'écran coloré qui s'y glisse (idée #99) — sans lui le
+            // golden ne montrerait pas ce que le verre laisse passer.
+            child: switch (surfaces) {
+              GullifySurfaces(retro: true) => RetroChassis(child: child),
+              GullifySurfaces(liquid: true, accentBlob: final accent?) => Stack(
+                children: [
+                  Positioned.fill(
+                    child: LiquidWallpaper(
+                      accent: accent,
+                      dark: Theme.of(context).brightness == Brightness.dark,
+                    ),
+                  ),
+                  child,
+                ],
+              ),
+              _ => child,
+            },
           );
         },
       ),
@@ -378,6 +393,29 @@ void main() {
     await expectLater(
       find.byKey(const Key('golden-root')),
       matchesGoldenFile('goldens/home_apple.png'),
+    );
+  });
+
+  // …et le même en sombre (idée #99). Le fond d'écran coloré et la vitre
+  // amaigrie se jouent surtout là : sur du noir, un verre trop dense
+  // redevient un simple panneau gris.
+  testWidgets('home screen renders in the Apple Liquid Glass skin (sombre)',
+      (tester) async {
+    await pumpScreen(
+      tester,
+      _shellWrap(
+        const HomeScreen(),
+        item: _mediaItem,
+        theme: gullifyTheme(
+          GullifySkin.apple,
+          GullifyAccent.indigo,
+          dark: true,
+        ),
+      ),
+    );
+    await expectLater(
+      find.byKey(const Key('golden-root')),
+      matchesGoldenFile('goldens/home_apple_dark.png'),
     );
   });
 

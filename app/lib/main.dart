@@ -10,6 +10,7 @@ import 'state/app_theme.dart';
 import 'state/player.dart';
 import 'theme.dart';
 import 'widgets/keyboard_guard.dart';
+import 'widgets/liquid_glass.dart';
 import 'widgets/retro_chrome.dart';
 
 Future<void> main() async {
@@ -132,8 +133,20 @@ class _GullifyAppState extends ConsumerState<GullifyApp>
             child: chassis(
               Stack(
               children: [
+                // Apple Liquid Glass : le fond d'écran d'iOS (idée #99). Il
+                // REMPLACE les deux halos discrets — c'est lui qui donne au
+                // verre quelque chose à laisser passer, sans quoi la vitre la
+                // plus fine ne rend qu'un gris (« je ne vois même pas la
+                // différence »).
+                if ((surfaces?.liquid ?? false) && surfaces?.accentBlob != null)
+                  Positioned.fill(
+                    child: LiquidWallpaper(
+                      accent: surfaces!.accentBlob!,
+                      dark: Theme.of(context).brightness == Brightness.dark,
+                    ),
+                  )
                 // Halo d'accent diffus (design) : lueur douce en haut d'écran.
-                if (surfaces?.accentBlob != null)
+                else if (surfaces?.accentBlob != null)
                   Positioned(
                     top: -140,
                     left: -60,
@@ -145,29 +158,6 @@ class _GullifyAppState extends ConsumerState<GullifyApp>
                         gradient: RadialGradient(
                           colors: [
                             surfaces!.accentBlob!.withValues(alpha: 0.16),
-                            surfaces.accentBlob!.withValues(alpha: 0.0),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                // Apple Liquid Glass (idée #98) : un SECOND halo, en bas à
-                // droite. Une lentille ne se voit que sur quelque chose —
-                // sans couleur dessous, le verre le plus fin ne rend qu'un
-                // gris. C'est l'équivalent du fond d'écran d'iOS.
-                if ((surfaces?.liquid ?? false) &&
-                    surfaces?.accentBlob != null)
-                  Positioned(
-                    bottom: -180,
-                    right: -100,
-                    child: Container(
-                      width: 460,
-                      height: 460,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: RadialGradient(
-                          colors: [
-                            surfaces!.accentBlob!.withValues(alpha: 0.14),
                             surfaces.accentBlob!.withValues(alpha: 0.0),
                           ],
                         ),

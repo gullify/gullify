@@ -301,22 +301,26 @@ ThemeData _appleGlass(Color accent, {required bool dark}) {
     GullifySurfaces(
       liquid: true,
       accentBlob: accent,
-      // Des barres très transparentes : chez Apple, le contenu se devine
-      // toujours sous les commandes.
-      barColor: dark ? const Color(0x59202028) : const Color(0x59FFFFFF),
+      // Des barres à peine là : chez Apple, le contenu ne se devine pas sous
+      // les commandes, il se VOIT. Idée #99 : la vitre a encore maigri, et
+      // avec le fond d'écran dessous (LiquidWallpaper) la différence se voit
+      // enfin d'un coup d'œil.
+      barColor: dark ? const Color(0x33202028) : const Color(0x38FFFFFF),
       // Flou profond et couleurs ravivées : la signature de la matière.
-      blurSigma: 34,
-      vibrancy: 1.7,
+      blurSigma: 48,
+      vibrancy: 2.3,
+      // Un fond neutre et sourd : la couleur, désormais, vient des grands
+      // halos peints par-dessus (idée #99).
       background: dark
           ? const LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [Color(0xFF141418), Color(0xFF0A0A0D), Color(0xFF141420)],
+              colors: [Color(0xFF101014), Color(0xFF07070A), Color(0xFF0F0F18)],
             )
           : const LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [Color(0xFFF8F8FB), Color(0xFFEFF1F6), Color(0xFFE7EBF3)],
+              colors: [Color(0xFFFAFAFD), Color(0xFFF1F3F8), Color(0xFFE9EDF5)],
             ),
     ),
     // Des commandes en gélule et des cartes très arrondies : les rayons
@@ -334,6 +338,17 @@ ThemeData _appleGlass(Color accent, {required bool dark}) {
         side: side ?? BorderSide.none,
       );
 
+  // Idée #99 : le verre déborde des barres. Sous ce thème, TOUT ce qui est
+  // une surface devient une vitre — gélules de filtre, champs de saisie,
+  // feuilles et boîtes de dialogue. C'est ce qui fait qu'on reconnaît le
+  // thème sans avoir à chercher où regarder ; le verre cantonné au dock et au
+  // mini-lecteur, lui, passait inaperçu.
+  final pane = dark ? const Color(0x332A2A33) : const Color(0x3DFFFFFF);
+  final edge = dark ? const Color(0x3DFFFFFF) : const Color(0x99FFFFFF);
+  // Les feuilles et les alertes portent du texte SANS rien derrière elles :
+  // le verre y reste du verre, mais assez dense pour qu'on lise.
+  final sheet = dark ? const Color(0xD91B1B22) : const Color(0xD9FFFFFF);
+
   return theme.copyWith(
     cardTheme: theme.cardTheme.copyWith(
       shape: squircle(
@@ -350,8 +365,42 @@ ThemeData _appleGlass(Color accent, {required bool dark}) {
         textStyle: const TextStyle(fontWeight: FontWeight.w600),
       ),
     ),
-    // Les filtres deviennent les gélules d'iOS.
-    chipTheme: const ChipThemeData(shape: StadiumBorder()),
+    // Les filtres deviennent les gélules d'iOS : du verre, pas un aplat.
+    chipTheme: ChipThemeData(
+      backgroundColor: pane,
+      selectedColor: scheme.primary.withValues(alpha: 0.22),
+      side: BorderSide(color: edge),
+      shape: const StadiumBorder(),
+    ),
+    // La recherche et les champs : la même vitre, cerclée du même liseré.
+    inputDecorationTheme: theme.inputDecorationTheme.copyWith(
+      fillColor: pane,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(24),
+        borderSide: BorderSide(color: edge),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(24),
+        borderSide: BorderSide(color: edge),
+      ),
+    ),
+    dialogTheme: DialogThemeData(
+      backgroundColor: sheet,
+      elevation: 0,
+      shape: squircle(32),
+    ),
+    bottomSheetTheme: BottomSheetThemeData(
+      backgroundColor: sheet,
+      elevation: 0,
+      shape: const RoundedSuperellipseBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+      ),
+    ),
+    popupMenuTheme: PopupMenuThemeData(
+      color: sheet,
+      elevation: 0,
+      shape: squircle(20),
+    ),
   );
 }
 

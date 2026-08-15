@@ -23,7 +23,7 @@ import '../widgets/retro_chrome.dart';
 import '../widgets/retro_lcd.dart';
 import '../widgets/update_dialog.dart';
 
-const appVersion = '3.25.0';
+const appVersion = '3.26.0';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -530,9 +530,9 @@ class _AppleSkinTile extends ConsumerWidget {
       ),
       title: const Text('Apple Liquid Glass'),
       subtitle: const Text(
-        'Le verre d\'iOS 26 : plus fin, plus profond, arêtes qui accrochent '
-        'la lumière et angles en superellipse — ta couleur et le clair/sombre '
-        'restent les tiens',
+        'Le verre d\'iOS 26 ET le fond d\'écran qui va avec : une vitre '
+        'presque nulle, un flou profond, des arêtes qui accrochent la '
+        'lumière — ta couleur et le clair/sombre restent les tiens',
       ),
       value: on,
       onChanged: (v) => ref

@@ -8,6 +8,22 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.26.0', [
+    'Le thème « Apple Liquid Glass » se voit enfin : il repeint aussi le FOND '
+        'D\'ÉCRAN. De grands halos colorés, tirés de ta couleur d\'accent, '
+        'remplacent le gris perle — sans rien dessous, la vitre la plus fine '
+        'ne rendait qu\'un gris',
+    'La vitre a maigri de moitié et le flou a doublé de profondeur : les '
+        'barres, le dock et le mini-lecteur laissent désormais passer la '
+        'couleur du dessous au lieu de la masquer',
+    'Les arêtes accrochent bien plus la lumière : on voit la tranche du '
+        'verre, un reflet rasant en haut à gauche et l\'éclat dans l\'angle',
+    'Le verre déborde des barres : les gélules de filtre, les champs de '
+        'recherche, les feuilles et les boîtes de dialogue deviennent du '
+        'verre eux aussi',
+    'Ta couleur et le clair/sombre restent les tiens, et le verre de toujours '
+        'ne bouge pas d\'un pixel quand le thème est éteint',
+  ]),
   ReleaseNote('3.25.0', [
     'Un thème « Apple Liquid Glass » rejoint le rétro Winamp dans les thèmes '
         'à part : Paramètres → Apparence, l\'interrupteur juste au-dessus du '
