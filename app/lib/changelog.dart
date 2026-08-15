@@ -8,6 +8,20 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.20.0', [
+    'La jaquette d\'un album se choisit maintenant à la main : « Changer la '
+        'jaquette » dans le menu de la page d\'album. Les pochettes que '
+        'YouTube Music et Deezer ont sous « artiste titre » s\'affichent avec '
+        'leur titre et leur artiste — de quoi repérer la compilation ou '
+        'l\'album homonyme avant de choisir',
+    'Rien ne convient ? Le texte cherché se change (titre original, '
+        'réédition, album mal taggé), un lien se colle, ou une image du '
+        'téléphone fait l\'affaire',
+    'La jaquette choisie passe devant le folder.jpg du dossier et devant la '
+        'pochette des tags, jusque dans Android Auto — sans jamais toucher '
+        'aux fichiers de musique. « Jaquette automatique » rend la main à ce '
+        'que le serveur trouve tout seul',
+  ]),
   ReleaseNote('3.19.0', [
     'Correctif du fondu enchaîné : le passage d\'un titre à l\'autre enflait, '
         'parce que le titre qui arrive commençait à monter pendant que le '

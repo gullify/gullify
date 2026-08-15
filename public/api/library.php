@@ -65,6 +65,40 @@ function artistImagePayload(int $artistId): array {
 }
 
 /**
+ * L'album, à condition qu'il appartienne bien à cet utilisateur — sinon null,
+ * et l'appelant répond « Album not found or access denied ».
+ *
+ * @return array{id: int, name: string, artist_name: string}|null
+ */
+function albumOfUser(PDO $conn, int $albumId, string $user): ?array {
+    if (!$albumId) return null;
+    $stmt = $conn->prepare('
+        SELECT al.id, al.name, ar.name AS artist_name
+        FROM albums al
+        JOIN artists ar ON al.artist_id = ar.id
+        WHERE al.id = ? AND ar.user = ?
+    ');
+    $stmt->execute([$albumId, $user]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    return $row ?: null;
+}
+
+/**
+ * Ce que rend un changement de jaquette (idée #93) : l'adresse de l'image,
+ * avec la date du fichier en `v=` pour que le cache du client ne serve pas
+ * l'ancienne.
+ */
+function albumCoverPayload(int $albumId): array {
+    clearstatcache();
+    $v = @filemtime(AlbumCover::cacheFile($albumId)) ?: 0;
+    return [
+        'album_id'   => $albumId,
+        'artworkUrl' => 'serve_image.php?album_id=' . $albumId . ($v ? '&v=' . $v : ''),
+        'version'    => $v,
+    ];
+}
+
+/**
  * La table des genres ajoutés à la main. La liste principale
  * (GenreTaxonomy::ALL) est fermée et la même pour tout le monde ; ce qu'on y
  * ajoute appartient à l'utilisateur, comme le reste de son rangement.
@@ -1637,6 +1671,93 @@ try {
         } else {
             ArtistImage::forget($artistId);
             $response['data'] = artistImagePayload($artistId);
+        }
+
+    } elseif ($action === 'album_cover_candidates') {
+        // Les jaquettes que YouTube Music et Deezer proposent pour cet album
+        // (idée #93). Comme pour les artistes, AUCUN filtrage sur le nom : on
+        // vient ici précisément quand la jaquette trouvée toute seule n'est
+        // pas la bonne, et `q` permet de chercher sous un autre libellé (titre
+        // original, réédition, album mal taggé).
+        require_once __DIR__ . '/../../src/AlbumCover.php';
+        $albumId = (int)($_GET['album_id'] ?? $_POST['album_id'] ?? 0);
+        $query   = trim((string)($_GET['q'] ?? $_POST['q'] ?? ''));
+        $album   = albumOfUser($conn, $albumId, $user);
+        if (!$album) {
+            $response['error']   = true;
+            $response['message'] = 'Album not found or access denied';
+        } else {
+            // Par défaut on cherche « artiste titre » : le titre seul ramène
+            // les albums homonymes de toute la planète.
+            $name = $query !== ''
+                ? $query
+                : trim($album['artist_name'] . ' ' . $album['name']);
+            $response['data'] = [
+                'query'      => $name,
+                'candidates' => AlbumCover::candidates($name),
+            ];
+        }
+
+    } elseif ($action === 'set_album_cover') {
+        // Change la jaquette d'un album (idée #93) : soit une adresse (lien
+        // collé, ou proposition choisie dans la liste), soit une image
+        // téléversée depuis le téléphone. Elle est rangée dans le cache, que
+        // `serve_image.php` sert avant le dossier et avant les tags : le choix
+        // fait à la main tient donc jusqu'à ce qu'on le défasse. Les fichiers
+        // de musique ne sont jamais touchés.
+        require_once __DIR__ . '/../../src/AlbumCover.php';
+        $albumId = (int)($_POST['album_id'] ?? $_GET['album_id'] ?? 0);
+        $url     = trim((string)($_POST['url'] ?? $_GET['url'] ?? ''));
+        $album   = albumOfUser($conn, $albumId, $user);
+        $upload  = $_FILES['image'] ?? null;
+
+        if (!$album) {
+            $response['error']   = true;
+            $response['message'] = 'Album not found or access denied';
+        } elseif ($upload && ($upload['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
+            if ($upload['error'] !== UPLOAD_ERR_OK) {
+                $response['error']   = true;
+                $response['message'] = "L'image n'est pas arrivée entière.";
+            } elseif (($upload['size'] ?? 0) > AlbumCover::MAX_BYTES) {
+                $response['error']   = true;
+                $response['message'] = 'Image trop volumineuse (8 Mo au plus).';
+            } else {
+                $bin = @file_get_contents($upload['tmp_name']);
+                if ($bin === false || !AlbumCover::store($albumId, $bin)) {
+                    $response['error']   = true;
+                    $response['message'] = "Image illisible (JPEG ou PNG attendu).";
+                } else {
+                    $response['data'] = albumCoverPayload($albumId);
+                }
+            }
+        } elseif ($url !== '') {
+            $bin = AlbumCover::download($url);
+            if ($bin === null) {
+                $response['error']   = true;
+                $response['message'] = "Rien à télécharger à cette adresse.";
+            } elseif (!AlbumCover::store($albumId, $bin)) {
+                $response['error']   = true;
+                $response['message'] = "Cette adresse ne donne pas une image (JPEG ou PNG attendu).";
+            } else {
+                $response['data'] = albumCoverPayload($albumId);
+            }
+        } else {
+            $response['error']   = true;
+            $response['message'] = 'Aucune image reçue.';
+        }
+
+    } elseif ($action === 'reset_album_cover') {
+        // Défait le choix manuel : la pochette du dossier, ou celle des tags,
+        // reprend la main à la prochaine requête (idée #93).
+        require_once __DIR__ . '/../../src/AlbumCover.php';
+        $albumId = (int)($_POST['album_id'] ?? $_GET['album_id'] ?? 0);
+        $album   = albumOfUser($conn, $albumId, $user);
+        if (!$album) {
+            $response['error']   = true;
+            $response['message'] = 'Album not found or access denied';
+        } else {
+            AlbumCover::forget($albumId);
+            $response['data'] = albumCoverPayload($albumId);
         }
 
     } elseif ($action === 'get_favorites') {

@@ -9,6 +9,7 @@ import '../state/offline.dart';
 import '../state/player.dart';
 import '../widgets/artwork.dart';
 import '../widgets/glass_kit.dart';
+import '../widgets/image_choice_dialog.dart';
 import 'shell_screen.dart';
 import '../widgets/share_sheet.dart';
 import '../widgets/song_menu.dart';
@@ -153,8 +154,8 @@ class _DownloadAlbumButtonState extends ConsumerState<_DownloadAlbumButton> {
   }
 }
 
-/// Menu d'un album : partage éphémère, suppression définitive (fichiers +
-/// base).
+/// Menu d'un album : partage éphémère, jaquette, suppression définitive
+/// (fichiers + base).
 void _albumMenu(BuildContext context, WidgetRef ref, Album album) {
   showModalBottomSheet<void>(
     context: context,
@@ -170,6 +171,15 @@ void _albumMenu(BuildContext context, WidgetRef ref, Album album) {
             onTap: () {
               Navigator.pop(sheetContext);
               showShareSheet(context, ShareTarget.album(album));
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.image_outlined),
+            title: const Text('Changer la jaquette'),
+            subtitle: const Text('Proposition, lien ou image du téléphone'),
+            onTap: () {
+              Navigator.pop(sheetContext);
+              _albumCoverDialog(context, album);
             },
           ),
           const Divider(height: 1),
@@ -210,6 +220,61 @@ void _albumMenu(BuildContext context, WidgetRef ref, Album album) {
       ),
     ),
   );
+}
+
+/// Dialogue « Changer la jaquette » (idée #93), et ce qu'il faut faire
+/// après : la fiche et les listes reprennent l'URL neuve — elle porte la date
+/// de la jaquette, sans quoi le cache d'images de l'app continuerait
+/// d'afficher l'ancienne et le changement n'aurait l'air de rien.
+///
+/// La jaquette choisie est rangée côté serveur dans le cache, servi avant le
+/// `folder.jpg` du dossier et avant la pochette des tags : aucun fichier de
+/// musique n'est touché, et « Jaquette automatique » rend la main à ce que le
+/// serveur trouve tout seul.
+Future<void> _albumCoverDialog(BuildContext context, Album album) async {
+  final messenger = ScaffoldMessenger.of(context);
+  final container = ProviderScope.containerOf(context, listen: false);
+  final repo = container.read(libraryRepositoryProvider);
+
+  // « artiste titre » : le titre seul ramène les albums homonymes de toute la
+  // planète, et il y en a beaucoup.
+  final query = [album.artistName ?? '', album.name]
+      .where((s) => s.isNotEmpty)
+      .join(' ');
+
+  final done = await showDialog<String>(
+    context: context,
+    builder: (_) => ImageChoiceDialog(
+      title: 'Jaquette de « ${album.name} »',
+      searchLabel: 'Chercher un album',
+      initialQuery: query,
+      emptyMessage: 'Aucune jaquette trouvée sous ce nom.',
+      doneMessage: 'Jaquette mise à jour',
+      resetLabel: 'Jaquette automatique',
+      resetMessage: 'Jaquette automatique rétablie',
+      onSearch: (q) async => [
+        for (final c in await repo.albumCoverCandidates(album.id, query: q))
+          ImageCandidate(
+            thumbnail: c.thumbnail,
+            label: c.title,
+            sublabel: c.artist,
+            source: c.source,
+          ),
+      ],
+      onUrl: (url) => repo.setAlbumCoverFromUrl(album.id, url),
+      onFile: (path) => repo.uploadAlbumCover(album.id, path),
+      onReset: () => repo.resetAlbumCover(album.id),
+    ),
+  );
+  if (done == null) return; // Refermé sans rien changer.
+
+  container.invalidate(albumDetailProvider(album.id));
+  container.invalidate(albumsProvider);
+  container.invalidate(recentAlbumsProvider);
+  if (album.artistId != null) {
+    container.invalidate(artistDetailProvider(album.artistId!));
+  }
+  messenger.showSnackBar(SnackBar(content: Text(done)));
 }
 
 /// En-tête d'album immersif : pochette floutée plein cadre qui se dissout

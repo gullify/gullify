@@ -187,6 +187,24 @@ class ApiClient {
   Future<Map<String, dynamic>> uploadArtistImage(
     int artistId,
     String filePath,
+  ) =>
+      _uploadImage('set_artist_image', 'artist_id', artistId, filePath);
+
+  /// Envoie une image du téléphone comme jaquette d'un album (idée #93).
+  /// Renvoie ce que le serveur répond (`album_id`, `artworkUrl`, `version`).
+  Future<Map<String, dynamic>> uploadAlbumCover(
+    int albumId,
+    String filePath,
+  ) =>
+      _uploadImage('set_album_cover', 'album_id', albumId, filePath);
+
+  /// Le téléversement d'une image de bibliothèque : photo d'artiste ou
+  /// jaquette d'album, même formulaire à un champ et un fichier.
+  Future<Map<String, dynamic>> _uploadImage(
+    String action,
+    String idField,
+    int id,
+    String filePath,
   ) async {
     final ext = filePath.split('.').last.toLowerCase();
     final subtype = ext == 'png'
@@ -195,7 +213,7 @@ class ApiClient {
             ? 'webp'
             : 'jpeg';
     final form = FormData();
-    form.fields.add(MapEntry('artist_id', '$artistId'));
+    form.fields.add(MapEntry(idField, '$id'));
     form.files.add(MapEntry(
       'image',
       await MultipartFile.fromFile(
@@ -206,7 +224,7 @@ class ApiClient {
     final data = await post(
       'library.php',
       body: form,
-      query: {'action': 'set_artist_image'},
+      query: {'action': action},
     );
     return data is Map<String, dynamic> ? data : <String, dynamic>{};
   }

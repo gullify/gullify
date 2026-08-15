@@ -60,6 +60,26 @@ class ArtistImageCandidate {
   final String source;
 }
 
+/// Une jaquette que YouTube Music ou Deezer propose pour un album (idée #93).
+/// Le [title] et l'[artist] sont ceux du service : deux albums du même nom ne
+/// se distinguent qu'à ça, et une compilation qui a avalé le titre cherché se
+/// repère de la même façon.
+class AlbumCoverCandidate {
+  const AlbumCoverCandidate({
+    required this.title,
+    required this.artist,
+    required this.thumbnail,
+    required this.source,
+  });
+
+  final String title;
+  final String artist;
+  final String thumbnail;
+
+  /// `ytmusic` ou `deezer`.
+  final String source;
+}
+
 /// Bio et actualités d'un artiste (sources externes, meilleur effort).
 class ArtistExtras {
   const ArtistExtras({
@@ -183,11 +203,31 @@ class LibraryRepository {
         'serve_image.php?artist_id=$id&fetch=1&fallback=404${_imageV(id)}',
       );
 
-  Album _album(Map<String, dynamic> j) =>
-      Album.fromJson(j).copyWith(artworkUrl: _abs(j['artworkUrl'] as String?));
+  /// Les albums dont la jaquette a changé depuis le lancement (idée #93), et
+  /// quand. Même raison que pour les artistes : le serveur date bien ses URL,
+  /// mais une liste déjà chargée garderait l'ancienne adresse — et donc
+  /// l'ancienne pochette, tirée du cache d'images.
+  final Map<int, int> _coverVersion = {};
 
-  Song _song(Map<String, dynamic> j) =>
-      Song.fromJson(j).copyWith(artworkUrl: _abs(j['artworkUrl'] as String?));
+  /// L'URL d'une jaquette, datée du dernier changement fait depuis l'app.
+  /// La date que le serveur avait posée est remplacée par la nôtre, qui est
+  /// la plus récente des deux.
+  String? _cover(String? url, int? albumId) {
+    final v = albumId == null ? null : _coverVersion[albumId];
+    if (url == null || url.isEmpty || v == null) return _abs(url);
+    final bare = url.replaceAll(RegExp(r'[&?]v=\d+'), '');
+    return _abs('$bare${bare.contains('?') ? '&' : '?'}v=$v');
+  }
+
+  Album _album(Map<String, dynamic> j) => Album.fromJson(j).copyWith(
+        artworkUrl:
+            _cover(j['artworkUrl'] as String?, (j['id'] as num?)?.toInt()),
+      );
+
+  Song _song(Map<String, dynamic> j) => Song.fromJson(j).copyWith(
+        artworkUrl:
+            _cover(j['artworkUrl'] as String?, (j['albumId'] as num?)?.toInt()),
+      );
 
   List<T> _list<T>(dynamic v, T Function(Map<String, dynamic>) map) =>
       (v as List<dynamic>? ?? [])
@@ -598,6 +638,70 @@ class LibraryRepository {
   void _noteImageChange(int artistId, dynamic data) {
     final v = data is Map ? (data['version'] as num?)?.toInt() ?? 0 : 0;
     _imageVersion[artistId] =
+        v > 0 ? v : DateTime.now().millisecondsSinceEpoch ~/ 1000;
+  }
+
+  // ─────────────── Jaquette d'un album (idée #93) ───────────────
+
+  /// Les jaquettes que YouTube Music et Deezer proposent pour cet album —
+  /// sous « artiste titre », ou sous [query] quand ce n'est pas ce libellé-là
+  /// qu'il faut chercher (album mal taggé, titre original, réédition).
+  Future<List<AlbumCoverCandidate>> albumCoverCandidates(
+    int albumId, {
+    String? query,
+  }) async {
+    final data = await _client.get('library.php', query: {
+      'action': 'album_cover_candidates',
+      'album_id': albumId,
+      'q': ?query,
+    }) as Map<String, dynamic>;
+    return [
+      for (final c in data['candidates'] as List<dynamic>? ?? [])
+        if (c is Map<String, dynamic>)
+          AlbumCoverCandidate(
+            title: c['title'] as String? ?? '',
+            artist: c['artist'] as String? ?? '',
+            thumbnail: c['thumbnail'] as String? ?? '',
+            source: c['source'] as String? ?? '',
+          ),
+    ];
+  }
+
+  /// Donne à l'album la jaquette qui se trouve à cette adresse (lien collé,
+  /// ou proposition choisie dans la liste).
+  Future<void> setAlbumCoverFromUrl(int albumId, String url) async {
+    final data = await _client.post(
+      'library.php',
+      query: {'action': 'set_album_cover'},
+      form: {'album_id': albumId, 'url': url},
+    );
+    _noteCoverChange(albumId, data);
+  }
+
+  /// Envoie une image du téléphone comme jaquette de l'album.
+  Future<void> uploadAlbumCover(int albumId, String filePath) async {
+    _noteCoverChange(
+      albumId,
+      await _client.uploadAlbumCover(albumId, filePath),
+    );
+  }
+
+  /// Défait le choix manuel : la pochette du dossier, ou celle des tags,
+  /// reprend la main.
+  Future<void> resetAlbumCover(int albumId) async {
+    final data = await _client.post(
+      'library.php',
+      query: {'action': 'reset_album_cover'},
+      form: {'album_id': albumId},
+    );
+    _noteCoverChange(albumId, data);
+  }
+
+  /// Retient que la jaquette a changé, pour que les URL construites ensuite
+  /// ne ressemblent pas à celles d'avant (voir [_noteImageChange]).
+  void _noteCoverChange(int albumId, dynamic data) {
+    final v = data is Map ? (data['version'] as num?)?.toInt() ?? 0 : 0;
+    _coverVersion[albumId] =
         v > 0 ? v : DateTime.now().millisecondsSinceEpoch ~/ 1000;
   }
 

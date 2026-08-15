@@ -23,22 +23,18 @@
  */
 
 require_once __DIR__ . '/AppConfig.php';
+require_once __DIR__ . '/RemoteImage.php';
 
 class ArtistImage
 {
     /** Une semaine sans retenter un artiste que personne n'a. */
     private const MISS_TTL = 604800;
 
-    /** Bornes de temps (secondes) des appels externes. */
-    private const YT_TIMEOUT       = 12;
-    private const SEARCH_TIMEOUT   = 6;
-    private const DOWNLOAD_TIMEOUT = 10;
+    /** Borne de temps (secondes) de la recherche YouTube Music. */
+    private const YT_TIMEOUT = 12;
 
     /** Poids maximal d'une image acceptée (collée, téléversée ou trouvée). */
-    public const MAX_BYTES = 8388608; // 8 Mo
-
-    /** Côté maximal de l'image rangée dans le cache. */
-    private const MAX_SIDE = 1000;
+    public const MAX_BYTES = RemoteImage::MAX_BYTES;
 
     public static function cacheDir(): string
     {
@@ -53,9 +49,9 @@ class ArtistImage
     /** Ce que YouTube Music répond pour ce nom d'artiste (nom + vignette). */
     private static function ytMusicResults(string $name, int $limit = 5): array
     {
-        $script = AppConfig::getPythonPath() . '/ytmusic_search.py';
-        if (!file_exists($script)) return [];
-        $python = is_executable('/opt/ytdlp/bin/python3') ? '/opt/ytdlp/bin/python3' : 'python3';
+        $yt = RemoteImage::ytMusicScript();
+        if ($yt === null) return [];
+        [$python, $script] = $yt;
         $cmd = sprintf(
             'timeout %d %s %s artist %s %d 2>/dev/null',
             self::YT_TIMEOUT,
@@ -75,7 +71,7 @@ class ArtistImage
     {
         $url = 'https://api.deezer.com/search/artist?limit=' . $limit
              . '&q=' . urlencode($name);
-        $bin = self::curl($url, self::SEARCH_TIMEOUT);
+        $bin = RemoteImage::get($url, RemoteImage::SEARCH_TIMEOUT);
         if ($bin === null) return [];
         $data = json_decode($bin, true);
         return is_array($data['data'] ?? null) ? $data['data'] : [];
@@ -143,9 +139,7 @@ class ArtistImage
      */
     private static function ytFullSize(string $thumb): string
     {
-        return $thumb === ''
-            ? ''
-            : (string)preg_replace('/=w\d+-h\d+/', '=w1000-h1000', $thumb);
+        return RemoteImage::ytFullSize($thumb);
     }
 
     /**
@@ -155,15 +149,7 @@ class ArtistImage
      */
     public static function download(string $url): ?string
     {
-        $url = trim($url);
-        if (!filter_var($url, FILTER_VALIDATE_URL) || !preg_match('~^https?://~i', $url)) {
-            return null;
-        }
-        $bin = self::curl($url, self::DOWNLOAD_TIMEOUT, self::MAX_BYTES);
-        if ($bin === null || strlen($bin) < 200 || strlen($bin) > self::MAX_BYTES) {
-            return null;
-        }
-        return $bin;
+        return RemoteImage::download($url);
     }
 
     /**
@@ -171,52 +157,13 @@ class ArtistImage
      * la place du fichier de cache, que `serve_image.php` sert avant tout le
      * reste — l'image du dossier comme celle du web passent après.
      *
-     * L'image est re-encodée en JPEG (le cache s'appelle `.jpg` et est servi
-     * comme tel : y déposer un PNG donnerait un type MIME menteur) et ramenée
-     * à 1000 px de côté au plus. Renvoie false si ce n'était pas une image.
+     * Renvoie false si ce n'était pas une image.
      */
     public static function store(int $artistId, string $bin): bool
     {
-        if (!function_exists('imagecreatefromstring')) return false;
-        $src = @imagecreatefromstring($bin);
-        if (!$src) return false;
-
-        try {
-            $w = imagesx($src);
-            $h = imagesy($src);
-            if ($w < 1 || $h < 1) return false;
-
-            $ratio = min(1, self::MAX_SIDE / max($w, $h));
-            $nw = max(1, (int)round($w * $ratio));
-            $nh = max(1, (int)round($h * $ratio));
-
-            // Fond blanc : un PNG transparent aplati en JPEG virerait au noir.
-            $dst = imagecreatetruecolor($nw, $nh);
-            imagefilledrectangle($dst, 0, 0, $nw, $nh, imagecolorallocate($dst, 255, 255, 255));
-            imagecopyresampled($dst, $src, 0, 0, 0, 0, $nw, $nh, $w, $h);
-            ob_start();
-            imagejpeg($dst, null, 90);
-            $jpeg = ob_get_clean();
-            imagedestroy($dst);
-            if ($jpeg === false || $jpeg === '') return false;
-
-            $file = self::cacheFile($artistId);
-            $dir  = dirname($file);
-            if (!is_dir($dir)) @mkdir($dir, 0775, true);
-            // Écriture en deux temps : une requête qui sert l'image pendant ce
-            // temps-là voit l'ancienne ou la nouvelle, jamais une moitié.
-            $tmp = $file . '.tmp' . getmypid();
-            if (@file_put_contents($tmp, $jpeg) === false) return false;
-            @chmod($tmp, 0644);
-            if (!@rename($tmp, $file)) {
-                @unlink($tmp);
-                return false;
-            }
-            self::dropDerived($artistId);
-            return true;
-        } finally {
-            imagedestroy($src);
-        }
+        if (!RemoteImage::store(self::cacheFile($artistId), $bin)) return false;
+        self::dropDerived($artistId);
+        return true;
     }
 
     /**
@@ -268,7 +215,7 @@ class ArtistImage
                 ? self::ytMusicUrl($name)
                 : self::deezerUrl($name);
             if (!$url) continue;
-            $bin = self::curl($url, self::DOWNLOAD_TIMEOUT);
+            $bin = RemoteImage::get($url, RemoteImage::DOWNLOAD_TIMEOUT);
             if ($bin !== null && strlen($bin) > 200) {
                 return ['data' => $bin, 'source' => $source];
             }
@@ -358,31 +305,5 @@ class ArtistImage
         $s = preg_replace('/[^a-z0-9]+/', ' ', $s);
         $s = trim(preg_replace('/\s+/', ' ', $s));
         return preg_replace('/^(the|les|le|la|l) /', '', $s);
-    }
-
-    /**
-     * GET borné dans le temps (et, si demandé, en taille). Renvoie le corps,
-     * ou null hors 200.
-     */
-    private static function curl(string $url, int $timeout, int $maxBytes = 0): ?string
-    {
-        if (!function_exists('curl_init')) return null;
-        $ch = curl_init($url);
-        curl_setopt_array($ch, [
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT        => $timeout,
-            CURLOPT_CONNECTTIMEOUT => 5,
-            CURLOPT_FOLLOWLOCATION => true,
-            CURLOPT_USERAGENT      => 'Gullify/1.0 (self-hosted music player)',
-            // Une adresse collée à la main peut rebondir n'importe où : la
-            // redirection reste cantonnée au web.
-            CURLOPT_PROTOCOLS       => CURLPROTO_HTTP | CURLPROTO_HTTPS,
-            CURLOPT_REDIR_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS,
-        ]);
-        if ($maxBytes > 0) curl_setopt($ch, CURLOPT_MAXFILESIZE, $maxBytes);
-        $body = curl_exec($ch);
-        $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-        return ($code === 200 && is_string($body) && $body !== '') ? $body : null;
     }
 }
