@@ -60,6 +60,84 @@ class ArtistImageCandidate {
   final String source;
 }
 
+/// Ce qu'a donné la correction de l'artiste ou du titre d'un album
+/// (idée #94) : l'album à afficher ensuite — ce n'est plus le même quand il a
+/// fusionné avec un homonyme — et de quoi dire à l'écran ce qui s'est passé.
+class AlbumEdit {
+  const AlbumEdit({
+    required this.albumId,
+    required this.artistId,
+    required this.artist,
+    required this.album,
+    required this.changed,
+    required this.moved,
+    required this.renamed,
+    required this.merged,
+    required this.removedArtist,
+    required this.songs,
+    required this.tagsWritten,
+    required this.tagsFailed,
+  });
+
+  factory AlbumEdit.fromJson(Map<String, dynamic> json) => AlbumEdit(
+        albumId: (json['album_id'] as num?)?.toInt() ?? 0,
+        artistId: (json['artist_id'] as num?)?.toInt() ?? 0,
+        artist: json['artist'] as String? ?? '',
+        album: json['album'] as String? ?? '',
+        changed: json['changed'] as bool? ?? false,
+        moved: json['moved'] as bool? ?? false,
+        renamed: json['renamed'] as bool? ?? false,
+        merged: json['merged'] as bool? ?? false,
+        removedArtist: json['removed_artist'] as String?,
+        songs: (json['songs'] as num?)?.toInt() ?? 0,
+        tagsWritten: (json['tags_written'] as num?)?.toInt() ?? 0,
+        tagsFailed: (json['tags_failed'] as num?)?.toInt() ?? 0,
+      );
+
+  /// L'album après coup : l'album d'accueil si les deux ont fusionné.
+  final int albumId;
+  final int artistId;
+  final String artist;
+  final String album;
+
+  /// Faux quand les noms envoyés étaient déjà ceux de l'album.
+  final bool changed;
+
+  /// L'album a changé d'artiste.
+  final bool moved;
+
+  /// Le titre de l'album a changé.
+  final bool renamed;
+
+  /// L'album a rejoint un album du même titre déjà chez cet artiste.
+  final bool merged;
+
+  /// L'artiste laissé sans album, effacé au passage (null sinon).
+  final String? removedArtist;
+
+  final int songs;
+
+  /// Fichiers dont les tags ont été récrits, et ceux qui ont résisté
+  /// (format que le serveur ne sait pas écrire, fichier en lecture seule).
+  final int tagsWritten;
+  final int tagsFailed;
+
+  /// Ce qu'on annonce à l'écran une fois la correction faite.
+  String get summary {
+    if (!changed) return 'Rien à corriger';
+    final what = merged
+        ? 'Album réuni avec « $album »'
+        : moved
+            ? 'Album transféré à $artist'
+            : 'Album renommé « $album »';
+    if (tagsFailed > 0) {
+      return '$what — tags de $tagsFailed fichier'
+          '${tagsFailed > 1 ? 's' : ''} inchangés';
+    }
+    return what;
+  }
+}
+
 /// Une jaquette que YouTube Music ou Deezer propose pour un album (idée #93).
 /// Le [title] et l'[artist] sont ceux du service : deux albums du même nom ne
 /// se distinguent qu'à ça, et une compilation qui a avalé le titre cherché se
@@ -639,6 +717,26 @@ class LibraryRepository {
     final v = data is Map ? (data['version'] as num?)?.toInt() ?? 0 : 0;
     _imageVersion[artistId] =
         v > 0 ? v : DateTime.now().millisecondsSinceEpoch ~/ 1000;
+  }
+
+  // ─────────────── Artiste et titre d'un album (idée #94) ───────────────
+
+  /// Corrige l'artiste et/ou le titre de l'album, ce qui le TRANSFÈRE :
+  /// il rejoint l'artiste ainsi nommé (celui qui existe déjà, s'il existe) et
+  /// se réunit avec l'album du même titre s'il y en a un chez lui. Le serveur
+  /// récrit aussi les tags des fichiers, sans quoi le prochain scan ramènerait
+  /// l'erreur.
+  Future<AlbumEdit> editAlbum(
+    int albumId, {
+    required String artist,
+    required String album,
+  }) async {
+    final data = await _client.post(
+      'library.php',
+      query: {'action': 'edit_album'},
+      form: {'album_id': albumId, 'artist': artist, 'album': album},
+    );
+    return AlbumEdit.fromJson(data as Map<String, dynamic>);
   }
 
   // ─────────────── Jaquette d'un album (idée #93) ───────────────

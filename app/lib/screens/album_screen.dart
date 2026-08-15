@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../api/api_client.dart';
+import '../api/library_repository.dart';
 import '../models/album.dart';
 import '../models/song.dart';
 import '../state/library.dart';
@@ -182,6 +184,15 @@ void _albumMenu(BuildContext context, WidgetRef ref, Album album) {
               _albumCoverDialog(context, album);
             },
           ),
+          ListTile(
+            leading: const Icon(Icons.drive_file_rename_outline),
+            title: const Text("Corriger l'artiste ou le titre"),
+            subtitle: const Text('Range l\'album chez le bon artiste'),
+            onTap: () {
+              Navigator.pop(sheetContext);
+              _albumNamesDialog(context, ref, album);
+            },
+          ),
           const Divider(height: 1),
           ListTile(
             leading: Icon(Icons.delete_outline,
@@ -275,6 +286,195 @@ Future<void> _albumCoverDialog(BuildContext context, Album album) async {
     container.invalidate(artistDetailProvider(album.artistId!));
   }
   messenger.showSnackBar(SnackBar(content: Text(done)));
+}
+
+/// Corriger l'artiste ou le titre d'un album (idée #94), et ce qu'il faut
+/// faire après : un album qui a rejoint son homonyme n'existe plus sous son
+/// ancien identifiant — rester sur sa fiche n'afficherait qu'une erreur.
+///
+/// Le serveur fait le reste : l'album passe sous l'artiste ainsi nommé (celui
+/// qui existe déjà de préférence), l'artiste laissé vide s'en va, et les tags
+/// des fichiers sont récrits pour que le prochain scan ne ramène pas l'erreur.
+Future<void> _albumNamesDialog(
+  BuildContext context,
+  WidgetRef ref,
+  Album album,
+) async {
+  final messenger = ScaffoldMessenger.of(context);
+  final repo = ref.read(libraryRepositoryProvider);
+  final oldArtistId = album.artistId;
+
+  final done = await showDialog<AlbumEdit>(
+    context: context,
+    builder: (_) => _AlbumNamesDialog(
+      artist: album.artistName ?? '',
+      album: album.name,
+      onSave: (artist, name) =>
+          repo.editAlbum(album.id, artist: artist, album: name),
+    ),
+  );
+  if (done == null || !done.changed) return; // Refermé sans rien changer.
+
+  invalidateLibrary(ref);
+  ref.invalidate(albumDetailProvider(album.id));
+  ref.invalidate(albumDetailProvider(done.albumId));
+  if (oldArtistId != null) ref.invalidate(artistDetailProvider(oldArtistId));
+  ref.invalidate(artistDetailProvider(done.artistId));
+
+  messenger.showSnackBar(SnackBar(content: Text(done.summary)));
+  if (done.albumId != album.id && context.mounted) {
+    context.pushReplacement('/album/${done.albumId}');
+  }
+}
+
+/// Les deux noms qui rangent un album : son artiste et son titre. Ils sont
+/// donnés remplis — on vient ici pour corriger une faute, pas pour tout
+/// ressaisir — et « Enregistrer » ne s'allume qu'une fois quelque chose changé.
+class _AlbumNamesDialog extends StatefulWidget {
+  const _AlbumNamesDialog({
+    required this.artist,
+    required this.album,
+    required this.onSave,
+  });
+
+  final String artist;
+  final String album;
+  final Future<AlbumEdit> Function(String artist, String album) onSave;
+
+  @override
+  State<_AlbumNamesDialog> createState() => _AlbumNamesDialogState();
+}
+
+class _AlbumNamesDialogState extends State<_AlbumNamesDialog> {
+  late final _artistCtrl = TextEditingController(text: widget.artist);
+  late final _albumCtrl = TextEditingController(text: widget.album);
+
+  bool _busy = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _artistCtrl.dispose();
+    _albumCtrl.dispose();
+    super.dispose();
+  }
+
+  /// Un champ vidé garde son nom d'avant : on ne corrige jamais qu'un des deux.
+  String get _artist =>
+      _artistCtrl.text.trim().isEmpty ? widget.artist : _artistCtrl.text.trim();
+  String get _album =>
+      _albumCtrl.text.trim().isEmpty ? widget.album : _albumCtrl.text.trim();
+
+  bool get _dirty => _artist != widget.artist || _album != widget.album;
+
+  /// Enregistre, puis referme en rendant ce qui a été fait. Un échec reste
+  /// dans le dialogue : rien n'a changé, autant pouvoir réessayer sans tout
+  /// ressaisir.
+  Future<void> _save() async {
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      final result = await widget.onSave(_artist, _album);
+      if (mounted) Navigator.pop(context, result);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _busy = false;
+        _error = e is ApiException ? e.message : '$e';
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+
+    return AlertDialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+      titlePadding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
+      contentPadding: const EdgeInsets.fromLTRB(20, 10, 20, 0),
+      title: const Text(
+        "Corriger l'artiste ou le titre",
+        style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+      ),
+      content: SizedBox(
+        width: 380,
+        child: _busy
+            ? const Padding(
+                padding: EdgeInsets.symmetric(vertical: 28),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CircularProgressIndicator(),
+                    SizedBox(height: 12),
+                    Text('Correction des fichiers…'),
+                  ],
+                ),
+              )
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: _artistCtrl,
+                    style: const TextStyle(fontSize: 14),
+                    textInputAction: TextInputAction.next,
+                    onChanged: (_) => setState(() {}),
+                    decoration: const InputDecoration(
+                      isDense: true,
+                      labelText: 'Artiste',
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  TextField(
+                    controller: _albumCtrl,
+                    style: const TextStyle(fontSize: 14),
+                    textInputAction: TextInputAction.done,
+                    onChanged: (_) => setState(() {}),
+                    onSubmitted: (_) => _dirty ? _save() : null,
+                    decoration: const InputDecoration(
+                      isDense: true,
+                      labelText: "Titre de l'album",
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Text(
+                    "L'album va rejoindre l'artiste ainsi nommé, et se réunir "
+                    'avec l\'album du même titre s\'il y en a un. Les tags des '
+                    'fichiers sont corrigés au passage ; ils restent dans leur '
+                    'dossier.',
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      height: 1.35,
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
+                  if (_error != null) ...[
+                    const SizedBox(height: 12),
+                    Text(
+                      _error!,
+                      style: TextStyle(fontSize: 13, color: scheme.error),
+                    ),
+                  ],
+                ],
+              ),
+      ),
+      actions: _busy
+          ? const []
+          : [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Annuler'),
+              ),
+              FilledButton(
+                onPressed: _dirty ? _save : null,
+                child: const Text('Enregistrer'),
+              ),
+            ],
+    );
+  }
 }
 
 /// En-tête d'album immersif : pochette floutée plein cadre qui se dissout

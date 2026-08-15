@@ -8,6 +8,18 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.21.0', [
+    'Un album rangé sous le mauvais nom se corrige depuis sa fiche : '
+        '« Corriger l\'artiste ou le titre » dans le menu. Les deux noms '
+        'arrivent déjà remplis — il n\'y a que la faute à réparer',
+    'L\'album va REJOINDRE l\'artiste ainsi nommé, celui qui existe déjà avec '
+        'ses autres albums, sa photo et ses favoris ; s\'il s\'y trouve un '
+        'album du même titre, les deux n\'en font plus qu\'un. L\'artiste '
+        'laissé sans rien s\'en va',
+    'Les tags des fichiers sont corrigés au passage — sinon le prochain scan '
+        'ramènerait l\'erreur — sans toucher à la pochette ni au reste du '
+        'tag. Les fichiers ne changent pas de dossier',
+  ]),
   ReleaseNote('3.20.0', [
     'La jaquette d\'un album se choisit maintenant à la main : « Changer la '
         'jaquette » dans le menu de la page d\'album. Les pochettes que '

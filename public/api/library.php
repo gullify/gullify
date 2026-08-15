@@ -1760,6 +1760,34 @@ try {
             $response['data'] = albumCoverPayload($albumId);
         }
 
+    } elseif ($action === 'edit_album') {
+        // Corriger l'artiste ou le titre d'un album (idée #94) : l'album
+        // rejoint l'artiste ainsi nommé — celui qui existe déjà, de
+        // préférence — et fusionne avec l'album du même titre s'il y en a un.
+        // Voir src/AlbumMove.php : base ET tags des fichiers.
+        require_once __DIR__ . '/../../src/AlbumMove.php';
+        @set_time_limit(300); // réécrire les tags d'un double album prend du temps
+        $albumId = (int)($_POST['album_id'] ?? $_GET['album_id'] ?? 0);
+        $artist  = $_POST['artist'] ?? $_GET['artist'] ?? null;
+        $album   = $_POST['album']  ?? $_GET['album']  ?? null;
+        try {
+            $response['data'] = AlbumMove::apply(
+                $conn,
+                $user,
+                $albumId,
+                is_string($artist) ? $artist : null,
+                is_string($album)  ? $album  : null
+            );
+        } catch (PDOException $e) {
+            // Le détail SQL n'apprendrait rien à personne devant l'écran.
+            error_log('edit_album: ' . $e->getMessage());
+            $response['error']   = true;
+            $response['message'] = "La correction n'a pas pu être enregistrée.";
+        } catch (InvalidArgumentException | RuntimeException $e) {
+            $response['error']   = true;
+            $response['message'] = $e->getMessage();
+        }
+
     } elseif ($action === 'get_favorites') {
         // Returns [{id: songId}] — format expected by ui.js loadInitialData
         $stmt = $conn->prepare('SELECT song_id FROM favorites WHERE user = ?');
