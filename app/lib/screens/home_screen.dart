@@ -6,7 +6,6 @@ import 'package:go_router/go_router.dart';
 
 import '../api/stats_repository.dart';
 import '../models/album.dart';
-import '../state/auth.dart';
 import '../state/discover.dart';
 import '../state/library.dart';
 import '../state/notifications.dart';
@@ -20,7 +19,7 @@ import '../widgets/song_menu.dart';
 import '../widgets/song_tile.dart';
 import 'stats_screen.dart' show relativeTime;
 
-/// Onglet « Accueil » : salutation + logo, boutons de verre, « Nouveautés »
+/// Onglet « Accueil » : logo, boutons de verre, « Nouveautés »
 /// (albums récents + lecture aléatoire), « Les plus populaires » (top 5)
 /// et « Derniers joués » (historique récent des statistiques).
 class HomeScreen extends ConsumerWidget {
@@ -28,15 +27,10 @@ class HomeScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final auth = ref.watch(authProvider);
     final recent = ref.watch(recentAlbumsProvider);
     final popular = ref.watch(popularSongsProvider);
     final stats = ref.watch(statsProvider);
     final scheme = Theme.of(context).colorScheme;
-
-    final hour = DateTime.now().hour;
-    final greeting = hour >= 18 || hour < 5 ? 'Bonsoir' : 'Bonjour';
-    final userName = auth.user?.fullName ?? auth.user?.username;
 
     return Scaffold(
       body: SafeArea(
@@ -54,57 +48,39 @@ class HomeScreen extends ConsumerWidget {
               bottom: MediaQuery.paddingOf(context).bottom + 18,
             ),
             children: [
-              // En-tête : salutation + logo « Gullify » + boutons de verre 42.
+              // En-tête : logo « Gullify » + boutons de verre 42.
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 14, 20, 4),
                 child: Row(
                   children: [
+                    // La mouette et le nom seuls, en grand : la salutation
+                    // rappelait un nom d'utilisateur que l'on connaît déjà,
+                    // autant donner la place à la marque (idées #92, #95).
                     Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                      child: Row(
                         children: [
-                          Text(
-                            userName == null
-                                ? greeting
-                                : '$greeting, $userName',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 12.5,
-                              fontWeight: FontWeight.w600,
-                              letterSpacing: 0.2,
-                              color: scheme.onSurfaceVariant,
-                            ),
+                          Image.asset(
+                            'assets/icon/mascot.png',
+                            width: 46,
+                            height: 46,
+                            // L'image fait 320 px pour 46 à l'écran : sans
+                            // filtre, la réduction crénellerait les branches
+                            // des lunettes.
+                            filterQuality: FilterQuality.medium,
                           ),
-                          // La mouette et le nom plutôt que le mot « Accueil » :
-                          // l'onglet dit déjà où on est, l'en-tête dit chez
-                          // qui (idée #92).
-                          Row(
-                            children: [
-                              Image.asset(
-                                'assets/icon/mascot.png',
-                                width: 34,
-                                height: 34,
-                                // L'image fait 320 px pour 34 à l'écran :
-                                // sans filtre, la réduction crénellerait les
-                                // branches des lunettes.
-                                filterQuality: FilterQuality.medium,
+                          const SizedBox(width: 9),
+                          const Flexible(
+                            child: Text(
+                              'Gullify',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 38,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: -0.8,
+                                height: 1.02,
                               ),
-                              const SizedBox(width: 7),
-                              const Flexible(
-                                child: Text(
-                                  'Gullify',
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    fontSize: 30,
-                                    fontWeight: FontWeight.w800,
-                                    letterSpacing: -0.6,
-                                    height: 1.02,
-                                  ),
-                                ),
-                              ),
-                            ],
+                            ),
                           ),
                         ],
                       ),

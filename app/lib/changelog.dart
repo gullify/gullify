@@ -8,6 +8,10 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.22.0', [
+    'L\'accueil ne dit plus bonjour : la mouette et le nom « Gullify » '
+        'prennent toute la place en haut de l\'écran',
+  ]),
   ReleaseNote('3.21.0', [
     'Un album rangé sous le mauvais nom se corrige depuis sa fiche : '
         '« Corriger l\'artiste ou le titre » dans le menu. Les deux noms '
