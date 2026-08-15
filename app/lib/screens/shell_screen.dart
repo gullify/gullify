@@ -10,6 +10,7 @@ import '../state/home_widget_sync.dart';
 import '../state/player.dart';
 import '../widgets/glass_box.dart';
 import '../widgets/keyboard_guard.dart';
+import '../widgets/liquid_glass.dart';
 import '../widgets/mini_player.dart';
 import '../widgets/retro_chrome.dart';
 import '../widgets/retro_lcd.dart';
@@ -424,8 +425,14 @@ class _Satellite extends StatelessWidget {
                 color: selected
                     ? scheme.primary.withValues(alpha: 0.16)
                     : Colors.transparent,
+                // Rétro : carré. Apple : une gélule, comme l'onglet actif
+                // d'iOS (idée #98). Verre Gullify : l'arrondi de toujours.
                 borderRadius: BorderRadius.circular(
-                  isRetroSkin(context) ? 0 : 14,
+                  isRetroSkin(context)
+                      ? 0
+                      : isLiquidSkin(context)
+                          ? 20
+                          : 14,
                 ),
               ),
               child: Icon(

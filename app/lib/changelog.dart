@@ -8,6 +8,22 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.25.0', [
+    'Un thème « Apple Liquid Glass » rejoint le rétro Winamp dans les thèmes '
+        'à part : Paramètres → Apparence, l\'interrupteur juste au-dessus du '
+        'rétro. Les deux s\'excluent, et l\'éteindre ramène le verre de '
+        'toujours',
+    'C\'est le verre d\'iOS 26 : une vitre bien plus fine (on lit au '
+        'travers), un flou plus profond qui ravive les couleurs du dessous, '
+        'des arêtes qui accrochent la lumière et des angles en superellipse — '
+        'les commandes deviennent des gélules, les boutons ronds de vraies '
+        'lentilles',
+    'À la différence du rétro, il ne confisque rien : ta couleur d\'accent et '
+        'le clair/sombre restent les tiens. Chez Apple, le verre est une '
+        'matière, pas une palette',
+    'La mise en page ne bouge pas d\'un pixel : mêmes écrans, mêmes gestes, '
+        'seule la peinture change',
+  ]),
   ReleaseNote('3.24.0', [
     'Il n\'y a plus de catalogue public : le catalogue a été transféré dans '
         'ta liste, telle que tu la voyais. Tes favoris et tes dossiers ont '

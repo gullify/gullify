@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'liquid_glass.dart';
 import 'retro_chrome.dart';
 import 'retro_lcd.dart';
 
@@ -39,6 +40,27 @@ class GlassIconButton extends StatelessWidget {
         tooltip: tooltip,
         onPressed: onPressed,
         child: Icon(icon, size: size * 0.44, color: winampInk),
+      );
+    }
+    // Apple Liquid Glass (idée #98) : le rond de verre devient une vraie
+    // lentille — arête qui accroche la lumière comprise. Même diamètre, même
+    // place : c'est la matière qui change, pas le bouton.
+    if (isLiquidSkin(context)) {
+      return LiquidGlass(
+        circle: true,
+        // Pas de flou sur un si petit disque : invisible, et multiplier les
+        // BackdropFilter coûte cher (même raison qu'en verre Gullify).
+        blur: false,
+        child: SizedBox(
+          width: size,
+          height: size,
+          child: IconButton(
+            tooltip: tooltip,
+            icon: Icon(icon, size: size * 0.5),
+            color: Theme.of(context).colorScheme.onSurface,
+            onPressed: onPressed,
+          ),
+        ),
       );
     }
     final light = Theme.of(context).brightness == Brightness.light;

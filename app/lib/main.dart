@@ -151,6 +151,29 @@ class _GullifyAppState extends ConsumerState<GullifyApp>
                       ),
                     ),
                   ),
+                // Apple Liquid Glass (idée #98) : un SECOND halo, en bas à
+                // droite. Une lentille ne se voit que sur quelque chose —
+                // sans couleur dessous, le verre le plus fin ne rend qu'un
+                // gris. C'est l'équivalent du fond d'écran d'iOS.
+                if ((surfaces?.liquid ?? false) &&
+                    surfaces?.accentBlob != null)
+                  Positioned(
+                    bottom: -180,
+                    right: -100,
+                    child: Container(
+                      width: 460,
+                      height: 460,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: RadialGradient(
+                          colors: [
+                            surfaces!.accentBlob!.withValues(alpha: 0.14),
+                            surfaces.accentBlob!.withValues(alpha: 0.0),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
                 child,
               ],
               ),

@@ -358,6 +358,29 @@ void main() {
     );
   });
 
+  // Le thème Apple Liquid Glass (idée #98) : même écran, même mise en page —
+  // seule la matière change. Le golden garde trace de ce que doivent donner
+  // la vitre plus fine, les arêtes éclairées et les angles en superellipse.
+  testWidgets('home screen renders in the Apple Liquid Glass skin',
+      (tester) async {
+    await pumpScreen(
+      tester,
+      _shellWrap(
+        const HomeScreen(),
+        item: _mediaItem,
+        theme: gullifyTheme(
+          GullifySkin.apple,
+          GullifyAccent.indigo,
+          dark: false,
+        ),
+      ),
+    );
+    await expectLater(
+      find.byKey(const Key('golden-root')),
+      matchesGoldenFile('goldens/home_apple.png'),
+    );
+  });
+
   testWidgets('library screen renders (artistes)', (tester) async {
     await pumpScreen(tester, _shellWrap(const LibraryScreen(), tab: 1));
     await expectLater(

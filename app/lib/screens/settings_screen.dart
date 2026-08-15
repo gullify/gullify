@@ -18,11 +18,12 @@ import '../state/background_playback.dart';
 import '../state/offline.dart';
 import '../state/player.dart';
 import '../theme.dart';
+import '../widgets/liquid_glass.dart';
 import '../widgets/retro_chrome.dart';
 import '../widgets/retro_lcd.dart';
 import '../widgets/update_dialog.dart';
 
-const appVersion = '3.24.0';
+const appVersion = '3.25.0';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -113,6 +114,7 @@ class SettingsScreen extends ConsumerWidget {
           const _ModePicker(),
           const _AccentPicker(),
           const SizedBox(height: 8),
+          const _AppleSkinTile(),
           const _RetroSkinTile(),
           const Divider(),
           const _SectionHeader('Développement'),
@@ -480,6 +482,62 @@ class _AccentPicker extends ConsumerWidget {
             ),
         ],
       ),
+    );
+  }
+}
+
+/// Le thème « Apple Liquid Glass » (idée #98) : rangé à part des accents, à
+/// côté du rétro. Les deux s'excluent — il n'y a qu'un habillage à la fois —
+/// et éteindre celui-ci ramène le verre de toujours.
+class _AppleSkinTile extends ConsumerWidget {
+  const _AppleSkinTile();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final on = ref.watch(skinProvider) == GullifySkin.apple;
+    final scheme = Theme.of(context).colorScheme;
+    return SwitchListTile(
+      // L'aperçu est la matière elle-même : une lentille miniature, posée sur
+      // un carré d'accent pour qu'on voie ce qu'elle laisse passer.
+      secondary: SizedBox(
+        width: 44,
+        height: 40,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            Container(
+              width: 40,
+              height: 34,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(10),
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    scheme.primary.withValues(alpha: 0.75),
+                    scheme.primary.withValues(alpha: 0.25),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(
+              width: 34,
+              height: 26,
+              child: LiquidGlass(radius: 10, blur: false, child: SizedBox()),
+            ),
+          ],
+        ),
+      ),
+      title: const Text('Apple Liquid Glass'),
+      subtitle: const Text(
+        'Le verre d\'iOS 26 : plus fin, plus profond, arêtes qui accrochent '
+        'la lumière et angles en superellipse — ta couleur et le clair/sombre '
+        'restent les tiens',
+      ),
+      value: on,
+      onChanged: (v) => ref
+          .read(skinProvider.notifier)
+          .set(v ? GullifySkin.apple : GullifySkin.glass),
     );
   }
 }

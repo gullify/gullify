@@ -40,7 +40,12 @@ enum GullifyAccent {
 /// rangé à part des accents — la nostalgie, « de temps en temps ». Il ne
 /// change rien à la mise en page : mêmes écrans, mêmes gestes, seulement des
 /// surfaces biseautées, un fond métal et un afficheur vert.
-enum GullifySkin { glass, winamp }
+/// Un troisième habillage rejoint le rétro à part des accents (idée #98) :
+/// le « Liquid Glass » d'Apple. Gullify a toujours eu du verre, mais pas
+/// celui-là : plus fin, plus profond, à arêtes qui accrochent la lumière et
+/// à angles en superellipse. Il garde, lui, la couleur d'accent choisie et le
+/// clair/sombre — chez Apple le verre est une MATIÈRE, pas une palette.
+enum GullifySkin { glass, winamp, apple }
 
 /// Le vert de l'afficheur et le noir sur lequel il vit sont désormais rangés
 /// avec le reste de la palette du châssis (retro_chrome.dart) : le design de
@@ -57,6 +62,9 @@ class GullifySurfaces extends ThemeExtension<GullifySurfaces> {
     this.retro = false,
     this.bevelLight,
     this.bevelDark,
+    this.liquid = false,
+    this.blurSigma = 24,
+    this.vibrancy = 1.0,
   });
 
   /// Surfaces givrées : flou réel (BackdropFilter) sous les barres.
@@ -81,6 +89,18 @@ class GullifySurfaces extends ThemeExtension<GullifySurfaces> {
   final Color? bevelLight;
   final Color? bevelDark;
 
+  /// Verre « Liquid Glass » façon Apple (idée #98). Les surfaces communes
+  /// (GlassBox, boutons ronds) se peignent alors en lentille : plus
+  /// transparentes, ravivées, cerclées d'un liseré spéculaire, en
+  /// superellipse. Là encore, la mise en page ne bouge pas.
+  final bool liquid;
+
+  /// Profondeur du flou sous les surfaces de verre.
+  final double blurSigma;
+
+  /// Saturation du contenu vu au travers (1.0 = tel quel).
+  final double vibrancy;
+
   @override
   GullifySurfaces copyWith({
     bool? frosted,
@@ -90,6 +110,9 @@ class GullifySurfaces extends ThemeExtension<GullifySurfaces> {
     bool? retro,
     Color? bevelLight,
     Color? bevelDark,
+    bool? liquid,
+    double? blurSigma,
+    double? vibrancy,
   }) =>
       GullifySurfaces(
         frosted: frosted ?? this.frosted,
@@ -99,6 +122,9 @@ class GullifySurfaces extends ThemeExtension<GullifySurfaces> {
         retro: retro ?? this.retro,
         bevelLight: bevelLight ?? this.bevelLight,
         bevelDark: bevelDark ?? this.bevelDark,
+        liquid: liquid ?? this.liquid,
+        blurSigma: blurSigma ?? this.blurSigma,
+        vibrancy: vibrancy ?? this.vibrancy,
       );
 
   @override
@@ -232,6 +258,103 @@ ThemeData _darkGlass(Color accent) {
   );
 }
 
+/// Le thème « Apple Liquid Glass » (idée #98).
+///
+/// Rangé à part des accents, comme le rétro — mais pour la raison inverse :
+/// ce n'est pas une couleur de plus, c'est une MATIÈRE. Il garde donc la
+/// teinte choisie et le clair/sombre ; ce qui change, c'est le verre :
+/// beaucoup plus fin (on lit au travers), un flou plus profond qui ravive les
+/// couleurs du dessous, des arêtes qui accrochent la lumière et des angles en
+/// superellipse. Les gris, eux, sont ceux d'iOS.
+///
+/// Le rendu des surfaces vit dans liquid_glass.dart ; ici on ne pose que les
+/// jetons et les formes.
+ThemeData _appleGlass(Color accent, {required bool dark}) {
+  final scheme = dark
+      ? ColorScheme.fromSeed(
+          seedColor: accent,
+          brightness: Brightness.dark,
+        ).copyWith(
+          primary: accent,
+          onPrimary: Colors.white,
+          // Les gris d'iOS en sombre : label, secondaryLabel, separator.
+          surface: const Color(0xFF1C1C1E),
+          onSurface: const Color(0xFFF2F2F7),
+          onSurfaceVariant: const Color(0xFF98989F),
+          outline: const Color(0xFF48484A),
+          outlineVariant: const Color(0xFF2C2C2E),
+          surfaceContainerHighest: const Color(0x1FFFFFFF),
+        )
+      : ColorScheme.fromSeed(seedColor: accent).copyWith(
+          primary: accent,
+          onPrimary: Colors.white,
+          surface: const Color(0xFFF2F2F7),
+          onSurface: const Color(0xFF1C1C1E),
+          onSurfaceVariant: const Color(0xFF6C6C70),
+          outline: const Color(0xFFB0B0B8),
+          outlineVariant: const Color(0xFFE3E3E8),
+          surfaceContainerHighest: const Color(0x99FFFFFF),
+        );
+
+  final theme = _base(
+    scheme,
+    GullifySurfaces(
+      liquid: true,
+      accentBlob: accent,
+      // Des barres très transparentes : chez Apple, le contenu se devine
+      // toujours sous les commandes.
+      barColor: dark ? const Color(0x59202028) : const Color(0x59FFFFFF),
+      // Flou profond et couleurs ravivées : la signature de la matière.
+      blurSigma: 34,
+      vibrancy: 1.7,
+      background: dark
+          ? const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF141418), Color(0xFF0A0A0D), Color(0xFF141420)],
+            )
+          : const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFFF8F8FB), Color(0xFFEFF1F6), Color(0xFFE7EBF3)],
+            ),
+    ),
+    // Des commandes en gélule et des cartes très arrondies : les rayons
+    // d'iOS, plus généreux que les nôtres.
+    corner: 24,
+    cardCorner: 28,
+  );
+
+  // Les angles d'Apple sont des superellipses, pas des quarts de cercle :
+  // c'est ce qui fait la douceur du « squircle », visible surtout sur les
+  // grandes cartes.
+  RoundedSuperellipseBorder squircle(double radius, [BorderSide? side]) =>
+      RoundedSuperellipseBorder(
+        borderRadius: BorderRadius.circular(radius),
+        side: side ?? BorderSide.none,
+      );
+
+  return theme.copyWith(
+    cardTheme: theme.cardTheme.copyWith(
+      shape: squircle(
+        28,
+        (theme.cardTheme.shape! as RoundedRectangleBorder).side,
+      ),
+    ),
+    filledButtonTheme: FilledButtonThemeData(
+      style: FilledButton.styleFrom(
+        backgroundColor: scheme.primary,
+        foregroundColor: scheme.onPrimary,
+        minimumSize: const Size(64, 48),
+        shape: const StadiumBorder(),
+        textStyle: const TextStyle(fontWeight: FontWeight.w600),
+      ),
+    ),
+    // Les filtres deviennent les gélules d'iOS.
+    chipTheme: const ChipThemeData(shape: StadiumBorder()),
+  );
+}
+
 /// Le thème rétro Winamp (idée #82) : le châssis gris métal des lecteurs de
 /// 1999, ses biseaux, son afficheur vert sur noir.
 ///
@@ -331,13 +454,15 @@ ThemeData _winamp() {
 ThemeData gullifyThemeFor(GullifyAccent accent, {required bool dark}) =>
     dark ? _darkGlass(accent.color) : _lightGlass(accent.color);
 
-/// Le thème à appliquer : le verre teinté par l'accent, ou le rétro Winamp
-/// (qui ignore accent et mode — il n'a qu'une seule tête).
+/// Le thème à appliquer : le verre teinté par l'accent, le Liquid Glass
+/// d'Apple (même accent, même clair/sombre, autre matière — idée #98), ou le
+/// rétro Winamp (qui ignore accent et mode — il n'a qu'une seule tête).
 ThemeData gullifyTheme(
   GullifySkin skin,
   GullifyAccent accent, {
   required bool dark,
 }) => switch (skin) {
   GullifySkin.winamp => _winamp(),
+  GullifySkin.apple => _appleGlass(accent.color, dark: dark),
   GullifySkin.glass => gullifyThemeFor(accent, dark: dark),
 };

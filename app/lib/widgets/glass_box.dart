@@ -3,6 +3,7 @@ import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
 
 import '../theme.dart';
+import 'liquid_glass.dart';
 import 'retro_chrome.dart';
 
 /// Carte « liquid glass » : flou + saturation du contenu dessous, fond
@@ -40,6 +41,13 @@ class GlassBox extends StatelessWidget {
         gradient: winampChrome,
         child: ClipRect(child: child),
       );
+    }
+
+    // Apple Liquid Glass (idée #98) : la même boîte, mais une autre vitre —
+    // plus fine, ravivée, cerclée de lumière et en superellipse. Elle se
+    // peint dans liquid_glass.dart ; ici on ne fait que l'aiguiller.
+    if (surfaces?.liquid ?? false) {
+      return LiquidGlass(radius: radius, blur: blur, child: child);
     }
 
     final background = light
