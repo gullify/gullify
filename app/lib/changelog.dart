@@ -8,6 +8,17 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.27.0', [
+    'Les paroles ne sont plus tranchées par des « … » : une phrase trop '
+        'longue s\'étale d\'abord sur DEUX LIGNES, et ne rétrécit que si deux '
+        'lignes ne suffisent toujours pas',
+    'La place réservée à chaque phrase suit sa vraie hauteur : les phrases à '
+        'deux lignes ne se marchent plus dessus et le défilement tombe pile '
+        'sur la phrase chantée',
+    'La mesure tient compte de la largeur de la feuille et de la taille de '
+        'texte réglée dans le téléphone : à l\'horizontale ou en gros '
+        'caractères, chaque phrase reste entière',
+  ]),
   ReleaseNote('3.26.0', [
     'Le thème « Apple Liquid Glass » se voit enfin : il repeint aussi le FOND '
         'D\'ÉCRAN. De grands halos colorés, tirés de ta couleur d\'accent, '

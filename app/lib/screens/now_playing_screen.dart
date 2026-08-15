@@ -7,12 +7,11 @@ import 'package:go_router/go_router.dart';
 
 import '../models/song.dart';
 import '../state/favorites.dart';
-import '../state/karaoke.dart';
-import '../state/library.dart';
 import '../state/player.dart';
 import '../state/sleep_timer.dart';
 import '../widgets/artwork.dart';
 import '../widgets/chords_sheet.dart';
+import '../widgets/lyrics_sheet.dart';
 import '../widgets/retro_chrome.dart';
 import '../widgets/retro_lcd.dart';
 import '../widgets/share_sheet.dart';
@@ -293,7 +292,10 @@ class NowPlayingScreen extends ConsumerWidget {
                             IconButton(
                               icon: const Icon(Icons.lyrics_outlined),
                               tooltip: 'Paroles',
-                              onPressed: () => _showLyrics(context, ref, item),
+                              onPressed: () => showLyricsSheet(
+                                context,
+                                item.extras?['filePath'] as String?,
+                              ),
                             ),
                           ),
                         if (!isRadio)
@@ -730,224 +732,6 @@ class _Waveform extends ConsumerWidget {
           ],
         ),
       ],
-    );
-  }
-}
-
-void _showLyrics(BuildContext context, WidgetRef ref, MediaItem item) {
-  final filePath = item.extras?['filePath'] as String?;
-  showModalBottomSheet(
-    context: context,
-    useRootNavigator: true,
-    isScrollControlled: true,
-    builder: (context) => DraggableScrollableSheet(
-      expand: false,
-      initialChildSize: 0.7,
-      builder: (context, controller) => Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 8, 0),
-            child: Row(
-              children: [
-                Text(
-                  'Paroles',
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const Spacer(),
-                _KaraokeButton(filePath: filePath),
-              ],
-            ),
-          ),
-          Expanded(
-            child: filePath == null
-                ? const Center(child: Text('Paroles indisponibles'))
-                : Consumer(
-                    builder: (context, ref, _) {
-                      final lyrics = ref.watch(lyricsProvider(filePath));
-                      return lyrics.when(
-                        loading: () =>
-                            const Center(child: CircularProgressIndicator()),
-                        error: (e, _) => Center(child: Text('Erreur: $e')),
-                        data: (text) => text == null
-                            ? const Center(child: Text('Aucunes paroles trouvées'))
-                            : _LyricsView(text: text, controller: controller),
-                      );
-                    },
-                  ),
-          ),
-        ],
-      ),
-    ),
-  );
-}
-
-/// Bouton « micro barré » des paroles (idée #63) : bascule le lecteur sur la
-/// version voix atténuée du titre, préparée par le serveur. Il attend que le
-/// rendu soit prêt avant de basculer — sinon on entendrait la version
-/// d'origine en croyant le mode actif — et dit pourquoi quand un titre ne s'y
-/// prête pas (mixage trop centré : il n'y a pas de voix à retirer sans
-/// effacer le reste).
-class _KaraokeButton extends ConsumerWidget {
-  const _KaraokeButton({required this.filePath});
-
-  final String? filePath;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final karaoke = ref.watch(karaokeProvider);
-    final scheme = Theme.of(context).colorScheme;
-
-    ref.listen(karaokeProvider, (previous, next) {
-      if (next.phase == KaraokePhase.unavailable &&
-          previous?.phase != KaraokePhase.unavailable) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(KaraokeNotifier.explain(next.reason))),
-        );
-      }
-    });
-
-    final accent = karaoke.active ? scheme.primary : null;
-    return TextButton.icon(
-      onPressed: filePath == null || karaoke.busy
-          ? null
-          : () => ref.read(karaokeProvider.notifier).toggle(filePath),
-      icon: karaoke.busy
-          ? const SizedBox(
-              width: 16,
-              height: 16,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            )
-          : Icon(Icons.mic_off, color: accent),
-      label: Text(
-        karaoke.busy ? 'Préparation…' : 'Karaoké',
-        style: TextStyle(
-          color: accent,
-          fontWeight: karaoke.active ? FontWeight.w700 : null,
-        ),
-      ),
-    );
-  }
-}
-
-class _LrcLine {
-  const _LrcLine(this.time, this.text);
-
-  final Duration time;
-  final String text;
-}
-
-/// Paroles : défilement synchronisé si le texte est au format LRC
-/// (`[mm:ss.xx] ligne`), sinon affichage statique.
-class _LyricsView extends ConsumerStatefulWidget {
-  const _LyricsView({required this.text, required this.controller});
-
-  final String text;
-  final ScrollController controller;
-
-  @override
-  ConsumerState<_LyricsView> createState() => _LyricsViewState();
-}
-
-class _LyricsViewState extends ConsumerState<_LyricsView> {
-  static final _lrcPattern = RegExp(r'\[(\d+):(\d+(?:\.\d+)?)\]\s*(.*)');
-  static const _lineExtent = 44.0;
-
-  late final List<_LrcLine> _lines = _parse(widget.text);
-  int _lastIndex = -1;
-
-  List<_LrcLine> _parse(String text) {
-    final lines = <_LrcLine>[];
-    for (final raw in text.split('\n')) {
-      final m = _lrcPattern.firstMatch(raw.trim());
-      if (m == null) continue;
-      final content = m.group(3)!.trim();
-      if (content.isEmpty) continue;
-      lines.add(
-        _LrcLine(
-          Duration(
-            minutes: int.parse(m.group(1)!),
-            milliseconds: (double.parse(m.group(2)!) * 1000).round(),
-          ),
-          content,
-        ),
-      );
-    }
-    lines.sort((a, b) => a.time.compareTo(b.time));
-    return lines;
-  }
-
-  int _indexFor(Duration position) {
-    var index = -1;
-    for (var i = 0; i < _lines.length; i++) {
-      if (_lines[i].time <= position) {
-        index = i;
-      } else {
-        break;
-      }
-    }
-    return index;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    // Moins de 4 lignes horodatées : traite comme des paroles simples.
-    if (_lines.length < 4) {
-      return SingleChildScrollView(
-        controller: widget.controller,
-        padding: const EdgeInsets.all(24),
-        child: Text(
-          widget.text,
-          style: const TextStyle(fontSize: 16, height: 1.6),
-        ),
-      );
-    }
-
-    final scheme = Theme.of(context).colorScheme;
-    final position = ref.watch(positionProvider).value ?? Duration.zero;
-    final current = _indexFor(position);
-
-    if (current != _lastIndex && widget.controller.hasClients) {
-      _lastIndex = current;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!widget.controller.hasClients) return;
-        final viewport = widget.controller.position.viewportDimension;
-        final target = (current * _lineExtent - viewport / 2 + _lineExtent)
-            .clamp(0.0, widget.controller.position.maxScrollExtent);
-        widget.controller.animateTo(
-          target,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOut,
-        );
-      });
-    }
-
-    return ListView.builder(
-      controller: widget.controller,
-      itemExtent: _lineExtent,
-      padding: const EdgeInsets.symmetric(vertical: 120, horizontal: 24),
-      itemCount: _lines.length,
-      itemBuilder: (context, i) {
-        final isCurrent = i == current;
-        return InkWell(
-          onTap: () => ref.read(playerActionsProvider).seek(_lines[i].time),
-          child: Center(
-            child: Text(
-              _lines[i].text,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: isCurrent ? 18 : 15,
-                height: 1.3,
-                fontWeight: isCurrent ? FontWeight.w700 : FontWeight.w400,
-                color: isCurrent ? scheme.primary : scheme.onSurfaceVariant,
-              ),
-            ),
-          ),
-        );
-      },
     );
   }
 }
