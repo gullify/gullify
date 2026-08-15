@@ -13,6 +13,10 @@ import '../widgets/mascot_empty.dart';
 /// Onglet « Radio » : liste des web radios (lecture au tap, favoris),
 /// ajout / édition / suppression des stations personnalisées, et mode de
 /// sélection multiple pour supprimer plusieurs stations d'un coup.
+///
+/// La liste appartient à chacun : ce qu'on y supprime ne revient pas, même
+/// pour une station du catalogue public — et ce catalogue peut être éteint
+/// pour ne garder que ses propres stations (idée #96).
 class RadioScreen extends ConsumerStatefulWidget {
   const RadioScreen({super.key});
 
@@ -35,13 +39,25 @@ class _RadioScreenState extends ConsumerState<RadioScreen> {
         _selected.contains(id) ? _selected.remove(id) : _selected.add(id);
       });
 
+  /// Tout cocher — ou tout décocher si la liste affichée l'est déjà. Porte sur
+  /// ce qui est visible : filtrer par genre puis « tout sélectionner » est la
+  /// façon rapide d'épurer.
+  void _toggleAll(List<RadioStation> visible) => setState(() {
+        final ids = visible.map((s) => s.id);
+        if (ids.every(_selected.contains)) {
+          _selected.removeAll(ids);
+        } else {
+          _selected.addAll(ids);
+        }
+      });
+
   Future<void> _deleteSelected() async {
     final ids = _selected.toList();
     final messenger = ScaffoldMessenger.of(context);
     final ok = await _confirm(
       'Supprimer ${ids.length} station${ids.length > 1 ? 's' : ''} ?',
-      'Les stations personnalisées sont supprimées, celles du catalogue '
-          'sont masquées.',
+      'Elles quittent ta liste pour de bon. Celles du catalogue public se '
+          'récupèrent avec « Restaurer les stations supprimées ».',
     );
     if (ok != true) return;
     try {
@@ -53,11 +69,38 @@ class _RadioScreenState extends ConsumerState<RadioScreen> {
     }
   }
 
+  /// Copie les stations du catalogue sélectionnées dans la liste personnelle,
+  /// pour qu'elles restent quand le catalogue public s'éteint.
+  Future<void> _adopt(List<String> ids) async {
+    if (ids.isEmpty) return;
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final n = await ref.read(radioRepositoryProvider).adopt(ids);
+      ref.invalidate(radioStationsProvider);
+      if (_selecting) _exitSelection();
+      messenger.showSnackBar(SnackBar(
+        content: Text(n > 1
+            ? '$n stations copiées dans ta liste'
+            : '$n station copiée dans ta liste'),
+      ));
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('Échec : $e')));
+    }
+  }
+
+  void _adoptSelected() =>
+      _adopt(_selected.where((id) => !id.startsWith('custom:')).toList());
+
+  void _adoptOne(RadioStation s) => _adopt([s.id]);
+
   Future<void> _deleteOne(RadioStation s) async {
     final messenger = ScaffoldMessenger.of(context);
     final ok = await _confirm(
       'Supprimer « ${s.name} » ?',
-      s.isCustom ? null : 'Station du catalogue : elle sera masquée.',
+      s.isCustom
+          ? null
+          : 'Elle quitte ta liste. Le catalogue public la garde pour les '
+              'autres — « Restaurer les stations supprimées » la ramène.',
     );
     if (ok != true) return;
     try {
@@ -86,6 +129,113 @@ class _RadioScreenState extends ConsumerState<RadioScreen> {
         ),
       );
 
+  /// Allume / éteint le catalogue public. En l'éteignant, on propose d'abord
+  /// de recopier ses favoris pour ne pas les perdre au passage.
+  Future<void> _setCatalog(bool enabled) async {
+    final repo = ref.read(radioRepositoryProvider);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      if (!enabled) {
+        final favs = [
+          for (final s in ref.read(radioStationsProvider).value ??
+              const <RadioStation>[])
+            if (!s.isCustom && s.favorite) s.id,
+        ];
+        if (favs.isNotEmpty) {
+          final keep = await showDialog<bool>(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text('Garder tes favoris ?'),
+              content: Text(
+                '${favs.length} station${favs.length > 1 ? 's' : ''} du '
+                'catalogue ${favs.length > 1 ? 'sont' : 'est'} dans tes '
+                'favoris. On peut ${favs.length > 1 ? 'les' : 'la'} copier '
+                'dans ta liste avant de fermer le catalogue.',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: const Text('Sans copier'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  child: const Text('Les copier'),
+                ),
+              ],
+            ),
+          );
+          if (keep == null) return; // fermé sans choisir
+          if (keep) await repo.adopt(favs);
+        }
+      }
+      await repo.setCatalogEnabled(enabled);
+      ref.invalidate(radioStationsProvider);
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('Échec : $e')));
+    }
+  }
+
+  Future<void> _restoreDeleted() async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await ref.read(radioRepositoryProvider).restoreDeleted();
+      ref.invalidate(radioStationsProvider);
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Stations supprimées restaurées')),
+      );
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('Échec : $e')));
+    }
+  }
+
+  /// Menu « … » : réglages de la liste plutôt que d'une station.
+  void _listMenu() {
+    final repo = ref.read(radioRepositoryProvider);
+    showModalBottomSheet<void>(
+      context: context,
+      useRootNavigator: true,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            FutureBuilder<bool>(
+              future: repo.catalogEnabled(),
+              builder: (context, snap) {
+                final on = snap.data ?? true;
+                return SwitchListTile(
+                  secondary: const Icon(Icons.public),
+                  title: const Text('Catalogue public'),
+                  subtitle: const Text(
+                    'Les radios proposées à tout le monde. Éteins-le pour ne '
+                    'garder que tes stations.',
+                  ),
+                  value: on,
+                  onChanged: snap.connectionState == ConnectionState.waiting
+                      ? null
+                      : (v) {
+                          Navigator.pop(sheetContext);
+                          _setCatalog(v);
+                        },
+                );
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.restore_from_trash_outlined),
+              title: const Text('Restaurer les stations supprimées'),
+              subtitle: const Text(
+                'Ramène les stations du catalogue que tu as supprimées.',
+              ),
+              onTap: () {
+                Navigator.pop(sheetContext);
+                _restoreDeleted();
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   void _rowMenu(RadioStation s) {
     showModalBottomSheet<void>(
       context: context,
@@ -103,9 +253,21 @@ class _RadioScreenState extends ConsumerState<RadioScreen> {
                   context.push('/radio/edit', extra: s);
                 },
               ),
+            if (!s.isCustom)
+              ListTile(
+                leading: const Icon(Icons.library_add_outlined),
+                title: const Text('Copier dans ma liste'),
+                subtitle: const Text(
+                  'Elle devient tienne : elle reste même sans le catalogue.',
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  _adoptOne(s);
+                },
+              ),
             ListTile(
               leading: const Icon(Icons.delete_outline),
-              title: Text(s.isCustom ? 'Supprimer' : 'Masquer'),
+              title: const Text('Supprimer'),
               onTap: () {
                 Navigator.pop(context);
                 _deleteOne(s);
@@ -115,6 +277,22 @@ class _RadioScreenState extends ConsumerState<RadioScreen> {
         ),
       ),
     );
+  }
+
+  /// Recherche + filtre de genre appliqués, favoris en tête puis par nom.
+  List<RadioStation> _visible(List<RadioStation> list) {
+    final q = _search.trim().toLowerCase();
+    final out = list.where((s) {
+      final matchName = q.isEmpty || s.name.toLowerCase().contains(q);
+      final matchGenre = _genre == null ||
+          s.genres.any((g) => g.toLowerCase() == _genre!.toLowerCase());
+      return matchName && matchGenre;
+    }).toList();
+    out.sort((a, b) {
+      if (a.favorite != b.favorite) return a.favorite ? -1 : 1;
+      return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+    });
+    return out;
   }
 
   @override
@@ -129,12 +307,35 @@ class _RadioScreenState extends ConsumerState<RadioScreen> {
     }.toList()
       ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
 
+    // Ce que la recherche et le filtre laissent voir : c'est là-dessus que
+    // « tout sélectionner » travaille.
+    final visible = _visible(stations.value ?? const []);
+    final allPicked =
+        visible.isNotEmpty && visible.every((s) => _selected.contains(s.id));
+    final canAdopt = _selected.any((id) => !id.startsWith('custom:'));
+
     return Scaffold(
       floatingActionButton: _selecting && _selected.isNotEmpty
-          ? FloatingActionButton.extended(
-              onPressed: _deleteSelected,
-              icon: const Icon(Icons.delete),
-              label: Text('Supprimer (${_selected.length})'),
+          ? Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                if (canAdopt) ...[
+                  FloatingActionButton.small(
+                    heroTag: 'radio-adopt',
+                    tooltip: 'Copier dans ma liste',
+                    onPressed: _adoptSelected,
+                    child: const Icon(Icons.library_add_outlined),
+                  ),
+                  const SizedBox(height: 10),
+                ],
+                FloatingActionButton.extended(
+                  heroTag: 'radio-delete',
+                  onPressed: _deleteSelected,
+                  icon: const Icon(Icons.delete),
+                  label: Text('Supprimer (${_selected.length})'),
+                ),
+              ],
             )
           : null,
       body: SafeArea(
@@ -166,14 +367,27 @@ class _RadioScreenState extends ConsumerState<RadioScreen> {
                         ),
                       ),
                     ),
-                    if (_selecting)
+                    if (_selecting) ...[
+                      GlassIconButton(
+                        icon: allPicked
+                            ? Icons.deselect_rounded
+                            : Icons.select_all_rounded,
+                        tooltip: allPicked
+                            ? 'Tout désélectionner'
+                            : 'Tout sélectionner',
+                        size: 42,
+                        onPressed: visible.isEmpty
+                            ? null
+                            : () => _toggleAll(visible),
+                      ),
+                      const SizedBox(width: 8),
                       GlassIconButton(
                         icon: Icons.close,
                         tooltip: 'Terminer',
                         size: 42,
                         onPressed: _exitSelection,
-                      )
-                    else ...[
+                      ),
+                    ] else ...[
                       GlassIconButton(
                         icon: Icons.checklist_rounded,
                         tooltip: 'Sélectionner',
@@ -186,6 +400,13 @@ class _RadioScreenState extends ConsumerState<RadioScreen> {
                         tooltip: 'Ajouter une radio',
                         size: 42,
                         onPressed: () => context.push('/radio/edit'),
+                      ),
+                      const SizedBox(width: 8),
+                      GlassIconButton(
+                        icon: Icons.more_horiz,
+                        tooltip: 'Réglages de la liste',
+                        size: 42,
+                        onPressed: _listMenu,
                       ),
                     ],
                   ],
@@ -290,16 +511,7 @@ class _RadioScreenState extends ConsumerState<RadioScreen> {
                       ),
                     ];
                   }
-                  final q = _search.trim().toLowerCase();
-                  final filtered = list.where((s) {
-                    final matchName =
-                        q.isEmpty || s.name.toLowerCase().contains(q);
-                    final matchGenre = _genre == null ||
-                        s.genres.any((g) =>
-                            g.toLowerCase() == _genre!.toLowerCase());
-                    return matchName && matchGenre;
-                  }).toList();
-                  if (filtered.isEmpty) {
+                  if (visible.isEmpty) {
                     return const [
                       Padding(
                         padding: EdgeInsets.all(24),
@@ -307,17 +519,8 @@ class _RadioScreenState extends ConsumerState<RadioScreen> {
                       ),
                     ];
                   }
-                  final sorted = [...filtered]
-                    ..sort((a, b) {
-                      if (a.favorite != b.favorite) {
-                        return a.favorite ? -1 : 1;
-                      }
-                      return a.name
-                          .toLowerCase()
-                          .compareTo(b.name.toLowerCase());
-                    });
                   return [
-                    for (final s in sorted)
+                    for (final s in visible)
                       _StationRow(
                         station: s,
                         currentId: currentId,

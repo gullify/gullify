@@ -8,6 +8,20 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.23.0', [
+    'La liste de radios est la tienne : ce que tu y supprimes s\'en va pour '
+        'de bon, station du catalogue public comprise. Ta liste n\'est plus '
+        'celle de tout le monde',
+    'Pour épurer vite : « Sélectionner », puis « Tout sélectionner » — qui ne '
+        'prend que ce qui est affiché. Filtre par genre ou cherche un mot, et '
+        'tout ce lot part d\'un seul geste',
+    'Le catalogue public s\'éteint dans le menu « … » : il ne reste alors que '
+        'tes stations. Tes favoris peuvent être recopiés dans ta liste avant '
+        'la fermeture, et « Copier dans ma liste » fait de même pour '
+        'n\'importe quelle station du catalogue',
+    'Rien n\'est perdu : « Restaurer les stations supprimées » ramène tout le '
+        'catalogue, et le rallumer se fait au même endroit',
+  ]),
   ReleaseNote('3.22.0', [
     'L\'accueil ne dit plus bonjour : la mouette et le nom « Gullify » '
         'prennent toute la place en haut de l\'écran',

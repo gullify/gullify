@@ -2448,6 +2448,8 @@
                 const sortedGenres = Object.entries(genres).sort((a, b) => b[1].length - a[1].length);
 
                 const favCount = webRadioStations.filter(s => s.favorite).length;
+                // « Ma liste » : le catalogue public peut être éteint (idée #96)
+                const catalogOn = result.data.catalog_enabled !== false;
                 let html = `
                     <div class="web-radio-container ${radioManageMode ? 'radio-manage-mode' : ''}" id="radioContainer">
                         <div class="web-radio-toolbar">
@@ -2459,6 +2461,14 @@
                             </button>
                             <button class="btn btn-secondary btn-sm" id="radioManageBtn" onclick="toggleRadioManage()">
                                 <i class="ri-checkbox-multiple-line"></i> ${radioManageMode ? 'Annuler' : 'Gérer'}
+                            </button>
+                            <button class="btn btn-secondary btn-sm" id="radioCatalogBtn" data-on="${catalogOn ? '1' : '0'}"
+                                    title="Le catalogue public rassemble les radios proposées à tout le monde. Éteins-le pour ne garder que tes stations."
+                                    onclick="toggleRadioCatalog()">
+                                <i class="ri-global-line"></i> Catalogue public : ${catalogOn ? 'oui' : 'non'}
+                            </button>
+                            <button class="btn btn-secondary btn-sm" title="Ramène les stations du catalogue que tu as supprimées" onclick="restoreRadioDeleted()">
+                                <i class="ri-arrow-go-back-line"></i> Restaurer
                             </button>
                             <button class="chip ${radioFavOnly ? 'active' : ''}" id="radioFavChip" onclick="toggleRadioFavFilter()" style="margin-left:auto;">
                                 <i class="ri-heart-${radioFavOnly ? 'fill' : 'line'}"></i> Favoris (${favCount})
@@ -2500,8 +2510,15 @@
 
                         <div class="radio-manage-bar" id="radioManageBar">
                             <span class="count" id="radioSelCount">0 sélectionnée(s)</span>
+                            <button class="btn btn-secondary btn-sm" id="radioSelectAllBtn" onclick="toggleRadioSelectAll()">
+                                <i class="ri-checkbox-multiple-line"></i> Tout sélectionner
+                            </button>
+                            <button class="btn btn-secondary btn-sm" id="radioBulkAdoptBtn" onclick="bulkAdoptRadios()" disabled
+                                    title="Copie les stations du catalogue dans ta liste : elles resteront même sans le catalogue">
+                                <i class="ri-add-box-line"></i> Copier dans ma liste
+                            </button>
                             <button class="btn btn-danger btn-sm" id="radioBulkDelBtn" onclick="bulkRemoveRadios()" disabled>
-                                <i class="ri-delete-bin-line"></i> Supprimer / Masquer
+                                <i class="ri-delete-bin-line"></i> Supprimer
                             </button>
                             <button class="btn btn-secondary btn-sm" onclick="toggleRadioManage()">
                                 <i class="ri-close-line"></i> Terminer
@@ -2747,6 +2764,8 @@
             if (infoEl) {
                 infoEl.textContent = `${visibleCount} ${t('radio.station','station')}${visibleCount > 1 ? 's' : ''}`;
             }
+            // « Tout sélectionner » suit ce qui reste visible
+            updateRadioManageBar();
         }
 
         // ── Radio: management actions ────────────────────────────────────────
@@ -2791,7 +2810,99 @@
             if (cEl) cEl.textContent = `${n} sélectionnée${n > 1 ? 's' : ''}`;
             const del = document.getElementById('radioBulkDelBtn');
             if (del) del.disabled = n === 0;
+            // Copier n'a de sens que pour les stations du catalogue
+            const adopt = document.getElementById('radioBulkAdoptBtn');
+            if (adopt) {
+                adopt.disabled = !Array.from(radioSelected).some(s => !s.startsWith('custom:'));
+            }
+            const all = document.getElementById('radioSelectAllBtn');
+            if (all) {
+                const visible = visibleRadioCards();
+                const everyPicked = visible.length > 0
+                    && visible.every(c => radioSelected.has(c.dataset.stationId));
+                all.innerHTML = `<i class="ri-checkbox-multiple-line"></i> ${everyPicked ? 'Tout désélectionner' : 'Tout sélectionner'}`;
+            }
         }
+
+        /** Les cartes que la recherche, le genre et le dossier laissent voir. */
+        function visibleRadioCards() {
+            return Array.from(document.querySelectorAll('.radio-station-card'))
+                .filter(c => c.style.display !== 'none');
+        }
+
+        /**
+         * Tout cocher — ou tout décocher si c'est déjà fait. Porte sur ce qui
+         * est visible : filtrer puis « tout sélectionner » est la façon rapide
+         * d'épurer une liste de plusieurs centaines de stations (idée #96).
+         */
+        function toggleRadioSelectAll() {
+            const visible = visibleRadioCards();
+            if (!visible.length) return;
+            const everyPicked = visible.every(c => radioSelected.has(c.dataset.stationId));
+            visible.forEach(card => {
+                const sid = card.dataset.stationId;
+                if (everyPicked) {
+                    radioSelected.delete(sid);
+                    card.classList.remove('selected');
+                } else {
+                    radioSelected.add(sid);
+                    card.classList.add('selected');
+                }
+            });
+            updateRadioManageBar();
+        }
+        window.toggleRadioSelectAll = toggleRadioSelectAll;
+
+        /** Copie les stations du catalogue sélectionnées dans la liste perso. */
+        async function bulkAdoptRadios() {
+            const ids = Array.from(radioSelected).filter(s => !s.startsWith('custom:'));
+            if (!ids.length) return;
+            try {
+                const r = await fetch(`${RADIO_API()}?action=adopt`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ station_ids: ids }),
+                });
+                const j = await r.json();
+                if (!j.success) { showToast(j.error || 'Erreur', 'error'); return; }
+                showToast(`${j.copied} station(s) copiée(s) dans ta liste`, 'success');
+                radioSelected.clear();
+                radioManageMode = false;
+                renderWebRadio();
+            } catch (e) { showToast('Erreur : ' + e.message, 'error'); }
+        }
+        window.bulkAdoptRadios = bulkAdoptRadios;
+
+        /** Allume / éteint le catalogue public pour cet utilisateur. */
+        async function toggleRadioCatalog() {
+            const btn = document.getElementById('radioCatalogBtn');
+            const on = !btn || btn.dataset.on !== '0';
+            if (on && !confirm('Fermer le catalogue public ? Il ne restera que tes propres stations. Tu pourras le rouvrir quand tu veux.')) return;
+            try {
+                const r = await fetch(`${RADIO_API()}?action=set_catalog`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ enabled: !on }),
+                });
+                const j = await r.json();
+                if (!j.success) { showToast(j.error || 'Erreur', 'error'); return; }
+                renderWebRadio();
+            } catch (e) { showToast('Erreur : ' + e.message, 'error'); }
+        }
+        window.toggleRadioCatalog = toggleRadioCatalog;
+
+        /** Ramène les stations du catalogue supprimées. */
+        async function restoreRadioDeleted() {
+            if (!confirm('Ramener toutes les stations du catalogue que tu as supprimées ?')) return;
+            try {
+                const r = await fetch(`${RADIO_API()}?action=unhide_all`, { method: 'POST' });
+                const j = await r.json();
+                if (!j.success) { showToast(j.error || 'Erreur', 'error'); return; }
+                showToast(`${j.restored} station(s) restaurée(s)`, 'success');
+                renderWebRadio();
+            } catch (e) { showToast('Erreur : ' + e.message, 'error'); }
+        }
+        window.restoreRadioDeleted = restoreRadioDeleted;
 
         async function toggleRadioFavorite(stationId) {
             try {
@@ -2826,9 +2937,8 @@
         async function bulkRemoveRadios() {
             if (radioSelected.size === 0) return;
             const ids = Array.from(radioSelected);
-            const customN  = ids.filter(s => s.startsWith('custom:')).length;
-            const catalogN = ids.length - customN;
-            const msg = `Supprimer ${customN} station(s) personnalisée(s) et masquer ${catalogN} station(s) du catalogue ?`;
+            const msg = `Supprimer ${ids.length} station(s) de ta liste ? `
+                + `Celles du catalogue public se récupèrent avec « Restaurer ».`;
             if (!confirm(msg)) return;
             try {
                 const r = await fetch(`${RADIO_API()}?action=remove_bulk`, {
@@ -2838,7 +2948,7 @@
                 });
                 const j = await r.json();
                 if (!j.success) { showToast(j.error || 'Erreur', 'error'); return; }
-                showToast(`${j.deleted} supprimée(s), ${j.hidden} masquée(s)`, 'success');
+                showToast(`${j.deleted + j.hidden} station(s) supprimée(s)`, 'success');
                 radioSelected.clear();
                 radioManageMode = false;
                 renderWebRadio();

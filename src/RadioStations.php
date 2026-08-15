@@ -73,6 +73,16 @@ class RadioStations
             try { $db->exec("ALTER TABLE radio_user_state ADD COLUMN folder_id INT UNSIGNED NULL"); } catch (\Throwable $e) {}
             try { $db->exec("ALTER TABLE radio_user_state ADD INDEX idx_state_folder (user, folder_id)"); } catch (\Throwable $e) {}
 
+            // Per-user preferences. `catalog_enabled = 0` means "je ne veux
+            // que MA liste" : the shared Radio Browser catalog is dropped
+            // entirely for this user (idée #96).
+            $db->exec("
+                CREATE TABLE IF NOT EXISTS radio_user_prefs (
+                    user VARCHAR(100) NOT NULL PRIMARY KEY,
+                    catalog_enabled TINYINT(1) NOT NULL DEFAULT 1
+                )
+            ");
+
             $db->exec("
                 CREATE TABLE IF NOT EXISTS radio_folders (
                     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -144,6 +154,85 @@ class RadioStations
             ];
         }
         return $out;
+    }
+
+    // ── Per-user preferences ─────────────────────────────────────────────
+    /** True when the shared Radio Browser catalog should be merged in. */
+    public static function catalogEnabled(string $user): bool
+    {
+        self::ensureTables();
+        try {
+            $db = AppConfig::getDB();
+            $stmt = $db->prepare("SELECT catalog_enabled FROM radio_user_prefs WHERE user = ?");
+            $stmt->execute([$user]);
+            $v = $stmt->fetchColumn();
+            // No row = never touched the setting = catalog on (historical behaviour)
+            return $v === false ? true : (bool)(int)$v;
+        } catch (\Throwable $e) {
+            return true;
+        }
+    }
+
+    public static function setCatalogEnabled(string $user, bool $enabled): void
+    {
+        self::ensureTables();
+        $db = AppConfig::getDB();
+        $stmt = $db->prepare("
+            INSERT INTO radio_user_prefs (user, catalog_enabled) VALUES (?, ?)
+            ON DUPLICATE KEY UPDATE catalog_enabled = VALUES(catalog_enabled)
+        ");
+        $stmt->execute([$user, $enabled ? 1 : 0]);
+    }
+
+    /**
+     * Copy catalog stations into the user's own list, so they survive the
+     * catalog being turned off. The rows arrive already shaped like the
+     * Radio Browser format (see web-radio.php) — no stream resolution here,
+     * their URL is the one Radio Browser already resolved.
+     *
+     * Returns a map of catalog station id => new "custom:N" id, so the caller
+     * can carry the favorite flag and the folder over to the copy.
+     */
+    public static function adoptCatalog(string $user, array $stations): array
+    {
+        self::ensureTables();
+        if (!$stations) return [];
+        $db = AppConfig::getDB();
+        $stmt = $db->prepare("
+            INSERT INTO radio_custom_stations
+                (user, name, stream_url, original_url, logo, homepage, genres, country, language, bitrate, format, is_playlist)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+        ");
+        // Don't create a duplicate of a station the user already owns.
+        $known = $db->prepare("SELECT id FROM radio_custom_stations WHERE user = ? AND stream_url = ? LIMIT 1");
+        $map = [];
+        foreach ($stations as $s) {
+            $stream = $s['streams'][0] ?? null;
+            $url    = trim((string)($stream['url'] ?? ''));
+            $name   = trim((string)($s['name'] ?? ''));
+            $oldId  = (string)($s['id'] ?? '');
+            if ($name === '' || $url === '' || $oldId === '') continue;
+            $known->execute([$user, $url]);
+            if ($existing = $known->fetchColumn()) {
+                $map[$oldId] = 'custom:' . (int)$existing;
+                continue;
+            }
+            $stmt->execute([
+                $user,
+                mb_substr($name, 0, 200),
+                $url,
+                $url,
+                ($s['logo']    ?? null) ?: null,
+                ($s['website'] ?? null) ?: null,
+                implode(',', array_map('strval', $s['genres'] ?? [])) ?: null,
+                ($s['country']  ?? null) ?: null,
+                ($s['language'] ?? null) ?: null,
+                (int)($stream['bitrate'] ?? 0) ?: null,
+                $stream['format'] ?? null,
+            ]);
+            $map[$oldId] = 'custom:' . (int)$db->lastInsertId();
+        }
+        return $map;
     }
 
     // ── Folders ──────────────────────────────────────────────────────────
@@ -398,20 +487,55 @@ class RadioStations
         ];
     }
 
+    /**
+     * Set a flag on many stations at once. Written as chunked multi-row
+     * upserts: épurer un catalogue de 1200 stations d'un coup ne doit pas
+     * coûter 1200 allers-retours SQL (idée #96).
+     */
     public static function setFlagBulk(string $user, array $stationIds, string $flag, int $value): int
     {
         self::ensureTables();
         if (!in_array($flag, ['is_favorite', 'is_hidden'], true)) return 0;
-        if (!$stationIds) return 0;
+        $ids = array_values(array_unique(array_filter(array_map('strval', $stationIds), fn($s) => $s !== '')));
+        if (!$ids) return 0;
         $db = AppConfig::getDB();
         $n = 0;
-        foreach ($stationIds as $sid) {
+        foreach (array_chunk($ids, 200) as $chunk) {
+            $values = implode(', ', array_fill(0, count($chunk), '(?, ?, ?)'));
             $stmt = $db->prepare("
-                INSERT INTO radio_user_state (user, station_id, $flag) VALUES (?, ?, ?)
+                INSERT INTO radio_user_state (user, station_id, $flag) VALUES $values
                 ON DUPLICATE KEY UPDATE $flag = VALUES($flag)
             ");
-            $stmt->execute([$user, (string)$sid, (int)$value]);
-            $n++;
+            $params = [];
+            foreach ($chunk as $sid) {
+                $params[] = $user;
+                $params[] = $sid;
+                $params[] = (int)$value;
+            }
+            $stmt->execute($params);
+            $n += count($chunk);
+        }
+        return $n;
+    }
+
+    /** Delete several custom stations at once. Returns how many were removed. */
+    public static function removeCustomBulk(string $user, array $ids): int
+    {
+        self::ensureTables();
+        $ids = array_values(array_unique(array_map('intval', $ids)));
+        $ids = array_values(array_filter($ids, fn($i) => $i > 0));
+        if (!$ids) return 0;
+        $db = AppConfig::getDB();
+        $n = 0;
+        foreach (array_chunk($ids, 200) as $chunk) {
+            $marks = implode(',', array_fill(0, count($chunk), '?'));
+            $stmt = $db->prepare("DELETE FROM radio_custom_stations WHERE user = ? AND id IN ($marks)");
+            $stmt->execute(array_merge([$user], $chunk));
+            $n += $stmt->rowCount();
+            // Drop the state rows tied to those custom stations
+            $sids = array_map(fn($i) => 'custom:' . $i, $chunk);
+            $stmt = $db->prepare("DELETE FROM radio_user_state WHERE user = ? AND station_id IN ($marks)");
+            $stmt->execute(array_merge([$user], $sids));
         }
         return $n;
     }

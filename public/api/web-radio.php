@@ -236,6 +236,12 @@ function decorateAndMerge(array $catalog, string $user): array {
     $custom = RadioStations::listCustom($user);
     $state  = RadioStations::getState($user);
 
+    // « Ma liste » : le catalogue public partagé est retiré pour cet
+    // utilisateur, il ne reste que ses propres stations (idée #96).
+    $catalogEnabled = RadioStations::catalogEnabled($user);
+    $catalog['catalog_enabled'] = $catalogEnabled;
+    if (!$catalogEnabled) $catalog['stations'] = [];
+
     $merged = array_merge($custom, $catalog['stations'] ?? []);
 
     // Apply state + filter hidden + attach folder_id
@@ -372,9 +378,11 @@ try {
                 $ok = RadioStations::removeCustom($user, (int)substr($sid, 7));
                 echo json_encode(['success' => $ok]);
             } else {
-                // Catalog station can only be hidden, not deleted
-                $res = RadioStations::toggleFlag($user, $sid, 'is_hidden');
-                echo json_encode(['success' => true, 'hidden' => $res['hidden']]);
+                // A catalog station belongs to everyone, so it is not deleted
+                // from the catalog — it gets a per-user tombstone, which is a
+                // deletion as far as this user is concerned.
+                RadioStations::setFlagBulk($user, [$sid], 'is_hidden', 1);
+                echo json_encode(['success' => true, 'hidden' => true]);
             }
             break;
 
@@ -382,16 +390,64 @@ try {
             if ($user === '') { http_response_code(401); echo json_encode(['success' => false, 'error' => 'unauthenticated']); break; }
             $sids = readJsonBody()['station_ids'] ?? [];
             if (!is_array($sids)) { echo json_encode(['success' => false, 'error' => 'station_ids[] manquant']); break; }
-            $deleted = 0; $hidden = 0;
+            $customIds = []; $catalogIds = [];
             foreach ($sids as $sid) {
-                if (str_starts_with($sid, 'custom:')) {
-                    if (RadioStations::removeCustom($user, (int)substr($sid, 7))) $deleted++;
-                } else {
-                    RadioStations::setFlagBulk($user, [$sid], 'is_hidden', 1);
-                    $hidden++;
-                }
+                $sid = (string)$sid;
+                if (str_starts_with($sid, 'custom:')) $customIds[] = (int)substr($sid, 7);
+                elseif ($sid !== '')                  $catalogIds[] = $sid;
             }
+            $deleted = RadioStations::removeCustomBulk($user, $customIds);
+            $hidden  = RadioStations::setFlagBulk($user, $catalogIds, 'is_hidden', 1);
             echo json_encode(['success' => true, 'deleted' => $deleted, 'hidden' => $hidden]);
+            break;
+
+        // ── « Ma liste » : catalogue public on/off + adoption ─────────
+        case 'prefs':
+            if ($user === '') { http_response_code(401); echo json_encode(['success' => false, 'error' => 'unauthenticated']); break; }
+            echo json_encode([
+                'success'         => true,
+                'catalog_enabled' => RadioStations::catalogEnabled($user),
+            ]);
+            break;
+
+        case 'set_catalog':
+            if ($user === '') { http_response_code(401); echo json_encode(['success' => false, 'error' => 'unauthenticated']); break; }
+            $payload = readJsonBody();
+            $enabled = filter_var($payload['enabled'] ?? true, FILTER_VALIDATE_BOOLEAN);
+            RadioStations::setCatalogEnabled($user, $enabled);
+            echo json_encode(['success' => true, 'catalog_enabled' => $enabled]);
+            break;
+
+        case 'adopt':
+            // Copie des stations du catalogue dans la liste personnelle, pour
+            // qu'elles survivent à l'extinction du catalogue public.
+            if ($user === '') { http_response_code(401); echo json_encode(['success' => false, 'error' => 'unauthenticated']); break; }
+            $wanted = readJsonBody()['station_ids'] ?? [];
+            if (!is_array($wanted) || !$wanted) { echo json_encode(['success' => false, 'error' => 'station_ids[] manquant']); break; }
+            $wanted  = array_flip(array_map('strval', $wanted));
+            $catalog = getStations($cacheFile, $cacheDuration);
+            $picked  = [];
+            foreach ($catalog['stations'] ?? [] as $s) {
+                if (isset($wanted[(string)($s['id'] ?? '')])) $picked[] = $s;
+            }
+            $map = RadioStations::adoptCatalog($user, $picked);
+            if ($map) {
+                // La copie hérite du favori et du dossier de l'originale…
+                $state = RadioStations::getState($user);
+                $favs = [];
+                foreach ($map as $oldId => $newId) {
+                    $old = $state[$oldId] ?? null;
+                    if (!$old) continue;
+                    if (!empty($old['favorite'])) $favs[] = $newId;
+                    if (($old['folder_id'] ?? null) !== null) {
+                        RadioStations::moveStations($user, [$newId], (int)$old['folder_id']);
+                    }
+                }
+                if ($favs) RadioStations::setFlagBulk($user, $favs, 'is_favorite', 1);
+                // …et l'originale du catalogue s'efface derrière elle.
+                RadioStations::setFlagBulk($user, array_keys($map), 'is_hidden', 1);
+            }
+            echo json_encode(['success' => true, 'copied' => count($map)]);
             break;
 
         case 'toggle_favorite':
