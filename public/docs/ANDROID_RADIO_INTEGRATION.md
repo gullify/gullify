@@ -7,7 +7,7 @@ This document covers:
 
 1. Auth model
 2. Stream format support (what the server hands you to play)
-3. The new station data model (catalog + custom + per-user state + folders)
+3. The new station data model (per-user stations + state + folders)
 4. All HTTP endpoints
 5. Required behavior changes on the client
 6. Backwards-compat notes
@@ -50,7 +50,7 @@ Store `token` securely (Android Keystore-backed `EncryptedSharedPreferences` is 
 Authorization: Bearer <token>
 ```
 
-The web radio endpoint **requires** this header for any per-user action (favorites, folders, custom stations, hidden flag). Anonymous calls only get the raw Radio Browser catalog with no personalization, and **the new POST actions will return HTTP 401** without a valid token.
+The web radio endpoint **requires** this header: the list *is* the user's, so there is nothing to read without a token. Anonymous calls get an empty list, and **the POST actions will return HTTP 401**.
 
 The server-side gate is `src/auth_required.php`. It accepts either the Bearer token or a browser session cookie; the Android app should always use Bearer.
 
@@ -111,22 +111,23 @@ radio_custom_stations
 radio_user_state
   user, station_id,  -- PK
   is_favorite,
-  is_hidden,         -- per-user flag to hide a catalog station
+  is_hidden,         -- legacy flag, no longer written (nothing is "hidden" any more)
   folder_id,         -- nullable, points at radio_folders.id
 
 radio_folders
   id, user, name, color, sort_order, created_at
 ```
 
-`station_id` is a **string**:
-- For catalog stations (from Radio Browser), the Radio Browser `stationuuid` (UUID format).
-- For custom stations, the string `"custom:N"` where `N` is `radio_custom_stations.id`.
+`station_id` is a **string**: `"custom:N"`, where `N` is `radio_custom_stations.id`.
+Every station belongs to the user who sees it, so that is the only shape you
+will ever receive. (Radio Browser `stationuuid`s are only used while importing,
+server-side, and never leave the server.)
 
 So a station id is *always* a `String`, not an `Int`. Use a `String` field for it in your data classes.
 
-### 3.2 The merged list
+### 3.2 The user's list
 
-`GET ?action=list` returns the Radio Browser catalog merged with the user's custom stations, with per-user state decorated on each row, and hidden ones filtered out. Sort order: favorites first, then custom, then catalog by popularity.
+`GET ?action=list` returns the user's own stations, with per-user state decorated on each row. Sort order: favorites first, then by name.
 
 ```json
 {
@@ -178,15 +179,14 @@ Important fields per station:
 | `original_url` | What the user pasted (only on custom stations). Show in the edit dialog as the input URL.      |
 | `is_playlist`  | Bool. Only on custom stations. UI cue.                                                         |
 
-The previous shape (catalog only, no `favorite` / `folder_id` / `custom`) is gone. You need to read those new fields.
+The previous shape (shared catalog, no `favorite` / `folder_id`) is gone. You need to read those new fields.
 
 ### 3.3 Sort and visibility
 
-The server already filters out hidden stations and sorts by:
+The server already sorts by:
 
 1. `favorite DESC`
-2. `custom DESC`
-3. (catalog popularity)
+2. `name ASC`
 
 Do not re-sort favorites yourself client-side or you'll fight the server.
 
@@ -196,17 +196,17 @@ Do not re-sort favorites yourself client-side or you'll fight the server.
 
 Base URL: `https://gullify.app/api/web-radio.php` *(canonical)*. The older entry point `https://gullify.app/web_radio_api.php` still works; it simply includes the canonical file. Either path is fine; the Android app should use `/api/web-radio.php` going forward.
 
-All endpoints return JSON. All write endpoints (`add`, `update`, `remove*`, `toggle_*`, `folders_*`, `station_move`, `unhide_all`) require a Bearer token.
+All endpoints return JSON. All write endpoints (`add`, `update`, `remove*`, `toggle_*`, `folders_*`, `station_move`, `import_catalog`) require a Bearer token.
 
 ### 4.1 Read
 
 | Action          | Method | Query / Body                       | Description |
 |-----------------|--------|------------------------------------|-------------|
-| `list`          | GET    | —                                  | Catalog + custom + decorated state, hidden filtered out |
+| `list`          | GET    | —                                  | The user's own stations, decorated with `favorite` / `folder_id` |
 | `search`        | GET    | `q=<text>`                         | Same shape as `list`, filtered |
 | `genres`        | GET    | —                                  | Top 20 genres `{ genre: count, … }` |
-| `refresh`       | GET    | —                                  | Force the catalog cache refresh from Radio Browser (1h TTL otherwise) |
-| `get`           | GET    | `station_id=<id>`                  | Single station object (catalog or custom). Used to populate the edit dialog. |
+| `refresh`       | GET    | —                                  | Force the Radio Browser import-source cache refresh (1h TTL otherwise) |
+| `get`           | GET    | `station_id=<id>`                  | Single station object (`custom:N`). Used to populate the edit dialog. |
 | `folders_list`  | GET    | —                                  | All folders for the user with `station_count` |
 
 ### 4.2 Custom stations (CRUD)
@@ -216,9 +216,9 @@ All endpoints return JSON. All write endpoints (`add`, `update`, `remove*`, `tog
 | `add`        | POST   | `{ name, url, logo?, genres?, country?, language?, homepage?, bitrate? }`                            | Returns `{ id: "custom:N", station: {...} }`. URL is auto-resolved (M3U/PLS → inner stream). |
 | `update`     | POST   | `{ station_id: "custom:N", name, url, logo?, genres?, country?, language?, homepage?, bitrate? }`    | Only works on `custom:*` ids. Returns the updated station. URL is re-resolved if it changed. |
 | `add_bulk`   | POST   | `{ items: [ { name, url, ... }, ... ] }`                                                             | Returns `{ added, failed }`. Used by the Import dialog. |
-| `remove`     | POST   | `station_id=<id>`                                                                                    | If `custom:N` → real DELETE. If catalog id → toggles `is_hidden` (i.e. hide on first call, unhide on second). |
-| `remove_bulk`| POST   | `{ station_ids: [...] }`                                                                              | Mixed list ok; custom deleted, catalog hidden |
-| `unhide_all` | POST   | —                                                                                                    | Reset all `is_hidden` flags for the user |
+| `remove`     | POST   | `station_id=<id>`                                                                                    | Real DELETE. Every station belongs to the user, so deletion is final. |
+| `remove_bulk`| POST   | `{ station_ids: [...] }`                                                                              | Returns `{ deleted }` |
+| `import_catalog` | POST | —                                                                                                  | Copies the Radio Browser catalog into the user's list. Returns `{ imported }`; stations they already have (same stream URL) are never duplicated. |
 
 ### 4.3 Per-user state
 
@@ -272,7 +272,7 @@ Things the client must do differently after this rewrite. Each item lists the *s
 
 3. **Read `station.favorite`, `station.custom`, `station.folder_id` from the list response.**
    The previous shape didn't carry these.
-   Otherwise: hearts always off, can't filter by folder, "Edit" shown on read-only catalog rows.
+   Otherwise: hearts always off, can't filter by folder.
 
 4. **For playback, branch on `streams[0].format`:**
    ```kotlin
@@ -290,8 +290,7 @@ Things the client must do differently after this rewrite. Each item lists the *s
    Otherwise: the URL field shows the resolved inner URL instead of what the user typed.
 
 6. **On Save:**
-   - If the station is custom (`station.custom == true`), call `?action=update`.
-   - If it's a catalog station and the user edited fields, call `?action=add` with the new payload, then call `?action=remove` with the **original** catalog id to hide it. The grid will then show only the user's copy.
+   - Editing an existing station → `?action=update`; a brand-new one → `?action=add`.
    - Pure favorite/unfavorite toggles always go through `?action=toggle_favorite`.
 
 7. **Logo handling**
@@ -316,9 +315,9 @@ Things the client must do differently after this rewrite. Each item lists the *s
 
 ## 6. Backwards-compat notes
 
-- The Radio Browser-only response shape (`{ count, stations: [{ id, name, streams, logo }] }`) still works for anonymous (unauthenticated) calls.
+- There is no shared catalog any more: `list` only ever returns the caller's own stations, and every id is `custom:N`. The Radio Browser catalog is transferred into each user's list on their first call, then re-importable on demand via `import_catalog`.
 - The legacy column `image` on `artists` (and any legacy base64 on stations) is no longer written; stations have no equivalent column to worry about.
-- The Settings screen on the web exposes a "Restore hidden stations" path (`?action=unhide_all`). If the Android app has its own settings, add the same button there to recover from accidental hides.
+- The Settings screen on the web exposes an "Import the Radio Browser catalog" path (`?action=import_catalog`). If the Android app has its own settings, add the same button there.
 
 ---
 

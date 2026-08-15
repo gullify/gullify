@@ -18,9 +18,6 @@ class RadioStation {
   final List<String> genres;
   final String? logo;
   final bool favorite;
-
-  /// Seules les stations personnalisées sont modifiables/supprimables.
-  bool get isCustom => id.startsWith('custom:');
 }
 
 class RadioRepository {
@@ -116,34 +113,14 @@ class RadioRepository {
         body: {'station_ids': stationIds},
       );
 
-  /// Rend visibles toutes les stations du catalogue supprimées jusqu'ici.
-  Future<void> restoreDeleted() => _client.post(
-        'web-radio.php',
-        query: {'action': 'unhide_all'},
-      );
-
-  /// `true` tant que le catalogue public est fusionné à la liste de l'utilisateur.
-  Future<bool> catalogEnabled() async {
-    final data = await _client.get('web-radio.php', query: {'action': 'prefs'})
-        as Map<String, dynamic>;
-    return data['catalog_enabled'] != false;
-  }
-
-  Future<void> setCatalogEnabled(bool enabled) => _client.post(
-        'web-radio.php',
-        query: {'action': 'set_catalog'},
-        body: {'enabled': enabled},
-      );
-
-  /// Copie des stations du catalogue dans la liste personnelle. Renvoie le
-  /// nombre de copies faites.
-  Future<int> adopt(List<String> stationIds) async {
+  /// Reprend le catalogue Radio Browser dans la liste de l'utilisateur. Les
+  /// stations qu'il a déjà ne sont pas dupliquées. Renvoie le nombre ajouté.
+  Future<int> importCatalog() async {
     final data = await _client.post(
       'web-radio.php',
-      query: {'action': 'adopt'},
-      body: {'station_ids': stationIds},
+      query: {'action': 'import_catalog'},
     ) as Map<String, dynamic>;
-    return (data['copied'] as num?)?.toInt() ?? 0;
+    return (data['imported'] as num?)?.toInt() ?? 0;
   }
 
   /// Upload d'un logo (URL distante ou fichier local) → URL absolue servie.

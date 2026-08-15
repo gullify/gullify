@@ -1,19 +1,19 @@
 <?php
 /**
- * Gullify — Custom radio stations + per-user state.
+ * Gullify — Radio stations. Chaque utilisateur a sa propre liste (idée #97).
  *
- * Two tables, both auto-created on first use:
+ * Il n'y a plus de catalogue public partagé : le catalogue Radio Browser
+ * n'est qu'une *source d'import*. À la première visite, il est transféré
+ * dans la liste de l'utilisateur, et à partir de là tout lui appartient —
+ * une station supprimée l'est pour de bon, une station modifiée n'est
+ * modifiée que chez lui.
  *
- *   radio_custom_stations   — stations the user typed in / imported
- *   radio_user_state        — favorite/hidden flag keyed by (user, station_id)
+ *   radio_custom_stations   — les stations de l'utilisateur (les siennes)
+ *   radio_user_state        — favori + dossier, par (user, station_id)
+ *   radio_user_prefs        — quand le catalogue a été transféré chez lui
  *
- * The station_id used in radio_user_state is either:
- *   - the Radio Browser UUID for catalog stations, or
- *   - "custom:N" for a custom_stations.id row
- *
- * This lets us merge the catalog and the user's stations into one list,
- * decorate each item with favorite + hidden flags, and operate on either
- * with the same identifier.
+ * Le station_id est toujours "custom:N" (une ligne de radio_custom_stations)
+ * depuis le transfert.
  */
 
 require_once __DIR__ . '/AppConfig.php';
@@ -73,15 +73,18 @@ class RadioStations
             try { $db->exec("ALTER TABLE radio_user_state ADD COLUMN folder_id INT UNSIGNED NULL"); } catch (\Throwable $e) {}
             try { $db->exec("ALTER TABLE radio_user_state ADD INDEX idx_state_folder (user, folder_id)"); } catch (\Throwable $e) {}
 
-            // Per-user preferences. `catalog_enabled = 0` means "je ne veux
-            // que MA liste" : the shared Radio Browser catalog is dropped
-            // entirely for this user (idée #96).
+            // Per-user preferences. `catalog_imported_at` est la date à
+            // laquelle le catalogue Radio Browser a été transféré dans la
+            // liste de cet utilisateur — une seule fois (idée #97).
+            // (`catalog_enabled` est un reste de l'idée #96, plus lu.)
             $db->exec("
                 CREATE TABLE IF NOT EXISTS radio_user_prefs (
                     user VARCHAR(100) NOT NULL PRIMARY KEY,
-                    catalog_enabled TINYINT(1) NOT NULL DEFAULT 1
+                    catalog_enabled TINYINT(1) NOT NULL DEFAULT 1,
+                    catalog_imported_at DATETIME NULL DEFAULT NULL
                 )
             ");
+            try { $db->exec("ALTER TABLE radio_user_prefs ADD COLUMN catalog_imported_at DATETIME NULL DEFAULT NULL"); } catch (\Throwable $e) {}
 
             $db->exec("
                 CREATE TABLE IF NOT EXISTS radio_folders (
@@ -156,68 +159,89 @@ class RadioStations
         return $out;
     }
 
-    // ── Per-user preferences ─────────────────────────────────────────────
-    /** True when the shared Radio Browser catalog should be merged in. */
-    public static function catalogEnabled(string $user): bool
+    // ── Transfert du catalogue dans la liste de l'utilisateur ────────────
+    /** Le catalogue a-t-il déjà été transféré chez cet utilisateur ? */
+    public static function catalogImported(string $user): bool
     {
         self::ensureTables();
         try {
             $db = AppConfig::getDB();
-            $stmt = $db->prepare("SELECT catalog_enabled FROM radio_user_prefs WHERE user = ?");
+            $stmt = $db->prepare("SELECT catalog_imported_at FROM radio_user_prefs WHERE user = ?");
             $stmt->execute([$user]);
-            $v = $stmt->fetchColumn();
-            // No row = never touched the setting = catalog on (historical behaviour)
-            return $v === false ? true : (bool)(int)$v;
+            return (bool)$stmt->fetchColumn();
         } catch (\Throwable $e) {
+            // En cas de doute, on ne rejoue pas un transfert de 1200 stations.
+            error_log('RadioStations::catalogImported failed: ' . $e->getMessage());
             return true;
         }
     }
 
-    public static function setCatalogEnabled(string $user, bool $enabled): void
+    /**
+     * Réserve le transfert initial du catalogue pour cet utilisateur.
+     *
+     * Vrai une seule fois : deux requêtes simultanées ne peuvent pas
+     * transférer le catalogue deux fois, la pose de la date est atomique.
+     */
+    public static function claimCatalogImport(string $user): bool
     {
         self::ensureTables();
-        $db = AppConfig::getDB();
-        $stmt = $db->prepare("
-            INSERT INTO radio_user_prefs (user, catalog_enabled) VALUES (?, ?)
-            ON DUPLICATE KEY UPDATE catalog_enabled = VALUES(catalog_enabled)
-        ");
-        $stmt->execute([$user, $enabled ? 1 : 0]);
+        try {
+            $db = AppConfig::getDB();
+            $stmt = $db->prepare("
+                INSERT INTO radio_user_prefs (user, catalog_imported_at) VALUES (?, NOW())
+                ON DUPLICATE KEY UPDATE
+                    catalog_imported_at = IF(catalog_imported_at IS NULL, NOW(), catalog_imported_at)
+            ");
+            $stmt->execute([$user]);
+            // 1 = insertion, 2 = date posée, 0 = elle y était déjà
+            return $stmt->rowCount() !== 0;
+        } catch (\Throwable $e) {
+            error_log('RadioStations::claimCatalogImport failed: ' . $e->getMessage());
+            return false;
+        }
     }
 
     /**
-     * Copy catalog stations into the user's own list, so they survive the
-     * catalog being turned off. The rows arrive already shaped like the
-     * Radio Browser format (see web-radio.php) — no stream resolution here,
-     * their URL is the one Radio Browser already resolved.
+     * Copie des stations du catalogue Radio Browser dans la liste de
+     * l'utilisateur. Les lignes arrivent déjà au format Radio Browser (voir
+     * web-radio.php) : leur URL est celle que Radio Browser a résolue, rien
+     * à re-résoudre ici.
      *
-     * Returns a map of catalog station id => new "custom:N" id, so the caller
-     * can carry the favorite flag and the folder over to the copy.
+     * Ce qu'il possède déjà (même URL de flux) n'est pas dupliqué — pas plus
+     * que les jumelles du catalogue, qui servent le même flux sous deux noms
+     * (une centaine sur 1200). Les insertions partent par paquets de 200 :
+     * transférer 1200 stations ne doit pas coûter 1200 allers-retours SQL.
+     *
+     * $withState liste les ids de catalogue dont il faut reporter le favori
+     * ou le dossier ; le tableau renvoyé associe ces ids à leur « custom:N ».
+     *
+     * @return array{imported:int, map:array<string,string>}
      */
-    public static function adoptCatalog(string $user, array $stations): array
+    public static function importCatalog(string $user, array $stations, array $withState = []): array
     {
         self::ensureTables();
-        if (!$stations) return [];
+        if (!$stations) return ['imported' => 0, 'map' => []];
         $db = AppConfig::getDB();
-        $stmt = $db->prepare("
-            INSERT INTO radio_custom_stations
-                (user, name, stream_url, original_url, logo, homepage, genres, country, language, bitrate, format, is_playlist)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
-        ");
-        // Don't create a duplicate of a station the user already owns.
-        $known = $db->prepare("SELECT id FROM radio_custom_stations WHERE user = ? AND stream_url = ? LIMIT 1");
-        $map = [];
+
+        // Ce qu'il a déjà, en une seule requête.
+        $stmt = $db->prepare("SELECT stream_url FROM radio_custom_stations WHERE user = ?");
+        $stmt->execute([$user]);
+        $known = array_flip($stmt->fetchAll(\PDO::FETCH_COLUMN, 0));
+
+        $wanted = array_flip(array_map('strval', $withState));
+        $rows = [];          // lignes à insérer
+        $urlOfOldId = [];    // id catalogue => URL, pour retrouver la copie
+
         foreach ($stations as $s) {
             $stream = $s['streams'][0] ?? null;
             $url    = trim((string)($stream['url'] ?? ''));
             $name   = trim((string)($s['name'] ?? ''));
             $oldId  = (string)($s['id'] ?? '');
             if ($name === '' || $url === '' || $oldId === '') continue;
-            $known->execute([$user, $url]);
-            if ($existing = $known->fetchColumn()) {
-                $map[$oldId] = 'custom:' . (int)$existing;
-                continue;
-            }
-            $stmt->execute([
+            if (isset($wanted[$oldId])) $urlOfOldId[$oldId] = $url;
+            if (isset($known[$url])) continue; // déjà chez lui (ou doublon du catalogue)
+            $known[$url] = true;
+            $rows[] = [
                 $user,
                 mb_substr($name, 0, 200),
                 $url,
@@ -229,10 +253,108 @@ class RadioStations
                 ($s['language'] ?? null) ?: null,
                 (int)($stream['bitrate'] ?? 0) ?: null,
                 $stream['format'] ?? null,
-            ]);
-            $map[$oldId] = 'custom:' . (int)$db->lastInsertId();
+            ];
         }
-        return $map;
+
+        $imported = 0;
+        foreach (array_chunk($rows, 200) as $chunk) {
+            $values = implode(', ', array_fill(0, count($chunk), '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)'));
+            $stmt = $db->prepare("
+                INSERT INTO radio_custom_stations
+                    (user, name, stream_url, original_url, logo, homepage, genres, country, language, bitrate, format, is_playlist)
+                VALUES $values
+            ");
+            $stmt->execute(array_merge(...$chunk));
+            $imported += count($chunk);
+        }
+
+        // Retrouver les copies dont il faut reprendre le favori / le dossier.
+        $map = [];
+        if ($urlOfOldId) {
+            $byUrl = [];
+            foreach (array_chunk(array_values(array_unique($urlOfOldId)), 200) as $chunk) {
+                $marks = implode(',', array_fill(0, count($chunk), '?'));
+                $stmt = $db->prepare("
+                    SELECT id, stream_url FROM radio_custom_stations
+                    WHERE user = ? AND stream_url IN ($marks)
+                ");
+                $stmt->execute(array_merge([$user], $chunk));
+                foreach ($stmt->fetchAll(\PDO::FETCH_ASSOC) as $r) {
+                    $byUrl[$r['stream_url']] = 'custom:' . (int)$r['id'];
+                }
+            }
+            foreach ($urlOfOldId as $oldId => $url) {
+                if (isset($byUrl[$url])) $map[$oldId] = $byUrl[$url];
+            }
+        }
+        return ['imported' => $imported, 'map' => $map];
+    }
+
+    /**
+     * Le transfert lui-même : le catalogue Radio Browser passe dans la liste
+     * de l'utilisateur. Renvoie le nombre de stations ajoutées.
+     *
+     * $initial = le transfert unique, à sa première visite après la mise à
+     * jour : ce qu'il avait déjà supprimé ne revient pas, ses favoris et ses
+     * dossiers suivent leur copie. Sinon c'est un import demandé à la main,
+     * qui reprend le catalogue tel quel — sans jamais dupliquer ce qu'il a.
+     */
+    public static function transferCatalog(string $user, array $stations, bool $initial): int
+    {
+        self::ensureTables();
+        if ($user === '' || !$stations) return 0;
+        $state = $initial ? self::getState($user) : [];
+
+        // Le catalogue sert la même URL de flux sous plusieurs stations (une
+        // centaine de jumelles) : une station supprimée doit rester
+        // supprimée, y compris sous le nom de sa jumelle.
+        $deletedUrls = [];
+        foreach ($stations as $s) {
+            if (empty(($state[(string)($s['id'] ?? '')] ?? [])['hidden'])) continue;
+            $url = trim((string)($s['streams'][0]['url'] ?? ''));
+            if ($url !== '') $deletedUrls[$url] = true;
+        }
+
+        $keep = [];
+        $withState = [];
+        foreach ($stations as $s) {
+            $sid   = (string)($s['id'] ?? '');
+            $flags = $state[$sid] ?? null;
+            if ($flags && !empty($flags['hidden'])) continue; // supprimée avant le transfert
+            if (isset($deletedUrls[trim((string)($s['streams'][0]['url'] ?? ''))])) continue;
+            $keep[] = $s;
+            if ($flags && (!empty($flags['favorite']) || ($flags['folder_id'] ?? null) !== null)) {
+                $withState[] = $sid;
+            }
+        }
+
+        $res  = self::importCatalog($user, $keep, $withState);
+        $favs = [];
+        foreach ($res['map'] as $oldId => $newId) {
+            $old = $state[$oldId] ?? null;
+            if (!$old) continue;
+            if (!empty($old['favorite'])) $favs[] = $newId;
+            if (($old['folder_id'] ?? null) !== null) {
+                self::moveStations($user, [$newId], (int)$old['folder_id']);
+            }
+        }
+        if ($favs) self::setFlagBulk($user, $favs, 'is_favorite', 1);
+        if ($initial) self::forgetCatalogState($user);
+        return $res['imported'];
+    }
+
+    /**
+     * Oublie l'état attaché aux stations du catalogue : depuis le transfert,
+     * elles n'existent plus qu'en copies « custom:N », et leurs pierres
+     * tombales n'ont plus rien à masquer.
+     */
+    public static function forgetCatalogState(string $user): int
+    {
+        self::ensureTables();
+        $db = AppConfig::getDB();
+        $stmt = $db->prepare("DELETE FROM radio_user_state WHERE user = ? AND station_id NOT LIKE 'custom:%'");
+        $stmt->execute([$user]);
+        return $stmt->rowCount();
     }
 
     // ── Folders ──────────────────────────────────────────────────────────

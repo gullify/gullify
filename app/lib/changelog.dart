@@ -8,6 +8,20 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.24.0', [
+    'Il n\'y a plus de catalogue public : le catalogue a été transféré dans '
+        'ta liste, telle que tu la voyais. Tes favoris et tes dossiers ont '
+        'suivi, et ce que tu avais déjà supprimé n\'est pas revenu',
+    'Chaque utilisateur a désormais sa propre liste : renommer, changer '
+        'l\'icône ou supprimer une station ne regarde plus que toi. Une '
+        'suppression est définitive — il n\'y a plus de station « masquée »',
+    'Les jumelles du catalogue ont fondu au passage : une centaine de '
+        'stations servaient le même flux sous deux noms, il n\'en reste '
+        'qu\'une de chaque',
+    'Le menu « … » propose « Importer le catalogue Radio Browser » pour '
+        'reprendre les stations canadiennes quand tu veux, sans jamais '
+        'dupliquer celles que tu as déjà',
+  ]),
   ReleaseNote('3.23.0', [
     'La liste de radios est la tienne : ce que tu y supprimes s\'en va pour '
         'de bon, station du catalogue public comprise. Ta liste n\'est plus '

@@ -1,7 +1,12 @@
 <?php
 /**
  * Gullify - Web Radio API
- * Uses Radio Browser API - Fetches and caches Canadian radio stations
+ *
+ * Chaque utilisateur a sa propre liste de stations (idée #97) : ce qu'on
+ * renvoie ici, ce sont ses stations à lui. Radio Browser n'est plus un
+ * catalogue partagé, seulement une source d'import — transférée une fois
+ * chez chacun à sa première visite, puis reprise à la demande.
+ *
  * Migrated from web_radio_api.php
  */
 
@@ -223,54 +228,67 @@ function getGenres($stations) {
     return array_slice($genres, 0, 20, true);
 }
 
-/** Decorate every station with the user's favorite/hidden state and merge custom ones. */
-function decorateAndMerge(array $catalog, string $user): array {
-    if ($user === '') {
-        $catalog['stations'] = array_values(array_filter(
-            $catalog['stations'] ?? [],
-            fn($s) => empty($s['hidden'])
-        ));
-        $catalog['count'] = count($catalog['stations']);
-        return $catalog;
-    }
-    $custom = RadioStations::listCustom($user);
-    $state  = RadioStations::getState($user);
-
-    // « Ma liste » : le catalogue public partagé est retiré pour cet
-    // utilisateur, il ne reste que ses propres stations (idée #96).
-    $catalogEnabled = RadioStations::catalogEnabled($user);
-    $catalog['catalog_enabled'] = $catalogEnabled;
-    if (!$catalogEnabled) $catalog['stations'] = [];
-
-    $merged = array_merge($custom, $catalog['stations'] ?? []);
-
-    // Apply state + filter hidden + attach folder_id
+/**
+ * La liste de l'utilisateur, et rien d'autre : depuis l'idée #97 il n'y a
+ * plus de catalogue public, chacun a sa propre liste. Chaque station est
+ * décorée de son favori et de son dossier, favoris en tête.
+ */
+function ownStations(string $user): array {
     $out = [];
-    foreach ($merged as $s) {
-        $sid = (string)($s['id'] ?? '');
-        $flags = $state[$sid] ?? ['favorite' => false, 'hidden' => false, 'folder_id' => null];
-        if (!empty($flags['hidden'])) continue;
-        $s['favorite']  = !empty($flags['favorite']);
-        $s['custom']    = !empty($s['custom']);
-        $s['folder_id'] = $flags['folder_id'] ?? null;
-        $out[] = $s;
+    if ($user !== '') {
+        $state = RadioStations::getState($user);
+        foreach (RadioStations::listCustom($user) as $s) {
+            $sid = (string)($s['id'] ?? '');
+            $flags = $state[$sid] ?? ['favorite' => false, 'hidden' => false, 'folder_id' => null];
+            if (!empty($flags['hidden'])) continue;
+            $s['favorite']  = !empty($flags['favorite']);
+            $s['custom']    = true;
+            $s['folder_id'] = $flags['folder_id'] ?? null;
+            $out[] = $s;
+        }
+        usort($out, function($a, $b) {
+            $fa = !empty($a['favorite']) ? 1 : 0;
+            $fb = !empty($b['favorite']) ? 1 : 0;
+            if ($fa !== $fb) return $fb - $fa;
+            return strcasecmp((string)($a['name'] ?? ''), (string)($b['name'] ?? ''));
+        });
     }
+    return [
+        'updated'  => date('c'),
+        'source'   => 'user',
+        'count'    => count($out),
+        'stations' => $out,
+    ];
+}
 
-    // Favorites first, then everything else
-    usort($out, function($a, $b) {
-        $fa = !empty($a['favorite']) ? 1 : 0;
-        $fb = !empty($b['favorite']) ? 1 : 0;
-        if ($fa !== $fb) return $fb - $fa;
-        // Custom stations second
-        $ca = !empty($a['custom']) ? 1 : 0;
-        $cb = !empty($b['custom']) ? 1 : 0;
-        if ($ca !== $cb) return $cb - $ca;
-        return 0;
-    });
+/**
+ * Charge le catalogue Radio Browser et le passe dans la liste de
+ * l'utilisateur (voir RadioStations::transferCatalog).
+ */
+function importCatalogInto(string $user, string $cacheFile, int $cacheDuration, bool $initial): int {
+    if ($user === '') return 0;
+    $catalog  = getStations($cacheFile, $cacheDuration);
+    $stations = $catalog['stations'] ?? [];
+    // Catalogue injoignable : on ne marque rien, on réessaiera plus tard.
+    if (!$stations) return 0;
+    // La réservation est atomique : deux requêtes en même temps ne peuvent
+    // pas transférer le catalogue deux fois.
+    if ($initial && !RadioStations::claimCatalogImport($user)) return 0;
+    return RadioStations::transferCatalog($user, $stations, $initial);
+}
 
-    $catalog['stations'] = $out;
-    $catalog['count'] = count($out);
-    return $catalog;
+/**
+ * Le transfert initial, tenté à la lecture de la liste. Une fois fait, on
+ * s'arrête sur une lecture de clé primaire : lister ses stations ne doit pas
+ * relire le catalogue de 1200 lignes à chaque fois.
+ */
+function transferCatalogOnce(string $user, string $cacheFile, int $cacheDuration): void {
+    if ($user === '' || RadioStations::catalogImported($user)) return;
+    try {
+        importCatalogInto($user, $cacheFile, $cacheDuration, true);
+    } catch (\Throwable $e) {
+        error_log('web-radio: transfert du catalogue échoué: ' . $e->getMessage());
+    }
 }
 
 function readJsonBody(): array {
@@ -282,16 +300,17 @@ function readJsonBody(): array {
 try {
     switch ($action) {
         case 'list':
-            $data = getStations($cacheFile, $cacheDuration);
-            $data = decorateAndMerge($data, $user);
+            transferCatalogOnce($user, $cacheFile, $cacheDuration);
+            $data = ownStations($user);
             echo json_encode(['success' => true, 'data' => $data], JSON_UNESCAPED_UNICODE);
             break;
 
         case 'search':
+            transferCatalogOnce($user, $cacheFile, $cacheDuration);
             $query = $_GET['q'] ?? '';
-            $data = getStations($cacheFile, $cacheDuration);
+            $data = ownStations($user);
             $data['stations'] = searchStations($data['stations'], $query);
-            $data = decorateAndMerge($data, $user);
+            $data['count'] = count($data['stations']);
             echo json_encode(['success' => true, 'data' => $data], JSON_UNESCAPED_UNICODE);
             break;
 
@@ -309,7 +328,7 @@ try {
             break;
 
         case 'genres':
-            $data = getStations($cacheFile, $cacheDuration);
+            $data = ownStations($user);
             $genres = getGenres($data['stations']);
             echo json_encode(['success' => true, 'data' => $genres], JSON_UNESCAPED_UNICODE);
             break;
@@ -344,18 +363,10 @@ try {
         case 'get':
             if ($user === '') { http_response_code(401); echo json_encode(['success' => false, 'error' => 'unauthenticated']); break; }
             $sid = $_REQUEST['station_id'] ?? '';
-            if (str_starts_with((string)$sid, 'custom:')) {
-                $row = RadioStations::getCustom($user, (int)substr($sid, 7));
-                echo json_encode(['success' => (bool)$row, 'station' => $row]);
-            } else {
-                $catalog = getStations($cacheFile, $cacheDuration);
-                $found = null;
-                foreach ($catalog['stations'] ?? [] as $s) {
-                    if ((string)($s['id'] ?? '') === (string)$sid) { $found = $s; break; }
-                }
-                if ($found) $found['custom'] = false;
-                echo json_encode(['success' => (bool)$found, 'station' => $found]);
-            }
+            $row = str_starts_with((string)$sid, 'custom:')
+                ? RadioStations::getCustom($user, (int)substr($sid, 7))
+                : null;
+            echo json_encode(['success' => (bool)$row, 'station' => $row]);
             break;
 
         case 'add_bulk':
@@ -373,81 +384,34 @@ try {
 
         case 'remove':
             if ($user === '') { http_response_code(401); echo json_encode(['success' => false, 'error' => 'unauthenticated']); break; }
+            // Toutes les stations appartiennent à l'utilisateur : supprimer,
+            // c'est supprimer pour de bon (idée #97).
             $sid = $_REQUEST['station_id'] ?? readJsonBody()['station_id'] ?? '';
-            if (str_starts_with($sid, 'custom:')) {
-                $ok = RadioStations::removeCustom($user, (int)substr($sid, 7));
-                echo json_encode(['success' => $ok]);
-            } else {
-                // A catalog station belongs to everyone, so it is not deleted
-                // from the catalog — it gets a per-user tombstone, which is a
-                // deletion as far as this user is concerned.
-                RadioStations::setFlagBulk($user, [$sid], 'is_hidden', 1);
-                echo json_encode(['success' => true, 'hidden' => true]);
-            }
+            $ok = str_starts_with((string)$sid, 'custom:')
+                && RadioStations::removeCustom($user, (int)substr($sid, 7));
+            echo json_encode(['success' => $ok]);
             break;
 
         case 'remove_bulk':
             if ($user === '') { http_response_code(401); echo json_encode(['success' => false, 'error' => 'unauthenticated']); break; }
             $sids = readJsonBody()['station_ids'] ?? [];
             if (!is_array($sids)) { echo json_encode(['success' => false, 'error' => 'station_ids[] manquant']); break; }
-            $customIds = []; $catalogIds = [];
+            $customIds = [];
             foreach ($sids as $sid) {
                 $sid = (string)$sid;
                 if (str_starts_with($sid, 'custom:')) $customIds[] = (int)substr($sid, 7);
-                elseif ($sid !== '')                  $catalogIds[] = $sid;
             }
             $deleted = RadioStations::removeCustomBulk($user, $customIds);
-            $hidden  = RadioStations::setFlagBulk($user, $catalogIds, 'is_hidden', 1);
-            echo json_encode(['success' => true, 'deleted' => $deleted, 'hidden' => $hidden]);
+            echo json_encode(['success' => true, 'deleted' => $deleted]);
             break;
 
-        // ── « Ma liste » : catalogue public on/off + adoption ─────────
-        case 'prefs':
+        // ── Le catalogue Radio Browser, comme source d'import ─────────
+        case 'import_catalog':
+            // Reprendre le catalogue dans sa liste, à la demande : ce qu'il a
+            // déjà (même URL de flux) n'est pas dupliqué.
             if ($user === '') { http_response_code(401); echo json_encode(['success' => false, 'error' => 'unauthenticated']); break; }
-            echo json_encode([
-                'success'         => true,
-                'catalog_enabled' => RadioStations::catalogEnabled($user),
-            ]);
-            break;
-
-        case 'set_catalog':
-            if ($user === '') { http_response_code(401); echo json_encode(['success' => false, 'error' => 'unauthenticated']); break; }
-            $payload = readJsonBody();
-            $enabled = filter_var($payload['enabled'] ?? true, FILTER_VALIDATE_BOOLEAN);
-            RadioStations::setCatalogEnabled($user, $enabled);
-            echo json_encode(['success' => true, 'catalog_enabled' => $enabled]);
-            break;
-
-        case 'adopt':
-            // Copie des stations du catalogue dans la liste personnelle, pour
-            // qu'elles survivent à l'extinction du catalogue public.
-            if ($user === '') { http_response_code(401); echo json_encode(['success' => false, 'error' => 'unauthenticated']); break; }
-            $wanted = readJsonBody()['station_ids'] ?? [];
-            if (!is_array($wanted) || !$wanted) { echo json_encode(['success' => false, 'error' => 'station_ids[] manquant']); break; }
-            $wanted  = array_flip(array_map('strval', $wanted));
-            $catalog = getStations($cacheFile, $cacheDuration);
-            $picked  = [];
-            foreach ($catalog['stations'] ?? [] as $s) {
-                if (isset($wanted[(string)($s['id'] ?? '')])) $picked[] = $s;
-            }
-            $map = RadioStations::adoptCatalog($user, $picked);
-            if ($map) {
-                // La copie hérite du favori et du dossier de l'originale…
-                $state = RadioStations::getState($user);
-                $favs = [];
-                foreach ($map as $oldId => $newId) {
-                    $old = $state[$oldId] ?? null;
-                    if (!$old) continue;
-                    if (!empty($old['favorite'])) $favs[] = $newId;
-                    if (($old['folder_id'] ?? null) !== null) {
-                        RadioStations::moveStations($user, [$newId], (int)$old['folder_id']);
-                    }
-                }
-                if ($favs) RadioStations::setFlagBulk($user, $favs, 'is_favorite', 1);
-                // …et l'originale du catalogue s'efface derrière elle.
-                RadioStations::setFlagBulk($user, array_keys($map), 'is_hidden', 1);
-            }
-            echo json_encode(['success' => true, 'copied' => count($map)]);
+            $n = importCatalogInto($user, $cacheFile, $cacheDuration, false);
+            echo json_encode(['success' => true, 'imported' => $n]);
             break;
 
         case 'toggle_favorite':
@@ -456,14 +420,6 @@ try {
             if ($sid === '') { echo json_encode(['success' => false, 'error' => 'station_id requis']); break; }
             $res = RadioStations::toggleFlag($user, (string)$sid, 'is_favorite');
             echo json_encode(['success' => true, 'favorite' => $res['favorite']]);
-            break;
-
-        case 'unhide_all':
-            if ($user === '') { http_response_code(401); echo json_encode(['success' => false, 'error' => 'unauthenticated']); break; }
-            $db = AppConfig::getDB();
-            $stmt = $db->prepare("UPDATE radio_user_state SET is_hidden = 0 WHERE user = ?");
-            $stmt->execute([$user]);
-            echo json_encode(['success' => true, 'restored' => $stmt->rowCount()]);
             break;
 
         // ── Folders ──────────────────────────────────────────────────

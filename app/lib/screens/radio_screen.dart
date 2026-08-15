@@ -11,12 +11,12 @@ import '../widgets/glass_kit.dart';
 import '../widgets/mascot_empty.dart';
 
 /// Onglet « Radio » : liste des web radios (lecture au tap, favoris),
-/// ajout / édition / suppression des stations personnalisées, et mode de
-/// sélection multiple pour supprimer plusieurs stations d'un coup.
+/// ajout / édition / suppression des stations, et mode de sélection multiple
+/// pour en supprimer plusieurs d'un coup.
 ///
-/// La liste appartient à chacun : ce qu'on y supprime ne revient pas, même
-/// pour une station du catalogue public — et ce catalogue peut être éteint
-/// pour ne garder que ses propres stations (idée #96).
+/// Il n'y a plus de catalogue public : la liste est entièrement celle de
+/// l'utilisateur (idée #97). Radio Browser n'est plus qu'une source d'import,
+/// transférée chez lui une fois, puis reprise à la demande depuis le menu.
 class RadioScreen extends ConsumerStatefulWidget {
   const RadioScreen({super.key});
 
@@ -56,8 +56,7 @@ class _RadioScreenState extends ConsumerState<RadioScreen> {
     final messenger = ScaffoldMessenger.of(context);
     final ok = await _confirm(
       'Supprimer ${ids.length} station${ids.length > 1 ? 's' : ''} ?',
-      'Elles quittent ta liste pour de bon. Celles du catalogue public se '
-          'récupèrent avec « Restaurer les stations supprimées ».',
+      'C\'est ta liste : elles la quittent pour de bon.',
     );
     if (ok != true) return;
     try {
@@ -69,39 +68,9 @@ class _RadioScreenState extends ConsumerState<RadioScreen> {
     }
   }
 
-  /// Copie les stations du catalogue sélectionnées dans la liste personnelle,
-  /// pour qu'elles restent quand le catalogue public s'éteint.
-  Future<void> _adopt(List<String> ids) async {
-    if (ids.isEmpty) return;
-    final messenger = ScaffoldMessenger.of(context);
-    try {
-      final n = await ref.read(radioRepositoryProvider).adopt(ids);
-      ref.invalidate(radioStationsProvider);
-      if (_selecting) _exitSelection();
-      messenger.showSnackBar(SnackBar(
-        content: Text(n > 1
-            ? '$n stations copiées dans ta liste'
-            : '$n station copiée dans ta liste'),
-      ));
-    } catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text('Échec : $e')));
-    }
-  }
-
-  void _adoptSelected() =>
-      _adopt(_selected.where((id) => !id.startsWith('custom:')).toList());
-
-  void _adoptOne(RadioStation s) => _adopt([s.id]);
-
   Future<void> _deleteOne(RadioStation s) async {
     final messenger = ScaffoldMessenger.of(context);
-    final ok = await _confirm(
-      'Supprimer « ${s.name} » ?',
-      s.isCustom
-          ? null
-          : 'Elle quitte ta liste. Le catalogue public la garde pour les '
-              'autres — « Restaurer les stations supprimées » la ramène.',
-    );
+    final ok = await _confirm('Supprimer « ${s.name} » ?', null);
     if (ok != true) return;
     try {
       await ref.read(radioRepositoryProvider).remove(s.id);
@@ -129,60 +98,43 @@ class _RadioScreenState extends ConsumerState<RadioScreen> {
         ),
       );
 
-  /// Allume / éteint le catalogue public. En l'éteignant, on propose d'abord
-  /// de recopier ses favoris pour ne pas les perdre au passage.
-  Future<void> _setCatalog(bool enabled) async {
-    final repo = ref.read(radioRepositoryProvider);
+  /// Reprend le catalogue Radio Browser dans sa liste. Ce qu'il a déjà n'est
+  /// pas dupliqué, et ce qu'il importe lui appartient comme le reste.
+  Future<void> _importCatalog() async {
     final messenger = ScaffoldMessenger.of(context);
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Importer le catalogue ?'),
+        content: const Text(
+          'Les stations canadiennes de Radio Browser rejoignent ta liste. '
+          'Celles que tu as déjà ne seront pas dupliquées.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Annuler'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Importer'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    messenger.showSnackBar(
+      const SnackBar(content: Text('Import du catalogue en cours…')),
+    );
     try {
-      if (!enabled) {
-        final favs = [
-          for (final s in ref.read(radioStationsProvider).value ??
-              const <RadioStation>[])
-            if (!s.isCustom && s.favorite) s.id,
-        ];
-        if (favs.isNotEmpty) {
-          final keep = await showDialog<bool>(
-            context: context,
-            builder: (context) => AlertDialog(
-              title: const Text('Garder tes favoris ?'),
-              content: Text(
-                '${favs.length} station${favs.length > 1 ? 's' : ''} du '
-                'catalogue ${favs.length > 1 ? 'sont' : 'est'} dans tes '
-                'favoris. On peut ${favs.length > 1 ? 'les' : 'la'} copier '
-                'dans ta liste avant de fermer le catalogue.',
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context, false),
-                  child: const Text('Sans copier'),
-                ),
-                FilledButton(
-                  onPressed: () => Navigator.pop(context, true),
-                  child: const Text('Les copier'),
-                ),
-              ],
-            ),
-          );
-          if (keep == null) return; // fermé sans choisir
-          if (keep) await repo.adopt(favs);
-        }
-      }
-      await repo.setCatalogEnabled(enabled);
+      final n = await ref.read(radioRepositoryProvider).importCatalog();
       ref.invalidate(radioStationsProvider);
-    } catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text('Échec : $e')));
-    }
-  }
-
-  Future<void> _restoreDeleted() async {
-    final messenger = ScaffoldMessenger.of(context);
-    try {
-      await ref.read(radioRepositoryProvider).restoreDeleted();
-      ref.invalidate(radioStationsProvider);
-      messenger.showSnackBar(
-        const SnackBar(content: Text('Stations supprimées restaurées')),
-      );
+      messenger.showSnackBar(SnackBar(
+        content: Text(n == 0
+            ? 'Rien de nouveau à importer'
+            : '$n station${n > 1 ? 's' : ''} ajoutée${n > 1 ? 's' : ''} à ta '
+                'liste'),
+      ));
     } catch (e) {
       messenger.showSnackBar(SnackBar(content: Text('Échec : $e')));
     }
@@ -190,7 +142,6 @@ class _RadioScreenState extends ConsumerState<RadioScreen> {
 
   /// Menu « … » : réglages de la liste plutôt que d'une station.
   void _listMenu() {
-    final repo = ref.read(radioRepositoryProvider);
     showModalBottomSheet<void>(
       context: context,
       useRootNavigator: true,
@@ -198,36 +149,16 @@ class _RadioScreenState extends ConsumerState<RadioScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            FutureBuilder<bool>(
-              future: repo.catalogEnabled(),
-              builder: (context, snap) {
-                final on = snap.data ?? true;
-                return SwitchListTile(
-                  secondary: const Icon(Icons.public),
-                  title: const Text('Catalogue public'),
-                  subtitle: const Text(
-                    'Les radios proposées à tout le monde. Éteins-le pour ne '
-                    'garder que tes stations.',
-                  ),
-                  value: on,
-                  onChanged: snap.connectionState == ConnectionState.waiting
-                      ? null
-                      : (v) {
-                          Navigator.pop(sheetContext);
-                          _setCatalog(v);
-                        },
-                );
-              },
-            ),
             ListTile(
-              leading: const Icon(Icons.restore_from_trash_outlined),
-              title: const Text('Restaurer les stations supprimées'),
+              leading: const Icon(Icons.public),
+              title: const Text('Importer le catalogue Radio Browser'),
               subtitle: const Text(
-                'Ramène les stations du catalogue que tu as supprimées.',
+                'Reprend les stations canadiennes dans ta liste, sans '
+                'doublon.',
               ),
               onTap: () {
                 Navigator.pop(sheetContext);
-                _restoreDeleted();
+                _importCatalog();
               },
             ),
           ],
@@ -244,27 +175,14 @@ class _RadioScreenState extends ConsumerState<RadioScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (s.isCustom)
-              ListTile(
-                leading: const Icon(Icons.edit_outlined),
-                title: const Text('Modifier'),
-                onTap: () {
-                  Navigator.pop(context);
-                  context.push('/radio/edit', extra: s);
-                },
-              ),
-            if (!s.isCustom)
-              ListTile(
-                leading: const Icon(Icons.library_add_outlined),
-                title: const Text('Copier dans ma liste'),
-                subtitle: const Text(
-                  'Elle devient tienne : elle reste même sans le catalogue.',
-                ),
-                onTap: () {
-                  Navigator.pop(context);
-                  _adoptOne(s);
-                },
-              ),
+            ListTile(
+              leading: const Icon(Icons.edit_outlined),
+              title: const Text('Modifier'),
+              onTap: () {
+                Navigator.pop(context);
+                context.push('/radio/edit', extra: s);
+              },
+            ),
             ListTile(
               leading: const Icon(Icons.delete_outline),
               title: const Text('Supprimer'),
@@ -312,30 +230,14 @@ class _RadioScreenState extends ConsumerState<RadioScreen> {
     final visible = _visible(stations.value ?? const []);
     final allPicked =
         visible.isNotEmpty && visible.every((s) => _selected.contains(s.id));
-    final canAdopt = _selected.any((id) => !id.startsWith('custom:'));
 
     return Scaffold(
       floatingActionButton: _selecting && _selected.isNotEmpty
-          ? Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                if (canAdopt) ...[
-                  FloatingActionButton.small(
-                    heroTag: 'radio-adopt',
-                    tooltip: 'Copier dans ma liste',
-                    onPressed: _adoptSelected,
-                    child: const Icon(Icons.library_add_outlined),
-                  ),
-                  const SizedBox(height: 10),
-                ],
-                FloatingActionButton.extended(
-                  heroTag: 'radio-delete',
-                  onPressed: _deleteSelected,
-                  icon: const Icon(Icons.delete),
-                  label: Text('Supprimer (${_selected.length})'),
-                ),
-              ],
+          ? FloatingActionButton.extended(
+              heroTag: 'radio-delete',
+              onPressed: _deleteSelected,
+              icon: const Icon(Icons.delete),
+              label: Text('Supprimer (${_selected.length})'),
             )
           : null,
       body: SafeArea(
