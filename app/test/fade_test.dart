@@ -4,6 +4,8 @@
 // Ce qui compte ici : une rampe finit TOUJOURS exactement sur sa cible. Un
 // fondu qui s'arrête à 0,98 laisserait le lecteur légèrement sourd pour
 // toujours, et un fondu de sortie qui s'arrête à 0,02 ferait siffler la pause.
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -243,31 +245,48 @@ void main() {
       );
     });
 
-    test('la rampe à puissance constante garde le niveau au milieu', () {
+    test('les deux rampes du croisement se complètent', () {
       final montee = fadeRamp(
         from: 0,
         to: 1,
         over: const Duration(seconds: 1),
-        constantPower: true,
+        crossing: true,
       );
       final descente = fadeRamp(
         from: 1,
         to: 0,
         over: const Duration(seconds: 1),
-        constantPower: true,
+        crossing: true,
       );
 
       expect(montee.last, 1.0);
       expect(descente.last, 0.0);
-      // Au milieu du croisement, les deux titres réunis pèsent leur volume
-      // d'origine : c'est tout l'intérêt de la racine.
+      // La loi du croisement : à chaque instant, sortant^k + entrant^k = 1.
       for (var i = 0; i < montee.length; i++) {
-        final somme = montee[i] * montee[i] + descente[i] * descente[i];
+        final somme = pow(montee[i], kCrossfadeLaw) + pow(descente[i], kCrossfadeLaw);
         expect(somme, closeTo(1, 0.001));
       }
-      // Une rampe linéaire, elle, creuse : à mi-parcours, 0,5² + 0,5² = 0,5.
+      // Elle tient entre les deux extrêmes : au-dessus de deux droites, qui
+      // creuseraient un vrai trou, et sous la puissance constante, qui laisse
+      // le passage enfler (idée #101).
       final lineaire = fadeRamp(from: 0, to: 1, over: const Duration(seconds: 1));
       expect(montee[12], greaterThan(lineaire[12]));
+      expect(montee[12], lessThan(sqrt(0.5)));
+    });
+
+    test('le milieu du croisement pèse un peu moins qu\'un titre seul', () {
+      // Idée #101 : deux musiques différentes qui jouent ensemble ne
+      // s'entendent pas comme une seule de même puissance — elles ajoutent
+      // aussi leurs sonies. Le croisement descend donc d'un décibel et demi à
+      // mi-parcours, sans jamais aller jusqu'au creux des deux droites (−3 dB).
+      const over = Duration(seconds: 1);
+      final montee = fadeRamp(from: 0, to: 1, over: over, crossing: true);
+      final descente = fadeRamp(from: 1, to: 0, over: over, crossing: true);
+
+      final milieu = montee.length ~/ 2 - 1;
+      final puissance = montee[milieu] * montee[milieu] +
+          descente[milieu] * descente[milieu];
+      expect(10 * (log(puissance) / ln10), closeTo(-1.5, 0.2));
     });
   });
 
@@ -378,19 +397,22 @@ void main() {
         // L'attente, à volume nul.
         for (var i = 0; i < plan.hold.inMicroseconds ~/ kFadeTick.inMicroseconds; i++)
           0.0,
-        ...fadeRamp(from: 0, to: 1, over: plan.fall, constantPower: true),
+        ...fadeRamp(from: 0, to: 1, over: plan.fall, crossing: true),
       ];
       final sortant = [
         // L'attente, à plein volume.
         for (var i = 0; i < plan.hold.inMicroseconds ~/ kFadeTick.inMicroseconds; i++)
           1.0,
-        ...fadeRamp(from: 1, to: 0, over: plan.fall, constantPower: true),
+        ...fadeRamp(from: 1, to: 0, over: plan.fall, crossing: true),
       ];
 
       expect(entrant.length, sortant.length);
       for (var i = 0; i < entrant.length; i++) {
+        // Jamais plus d'un titre dans les oreilles : les deux puissances
+        // réunies ne dépassent pas celle du titre sortant seul.
         final somme = entrant[i] * entrant[i] + sortant[i] * sortant[i];
-        expect(somme, closeTo(1, 0.001));
+        expect(somme, lessThanOrEqualTo(1.001));
+        expect(somme, greaterThan(0.7));
       }
     });
 
@@ -411,6 +433,48 @@ void main() {
       expect(plan.trigger, lessThanOrEqualTo(court ~/ 2));
       expect(plan.rise, greaterThan(Duration.zero));
       expect(plan.fall, lessThanOrEqualTo(plan.rise));
+    });
+
+    test('un titre entrant plus fort croise au niveau du sortant', () {
+      // Idée #101 : deux morceaux ne sont pas gravés au même volume. Un
+      // entrant six décibels au-dessus fait enfler le passage, quelle que
+      // soit la forme des rampes.
+      final plan = crossfadePlan(
+        fade: fade,
+        total: total,
+        current: const TrackEdges(level: -14),
+        next: const TrackEdges(level: -8),
+      );
+
+      // Six décibels de trop, c'est la moitié de l'amplitude.
+      expect(plan.ceiling, closeTo(0.501, 0.005));
+      // La forme du croisement, elle, ne bouge pas.
+      expect(plan.rise, fade);
+      expect(plan.fall, fade);
+    });
+
+    test('un titre entrant plus discret n\'est jamais poussé', () {
+      final plan = crossfadePlan(
+        fade: fade,
+        total: total,
+        current: const TrackEdges(level: -8),
+        next: const TrackEdges(level: -14),
+      );
+
+      expect(plan.ceiling, 1);
+    });
+
+    test('la mise à niveau ne fait pas disparaître le titre entrant', () {
+      // Un écart énorme (mesure douteuse, morceau très discret) : on retient
+      // ce qu'on a le droit de retenir, pas plus.
+      expect(
+        crossfadeCeiling(outgoing: -30, incoming: -2),
+        closeTo(pow(10, -kCrossfadeDuckMaxDb / 20).toDouble(), 0.001),
+      );
+      // Sans mesure des deux côtés, aucune correction.
+      expect(crossfadeCeiling(outgoing: null, incoming: -8), 1);
+      expect(crossfadeCeiling(outgoing: -8, incoming: null), 1);
+      expect(crossfadePlan(fade: fade, total: total).ceiling, 1);
     });
 
     test('le suivi d\'écoute sait de combien un titre peut partir tôt', () {

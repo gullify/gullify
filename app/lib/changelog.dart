@@ -8,6 +8,20 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.28.0', [
+    'Le passage d\'un titre à l\'autre n\'enfle plus du tout : le titre '
+        'suivant, quand il est GRAVÉ PLUS FORT que celui qui s\'achève, monte '
+        'jusqu\'au niveau de ce dernier et pas au-dessus. Il retrouve son '
+        'propre volume ensuite, tout doucement, une fois le passage terminé',
+    'Le serveur mesurait déjà le niveau de chaque morceau sans que personne '
+        's\'en serve : c\'est lui qui règle maintenant la hauteur du '
+        'croisement, jusqu\'à six décibels de rattrapage',
+    'La courbe du croisement a changé de loi : chaque titre passe à −4,5 dB '
+        'au milieu du fondu au lieu de −3 dB. Deux musiques différentes qui '
+        'jouent ensemble s\'entendent plus fort que la somme de leurs '
+        'puissances — le passage compense désormais cet écart, sans creuser '
+        'de trou pour autant',
+  ]),
   ReleaseNote('3.27.0', [
     'Les paroles ne sont plus tranchées par des « … » : une phrase trop '
         'longue s\'étale d\'abord sur DEUX LIGNES, et ne rétrécit que si deux '

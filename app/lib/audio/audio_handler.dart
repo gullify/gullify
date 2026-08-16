@@ -1047,7 +1047,7 @@ class GullifyAudioHandler extends BaseAudioHandler
   /// Fondu de volume du lecteur courant : reprise, pause et changement de titre
   /// en douceur plutôt qu'à sec. Durée réglée par l'utilisateur (idée #75),
   /// sauf [over] imposé — la fin d'une piste se fond sur ce qu'il en reste,
-  /// jamais plus. [constantPower] pour la montée d'un fondu enchaîné, qui se
+  /// jamais plus. [crossing] pour la montée d'un fondu enchaîné, qui se
   /// croise avec la descente du titre sortant.
   ///
   /// Renvoie sa marque : un appelant qui enchaîne (la pause, après son fondu)
@@ -1056,7 +1056,7 @@ class GullifyAudioHandler extends BaseAudioHandler
   Future<int> _fadeTo(
     double target, {
     Duration? over,
-    bool constantPower = false,
+    bool crossing = false,
     Duration tick = kFadeTick,
   }) async {
     final token = ++_fadeToken;
@@ -1065,7 +1065,7 @@ class GullifyAudioHandler extends BaseAudioHandler
       from: player.volume,
       to: target,
       over: over ?? fade.duration,
-      constantPower: constantPower,
+      crossing: crossing,
       tick: tick,
     );
     final instant = ramp.length <= 1;
@@ -1368,8 +1368,8 @@ class GullifyAudioHandler extends BaseAudioHandler
       _endFading = false;
       _listen();
 
-      // Les deux rampes se croisent à puissance constante : deux droites qui
-      // se croisent creuseraient un trou au milieu du passage.
+      // Les deux rampes se croisent en se complétant (loi kCrossfadeLaw) :
+      // deux droites qui se croisent creuseraient un trou au milieu du passage.
       //
       // Elles se croisent sur la part du croisement où les deux titres
       // s'entendent vraiment : quand le titre entrant a démarré en avance
@@ -1382,7 +1382,17 @@ class GullifyAudioHandler extends BaseAudioHandler
       final fall = over < plan.fall ? over : plan.fall;
       final hold = over - fall;
       unawaited(_fadeOutgoing(outgoing, fall, token, after: hold));
-      await _fadeIncoming(fall, after: hold);
+      final rung = await _fadeIncoming(fall, after: hold, to: plan.ceiling);
+
+      // Titre entrant retenu parce qu'il est gravé plus fort que le sortant
+      // (idée #101) : le passage fini, il retrouve son propre niveau, tout
+      // doucement pour que la remontée ne s'entende pas. Sauf si quelqu'un a
+      // repris la main entre-temps (pause, saut) : le volume ne lui appartient
+      // plus, et le repousser en douce ferait rejouer un lecteur qu'on vient
+      // de faire taire.
+      if (plan.ceiling < 1 && rung == _fadeToken) {
+        unawaited(_fadeTo(1, over: kCrossfadeLevelRestore));
+      }
     } catch (e) {
       logPlayback('fondu enchaîné : abandon ($e)');
     } finally {
@@ -1398,16 +1408,26 @@ class GullifyAudioHandler extends BaseAudioHandler
   /// (idée #79) : il la traverse muet, pendant que le sortant tient son
   /// volume. Monter dès la première note d'intro, alors que le titre d'avant
   /// joue encore à fond, faisait enfler le passage sans raison (idée #91).
-  Future<void> _fadeIncoming(Duration over, {Duration after = Duration.zero}) async {
+  ///
+  /// [to] est le volume visé : moins que 1 quand le titre entrant est gravé
+  /// plus fort que le sortant et doit croiser à son niveau (idée #101).
+  ///
+  /// Renvoie la marque du fondu, pour que l'appelant sache si la main lui est
+  /// restée jusqu'au bout.
+  Future<int> _fadeIncoming(
+    Duration over, {
+    Duration after = Duration.zero,
+    double to = 1,
+  }) async {
     if (after > Duration.zero) {
       // Le jeton est pris AVANT l'attente : tout ce qui reprend la main
       // entre-temps (pause, saut, arrêt) le fait avancer, et cette montée
       // renonce plutôt que de repousser le volume dans le dos de l'autre.
       final token = ++_fadeToken;
       await Future<void>.delayed(after);
-      if (token != _fadeToken) return;
+      if (token != _fadeToken) return token;
     }
-    await _fadeTo(1, over: over, constantPower: true);
+    return _fadeTo(to, over: over, crossing: true);
   }
 
   /// Descente du titre sortant, sur son propre lecteur, puis extinction. La
@@ -1430,7 +1450,7 @@ class GullifyAudioHandler extends BaseAudioHandler
       from: outgoing.volume,
       to: 0,
       over: over,
-      constantPower: true,
+      crossing: true,
     );
     for (final volume in ramp) {
       await Future<void>.delayed(kFadeTick);
