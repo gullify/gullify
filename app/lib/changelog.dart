@@ -8,6 +8,24 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.29.0', [
+    'La chanson qui se termine n\'a plus l\'air de remonter le son pendant le '
+        'croisement. La mise à niveau du passage comparait le volume MOYEN des '
+        'deux morceaux ; or un croisement ne fait pas jouer des moyennes, il '
+        'fait jouer la FIN de l\'un et le DÉBUT de l\'autre',
+    'Et une chanson finit presque toujours plus bas qu\'elle n\'a joué : sur '
+        'ta bibliothèque, cinq décibels de moins en médiane, cinquante-six '
+        'titres sur soixante. Le titre suivant arrivait donc au volume moyen '
+        'du précédent — plus fort que ce que le précédent faisait encore '
+        'entendre',
+    'Le serveur mesure maintenant les deux bords qui se croisent vraiment, et '
+        'c\'est là-dessus que le titre entrant se cale. Rien d\'autre ne '
+        'change : toujours six décibels de rattrapage au plus, jamais de '
+        'poussée vers le haut, et le retour au volume normal une fois le '
+        'passage terminé',
+    'Chaque morceau se remesure une fois de plus, tout seul, à sa première '
+        'lecture',
+  ]),
   ReleaseNote('3.28.0', [
     'Le passage d\'un titre à l\'autre n\'enfle plus du tout : le titre '
         'suivant, quand il est GRAVÉ PLUS FORT que celui qui s\'achève, monte '

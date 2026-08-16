@@ -464,6 +464,44 @@ void main() {
       expect(plan.ceiling, 1);
     });
 
+    test('le croisement se cale sur les bords, pas sur les moyennes', () {
+      // Idée #102 : deux morceaux gravés au même niveau, mais le sortant finit
+      // cinq décibels plus bas qu'il n'a joué — le cas le plus courant. Se
+      // caler sur les niveaux de référence ne retenait rien, et l'entrant
+      // arrivait plus fort que ce que le sortant faisait encore entendre.
+      final plan = crossfadePlan(
+        fade: fade,
+        total: total,
+        current: const TrackEdges(level: -12, endLevel: -17),
+        next: const TrackEdges(level: -12, startLevel: -12),
+      );
+
+      expect(plan.ceiling, closeTo(pow(10, -5 / 20).toDouble(), 0.001));
+
+      // Sans les bords, on retombe sur la comparaison des moyennes (idée
+      // #101) : un vieux profil en cache ne casse rien, il corrige moins.
+      final vieux = crossfadePlan(
+        fade: fade,
+        total: total,
+        current: const TrackEdges(level: -12),
+        next: const TrackEdges(level: -12),
+      );
+      expect(vieux.ceiling, 1);
+    });
+
+    test('un titre entrant qui commence en douceur n\'est pas retenu', () {
+      // L'inverse : le sortant finit fort (arrêt net) et l'entrant s'installe
+      // doucement. Rien à retenir — le retenir quand même ferait un trou.
+      final plan = crossfadePlan(
+        fade: fade,
+        total: total,
+        current: const TrackEdges(level: -12, endLevel: -12),
+        next: const TrackEdges(level: -8, startLevel: -16),
+      );
+
+      expect(plan.ceiling, 1);
+    });
+
     test('la mise à niveau ne fait pas disparaître le titre entrant', () {
       // Un écart énorme (mesure douteuse, morceau très discret) : on retient
       // ce qu'on a le droit de retenir, pas plus.

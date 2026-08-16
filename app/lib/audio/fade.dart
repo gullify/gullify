@@ -253,17 +253,22 @@ class CrossfadePlan {
   Duration get hold => rise - fall;
 
   /// Volume auquel le titre entrant monte pendant le croisement : 1 en temps
-  /// normal, moins quand le serveur l'a mesuré plus fort que le titre sortant
-  /// (idée #101). Il retrouve son plein volume ensuite, une fois le passage
-  /// terminé — voir [kCrossfadeLevelRestore].
+  /// normal, moins quand son début a été mesuré plus fort que la fin du titre
+  /// sortant (idées #101 et #102). Il retrouve son plein volume ensuite, une
+  /// fois le passage terminé — voir [kCrossfadeLevelRestore].
   final double ceiling;
 
   bool get idle => trigger <= Duration.zero;
 }
 
 /// De combien retenir le titre entrant pour qu'il croise au niveau du sortant
-/// (idée #101). Les deux niveaux sont des RMS de référence en décibels, tels
-/// que le serveur les mesure (voir src/TransitionAnalysis.php).
+/// (idées #101 et #102). Les deux niveaux sont des RMS en décibels, tels que
+/// le serveur les mesure (voir src/TransitionAnalysis.php).
+///
+/// Ce sont les niveaux des BORDS qu'on compare — la fin du sortant, le début
+/// de l'entrant —, pas les niveaux de référence des deux morceaux : un
+/// croisement ne fait pas jouer les titres en moyenne, il fait jouer la fin de
+/// l'un et le début de l'autre. Voir [crossfadePlan] et [TrackEdges.endLevel].
 ///
 /// On ne retient QUE ce qui est trop fort : pousser un titre gravé bas
 /// au-dessus de son niveau le ferait saturer, et un passage un peu discret ne
@@ -291,9 +296,14 @@ double crossfadeCeiling({double? outgoing, double? incoming}) {
 ///     garde son volume pendant cette avance : ce n'est pas une raison pour
 ///     l'effacer plus tôt. Le croisement à proprement parler n'a lieu qu'après
 ///     ([hold] puis [fall]) : voir [CrossfadePlan.hold] ;
-///   - un titre entrant gravé plus fort que le sortant est retenu au niveau de
-///     celui-ci le temps du passage, puis rendu à son propre volume
-///     (idée #101) : voir [CrossfadePlan.ceiling].
+///   - un titre entrant qui arriverait plus fort que le sortant est retenu à
+///     son niveau le temps du passage, puis rendu à son propre volume
+///     (idée #101) : voir [CrossfadePlan.ceiling]. La comparaison se fait sur
+///     les BORDS croisés — la fin du sortant, le début de l'entrant —, et non
+///     sur les niveaux de référence des deux morceaux : un morceau finit
+///     presque toujours plus bas qu'il n'a joué, et se caler sur sa moyenne
+///     faisait arriver l'entrant plus fort que ce que le sortant jouait
+///     encore (idée #102).
 CrossfadePlan crossfadePlan({
   required Duration fade,
   required Duration? total,
@@ -344,9 +354,14 @@ CrossfadePlan crossfadePlan({
     trigger: trigger,
     rise: rise,
     fall: overlap,
+    // Les bords, et non les niveaux de référence (idée #102) : ce qui se
+    // croise, c'est la fin d'un morceau et le début d'un autre. Un vieux
+    // profil en cache, mesuré avant que le serveur ne rende ces niveaux-là,
+    // retombe sur le niveau de référence — le croisement de l'idée #101,
+    // mieux que rien.
     ceiling: crossfadeCeiling(
-      outgoing: current?.level,
-      incoming: next?.level,
+      outgoing: current?.endLevel ?? current?.level,
+      incoming: next?.startLevel ?? next?.level,
     ),
   );
 }

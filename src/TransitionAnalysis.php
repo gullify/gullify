@@ -23,6 +23,18 @@
  *               plein régime. C'est ce qu'il faut lui donner d'avance pour que
  *               sa première vraie note tombe pile à la fin de la précédente.
  *
+ * De la même courbe sortent trois niveaux, en décibels :
+ *
+ *   - `level` : le niveau de référence du morceau entier (idée #101), celui
+ *               auquel il est gravé.
+ *   - `end`   : le niveau de sa dernière ligne droite — ce qu'il joue vraiment
+ *               pendant qu'on lui passe dessus.
+ *   - `start` : le niveau de son entrée, une fois l'intro passée — ce que le
+ *               titre entrant fait entendre pendant le croisement.
+ *
+ * `end` et `start`, et pas `level` des deux côtés : un morceau finit presque
+ * toujours plus bas qu'il n'a joué (idée #102).
+ *
  * Le résultat est gardé en base (`song_transitions`), la clé portant taille et
  * date du fichier : un titre retagué ou remplacé se réanalyse tout seul.
  *
@@ -62,13 +74,25 @@ class TransitionAnalysis
     /** Titres plus courts : rien à mesurer, les bords sont tout le morceau. */
     private const MIN_TRACK_MS = 20000;
 
+    /** Sur quelle longueur se mesurent les niveaux de bord (`end`, `start`) :
+     *  la part du morceau qu'un croisement recouvre. Le réglage de l'app va
+     *  d'une demi-seconde à huit secondes (le double en croisement
+     *  intelligent) ; six secondes est le milieu honnête de cet éventail. */
+    private const EDGE_MS = 6000;
+
+    /** Avance maximale qu'un titre entrant peut recevoir pour son intro — la
+     *  même que `kSmartLeadMax` côté app. Au-delà, l'app ne recule plus le
+     *  départ : le croisement tombe donc encore dans l'intro, et c'est là
+     *  qu'il faut mesurer `start`. */
+    private const LEAD_CAP_MS = 3000;
+
     /**
      * Les profils de plusieurs titres d'un coup, indexés par id. Un titre
      * inconnu, distant ou impossible à analyser est simplement absent du
      * tableau — l'app sait s'en passer.
      *
      * @param int[] $ids
-     * @return array<int, array{tailMs:int, decayMs:int, leadMs:int, levelDb:float}>
+     * @return array<int, array{tailMs:int, decayMs:int, leadMs:int, levelDb:float, endDb:float, startDb:float}>
      */
     public static function forSongs(PDO $db, string $user, array $ids): array
     {
@@ -123,7 +147,7 @@ class TransitionAnalysis
      * Le profil d'un fichier, mesuré par ffmpeg. Null quand ffmpeg ne rend
      * rien d'exploitable (format illisible, morceau trop court).
      *
-     * @return array{tailMs:int, decayMs:int, leadMs:int, levelDb:float}|null
+     * @return array{tailMs:int, decayMs:int, leadMs:int, levelDb:float, endDb:float, startDb:float}|null
      */
     public static function measure(string $file): ?array
     {
@@ -173,12 +197,62 @@ class TransitionAnalysis
             $lead++;
         }
 
+        // Les niveaux de bord (idée #102). Le croisement ne fait pas jouer les
+        // morceaux à leur niveau de référence : il fait jouer la FIN de l'un
+        // et le DÉBUT de l'autre. Un morceau finit presque toujours plus bas
+        // qu'il n'a joué — sur cette bibliothèque, cinq décibels de moins en
+        // médiane —, si bien que se comparer aux niveaux de référence fait
+        // arriver l'entrant plus fort que ce que le sortant joue à cet
+        // instant. C'est exactement là que se mesurent les deux niveaux.
+        $edge  = (int)(self::EDGE_MS / self::WINDOW_MS);
+        $music = $n - $tail; // première fenêtre du blanc de fin
+
+        // Fin : les dernières fenêtres qui sonnent encore, blanc non compris.
+        $endDb = self::energyMean(
+            array_slice($levels, max(0, $music - $edge), min($edge, $music))
+        );
+
+        // Début : ce qui suit l'intro, dans la limite de l'avance que l'app
+        // sait donner. Une intro plus longue que ça et le croisement tombe
+        // dedans : autant la mesurer telle qu'elle sera entendue.
+        $from    = min($lead, (int)(self::LEAD_CAP_MS / self::WINDOW_MS));
+        $startDb = self::energyMean(
+            array_slice($levels, $from, max(0, min($edge, $music - $from)))
+        );
+
         return [
             'tailMs'  => self::clampMs($tail * self::WINDOW_MS),
             'decayMs' => self::clampMs($decay * self::WINDOW_MS),
             'leadMs'  => self::clampMs($lead * self::WINDOW_MS),
             'levelDb' => round($ref, 1),
+            // Un bord impossible à mesurer (morceau plus court que sa propre
+            // intro) retombe sur le niveau de référence : le croisement se
+            // comporte alors comme avant l'idée #102.
+            'endDb'   => round($endDb ?? $ref, 1),
+            'startDb' => round($startDb ?? $ref, 1),
         ];
+    }
+
+    /**
+     * La moyenne d'une poignée de niveaux en décibels — moyenne des énergies,
+     * pas des décibels : c'est ce que veut dire « le niveau de ce passage »,
+     * et ça donne le poids qu'il faut aux fenêtres les plus fortes.
+     *
+     * @param float[] $levels
+     */
+    private static function energyMean(array $levels): ?float
+    {
+        if (!$levels) {
+            return null;
+        }
+        $sum = 0.0;
+        foreach ($levels as $db) {
+            $sum += pow(10, $db / 10);
+        }
+        $mean = $sum / count($levels);
+        // Du silence numérique de bout en bout : on rend le plancher plutôt
+        // que le −inf de log10(0).
+        return $mean > 0 ? 10 * log10($mean) : -120.0;
     }
 
     /**
@@ -276,18 +350,33 @@ class TransitionAnalysis
                 decay_ms INT NOT NULL DEFAULT 0,
                 lead_ms INT NOT NULL DEFAULT 0,
                 level_db FLOAT NOT NULL DEFAULT 0,
+                end_db FLOAT NOT NULL DEFAULT 0,
+                start_db FLOAT NOT NULL DEFAULT 0,
                 analyzed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
         ");
+        // Les niveaux de bord sont arrivés après (idée #102) : une table déjà
+        // là les reçoit ici. MySQL ne connaît pas ADD COLUMN IF NOT EXISTS, on
+        // laisse donc l'erreur « colonne déjà présente » passer sans bruit.
+        foreach (['end_db', 'start_db'] as $col) {
+            try {
+                $db->exec(
+                    "ALTER TABLE song_transitions
+                     ADD COLUMN $col FLOAT NOT NULL DEFAULT 0 AFTER level_db"
+                );
+            } catch (Throwable $e) {
+                // déjà en place
+            }
+        }
     }
 
     /**
-     * @return array{tailMs:int, decayMs:int, leadMs:int, levelDb:float}|null
+     * @return array{tailMs:int, decayMs:int, leadMs:int, levelDb:float, endDb:float, startDb:float}|null
      */
     private static function cached(PDO $db, int $songId, string $key): ?array
     {
         $stmt = $db->prepare(
-            'SELECT tail_ms, decay_ms, lead_ms, level_db
+            'SELECT tail_ms, decay_ms, lead_ms, level_db, end_db, start_db
              FROM song_transitions WHERE song_id = ? AND file_key = ?'
         );
         $stmt->execute([$songId, $key]);
@@ -295,29 +384,41 @@ class TransitionAnalysis
         if (!$row) {
             return null;
         }
+        // Un niveau RMS est toujours négatif : zéro, c'est un profil mesuré
+        // avant l'idée #102, qui ne connaissait pas les niveaux de bord. On le
+        // remesure plutôt que de croiser sur une valeur qu'on n'a pas — ça ne
+        // coûte qu'un passage de ffmpeg, une seule fois par titre.
+        if ((float)$row['end_db'] >= 0 || (float)$row['start_db'] >= 0) {
+            return null;
+        }
         return [
             'tailMs'  => (int)$row['tail_ms'],
             'decayMs' => (int)$row['decay_ms'],
             'leadMs'  => (int)$row['lead_ms'],
             'levelDb' => (float)$row['level_db'],
+            'endDb'   => (float)$row['end_db'],
+            'startDb' => (float)$row['start_db'],
         ];
     }
 
-    /** @param array{tailMs:int, decayMs:int, leadMs:int, levelDb:float} $p */
+    /** @param array{tailMs:int, decayMs:int, leadMs:int, levelDb:float, endDb:float, startDb:float} $p */
     private static function remember(PDO $db, int $songId, string $key, array $p): void
     {
         try {
             $stmt = $db->prepare(
                 'INSERT INTO song_transitions
-                    (song_id, file_key, tail_ms, decay_ms, lead_ms, level_db, analyzed_at)
-                 VALUES (?, ?, ?, ?, ?, ?, NOW())
+                    (song_id, file_key, tail_ms, decay_ms, lead_ms, level_db,
+                     end_db, start_db, analyzed_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())
                  ON DUPLICATE KEY UPDATE
                     file_key = VALUES(file_key), tail_ms = VALUES(tail_ms),
                     decay_ms = VALUES(decay_ms), lead_ms = VALUES(lead_ms),
-                    level_db = VALUES(level_db), analyzed_at = NOW()'
+                    level_db = VALUES(level_db), end_db = VALUES(end_db),
+                    start_db = VALUES(start_db), analyzed_at = NOW()'
             );
             $stmt->execute([
-                $songId, $key, $p['tailMs'], $p['decayMs'], $p['leadMs'], $p['levelDb'],
+                $songId, $key, $p['tailMs'], $p['decayMs'], $p['leadMs'],
+                $p['levelDb'], $p['endDb'], $p['startDb'],
             ]);
         } catch (Throwable $e) {
             // Une mise en cache qui rate ne doit jamais empêcher de répondre :

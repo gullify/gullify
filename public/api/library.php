@@ -923,6 +923,10 @@ try {
                 'decayMs' => $p['decayMs'],
                 'leadMs'  => $p['leadMs'],
                 'levelDb' => $p['levelDb'],
+                // Niveaux des bords réellement croisés (idée #102) : la fin de
+                // l'un, le début de l'autre.
+                'endDb'   => $p['endDb'],
+                'startDb' => $p['startDb'],
             ];
         }
         $response['data'] = ['transitions' => $transitions];

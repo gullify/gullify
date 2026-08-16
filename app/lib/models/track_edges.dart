@@ -8,6 +8,8 @@ class TrackEdges {
     this.decay = Duration.zero,
     this.lead = Duration.zero,
     this.level,
+    this.endLevel,
+    this.startLevel,
   });
 
   /// Blanc de fin de fichier : il n'y a plus rien à croiser là-dessus.
@@ -28,4 +30,18 @@ class TrackEdges {
   /// Null quand le serveur n'a pas su le dire — vieux profil en cache, mesure
   /// impossible : le croisement se fait alors sans correction.
   final double? level;
+
+  /// Niveau de la dernière ligne droite du titre, en décibels : ce qu'il joue
+  /// vraiment pendant qu'on lui passe dessus, blanc de fin non compris.
+  ///
+  /// Un morceau finit presque toujours plus bas qu'il n'a joué — sur cette
+  /// bibliothèque, cinq décibels de moins en médiane. C'est LUI, et non
+  /// [level], que le titre entrant doit rejoindre : sinon il arrive au niveau
+  /// moyen du sortant, plus fort que ce que le sortant fait entendre à cet
+  /// instant, et la fin du morceau semble enfler (idée #102).
+  final double? endLevel;
+
+  /// Niveau de l'entrée du titre, une fois l'intro passée : ce qu'il fera
+  /// entendre pendant le croisement, à comparer à l'[endLevel] du sortant.
+  final double? startLevel;
 }

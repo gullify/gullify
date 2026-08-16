@@ -426,9 +426,9 @@ class LibraryRepository {
   }
 
   /// Ce que le serveur a mesuré aux bords des titres demandés (idée #79) :
-  /// silence de fin, descente naturelle, entrée en matière et niveau de
-  /// référence, de quoi tailler le fondu enchaîné sur le morceau. Les titres
-  /// que le serveur ne sait pas
+  /// silence de fin, descente naturelle, entrée en matière, niveau de
+  /// référence et niveaux des deux bords (idée #102), de quoi tailler le fondu
+  /// enchaîné sur le morceau. Les titres que le serveur ne sait pas
   /// analyser (stockage distant, fichier illisible) sont simplement absents du
   /// résultat — le lecteur retombe alors sur le croisement réglé à la main.
   Future<Map<int, TrackEdges>> songTransitions(List<int> songIds) async {
@@ -444,15 +444,21 @@ class LibraryRepository {
       if (id == null) continue;
       Duration ms(String key) =>
           Duration(milliseconds: (row[key] as num?)?.round() ?? 0);
-      // Un niveau RMS de référence est toujours négatif : zéro veut dire
-      // « jamais mesuré » (profil mis en cache avant que le serveur ne le
-      // rende), et se comparer à zéro retiendrait le titre suivant pour rien.
-      final level = (row['levelDb'] as num?)?.toDouble();
+      // Un niveau RMS est toujours négatif : zéro veut dire « jamais mesuré »
+      // (profil mis en cache avant que le serveur ne le rende), et se comparer
+      // à zéro retiendrait le titre suivant pour rien.
+      double? db(String key) {
+        final value = (row[key] as num?)?.toDouble();
+        return value != null && value < 0 ? value : null;
+      }
+
       edges[id] = TrackEdges(
         tail: ms('tailMs'),
         decay: ms('decayMs'),
         lead: ms('leadMs'),
-        level: level != null && level < 0 ? level : null,
+        level: db('levelDb'),
+        endLevel: db('endDb'),
+        startLevel: db('startDb'),
       );
     }
     return edges;
