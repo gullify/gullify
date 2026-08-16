@@ -8,6 +8,23 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.30.0', [
+    'Android Auto n\'affiche plus « Impossible de charger votre sélection » '
+        'sur l\'écran d\'accueil de la voiture. Android demande au démarrage '
+        'une liste à part, celle de la reprise, et y attend UN morceau '
+        'jouable : Gullify répondait une liste vide, et c\'était l\'erreur',
+    'Il y a maintenant une vignette « reprendre » : le dernier titre écouté, '
+        'avec sa pochette et sa barre de progression. On le touche, et la file '
+        'repart où on l\'avait laissée — à la piste et à la seconde près, même '
+        'après que le téléphone a fermé l\'app',
+    'Ce qu\'on écoutait est gardé sur le téléphone : la question arrive dans '
+        'la voiture avant que la session ne soit rétablie, souvent sans '
+        'réseau. Tant qu\'on n\'a encore rien écouté, la vignette propose la '
+        'lecture aléatoire plutôt que de laisser un écran vide',
+    'Le diagnostic Android Auto note aussi, désormais, ce qu\'on a demandé à '
+        'jouer et pourquoi ça n\'a pas marché — il ne montrait jusqu\'ici que '
+        'les listes affichées',
+  ]),
   ReleaseNote('3.29.0', [
     'La chanson qui se termine n\'a plus l\'air de remonter le son pendant le '
         'croisement. La mise à niveau du passage comparait le volume MOYEN des '

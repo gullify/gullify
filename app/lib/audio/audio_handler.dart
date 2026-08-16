@@ -14,6 +14,7 @@ import '../models/song.dart';
 import 'equalizer.dart';
 import 'fade.dart';
 import 'prefetch.dart';
+import 'resume_store.dart';
 import 'tuned_player.dart';
 
 export 'equalizer.dart' show equalizerSupported;
@@ -65,6 +66,15 @@ const kPreviewVideoId = 'previewVideoId';
 /// Media IDs used for the Android Auto / media browser tree.
 class BrowseIds {
   static const root = AudioService.browsableRootId;
+
+  /// La racine « reprise » (minuscules, imposée par Android) : Android Auto la
+  /// demande à part, et attend un seul élément jouable — le titre qu'on
+  /// écoutait en dernier (idée #103).
+  static const resumeRoot = AudioService.recentRootId;
+
+  /// Cet élément-là. Le toucher reprend la file où on l'avait laissée.
+  static const resume = 'RESUME';
+
   static const home = 'HOME';
   static const library = 'LIBRARY';
   static const albums = 'ALBUMS';
@@ -137,6 +147,8 @@ class GullifyAudioHandler extends BaseAudioHandler
       logPlayback(s.playing
           ? '▶ lecture$suffix'
           : '⏸ pause à ${_fmtPos(_player.position)}$suffix');
+      // On s'arrête ici : c'est de là qu'Android Auto devra reprendre.
+      if (!s.playing) _rememberPosition();
     }));
     // Transitions du cycle de lecture (mise en tampon = stall réseau, etc.).
     _subs.add(_player.processingStateStream.listen((s) {
@@ -166,6 +178,9 @@ class GullifyAudioHandler extends BaseAudioHandler
       _fadeInNewTrack();
       _flushPlay();
       _startTracking(q[index]);
+      // Ce qu'Android Auto proposera de reprendre, c'est le titre qui commence
+      // (idée #103).
+      unawaited(resume.rememberCurrent(q[index].extras?['songId'] as int?));
       _prefetchKaraoke(index);
       // Les bords du titre qui commence et de celui qui suit : demandés
       // maintenant, ils seront là bien avant le croisement (idée #79).
@@ -223,6 +238,10 @@ class GullifyAudioHandler extends BaseAudioHandler
   /// de là. Réglable dans Paramètres → Lecture → Tampon d'avance ; voir
   /// prefetch.dart.
   final buffer = PlaybackBuffer();
+
+  /// Ce qu'on écoutait en dernier, gardé sur le disque pour la racine de
+  /// reprise d'Android Auto (idée #103) ; voir resume_store.dart.
+  final resume = ResumeStore();
 
   // Réglage des tampons et verrou réseau : voir tuned_player.dart, d'où sortent
   // tous les lecteurs de l'app.
@@ -356,7 +375,17 @@ class GullifyAudioHandler extends BaseAudioHandler
 
   /// Appelé par l'observateur du cycle de vie de l'app (main.dart) : trace les
   /// passages en arrière-plan / veille, à corréler avec un éventuel arrêt.
-  void logLifecycle(String state) => logPlayback('app : $state');
+  void logLifecycle(String state) {
+    logPlayback('app : $state');
+    // L'app peut ne jamais revenir (système qui la tue en veille) : on note où
+    // on en est pendant qu'on peut encore écrire, pour la reprise Android Auto.
+    _rememberPosition();
+  }
+
+  /// Note où en est la piste courante pour la reprise Android Auto (idée #103).
+  void _rememberPosition() => unawaited(
+        resume.rememberPosition(_player.position, songId: _currentSongId),
+      );
 
   // Catégories du browse tree dont un chargement réseau a échoué (hors
   // ligne) : un réessai est en cours en arrière-plan. Évite de lancer
@@ -779,7 +808,13 @@ class GullifyAudioHandler extends BaseAudioHandler
   /// « rien ne joue » et abandonne la sélection en cours).
   bool _switchingSource = false;
 
-  Future<void> playSongs(List<Song> songs, {int startIndex = 0}) async {
+  /// Lance une file. [startPosition] ne sert qu'à la reprise Android Auto
+  /// (idée #103) : on retombe sur la piste là où on l'avait laissée.
+  Future<void> playSongs(
+    List<Song> songs, {
+    int startIndex = 0,
+    Duration? startPosition,
+  }) async {
     // Hors session (voiture sans réseau), un titre non téléchargé n'a aucune
     // source : mieux vaut l'écarter que de bâtir une file qui échoue dès la
     // première piste. En temps normal rien n'est écarté.
@@ -799,9 +834,12 @@ class GullifyAudioHandler extends BaseAudioHandler
     _switchingSource = true;
     final items = songs.map(_toMediaItem).toList();
     queue.add(items);
+    // Ce qu'on écoute maintenant est ce qu'Android Auto proposera de reprendre.
+    unawaited(resume.remember(songs, index: startIndex));
     await _player.setAudioSources(
       [for (final item in items) AudioSource.uri(Uri.parse(item.id))],
       initialIndex: startIndex,
+      initialPosition: startPosition,
     );
     _primeBuffer();
     await play();
@@ -1632,6 +1670,17 @@ class GullifyAudioHandler extends BaseAudioHandler
     Map<String, dynamic>? options,
   ]) async {
     logAA('getChildren($parentMediaId)');
+    // La racine de reprise, demandée à part par Android Auto au démarrage :
+    // elle ne descend jamais au serveur (elle est posée avant la session, et
+    // souvent sans réseau) et ne doit JAMAIS repartir vide — c'était là
+    // l'« Impossible de charger votre sélection » de l'écran d'accueil de la
+    // voiture (idée #103).
+    if (parentMediaId == BrowseIds.resumeRoot) {
+      final items = await _resumeRoot();
+      logAA('→ ${items.length} item de reprise : ${items.first.title}');
+      return items;
+    }
+
     // Les écrans qui ne demandent rien au serveur (racine, onglets, titres
     // téléchargés) répondent tout de suite, même sans session : c'est ce qui
     // reste navigable dans la voiture quand il n'y a pas de réseau.
@@ -1673,6 +1722,88 @@ class GullifyAudioHandler extends BaseAudioHandler
       _scheduleReload(parentMediaId);
       return _offlineFallback(parentMediaId);
     }
+  }
+
+  // ── La racine de reprise (idée #103) ───────────────────────────────────────
+
+  /// Ce qu'on écoutait en dernier, la position vivante du lecteur ayant le
+  /// dernier mot : tant que l'app tourne, elle en sait plus que le disque, qui
+  /// n'est écrit qu'aux changements de piste et aux pauses.
+  Future<ResumePoint?> _resumePoint() async {
+    final point = await resume.load();
+    if (point == null) return null;
+    final live = _player.position;
+    final playing = queue.value.isNotEmpty &&
+        mediaItem.value?.extras?['songId'] == point.song.id;
+    return playing && live > Duration.zero ? point.at(live) : point;
+  }
+
+  /// L'unique élément de la racine « recent ». Android Auto y attend un titre
+  /// jouable ; une liste vide, et l'accueil de la voiture affiche « Impossible
+  /// de charger votre sélection ». Tant qu'on n'a jamais rien écouté, on
+  /// propose donc de quoi lancer la musique plutôt que rien.
+  Future<List<MediaItem>> _resumeRoot() async {
+    final point = await _resumePoint();
+    if (point == null) {
+      return const [
+        MediaItem(
+          id: 'ALL_SHUFFLE',
+          title: 'Lecture aléatoire',
+          playable: true,
+        ),
+      ];
+    }
+    final s = point.song;
+    final progress = point.progress;
+    return [
+      MediaItem(
+        id: BrowseIds.resume,
+        title: s.title,
+        artist: s.artistName,
+        album: s.albumName,
+        duration: Duration(seconds: s.duration),
+        artUri: _artUri(s.artworkUrl),
+        playable: true,
+        // Les deux clés d'androidx.media : la vignette de reprise porte alors
+        // la barre de progression là où on s'était arrêté.
+        extras: {
+          'android.media.extra.PLAYBACK_STATUS': progress > 0 ? 1 : 0,
+          if (progress > 0)
+            'androidx.media.MediaItem.Extras.COMPLETION_PERCENTAGE': progress,
+        },
+      ),
+    ];
+  }
+
+  /// Reprise depuis Android Auto : la file telle qu'on l'avait laissée, à la
+  /// piste et à la seconde près.
+  Future<void> _playResume() async {
+    final point = await _resumePoint();
+    if (point == null) {
+      logAA('reprise : rien à reprendre');
+      return;
+    }
+    // Un titre téléchargé se joue sans réseau ni session ; les autres ont
+    // besoin du dépôt, qui met quelques secondes à revenir au démarrage.
+    if (!offlinePaths.containsKey(point.song.id)) {
+      playbackState.add(playbackState.value.copyWith(
+        processingState: AudioProcessingState.loading,
+        playing: false,
+      ));
+      if (await _awaitRepository() == null) {
+        logAA('reprise : pas de session');
+        playbackState.add(playbackState.value.copyWith(
+          processingState: AudioProcessingState.idle,
+        ));
+        return;
+      }
+    }
+    logAA('reprise : « ${point.song.title} » à ${_fmtPos(point.position)}');
+    await playSongs(
+      point.songs,
+      startIndex: point.index,
+      startPosition: point.position,
+    );
   }
 
   /// Les catégories servies sans le moindre aller-réseau. `null` pour les
@@ -2078,6 +2209,11 @@ class GullifyAudioHandler extends BaseAudioHandler
   /// le défaut (null) fait échouer la sélection.
   @override
   Future<MediaItem?> getMediaItem(String mediaId) async {
+    // La vignette de reprise (idée #103) : elle se décrit toute seule, avant
+    // même que la session ne soit restaurée.
+    if (mediaId == BrowseIds.resume) {
+      return (await _resumeRoot()).where((i) => i.id == mediaId).firstOrNull;
+    }
     // Un téléchargement se décrit sans rien demander au serveur.
     final local = RegExp(r'^DOWNLOADS_TRACK_(\d+)$').firstMatch(mediaId);
     if (local != null) {
@@ -2302,11 +2438,22 @@ class GullifyAudioHandler extends BaseAudioHandler
     String mediaId, [
     Map<String, dynamic>? extras,
   ]) async {
+    // Journalisé comme le reste de la navigation : sans ça, le diagnostic
+    // Android Auto montre les listes affichées mais jamais ce qu'on a essayé
+    // de jouer — c'est pourtant l'autre moitié de « Impossible de charger
+    // votre sélection ».
+    logAA('lecture demandée : $mediaId');
     // Les téléchargements se jouent sans réseau ni session : on les sert avant
     // d'attendre quoi que ce soit, sinon la seule chose encore écoutable hors
     // ligne resterait bloquée derrière l'attente du dépôt.
     if (mediaId.startsWith('DOWNLOADS')) {
       await _playDownloads(mediaId);
+      return;
+    }
+
+    // La vignette de reprise de l'accueil Android Auto (idée #103).
+    if (mediaId == BrowseIds.resume) {
+      await _playResume();
       return;
     }
 
@@ -2357,7 +2504,10 @@ class GullifyAudioHandler extends BaseAudioHandler
         return;
       }
 
-      if (m == null) return;
+      if (m == null) {
+        logAA('→ identifiant non jouable');
+        return;
+      }
 
       final prefix = m.group(1)!;
       final List<Song> songs;
@@ -2392,7 +2542,10 @@ class GullifyAudioHandler extends BaseAudioHandler
       } else {
         songs = await _favorites(repo);
       }
-      if (songs.isEmpty) return;
+      if (songs.isEmpty) {
+        logAA('→ aucun titre à jouer');
+        return;
+      }
 
       final action = m.group(5) ?? 'PLAY';
       if (action == 'SHUFFLE') {
@@ -2403,9 +2556,10 @@ class GullifyAudioHandler extends BaseAudioHandler
       } else {
         await playSongs(songs);
       }
-    } catch (_) {
+    } catch (e) {
       // Retombe sur idle pour qu'Android Auto ne reste pas bloqué en
       // chargement si le serveur ne répond pas.
+      logAA('ERREUR lecture : $e');
       playbackState.add(playbackState.value.copyWith(
         processingState: AudioProcessingState.idle,
       ));
