@@ -309,11 +309,17 @@ ThemeData _appleGlass(Color accent, {required bool dark}) {
       // Idée #105 : la signature de la matière n'est pas le flou, c'est la
       // réfraction. Un flou de 48 réduisait le fond en bouillie — la lentille
       // n'avait plus rien à plier, et le verre redevenait le rectangle laiteux
-      // qu'on lui reprochait. Un givre franc mais lisible (au-dessus de celui
-      // du verre Gullify, 24), des couleurs ravivées sans excès : le reste se
-      // gagne maintenant dans le shader.
-      blurSigma: 28,
-      vibrancy: 1.8,
+      // qu'on lui reprochait.
+      // Idée #107 : 28 restait de la bouillie. Le moteur travaille entre 3 et
+      // 10 (c'est SON réglage d'usine, et celui de tous ses exemples) ; à 28,
+      // le fond derrière une barre n'est plus qu'un aplat, et un aplat plié
+      // reste un aplat. On descend donc au haut de sa fourchette — le verre
+      // d'Apple laisse lire ce qu'il y a dessous, il ne l'efface pas. La
+      // lisibilité passe au voile de lisibilité d'iOS 26 (liquid_glass.dart),
+      // et les couleurs ravivées reviennent au 1,5 de la matière : à 1,8, le
+      // moindre halo du fond d'écran virait au fluo sous la vitre.
+      blurSigma: 10,
+      vibrancy: 1.5,
       // Un fond neutre et sourd : la couleur, désormais, vient des grands
       // halos peints par-dessus (idée #99).
       background: dark

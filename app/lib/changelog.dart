@@ -8,6 +8,32 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.34.0', [
+    'Le verre d\'Apple arrête d\'en faire trop. La disposition ne bouge pas '
+        'd\'un pixel — c\'est la MATIÈRE qui se reprend. La fois d\'avant, '
+        'pour répondre à « je ne vois aucune différence », tous les curseurs '
+        'étaient montés à fond : un verre poussé à fond ne fait pas plus de '
+        'verre, il fait du plastique irisé sur fond de taches grises',
+    'Le flou descend de 28 à 10, la fourchette où le moteur travaille. À 28, '
+        'le fond derrière une barre n\'était plus qu\'un aplat — et un aplat '
+        'plié reste un aplat : la lentille n\'avait plus rien à réfracter et '
+        'redevenait le panneau laiteux qu\'on lui reproche depuis le début. On '
+        'lit de nouveau ce qui passe dessous, et la lisibilité du texte est '
+        'reprise par le voile d\'iOS 26, qui blanchit le verre sans toucher à '
+        'l\'encre',
+    'Les ombres redeviennent celles d\'Apple : 6 % de noir sur 8 px, au lieu '
+        'de 52 px de flou décalés de 22. Chaque vitre traînait un halo gris — '
+        'sur le dock, sur les cartes, sous la pochette du lecteur',
+    'Les cartes qui défilent ne clignotent plus. Le rendu le plus fin '
+        'photographie le fond pour le plier : dans une liste qui bouge, cette '
+        'photo montre ce qui était là juste avant. Il reste donc aux surfaces '
+        'qui ne défilent pas (barres, lecteur, boutons flottants) ; le reste '
+        'passe au rendu prévu pour le mouvement',
+    'Et sur les appareils où le shader ne tourne pas, on n\'empile plus deux '
+        'vitres l\'une sur l\'autre — c\'est ce qui donnait, là, un panneau '
+        'blanc opaque à la place d\'une lentille. Épaisseur, prisme, éclat et '
+        'fond d\'écran redescendent eux aussi aux valeurs de la matière',
+  ]),
   ReleaseNote('3.33.0', [
     'Le verre d\'Apple se voit enfin. La réfraction livrée la fois d\'avant '
         'tournait bien — mais on la repeignait aussitôt : la vitre dessinée à '

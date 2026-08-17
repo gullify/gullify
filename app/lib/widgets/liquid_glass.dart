@@ -42,6 +42,30 @@ import '../theme.dart';
 /// du fond) et le laisse se voir ; là où il ne peut pas tourner, la vitre
 /// dessinée se peint en entier, comme avant.
 ///
+/// Idée #107 — « la dernière version est terrible, je veux garder la
+/// disposition, le problème c'est l'esthétique ». La disposition ne bouge donc
+/// pas d'un pixel ici : c'est la MATIÈRE qu'on reprend, et elle se reprend
+/// contre trois excès du #106, tous mesurables face aux valeurs iOS 26 que le
+/// moteur publie lui-même (`GlassDefaults`, `GlassShadow`) :
+///   1. le GIVRE. On floutait à 28 quand le moteur travaille entre 3 et 10.
+///      Un fond réduit en purée n'a plus de matière à plier : la lentille
+///      n'avait plus rien à réfracter et redevenait le panneau laiteux qu'on
+///      lui reproche. C'est la réfraction qui fait le verre, pas le sigma —
+///      la lisibilité, elle, passe maintenant par `whitenStrength`, le voile
+///      de lisibilité d'iOS 26 (uniforme, et qui laisse l'encre nette).
+///   2. l'OMBRE. 52 px de flou, 22 px de décalage, 15 % de noir sous CHAQUE
+///      vitre — contre 6 %, 8 px et 2 px chez Apple. Chaque barre traînait un
+///      halo gris ; on reprend l'ombre du moteur, découpée hors du verre.
+///   3. la QUALITÉ. Le rendu « premium » échantillonne le fond dans une
+///      texture (`toImageSync`) : le paquet le réserve explicitement aux
+///      surfaces STATIQUES, parce que dans une liste qui défile la capture
+///      montre un fond en retard. Il reste donc pour les barres, le lecteur
+///      et les boutons flottants ; ce qui vit dans un défilement passe au
+///      rendu « standard », calibré pour ça.
+/// Et l'épaisseur, le prisme et l'éclat redescendent aux valeurs de la
+/// matière (20 px, 0,2, 0,55) : poussés à fond, ils ne font pas « plus de
+/// verre », ils font du plastique irisé.
+///
 /// Comme retro_chrome.dart, ce fichier ne peint qu'une matière : il ne décide
 /// de rien. C'est theme.dart qui vient y chercher sa palette.
 
@@ -64,70 +88,117 @@ bool lensRefracts() =>
 @visibleForTesting
 bool? debugLensRefracts;
 
-/// Les couleurs de la vitre peinte à la main, celle des surfaces où le flou
-/// est coupé (petits boutons, écrans hors shell) : sans fond flouté à plier,
-/// le shader n'a rien à réfracter, alors la lentille se dessine.
-///
-/// Le verre clair : blanc lavé, presque rien (haut-gauche → bas-droite).
-const _lightFill = [Color(0x54FFFFFF), Color(0x14FFFFFF)];
+/// Ce que le moteur a DÉJÀ posé sous la peinture — donc ce qu'il reste à
+/// peindre (idée #107). Le #106 ne connaissait que deux cas ; il en manquait
+/// un, et c'était le pire : sur un appareil sans shader, le moteur pose quand
+/// même une vitre givrée, et on repeignait par-dessus la lentille COMPLÈTE.
+/// Deux corps de verre l'un sur l'autre : le panneau blanc opaque.
+enum _Pane {
+  /// Le shader a plié le fond : la peinture n'a plus qu'à ne pas le cacher.
+  lens,
 
-/// Le verre sombre : à peine blanchi — c'est le fond qui doit rester visible.
-const _darkFill = [Color(0x24FFFFFF), Color(0x05FFFFFF)];
+  /// Pas de shader ici, mais le moteur a givré et cerclé la surface : la
+  /// peinture ne fait que l'appuyer.
+  frost,
+
+  /// Rien dessous — le flou est coupé (petits boutons, écrans hors shell) :
+  /// la lentille se dessine en entier, fond dense compris.
+  painted,
+}
+
+/// La vitre peinte, du haut-gauche au bas-droite. Trois densités, une par
+/// couche déjà présente dessous.
+List<Color> _fillOf(_Pane pane, bool light) => switch ((pane, light)) {
+  (_Pane.lens, true) => const [Color(0x1FFFFFFF), Color(0x0AFFFFFF)],
+  (_Pane.lens, false) => const [Color(0x12FFFFFF), Color(0x03FFFFFF)],
+  (_Pane.frost, true) => const [Color(0x2EFFFFFF), Color(0x0EFFFFFF)],
+  (_Pane.frost, false) => const [Color(0x18FFFFFF), Color(0x04FFFFFF)],
+  (_Pane.painted, true) => const [Color(0x54FFFFFF), Color(0x14FFFFFF)],
+  (_Pane.painted, false) => const [Color(0x24FFFFFF), Color(0x05FFFFFF)],
+};
 
 /// Le reflet qui glisse sur la moitié haute : une vitre penchée vers la
 /// lumière n'est pas uniforme, elle a un éclat franc en haut et rien en bas.
-const _lightGloss = [Color(0x59FFFFFF), Color(0x00FFFFFF)];
-const _darkGloss = [Color(0x2EFFFFFF), Color(0x00FFFFFF)];
+List<Color> _glossOf(_Pane pane, bool light) => switch ((pane, light)) {
+  (_Pane.lens, true) => const [Color(0x1FFFFFFF), Color(0x00FFFFFF)],
+  (_Pane.lens, false) => const [Color(0x12FFFFFF), Color(0x00FFFFFF)],
+  (_Pane.frost, true) => const [Color(0x33FFFFFF), Color(0x00FFFFFF)],
+  (_Pane.frost, false) => const [Color(0x1CFFFFFF), Color(0x00FFFFFF)],
+  (_Pane.painted, true) => const [Color(0x4DFFFFFF), Color(0x00FFFFFF)],
+  (_Pane.painted, false) => const [Color(0x2EFFFFFF), Color(0x00FFFFFF)],
+};
 
-/// Les MÊMES couches, mais posées sur un fond que le shader a déjà plié
-/// (idée #106). Là, la peinture n'a plus à faire le verre — elle a juste à ne
-/// pas le cacher. Le blanc du haut-gauche montait à trois quarts d'opacité en
-/// cumulant vitre + reflet + éclat : c'était exactement l'angle où le fond se
-/// resserre et se sépare en couleurs. On le divise donc par trois, et ce qui
-/// reste ne sert plus qu'à tenir la surface quand le fond derrière elle est
-/// uni (une pochette noire, un aplat).
-const _lightLensFill = [Color(0x1FFFFFFF), Color(0x0AFFFFFF)];
-const _darkLensFill = [Color(0x12FFFFFF), Color(0x03FFFFFF)];
-const _lightLensGloss = [Color(0x24FFFFFF), Color(0x00FFFFFF)];
-const _darkLensGloss = [Color(0x14FFFFFF), Color(0x00FFFFFF)];
+/// L'éclat d'angle : la tache de lumière qui trahit une surface bombée. Là où
+/// le moteur pose déjà la sienne, il n'en reste qu'un souffle — deux taches
+/// l'une sur l'autre font un voile, pas du verre.
+double _sheenOf(_Pane pane, bool light) => switch ((pane, light)) {
+  (_Pane.lens, true) => 0.14,
+  (_Pane.lens, false) => 0.08,
+  (_Pane.frost, true) => 0.26,
+  (_Pane.frost, false) => 0.14,
+  (_Pane.painted, true) => 0.38,
+  (_Pane.painted, false) => 0.20,
+};
 
-/// Ce qu'on glisse SOUS cette vitre-là : sans flou, la lisibilité ne tient
+/// Ce qu'on glisse SOUS la vitre dessinée : sans flou, la lisibilité ne tient
 /// plus qu'à un fond un peu plus dense.
 const _lightScrim = Color(0x80FFFFFF);
 const _darkScrim = Color(0x800B0B10);
 
-/// La teinte que le shader pose sur le fond réfracté : presque rien, parce
-/// que la vitre peinte vient juste après y ajouter la sienne. Deux corps de
-/// verre l'un sur l'autre feraient un panneau laiteux — l'inverse de l'idée.
-const _lightTint = Color(0x0FE8EEFA);
-const _darkTint = Color(0x0AFFFFFF);
+/// La teinte du corps de verre. Le givre ayant beaucoup baissé (idée #107),
+/// c'est elle — avec le voile de lisibilité — qui tient le texte au-dessus
+/// d'un fond chargé. En sombre, le verre d'iOS 26 est sombre : un tint blanc
+/// éclaircissait une matière qui doit assombrir.
+const _lightTint = Color(0x1AF2F6FF);
+const _darkTint = Color(0x1F0C0C14);
+
+/// Le voile de lisibilité d'iOS 26 (`whitenStrength`), en clair seulement :
+/// le verre fini est tiré vers le blanc d'un seul tenant, sans couture ni
+/// halo, et le gate de luminance laisse l'encre nette. C'est ce qui remplace
+/// le flou de 28 — Apple lit au travers, il ne masque pas.
+const _whiten = 0.12;
 
 /// L'épaisseur de la vitre, en pixels : c'est elle qui donne sa largeur à la
 /// bande où le fond se plie. Un petit disque en a moins qu'un bandeau, sinon
 /// la déformation lui mange tout l'intérieur.
 ///
-/// Idée #106 : 22 px sur un bandeau de 62 ne pliaient qu'un tiers de sa
-/// hauteur, et la peinture couvrait ce tiers. Une vitre plus épaisse creuse
-/// une bande qu'on voit sans la chercher.
-const _panelThickness = 30.0;
-const _circleThickness = 14.0;
+/// Idée #107 : 30 px sur un bandeau de 62 tordaient la barre entière, bord à
+/// bord — il ne restait plus un pixel de fond droit au milieu. 20 px (la
+/// valeur de la matière) creusent le pourtour et laissent le centre tranquille.
+const _panelThickness = 20.0;
+const _circleThickness = 12.0;
 
-/// La dispersion du prisme (0 à 4 dans le paquet) : assez pour qu'une arête
-/// irise sur un fond contrasté, pas au point de border l'écran de rouge.
-const _dispersion = 0.6;
+/// La dispersion du prisme (0 à 4 dans le paquet, qui la donne lui-même pour
+/// « encore un peu moche » au-delà) : de quoi iriser une arête sur un fond
+/// contrasté. À 0,6, toutes les arêtes de l'app se bordaient de couleur.
+const _dispersion = 0.2;
 
-/// L'indice de réfraction, c'est-à-dire à quel point le fond se plie. 1.2 est
-/// le maximum de l'échelle du paquet — Apple ne fait pas dans la demi-mesure.
-const _refractiveIndex = 1.2;
+/// L'indice de réfraction, c'est-à-dire à quel point le fond se plie : la
+/// valeur d'iOS 26 du paquet, pas le maximum de l'échelle.
+const _refractiveIndex = 1.15;
 
-/// L'ombre d'Apple : large et basse, elle décolle la lentille du fond d'écran
-/// sans jamais se voir comme un trait. Le paquet la découpe à l'extérieur de
-/// la vitre, pour que le verre ne floute pas sa propre ombre.
-const _panelShadow = [
-  BoxShadow(color: Color(0x260B1020), blurRadius: 52, offset: Offset(0, 22)),
+/// La lumière du moteur. À 0,85 avec zéro ambiante, les arêtes viraient au
+/// trait blanc dur ; l'ambiante et l'anneau de Fresnel rendent le pourtour
+/// lumineux tout autour, comme la pilule d'iOS 26, sans ce contraste-là.
+const _lightIntensity = 0.55;
+const _ambient = 0.12;
+const _ambientRim = 0.08;
+
+/// L'ombre d'iOS 26, telle que le moteur la publie : 6 % de noir, 8 px de
+/// flou, 2 px plus bas. Elle décolle la lentille du fond d'écran sans jamais
+/// se voir — et le paquet la découpe hors de la vitre, pour que le verre ne
+/// floute pas sa propre ombre. (Idée #107 : la nôtre faisait 52 px de flou et
+/// 22 px de décalage sous chaque barre. C'étaient des taches grises.)
+const _shadowElevation = 1.0;
+
+/// La même, à peindre nous-mêmes là où le moteur n'intervient pas (flou
+/// coupé). En sombre, iOS 26 ne pose pas d'ombre sur le verre ; un disque
+/// posé sur une pochette, lui, a besoin d'un contact pour ne pas y coller.
+const _paintedPanelShadow = [
+  BoxShadow(color: Color(0x14000000), blurRadius: 10, offset: Offset(0, 3)),
 ];
-const _circleShadow = [
-  BoxShadow(color: Color(0x260B1020), blurRadius: 22, offset: Offset(0, 8)),
+const _paintedCircleShadow = [
+  BoxShadow(color: Color(0x1F000000), blurRadius: 6, offset: Offset(0, 2)),
 ];
 
 /// Panneau de verre façon Apple : fond réfracté et ravivé, teinte à peine
@@ -160,14 +231,15 @@ class LiquidGlass extends StatelessWidget {
     final theme = Theme.of(context);
     final surfaces = theme.extension<GullifySurfaces>();
     final light = theme.colorScheme.brightness == Brightness.light;
-    final sigma = surfaces?.blurSigma ?? 30;
-    final vibrancy = surfaces?.vibrancy ?? 1.0;
-    // Le fond va-t-il vraiment se plier sous cette surface-là ? Il y faut les
-    // deux : un fond flouté en direct (donc le shell) ET un moteur capable de
-    // faire tourner le shader. C'est ce booléen qui décide de tout ce qui
-    // suit — peinture allégée et arête discrète d'un côté, vitre dessinée en
-    // entier de l'autre.
-    final refracting = blur && lensRefracts();
+    final sigma = surfaces?.blurSigma ?? 10;
+    final vibrancy = surfaces?.vibrancy ?? 1.5;
+    // Qu'y a-t-il déjà sous la peinture ? Sans flou, rien du tout : le moteur
+    // n'est même pas appelé, la lentille se dessine en entier. Avec, il pose
+    // sa vitre — le fond plié quand le shader tourne, une vitre givrée sinon
+    // — et la peinture n'a plus qu'à l'appuyer sans la cacher.
+    final beneath = !blur
+        ? _Pane.painted
+        : (lensRefracts() ? _Pane.lens : _Pane.frost);
 
     Widget clip(Widget child) => circle
         ? ClipOval(child: child)
@@ -184,9 +256,7 @@ class LiquidGlass extends StatelessWidget {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: refracting
-              ? (light ? _lightLensFill : _darkLensFill)
-              : (light ? _lightFill : _darkFill),
+          colors: _fillOf(beneath, light),
         ),
       ),
       child: DecoratedBox(
@@ -194,27 +264,19 @@ class LiquidGlass extends StatelessWidget {
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: const Alignment(0.35, 1),
-            colors: refracting
-                ? (light ? _lightLensGloss : _darkLensGloss)
-                : (light ? _lightGloss : _darkGloss),
+            colors: _glossOf(beneath, light),
             stops: const [0, 0.55],
           ),
         ),
         // L'éclat : la tache de lumière dans l'angle haut-gauche, celle qui
-        // trahit une surface bombée. Le clip de la lentille la découpe. Sur un
-        // fond réfracté il ne reste qu'un souffle : le shader pose déjà le
-        // sien, et deux taches de lumière l'une sur l'autre font un voile.
+        // trahit une surface bombée. Le clip de la lentille la découpe.
         child: DecoratedBox(
           decoration: BoxDecoration(
             gradient: RadialGradient(
               center: const Alignment(-0.9, -1.1),
               radius: circle ? 0.9 : 0.8,
               colors: [
-                Colors.white.withValues(
-                  alpha: refracting
-                      ? (light ? 0.16 : 0.09)
-                      : (light ? 0.45 : 0.22),
-                ),
+                Colors.white.withValues(alpha: _sheenOf(beneath, light)),
                 Colors.white.withValues(alpha: 0),
               ],
             ),
@@ -260,7 +322,7 @@ class LiquidGlass extends StatelessWidget {
                 radius: radius,
                 circle: circle,
                 light: light,
-                refracting: refracting,
+                pane: beneath,
               ),
             ),
           ),
@@ -279,10 +341,16 @@ class LiquidGlass extends StatelessWidget {
         shape: circle
             ? const lg.LiquidOval()
             : lg.LiquidRoundedSuperellipse(borderRadius: radius),
-        // Le rendu complet : deux passes Impeller (flou puis réfraction).
-        // AdaptiveGlass redescend tout seul sur le shader léger (Skia, web)
-        // puis sur une simple vitre givrée (« transparence réduite »).
-        quality: lg.GlassQuality.premium,
+        // Le rendu complet (deux passes Impeller : flou puis réfraction) ne
+        // vaut que pour une surface qui NE BOUGE PAS — il échantillonne le
+        // fond dans une texture, et dans un défilement cette capture montre
+        // ce qui était là juste avant (idée #107). Les barres, le lecteur et
+        // les boutons flottants y ont droit ; une carte de liste passe au
+        // rendu standard, calibré pour ça. AdaptiveGlass redescend ensuite
+        // tout seul jusqu'à la vitre givrée là où rien ne peut tourner.
+        quality: Scrollable.maybeOf(context) == null
+            ? lg.GlassQuality.premium
+            : lg.GlassQuality.standard,
         settings: lg.LiquidGlassSettings(
           blur: sigma,
           thickness: circle ? _circleThickness : _panelThickness,
@@ -292,30 +360,29 @@ class LiquidGlass extends StatelessWidget {
           saturation: vibrancy,
           refractiveIndex: _refractiveIndex,
           chromaticAberration: _dispersion,
-          // L'éclat du shader n'est plus bridé (idée #106) : c'est lui qui
-          // sait où la lumière se prend dans une surface bombée — la peinture,
-          // elle, ne peut que la supposer. Elle s'est donc effacée juste
-          // au-dessus, et il reprend sa place.
-          lightIntensity: 0.85,
+          // La lumière du verre : une ambiante douce et l'anneau de Fresnel
+          // font le pourtour lumineux d'iOS 26 ; un éclat seul, poussé sans
+          // ambiante, ne faisait qu'un trait blanc dur (idée #107).
+          lightIntensity: _lightIntensity,
+          ambientStrength: _ambient,
+          ambientRim: _ambientRim,
           specularSharpness: lg.GlassSpecularSharpness.medium,
-          shadow: circle ? _circleShadow : _panelShadow,
+          // Le voile de lisibilité d'iOS 26, en clair : il remplace le givre
+          // qu'on a rendu au fond d'écran.
+          whitenStrength: light ? _whiten : 0,
+          // Et l'ombre du moteur, celle d'Apple, à la place de la nôtre.
+          shadowElevation: _shadowElevation,
         ),
         child: pane,
       );
     }
 
     return DecoratedBox(
-      // L'ombre d'Apple est large et basse : elle décolle la lentille du fond
-      // sans jamais se voir comme un trait.
+      // Ici le moteur n'intervient pas : l'ombre d'iOS 26 se peint à la main,
+      // douce et proche — juste de quoi décoller la lentille du fond.
       decoration: BoxDecoration(
         shape: circle ? BoxShape.circle : BoxShape.rectangle,
-        boxShadow: [
-          BoxShadow(
-            color: Color(light ? 0x260B1020 : 0x59000000),
-            blurRadius: circle ? 22 : 52,
-            offset: Offset(0, circle ? 8 : 22),
-          ),
-        ],
+        boxShadow: circle ? _paintedCircleShadow : _paintedPanelShadow,
       ),
       child: pane,
     );
@@ -385,12 +452,14 @@ class LiquidWallpaper extends StatelessWidget {
 
       return Stack(
         children: [
-          halo(0.02, 0.01, 1.5, 0, dark ? 0.62 : 0.50),
-          halo(1.02, 0.24, 1.15, 52, dark ? 0.55 : 0.44),
-          halo(-0.1, 0.62, 1.3, -62, dark ? 0.52 : 0.40),
-          // Les teintes restent voisines de l'accent (au plus un quart de
-          // roue) : un fond d'écran, pas un arc-en-ciel.
-          halo(0.92, 1.0, 1.45, 92, dark ? 0.58 : 0.46),
+          halo(0.02, 0.01, 1.5, 0, dark ? 0.62 : 0.46),
+          halo(1.02, 0.24, 1.15, 34, dark ? 0.55 : 0.40),
+          halo(-0.1, 0.62, 1.3, -40, dark ? 0.52 : 0.36),
+          // Idée #107 : les teintes se resserrent encore (un dixième de roue
+          // au lieu d'un quart). Quatre couleurs franches et distinctes sous
+          // du verre, ça n'est pas un fond d'écran d'Apple — c'est un
+          // arc-en-ciel, et c'est lui qui salissait les vitres au-dessus.
+          halo(0.92, 1.0, 1.45, 62, dark ? 0.58 : 0.42),
         ],
       );
     },
@@ -412,19 +481,19 @@ class _SpecularRim extends CustomPainter {
     required this.radius,
     required this.circle,
     required this.light,
-    this.refracting = false,
+    this.pane = _Pane.painted,
   });
 
   final double radius;
   final bool circle;
   final bool light;
 
-  /// Le fond se plie-t-il sous cette surface ? (idée #106) La TRANCHE peinte
+  /// Ce que le moteur a déjà posé dessous (idée #106). La TRANCHE peinte
   /// occupait pile la bande où le shader resserre le fond : elle la recouvrait
-  /// d'un blanc laiteux. Là où il tourne, on ne garde donc que l'ARÊTE — le
-  /// trait qui découpe la lentille — et on laisse la tranche au shader, qui la
-  /// creuse pour de vrai.
-  final bool refracting;
+  /// d'un blanc laiteux. Dès que le moteur cercle la surface lui-même, on ne
+  /// garde donc que l'ARÊTE — le trait qui découpe la lentille — et on lui
+  /// laisse la tranche, qu'il creuse pour de vrai.
+  final _Pane pane;
 
   /// Le contour de la lentille, rétréci de [inset] : disque ou superellipse.
   Path _outline(Rect rect, double inset) {
@@ -451,7 +520,7 @@ class _SpecularRim extends CustomPainter {
     ).createShader(rect);
 
     // 1. La tranche : large, tenue, juste à l'intérieur de l'arête.
-    if (!refracting && size.shortestSide > 2 * (stroke + band)) {
+    if (pane == _Pane.painted && size.shortestSide > 2 * (stroke + band)) {
       canvas.drawPath(
         _outline(rect, stroke + band / 2),
         Paint()
@@ -466,19 +535,24 @@ class _SpecularRim extends CustomPainter {
     }
 
     // 2. L'arête elle-même : le trait net qui découpe la lentille du fond.
-    // Elle reste dans les deux cas — c'est elle qui se voit de loin, et sans
+    // Elle reste dans tous les cas — c'est elle qui se voit de loin, et sans
     // elle une barre finirait par se confondre avec ce qu'il y a dessous.
+    // Idée #107 : elle ne monte plus au blanc pur, même seule. Une arête à
+    // fond, c'est un contour de plastique ; le verre, lui, s'éteint au milieu
+    // et se reprend en bas — c'est le DÉGRADÉ qui fait la lentille.
     canvas.drawPath(
       _outline(rect, stroke / 2),
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = stroke
         ..shader = rake(
-          switch ((light, refracting)) {
-            (true, false) => const [1.0, 0.24, 0.70],
-            (true, true) => const [0.78, 0.14, 0.50],
-            (false, false) => const [0.86, 0.12, 0.48],
-            (false, true) => const [0.62, 0.07, 0.34],
+          switch ((light, pane)) {
+            (true, _Pane.painted) => const [0.86, 0.20, 0.58],
+            (true, _Pane.frost) => const [0.70, 0.14, 0.46],
+            (true, _Pane.lens) => const [0.52, 0.10, 0.34],
+            (false, _Pane.painted) => const [0.76, 0.10, 0.42],
+            (false, _Pane.frost) => const [0.58, 0.07, 0.32],
+            (false, _Pane.lens) => const [0.44, 0.05, 0.24],
           },
         ),
     );
@@ -490,5 +564,5 @@ class _SpecularRim extends CustomPainter {
       old.radius != radius ||
       old.circle != circle ||
       old.light != light ||
-      old.refracting != refracting;
+      old.pane != pane;
 }

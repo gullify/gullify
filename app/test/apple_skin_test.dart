@@ -37,23 +37,27 @@ void main() {
       expect(surfaces(retro()).liquid, isFalse);
     });
 
-    test('une vitre plus fine, un givre franc mais lisible', () {
+    test('une vitre plus fine, un givre qui laisse lire dessous', () {
       // Plus transparente : c'est LA différence qu'on voit d'abord. Idée #99 :
       // « je ne vois même pas la différence » — donc pas « un peu plus fine »,
       // deux fois moins dense au minimum.
       double alpha(ThemeData theme) => surfaces(theme).barColor!.a;
       expect(alpha(apple()), lessThan(alpha(glass()) / 2));
       expect(alpha(apple(dark: true)), lessThan(alpha(glass(dark: true)) / 2));
-      // Idée #105 : le flou reste plus profond que le nôtre, mais il ne monte
-      // plus jusqu'à la bouillie — une lentille n'a rien à plier dans un fond
-      // qu'on a effacé. C'est la réfraction, pas le sigma, qui fait la
-      // matière ; les couleurs du dessous, elles, restent ravivées.
+      // Idée #105 puis #107 : c'est la réfraction qui fait la matière, pas le
+      // sigma — et un fond effacé n'a plus rien à plier. Le givre descend donc
+      // SOUS le nôtre, dans la fourchette où le moteur travaille (3 à 10) ;
+      // au-dessus, la lentille n'a plus qu'un aplat à réfracter et redevient
+      // le panneau laiteux qu'on lui reproche depuis le début.
       expect(
         surfaces(apple()).blurSigma,
-        greaterThan(surfaces(glass()).blurSigma),
+        lessThan(surfaces(glass()).blurSigma),
       );
-      expect(surfaces(apple()).blurSigma, lessThan(30));
+      expect(surfaces(apple()).blurSigma, lessThanOrEqualTo(10));
+      // Les couleurs du dessous restent ravivées — mais au 1,5 de la matière :
+      // à 1,8 le moindre halo virait au fluo sous la vitre.
       expect(surfaces(apple()).vibrancy, greaterThan(1.0));
+      expect(surfaces(apple()).vibrancy, lessThanOrEqualTo(1.5));
       expect(surfaces(glass()).vibrancy, 1.0);
     });
 
@@ -435,11 +439,27 @@ void main() {
 
     testWidgets('sur un fond réfracté, la vitre peinte devient un souffle',
         (tester) async {
-      final painted = await pump(tester, refracting: false, blur: true);
+      // La vitre dessinée en entier, c'est celle des surfaces sans flou : là,
+      // rien ne se plie sous elle, elle fait tout le travail.
+      final painted = await pump(tester, refracting: false, blur: false);
       final over = await pump(tester, refracting: true, blur: true);
       // Pas « un peu plus légère » : c'est le blanc cumulé de l'angle
       // haut-gauche qui effaçait la lentille, donc il faut qu'il tombe.
       expect(over, lessThan(painted / 2));
+    });
+
+    // Idée #107 : il manquait un cas, et c'était le pire. Sur un appareil où
+    // le shader ne tourne pas, le moteur pose quand même sa vitre givrée — et
+    // on repeignait la lentille COMPLÈTE par-dessus. Deux corps de verre l'un
+    // sur l'autre : le panneau blanc opaque, exactement ce qu'on reproche.
+    testWidgets('sans shader, on n\'empile plus deux vitres', (tester) async {
+      final lens = await pump(tester, refracting: true, blur: true);
+      final frost = await pump(tester, refracting: false, blur: true);
+      final painted = await pump(tester, refracting: false, blur: false);
+      // Trois densités, une par couche déjà présente dessous — et la givrée
+      // est bien entre les deux, jamais la pleine peinture.
+      expect(lens, lessThan(frost));
+      expect(frost, lessThan(painted));
     });
 
     testWidgets('sans shader, la vitre se peint en entier — rien ne disparaît',
@@ -454,29 +474,95 @@ void main() {
       expect(on, greaterThan(0.3));
     });
 
-    testWidgets('et la lentille plie plus large, avec plus de prisme',
-        (tester) async {
+  });
+
+  // Idée #107 : « la dernière version est terrible, je veux garder la
+  // disposition, le problème c'est l'esthétique ». Le #106 avait poussé tous
+  // les curseurs à fond pour répondre au « je ne vois aucune différence » —
+  // et un verre poussé à fond ne fait pas plus de verre, il fait du plastique
+  // irisé sur fond de taches grises. La matière reprend les valeurs qu'iOS 26
+  // se donne, celles que le moteur publie lui-même.
+  group('la matière reprend les valeurs d\'iOS 26 (idée #107)', () {
+    tearDown(() => debugLensRefracts = null);
+
+    Future<lg.AdaptiveGlass> pump(
+      WidgetTester tester, {
+      Widget Function(Widget glass)? around,
+    }) async {
       debugLensRefracts = true;
+      const glass = GlassBox(
+        radius: 20,
+        child: SizedBox(width: 160, height: 80),
+      );
       await tester.pumpWidget(
         MaterialApp(
           theme: apple(),
-          home: const Scaffold(
-            body: Center(
-              child: GlassBox(radius: 20, child: SizedBox(width: 160, height: 80)),
-            ),
+          home: Scaffold(
+            body: around?.call(glass) ?? const Center(child: glass),
           ),
         ),
       );
       await tester.pump(const Duration(milliseconds: 500));
-      final lens =
-          tester.widget<lg.AdaptiveGlass>(find.byType(lg.AdaptiveGlass));
-      // La bande où le fond se plie tenait sur un tiers d'un bandeau de 62 px
-      // — et la peinture couvrait ce tiers. Elle s'élargit.
-      expect(lens.settings.thickness, greaterThan(25));
-      expect(lens.settings.chromaticAberration, greaterThan(0.5));
-      // L'éclat du shader n'est plus bridé : c'est lui qui sait où la lumière
-      // se prend, maintenant que la peinture ne la suppose plus par-dessus.
-      expect(lens.settings.lightIntensity, greaterThan(0.8));
+      return tester.widget<lg.AdaptiveGlass>(find.byType(lg.AdaptiveGlass));
+    }
+
+    testWidgets('l\'épaisseur, le prisme et la lumière redescendent',
+        (tester) async {
+      final lens = await pump(tester);
+      // 30 px d'épaisseur tordaient un bandeau de 62 px bord à bord : il n'y
+      // restait pas un pixel de fond droit. La bande se creuse au pourtour et
+      // laisse le centre tranquille.
+      expect(lens.settings.thickness, lessThanOrEqualTo(20));
+      expect(lens.settings.thickness, greaterThan(0));
+      // Le prisme redescend sous le réglage d'usine du moteur : de quoi iriser
+      // une arête, pas border toute l'app de couleur.
+      expect(lens.settings.chromaticAberration, lessThan(0.5));
+      expect(lens.settings.chromaticAberration, greaterThan(0));
+      // Un éclat poussé SANS ambiante ne fait pas une lentille, il fait un
+      // trait blanc dur. La lumière baisse, l'ambiante et l'anneau de Fresnel
+      // prennent le relais tout autour.
+      expect(lens.settings.lightIntensity, lessThan(0.8));
+      expect(lens.settings.ambientStrength, greaterThan(0));
+      expect(lens.settings.ambientRim, greaterThan(0));
+    });
+
+    testWidgets('l\'ombre redevient celle d\'Apple', (tester) async {
+      final lens = await pump(tester);
+      // La nôtre faisait 52 px de flou et 22 px de décalage sous CHAQUE vitre
+      // — des taches grises, là où iOS 26 pose 6 % de noir sur 8 px. On rend
+      // donc l'ombre au moteur, qui la découpe hors du verre (sans quoi la
+      // vitre floute sa propre ombre et se borde de sale).
+      expect(lens.settings.shadow, isNull);
+      expect(lens.settings.shadowElevation, lessThanOrEqualTo(1.0));
+      for (final shadow in lens.settings.effectiveShadow) {
+        expect(shadow.blurRadius, lessThanOrEqualTo(8));
+        expect(shadow.color.a, lessThan(0.1));
+      }
+    });
+
+    testWidgets('le voile de lisibilité remplace le givre', (tester) async {
+      // Le flou ayant rendu le fond au fond d'écran, c'est lui qui tient le
+      // texte au-dessus : un blanc d'un seul tenant, sans couture, et dont le
+      // gate de luminance laisse l'encre nette.
+      final lens = await pump(tester);
+      expect(lens.settings.whitenStrength, greaterThan(0));
+      expect(lens.settings.whitenGated, isTrue);
+    });
+
+    testWidgets('le rendu complet reste aux surfaces qui ne défilent pas',
+        (tester) async {
+      // Le premium échantillonne le fond dans une texture : le paquet le
+      // réserve aux surfaces statiques, parce que dans un défilement cette
+      // capture montre ce qui était là juste avant. Les barres, le lecteur et
+      // les boutons flottants y ont droit…
+      expect((await pump(tester)).quality, lg.GlassQuality.premium);
+      // …une carte qui vit dans une liste, non : elle passe au rendu standard,
+      // calibré pour ça.
+      final scrolled = await pump(
+        tester,
+        around: (glass) => ListView(children: [glass]),
+      );
+      expect(scrolled.quality, lg.GlassQuality.standard);
     });
   });
 

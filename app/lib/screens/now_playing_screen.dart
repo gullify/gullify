@@ -341,11 +341,20 @@ class NowPlayingScreen extends ConsumerWidget {
                                 : DecoratedBox(
                                     decoration: BoxDecoration(
                                       borderRadius: BorderRadius.circular(28),
-                                      boxShadow: const [
+                                      // Idée #107 : sous l'Apple Liquid Glass,
+                                      // plus une seule surface ne traîne de
+                                      // halo gris — la pochette non plus. Une
+                                      // ombre de 35 % sur 44 px est faite pour
+                                      // le gris perle de Gullify ; posée sur
+                                      // un fond d'écran coloré, elle le salit.
+                                      // Ailleurs, elle ne bouge pas.
+                                      boxShadow: [
                                         BoxShadow(
-                                          color: Color(0x59141932),
-                                          blurRadius: 44,
-                                          offset: Offset(0, 22),
+                                          color: liquid
+                                              ? const Color(0x2E141932)
+                                              : const Color(0x59141932),
+                                          blurRadius: liquid ? 24 : 44,
+                                          offset: Offset(0, liquid ? 10 : 22),
                                         ),
                                       ],
                                     ),
