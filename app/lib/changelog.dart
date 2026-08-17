@@ -8,6 +8,28 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.31.0', [
+    'Le son ne remonte plus après un croisement. C\'est là que se cachait ce '
+        'qui restait d\'enflure : un morceau finit presque toujours plus bas '
+        'qu\'il n\'a joué, donc presque TOUS les passages retenaient le titre '
+        'entrant de quelques décibels — et les lui rendaient six secondes plus '
+        'tard. Une seconde transition, celle-là bien audible',
+    'La remise à niveau prend maintenant tout son temps : un quart de décibel '
+        'par seconde, le temps d\'un couplet pour retrouver le plein volume. '
+        'À cette vitesse l\'oreille ne suit plus le niveau, elle entend la '
+        'musique — et elle avance en décibels plutôt qu\'en amplitude, parce '
+        'que c\'est ce que l\'oreille mesure',
+    'Deux titres qui s\'enchaînent vite ne s\'empilent plus. Le titre entrant '
+        'se cale désormais sur ce que le sortant fait VRAIMENT entendre, et '
+        'plus seulement sur le niveau auquel il est gravé : un morceau encore '
+        'en train de remonter de son propre croisement joue sous son niveau, '
+        'et le suivant arrivait par-dessus',
+    'Le medley des genres croisait ses extraits selon la loi qui fait enfler '
+        'le passage de deux décibels — celle-là même qu\'on avait corrigée '
+        'dans le lecteur. Il suit maintenant la même règle que le fondu '
+        'enchaîné : le passage ne sonne ni plus fort ni plus faible que les '
+        'extraits qu\'il relie',
+  ]),
   ReleaseNote('3.30.0', [
     'Android Auto n\'affiche plus « Impossible de charger votre sélection » '
         'sur l\'écran d\'accueil de la voiture. Android demande au démarrage '

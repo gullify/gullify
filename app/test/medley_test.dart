@@ -2,6 +2,7 @@
 // de la musique, jamais l'intro ni le silence de la fin. Et surtout : il doit
 // s'entendre.
 import 'dart:async';
+import 'dart:math';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -38,6 +39,12 @@ class _Bench {
   double get volume => players
       .where((p) => p.playing)
       .fold<double>(0, (loudest, p) => p.volume > loudest ? p.volume : loudest);
+
+  /// Les puissances réunies de tout ce qui joue : c'est ça qui dit si un
+  /// croisement enfle, pas le volume du plus fort des deux.
+  double get power => players
+      .where((p) => p.playing)
+      .fold<double>(0, (sum, p) => sum + p.volume * p.volume);
 
   bool get playing => players.any((p) => p.playing);
   int get playingCount => players.where((p) => p.playing).length;
@@ -375,6 +382,44 @@ void main() {
         expect(bench.volume, greaterThan(0.5), reason: 'trou à $t');
       }
       expect(bench.urls.length, greaterThanOrEqualTo(2));
+
+      await medley.stop();
+    });
+
+    testWidgets('ne fait pas enfler le passage d\'un extrait à l\'autre',
+        (tester) async {
+      // Idée #104 : le medley croisait ses extraits à puissance constante,
+      // celle-là même qui faisait enfler le lecteur de deux décibels (idée
+      // #101). Deux musiques sans rapport n'ajoutent pas que leurs puissances,
+      // elles ajoutent aussi leurs sonies.
+      final bench = _Bench();
+      final container = _container(bench);
+      final medley = container.read(medleyPlayerProvider.notifier);
+
+      unawaited(medley.toggle(1));
+      await tester.pump();
+      await tester.pump(kMedleyFadeIn + const Duration(milliseconds: 100));
+
+      const pas = Duration(milliseconds: 200);
+      var creux = 1.0;
+      for (var t = Duration.zero;
+          t < kMedleyExcerpt + kMedleyFadeIn;
+          t += pas) {
+        await tester.pump(pas);
+        // Jamais plus d'un extrait dans les oreilles.
+        expect(bench.power, lessThanOrEqualTo(1.001), reason: 'enfle à $t');
+        if (bench.power < creux) creux = bench.power;
+      }
+
+      // Et c'est là que tout se joue : à puissance constante, les deux
+      // puissances réunies valent exactement celle d'un extrait seul du début
+      // à la fin du passage — c'est justement ça qui enfle, parce que deux
+      // musiques ajoutent aussi leurs sonies. Le passage doit donc descendre
+      // d'un décibel et demi en son milieu, sans aller jusqu'au trou de trois
+      // décibels que creuseraient deux droites.
+      final creuxDb = 10 * (log(creux) / ln10);
+      expect(creuxDb, lessThan(-0.7));
+      expect(creuxDb, greaterThan(-2.2));
 
       await medley.stop();
     });

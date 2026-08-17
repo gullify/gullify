@@ -250,13 +250,13 @@ void main() {
         from: 0,
         to: 1,
         over: const Duration(seconds: 1),
-        crossing: true,
+        curve: FadeCurve.crossing,
       );
       final descente = fadeRamp(
         from: 1,
         to: 0,
         over: const Duration(seconds: 1),
-        crossing: true,
+        curve: FadeCurve.crossing,
       );
 
       expect(montee.last, 1.0);
@@ -280,8 +280,10 @@ void main() {
       // aussi leurs sonies. Le croisement descend donc d'un décibel et demi à
       // mi-parcours, sans jamais aller jusqu'au creux des deux droites (−3 dB).
       const over = Duration(seconds: 1);
-      final montee = fadeRamp(from: 0, to: 1, over: over, crossing: true);
-      final descente = fadeRamp(from: 1, to: 0, over: over, crossing: true);
+      final montee =
+          fadeRamp(from: 0, to: 1, over: over, curve: FadeCurve.crossing);
+      final descente =
+          fadeRamp(from: 1, to: 0, over: over, curve: FadeCurve.crossing);
 
       final milieu = montee.length ~/ 2 - 1;
       final puissance = montee[milieu] * montee[milieu] +
@@ -397,13 +399,13 @@ void main() {
         // L'attente, à volume nul.
         for (var i = 0; i < plan.hold.inMicroseconds ~/ kFadeTick.inMicroseconds; i++)
           0.0,
-        ...fadeRamp(from: 0, to: 1, over: plan.fall, crossing: true),
+        ...fadeRamp(from: 0, to: 1, over: plan.fall, curve: FadeCurve.crossing),
       ];
       final sortant = [
         // L'attente, à plein volume.
         for (var i = 0; i < plan.hold.inMicroseconds ~/ kFadeTick.inMicroseconds; i++)
           1.0,
-        ...fadeRamp(from: 1, to: 0, over: plan.fall, crossing: true),
+        ...fadeRamp(from: 1, to: 0, over: plan.fall, curve: FadeCurve.crossing),
       ];
 
       expect(entrant.length, sortant.length);
@@ -513,6 +515,101 @@ void main() {
       expect(crossfadeCeiling(outgoing: null, incoming: -8), 1);
       expect(crossfadeCeiling(outgoing: -8, incoming: null), 1);
       expect(crossfadePlan(fade: fade, total: total).ceiling, 1);
+    });
+
+    test('la remontée d\'après-croisement ne s\'entend pas', () {
+      // Idée #104 : c'est là que se cachait ce qui restait d'enflure. Un
+      // morceau finit presque toujours plus bas qu'il n'a joué, donc presque
+      // TOUS les croisements retiennent le titre entrant (idée #102) — et la
+      // remontée qui suivait rendait les décibels retenus en six secondes,
+      // soit une seconde transition, bien audible celle-là.
+      const commun = 5.0; // l'écart médian entre la fin d'un titre et son corps
+      final retenu = pow(10, -commun / 20).toDouble();
+      final remontee = crossfadeRestore(retenu);
+
+      final parSeconde = commun / (remontee.inMilliseconds / 1000);
+      expect(parSeconde, closeTo(kCrossfadeRestoreRateDb, 0.01));
+      // Un quart de décibel par seconde : trois fois moins que le seuil où
+      // l'oreille suit une dérive de niveau, et quatre fois moins que ce que
+      // faisait la remontée fixe de six secondes.
+      expect(parSeconde, lessThan(0.3));
+      expect(remontee, greaterThan(const Duration(seconds: 15)));
+
+      // Le pire cas reste dans le titre : une vingtaine de secondes, pas une
+      // minute.
+      expect(
+        crossfadeRestore(kCrossfadeDuckFloor),
+        lessThan(const Duration(seconds: 30)),
+      );
+      // Rien à remonter, rien à faire.
+      expect(crossfadeRestore(1), Duration.zero);
+      expect(crossfadeRestore(0), Duration.zero);
+    });
+
+    test('la remontée avance en décibels, pas en amplitude', () {
+      final ramp = fadeRamp(
+        from: 0.5,
+        to: 1,
+        over: crossfadeRestore(0.5),
+        curve: FadeCurve.decibels,
+        tick: kCrossfadeRestoreTick,
+      );
+
+      expect(ramp.last, closeTo(1, 0.000001));
+      // Chaque pas pèse le même nombre de décibels — c'est ce que l'oreille
+      // mesure — et ce nombre est minuscule.
+      var precedent = 0.5;
+      for (final volume in ramp) {
+        final pas = 20 * log(volume / precedent) / ln10;
+        expect(pas, closeTo(kCrossfadeRestoreRateDb / 5, 0.001));
+        precedent = volume;
+      }
+    });
+
+    test('le titre entrant se cale sur ce que le sortant fait ENTENDRE', () {
+      // Idée #104 : les niveaux mesurés disent comment les morceaux sont
+      // gravés, pas à quel volume le lecteur les sort. Un sortant encore en
+      // train de remonter de son propre croisement joue sous son niveau : y
+      // faire entrer le suivant à plein volume, c'est l'enflure qui revient.
+      expect(crossfadeTarget(ceiling: 1, outgoing: 0.7), closeTo(0.7, 0.0001));
+      // Sortant à fond : le plafond mesuré s'applique tel quel (idée #101),
+      // jusqu'au plancher.
+      expect(crossfadeTarget(ceiling: 0.7, outgoing: 1), closeTo(0.7, 0.0001));
+      expect(
+        crossfadeTarget(ceiling: kCrossfadeDuckFloor, outgoing: 1),
+        closeTo(kCrossfadeDuckFloor, 0.0001),
+      );
+      // Les deux à la fois.
+      expect(
+        crossfadeTarget(ceiling: 0.8, outgoing: 0.9),
+        closeTo(0.72, 0.0001),
+      );
+      // Jamais plus fort que ce qu'on entend, jamais plus haut que le plein
+      // volume.
+      for (final ceiling in [0.4, 0.7, 1.0]) {
+        for (final outgoing in [0.55, 0.8, 1.0]) {
+          final cible = crossfadeTarget(ceiling: ceiling, outgoing: outgoing);
+          expect(cible, lessThanOrEqualTo(outgoing + 0.0001));
+          expect(cible, lessThanOrEqualTo(1));
+        }
+      }
+    });
+
+    test('une série de croisements ne fait pas sombrer le volume', () {
+      // Le revers de la mise à niveau : si chaque passage retenait le suivant
+      // par rapport au précédent sans plancher, une file de morceaux gravés
+      // fort descendrait marche après marche jusqu'au silence.
+      var volume = 1.0;
+      for (var i = 0; i < 20; i++) {
+        volume = crossfadeTarget(ceiling: 0.501, outgoing: volume);
+      }
+      expect(volume, greaterThanOrEqualTo(kCrossfadeDuckFloor - 0.001));
+
+      // Un sortant déjà sous le plancher (fondu d'entrée en cours) n'est pas
+      // une raison pour pousser l'entrant au-dessus de lui.
+      expect(crossfadeTarget(ceiling: 1, outgoing: 0.2), closeTo(0.2, 0.0001));
+      // Volume inconnu : on s'en tient à la mesure.
+      expect(crossfadeTarget(ceiling: 0.6, outgoing: 0), 0.6);
     });
 
     test('le suivi d\'écoute sait de combien un titre peut partir tôt', () {

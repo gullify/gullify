@@ -1,10 +1,10 @@
 import 'dart:async';
-import 'dart:math';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
 
 import '../api/library_repository.dart';
+import '../audio/fade.dart';
 import '../audio/tuned_player.dart';
 import '../models/album.dart';
 import '../models/song.dart';
@@ -371,10 +371,14 @@ class MedleyPlayer extends Notifier<MedleyState> {
   }
 
   /// Fondu à la main : just_audio ne monte pas le son tout seul, et un extrait
-  /// qui commence à plein volume au milieu d'un couplet fait sursauter. Le
-  /// volume suit une courbe à puissance constante — deux extraits qui se
-  /// croisent en volume linéaire creusent un trou au milieu du fondu, là où la
-  /// racine garde le niveau.
+  /// qui commence à plein volume au milieu d'un couplet fait sursauter.
+  ///
+  /// Les deux extraits se croisent sous la même loi que le fondu enchaîné du
+  /// lecteur ([kCrossfadeLaw]). Le medley croisait en puissance constante : sur
+  /// le papier c'est le bon choix, à l'oreille non — deux musiques sans rapport
+  /// ajoutent aussi leurs sonies, et le passage enflait de deux décibels comme
+  /// il le faisait dans le lecteur (idées #101 et #104). Deux droites, à
+  /// l'inverse, creuseraient un trou au milieu du fondu.
   Future<void> _fade(
     MedleyAudio player,
     double from,
@@ -384,13 +388,18 @@ class MedleyPlayer extends Notifier<MedleyState> {
   ) async {
     final steps = (duration.inMilliseconds ~/ 40).clamp(1, 200);
     final step = Duration(microseconds: duration.inMicroseconds ~/ steps);
-    for (var i = 1; i <= steps; i++) {
+    final ramp = fadeRamp(
+      from: from,
+      to: to,
+      over: duration,
+      curve: FadeCurve.crossing,
+      tick: step,
+    );
+    for (final volume in ramp) {
       await Future<void>.delayed(step);
       if (gen != _gen) return;
-      final t = i / steps;
-      final volume = sqrt(from * from + (to * to - from * from) * t);
       try {
-        await player.setVolume(volume.clamp(0, 1));
+        await player.setVolume(volume);
       } catch (_) {
         return;
       }

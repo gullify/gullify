@@ -47,38 +47,64 @@ const kFadeTick = Duration(milliseconds: 40);
 /// plus fort ni plus faible que les titres qu'il relie.
 const kCrossfadeLaw = 4 / 3;
 
+/// La façon dont une rampe de volume relie son départ à sa cible.
+enum FadeCurve {
+  /// Volume linéaire, comme le fondu court d'origine : lecture, pause, fin de
+  /// piste. Sur un son seul, c'est la courbe qui s'entend le mieux.
+  linear,
+
+  /// La loi du croisement ([kCrossfadeLaw]), faite pour croiser DEUX sons —
+  /// fondu enchaîné et medley : deux rampes qui se croisent doivent se
+  /// compléter, ce qu'une paire de droites ne fait pas. Sur un son seul, à
+  /// l'inverse, c'est elle qui creuserait.
+  crossing,
+
+  /// Linéaire en décibels : à chaque pas, le volume gagne le même nombre de
+  /// décibels et non la même amplitude. C'est ce qu'il faut à une correction
+  /// de niveau qui doit passer inaperçue — l'oreille entend des décibels, pas
+  /// des amplitudes. Voir [crossfadeRestore].
+  ///
+  /// Une rampe en décibels ne peut ni partir ni arriver au silence : à zéro
+  /// il n'y a plus de décibels du tout. Ces cas-là retombent sur [linear].
+  decibels,
+}
+
 /// Les volumes successifs d'un fondu de [from] vers [to] étalé sur [over], un
-/// par [kFadeTick]. Le dernier vaut exactement [to] — un fondu ne finit jamais
+/// par [tick]. Le dernier vaut exactement [to] — un fondu ne finit jamais
 /// « presque » à sa cible, sinon la lecture reprendrait à 0,98 pour toujours.
 ///
-/// Volume linéaire par défaut, comme le fondu court d'origine. La courbe de
-/// croisement ([crossing], loi [kCrossfadeLaw]) est faite pour croiser DEUX
-/// sons — c'est celle du fondu enchaîné et du medley : deux rampes qui se
-/// croisent doivent se compléter, ce qu'une paire de droites ne fait pas. Sur
-/// un son seul, à l'inverse, c'est elle qui creuserait.
+/// [curve] choisit la forme de la rampe : voir [FadeCurve].
 ///
 /// [tick] est l'écart entre deux pas. Le fondu du lecteur garde [kFadeTick] ;
 /// la montée du réveil (idée #81), qui s'étale sur plusieurs minutes, prend un
 /// pas plus large — des milliers d'appels de volume pour une différence que
-/// l'oreille n'entend pas.
+/// l'oreille n'entend pas. La remontée d'après-croisement aussi
+/// ([kCrossfadeRestoreTick]).
 List<double> fadeRamp({
   required double from,
   required double to,
   required Duration over,
-  bool crossing = false,
+  FadeCurve curve = FadeCurve.linear,
   Duration tick = kFadeTick,
 }) {
   if (over <= Duration.zero) return [to];
   final steps = (over.inMicroseconds / tick.inMicroseconds).round();
   if (steps <= 1) return [to];
+  final law = curve == FadeCurve.crossing;
+  // Une rampe en décibels a besoin de deux volumes audibles pour avoir un sens.
+  final db = curve == FadeCurve.decibels && from > 0 && to > 0;
   // Le croisement s'interpole dans le domaine de la loi, pas sur le volume :
-  // c'est ce qui rend les deux rampes complémentaires.
-  final start = crossing ? pow(from, kCrossfadeLaw).toDouble() : 0.0;
-  final end = crossing ? pow(to, kCrossfadeLaw).toDouble() : 0.0;
+  // c'est ce qui rend les deux rampes complémentaires. La rampe en décibels,
+  // elle, s'interpole sur le rapport des deux volumes.
+  final start = law ? pow(from, kCrossfadeLaw).toDouble() : 0.0;
+  final end = law ? pow(to, kCrossfadeLaw).toDouble() : 0.0;
   double at(int i) {
-    if (!crossing) return from + (to - from) * i / steps;
-    final x = (start + (end - start) * i / steps).clamp(0.0, 1.0);
-    return pow(x, 1 / kCrossfadeLaw).toDouble();
+    if (law) {
+      final x = (start + (end - start) * i / steps).clamp(0.0, 1.0);
+      return pow(x, 1 / kCrossfadeLaw).toDouble();
+    }
+    if (db) return from * pow(to / from, i / steps).toDouble();
+    return from + (to - from) * i / steps;
   }
 
   return [for (var i = 1; i <= steps; i++) at(i).clamp(0.0, 1.0)];
@@ -219,11 +245,43 @@ const kSmartStretch = 2;
 /// titre qu'on n'entend plus arriver.
 const kCrossfadeDuckMaxDb = 6.0;
 
-/// Le temps que le titre entrant met à retrouver son propre niveau après un
-/// croisement où il avait été retenu. Assez long pour que la remontée passe
-/// inaperçue : ce qui gêne, ce n'est pas qu'un morceau soit plus fort qu'un
-/// autre, c'est de l'entendre enfler pendant le passage.
-const kCrossfadeLevelRestore = Duration(seconds: 6);
+/// Jamais plus bas que ça : le volume auquel un titre retenu au maximum
+/// ([kCrossfadeDuckMaxDb]) se retrouve. Sert de plancher aux croisements qui
+/// s'enchaînent — sans lui, une série de morceaux gravés fort ferait descendre
+/// le volume d'un cran à chaque passage.
+final kCrossfadeDuckFloor = pow(10, -kCrossfadeDuckMaxDb / 20).toDouble();
+
+/// À quelle vitesse un titre retenu retrouve son propre niveau, en décibels
+/// par seconde (idée #104).
+///
+/// C'est ici que se jouait ce qui restait d'enflure. Un morceau finit presque
+/// toujours plus bas qu'il n'a joué — cinq décibels en médiane —, donc presque
+/// TOUS les croisements retiennent le titre entrant de quelques décibels
+/// (idée #102), et la remontée qui suit était une seconde transition, six
+/// secondes après la première : cinq décibels en six secondes, c'est près d'un
+/// décibel par seconde, et ça s'entend comme quelqu'un qui monte le son.
+///
+/// Un quart de décibel par seconde, non : à cette vitesse, l'oreille ne suit
+/// plus le niveau absolu, elle entend la musique. La remontée complète prend
+/// alors une vingtaine de secondes — le temps d'un couplet, largement dans le
+/// titre, et sans que rien ne se remarque.
+const kCrossfadeRestoreRateDb = 0.25;
+
+/// Pas de la remontée. Large, parce qu'elle est lente : à un quart de décibel
+/// par seconde, chaque pas ne pèse que cinq centièmes de décibel — mille fois
+/// moins que ce que l'oreille sait entendre, pour cinq appels de volume par
+/// seconde au lieu de vingt-cinq.
+const kCrossfadeRestoreTick = Duration(milliseconds: 200);
+
+/// Le temps que met un titre laissé à [volume] pour retrouver son plein niveau
+/// sans que la remontée s'entende. Nul quand il n'y a rien à remonter.
+Duration crossfadeRestore(double volume) {
+  if (volume <= 0 || volume >= 1) return Duration.zero;
+  final db = -20 * log(volume) / ln10;
+  return Duration(
+    milliseconds: (db / kCrossfadeRestoreRateDb * 1000).round(),
+  );
+}
 
 /// La forme d'un croisement : quand il part, et comment les deux volumes se
 /// croisent une fois parti.
@@ -252,10 +310,15 @@ class CrossfadePlan {
   /// le passage sonnerait plus fort que les titres qu'il relie (idée #91).
   Duration get hold => rise - fall;
 
-  /// Volume auquel le titre entrant monte pendant le croisement : 1 en temps
-  /// normal, moins quand son début a été mesuré plus fort que la fin du titre
-  /// sortant (idées #101 et #102). Il retrouve son plein volume ensuite, une
-  /// fois le passage terminé — voir [kCrossfadeLevelRestore].
+  /// Ce que le titre entrant a le droit de faire entendre pendant le
+  /// croisement, RELATIVEMENT au titre sortant : 1 en temps normal, moins
+  /// quand son début a été mesuré plus fort que la fin du titre sortant
+  /// (idées #101 et #102).
+  ///
+  /// C'est une proportion, pas un volume : le volume visé se calcule au moment
+  /// du croisement, quand on sait à quel volume le sortant joue vraiment —
+  /// voir [crossfadeTarget]. Le titre entrant retrouve son plein niveau
+  /// ensuite, une fois le passage terminé (voir [crossfadeRestore]).
   final double ceiling;
 
   bool get idle => trigger <= Duration.zero;
@@ -279,6 +342,31 @@ double crossfadeCeiling({double? outgoing, double? incoming}) {
   if (tooLoud <= 0) return 1;
   final ducked = tooLoud > kCrossfadeDuckMaxDb ? kCrossfadeDuckMaxDb : tooLoud;
   return pow(10, -ducked / 20).toDouble();
+}
+
+/// Le volume auquel le titre entrant monte pendant le croisement : le plafond
+/// mesuré ([CrossfadePlan.ceiling]) appliqué au volume auquel le titre sortant
+/// joue VRAIMENT à cet instant (idée #104).
+///
+/// Les niveaux mesurés disent comment les deux morceaux sont gravés ; ils ne
+/// disent pas à quel volume le lecteur les fait sortir. Or le sortant n'est
+/// pas toujours à fond : il peut être lui-même en train de remonter de son
+/// propre croisement, quelques secondes plus tôt ([crossfadeRestore]). Caler
+/// l'entrant sur le seul niveau du fichier le faisait alors arriver au-dessus
+/// de ce qu'on entendait — l'enflure revenait par la porte de derrière, sur
+/// les titres qui s'enchaînent vite.
+///
+/// Deux garde-fous : jamais plus fort que ce que le sortant fait entendre, et
+/// jamais sous [kCrossfadeDuckFloor], pour qu'une longue série de morceaux
+/// gravés fort ne fasse pas descendre le volume marche après marche.
+double crossfadeTarget({required double ceiling, required double outgoing}) {
+  // Sortant muet (fondu d'entrée en cours, volume inconnu) : il n'y a rien à
+  // égaler, on s'en tient à ce que la mesure a dit.
+  if (outgoing <= 0) return ceiling.clamp(0.0, 1.0);
+  final playing = outgoing > 1 ? 1.0 : outgoing;
+  final matched = ceiling.clamp(0.0, 1.0) * playing;
+  final floor = playing < kCrossfadeDuckFloor ? playing : kCrossfadeDuckFloor;
+  return matched < floor ? floor : matched;
 }
 
 /// Taille le croisement sur ce que le serveur a mesuré (idée #79).
