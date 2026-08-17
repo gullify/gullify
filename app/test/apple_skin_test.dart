@@ -381,6 +381,105 @@ void main() {
     });
   });
 
+  // Idée #106 : « je ne vois aucune différence avec la dernière version ». La
+  // réfraction du #105 tournait — on la repeignait aussitôt. Vitre, reflet,
+  // éclat d'angle et tranche du liseré s'empilaient dans l'angle haut-gauche,
+  // c'est-à-dire pile là où le shader resserre le fond. Là où il tourne, la
+  // peinture doit donc s'effacer.
+  group('la peinture s\'efface là où le fond se plie (idée #106)', () {
+    tearDown(() => debugLensRefracts = null);
+
+    /// Les dégradés de la vitre peinte : ceux qui vont du haut-gauche au
+    /// bas-droite, en blanc — la couche de fond de la lentille.
+    List<LinearGradient> paint(WidgetTester tester) => tester
+        .widgetList<DecoratedBox>(
+          find.descendant(
+            of: find.byType(LiquidGlass),
+            matching: find.byType(DecoratedBox),
+          ),
+        )
+        .map((d) => d.decoration)
+        .whereType<BoxDecoration>()
+        .map((d) => d.gradient)
+        .whereType<LinearGradient>()
+        .where((g) =>
+            g.begin == Alignment.topLeft && g.end == Alignment.bottomRight)
+        .toList();
+
+    Future<double> pump(
+      WidgetTester tester, {
+      required bool refracting,
+      required bool blur,
+    }) async {
+      debugLensRefracts = refracting;
+      await tester.pumpWidget(
+        MaterialApp(
+          key: ValueKey('$refracting-$blur'),
+          theme: apple(),
+          home: Scaffold(
+            body: Center(
+              child: GlassBox(
+                radius: 20,
+                blur: blur,
+                child: const SizedBox(width: 160, height: 80),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 500));
+      final fills = paint(tester);
+      expect(fills, isNotEmpty);
+      return fills.first.colors.first.a;
+    }
+
+    testWidgets('sur un fond réfracté, la vitre peinte devient un souffle',
+        (tester) async {
+      final painted = await pump(tester, refracting: false, blur: true);
+      final over = await pump(tester, refracting: true, blur: true);
+      // Pas « un peu plus légère » : c'est le blanc cumulé de l'angle
+      // haut-gauche qui effaçait la lentille, donc il faut qu'il tombe.
+      expect(over, lessThan(painted / 2));
+    });
+
+    testWidgets('sans shader, la vitre se peint en entier — rien ne disparaît',
+        (tester) async {
+      // La sécurité du #105 : une barre qui ne tiendrait qu'au shader
+      // s'évanouirait sur le premier appareil qui ne peut pas le faire
+      // tourner. Sans flou (petits boutons, écrans hors shell) il n'y a de
+      // toute façon rien à plier : la peinture reste pleine.
+      final off = await pump(tester, refracting: false, blur: false);
+      final on = await pump(tester, refracting: true, blur: false);
+      expect(on, off);
+      expect(on, greaterThan(0.3));
+    });
+
+    testWidgets('et la lentille plie plus large, avec plus de prisme',
+        (tester) async {
+      debugLensRefracts = true;
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: apple(),
+          home: const Scaffold(
+            body: Center(
+              child: GlassBox(radius: 20, child: SizedBox(width: 160, height: 80)),
+            ),
+          ),
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 500));
+      final lens =
+          tester.widget<lg.AdaptiveGlass>(find.byType(lg.AdaptiveGlass));
+      // La bande où le fond se plie tenait sur un tiers d'un bandeau de 62 px
+      // — et la peinture couvrait ce tiers. Elle s'élargit.
+      expect(lens.settings.thickness, greaterThan(25));
+      expect(lens.settings.chromaticAberration, greaterThan(0.5));
+      // L'éclat du shader n'est plus bridé : c'est lui qui sait où la lumière
+      // se prend, maintenant que la peinture ne la suppose plus par-dessus.
+      expect(lens.settings.lightIntensity, greaterThan(0.8));
+    });
+  });
+
   group('l\'habillage se reconnaît depuis n\'importe quel widget', () {
     testWidgets('isLiquidSkin ne dit oui que sous Apple', (tester) async {
       Future<void> pump(ThemeData theme) async {

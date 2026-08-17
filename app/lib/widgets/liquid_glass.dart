@@ -1,9 +1,11 @@
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart' as lg;
 
 import '../theme.dart';
 
-/// La MATIÈRE du thème « Apple Liquid Glass » (idées #98, #99 et #105).
+/// La MATIÈRE du thème « Apple Liquid Glass » (idées #98, #99, #105 et #106).
 ///
 /// Gullify a toujours eu du verre ; celui d'Apple (iOS 26) n'est pas la même
 /// vitre. Ce qui le distingue tient en cinq choses :
@@ -30,12 +32,37 @@ import '../theme.dart';
 /// réduite ») et retombe tout seul sur une vitre givrée là où le shader ne
 /// peut pas tourner.
 ///
+/// Idée #106 — « je ne vois aucune différence avec la dernière version » : la
+/// réfraction du #105 tournait bel et bien, mais on la repeignait aussitôt.
+/// Vitre + reflet rasant + éclat d'angle + tranche du liseré s'empilaient à
+/// près de trois quarts d'opacité blanche DANS L'ANGLE HAUT-GAUCHE — c'est-à-
+/// dire pile là où le shader resserre le fond et en sépare les couleurs. On
+/// travaillait contre soi. Désormais, quand le shader tourne pour de vrai, la
+/// peinture s'efface (elle ne garde que l'arête, celle qui découpe la surface
+/// du fond) et le laisse se voir ; là où il ne peut pas tourner, la vitre
+/// dessinée se peint en entier, comme avant.
+///
 /// Comme retro_chrome.dart, ce fichier ne peint qu'une matière : il ne décide
 /// de rien. C'est theme.dart qui vient y chercher sa palette.
 
 /// Le thème Apple Liquid Glass est-il levé ? (idée #98)
 bool isLiquidSkin(BuildContext context) =>
     Theme.of(context).extension<GullifySurfaces>()?.liquid ?? false;
+
+/// Le shader de réfraction peut-il tourner ici ? C'est le test qu'utilise
+/// `AdaptiveGlass` lui-même pour choisir entre le rendu complet et sa vitre
+/// givrée de secours. On le refait ici pour une raison précise (idée #106) :
+/// quand le fond se plie VRAIMENT sous la surface, la peinture à la main doit
+/// s'effacer pour le laisser voir — sinon on repeint par-dessus la seule
+/// chose qui distingue une lentille d'un rectangle flouté.
+bool lensRefracts() =>
+    debugLensRefracts ?? ui.ImageFilter.isShaderFilterSupported;
+
+/// Le banc d'essai tourne sous Skia : le shader n'y tourne JAMAIS, et sans
+/// cette prise la moitié « réfractée » de la matière ne serait vérifiée par
+/// aucun test — c'est pourtant celle qui se voit sur un téléphone.
+@visibleForTesting
+bool? debugLensRefracts;
 
 /// Les couleurs de la vitre peinte à la main, celle des surfaces où le flou
 /// est coupé (petits boutons, écrans hors shell) : sans fond flouté à plier,
@@ -52,6 +79,18 @@ const _darkFill = [Color(0x24FFFFFF), Color(0x05FFFFFF)];
 const _lightGloss = [Color(0x59FFFFFF), Color(0x00FFFFFF)];
 const _darkGloss = [Color(0x2EFFFFFF), Color(0x00FFFFFF)];
 
+/// Les MÊMES couches, mais posées sur un fond que le shader a déjà plié
+/// (idée #106). Là, la peinture n'a plus à faire le verre — elle a juste à ne
+/// pas le cacher. Le blanc du haut-gauche montait à trois quarts d'opacité en
+/// cumulant vitre + reflet + éclat : c'était exactement l'angle où le fond se
+/// resserre et se sépare en couleurs. On le divise donc par trois, et ce qui
+/// reste ne sert plus qu'à tenir la surface quand le fond derrière elle est
+/// uni (une pochette noire, un aplat).
+const _lightLensFill = [Color(0x1FFFFFFF), Color(0x0AFFFFFF)];
+const _darkLensFill = [Color(0x12FFFFFF), Color(0x03FFFFFF)];
+const _lightLensGloss = [Color(0x24FFFFFF), Color(0x00FFFFFF)];
+const _darkLensGloss = [Color(0x14FFFFFF), Color(0x00FFFFFF)];
+
 /// Ce qu'on glisse SOUS cette vitre-là : sans flou, la lisibilité ne tient
 /// plus qu'à un fond un peu plus dense.
 const _lightScrim = Color(0x80FFFFFF);
@@ -66,12 +105,16 @@ const _darkTint = Color(0x0AFFFFFF);
 /// L'épaisseur de la vitre, en pixels : c'est elle qui donne sa largeur à la
 /// bande où le fond se plie. Un petit disque en a moins qu'un bandeau, sinon
 /// la déformation lui mange tout l'intérieur.
-const _panelThickness = 22.0;
-const _circleThickness = 12.0;
+///
+/// Idée #106 : 22 px sur un bandeau de 62 ne pliaient qu'un tiers de sa
+/// hauteur, et la peinture couvrait ce tiers. Une vitre plus épaisse creuse
+/// une bande qu'on voit sans la chercher.
+const _panelThickness = 30.0;
+const _circleThickness = 14.0;
 
 /// La dispersion du prisme (0 à 4 dans le paquet) : assez pour qu'une arête
 /// irise sur un fond contrasté, pas au point de border l'écran de rouge.
-const _dispersion = 0.35;
+const _dispersion = 0.6;
 
 /// L'indice de réfraction, c'est-à-dire à quel point le fond se plie. 1.2 est
 /// le maximum de l'échelle du paquet — Apple ne fait pas dans la demi-mesure.
@@ -119,6 +162,12 @@ class LiquidGlass extends StatelessWidget {
     final light = theme.colorScheme.brightness == Brightness.light;
     final sigma = surfaces?.blurSigma ?? 30;
     final vibrancy = surfaces?.vibrancy ?? 1.0;
+    // Le fond va-t-il vraiment se plier sous cette surface-là ? Il y faut les
+    // deux : un fond flouté en direct (donc le shell) ET un moteur capable de
+    // faire tourner le shader. C'est ce booléen qui décide de tout ce qui
+    // suit — peinture allégée et arête discrète d'un côté, vitre dessinée en
+    // entier de l'autre.
+    final refracting = blur && lensRefracts();
 
     Widget clip(Widget child) => circle
         ? ClipOval(child: child)
@@ -135,7 +184,9 @@ class LiquidGlass extends StatelessWidget {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: light ? _lightFill : _darkFill,
+          colors: refracting
+              ? (light ? _lightLensFill : _darkLensFill)
+              : (light ? _lightFill : _darkFill),
         ),
       ),
       child: DecoratedBox(
@@ -143,19 +194,27 @@ class LiquidGlass extends StatelessWidget {
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: const Alignment(0.35, 1),
-            colors: light ? _lightGloss : _darkGloss,
+            colors: refracting
+                ? (light ? _lightLensGloss : _darkLensGloss)
+                : (light ? _lightGloss : _darkGloss),
             stops: const [0, 0.55],
           ),
         ),
         // L'éclat : la tache de lumière dans l'angle haut-gauche, celle qui
-        // trahit une surface bombée. Le clip de la lentille la découpe.
+        // trahit une surface bombée. Le clip de la lentille la découpe. Sur un
+        // fond réfracté il ne reste qu'un souffle : le shader pose déjà le
+        // sien, et deux taches de lumière l'une sur l'autre font un voile.
         child: DecoratedBox(
           decoration: BoxDecoration(
             gradient: RadialGradient(
               center: const Alignment(-0.9, -1.1),
               radius: circle ? 0.9 : 0.8,
               colors: [
-                Colors.white.withValues(alpha: light ? 0.45 : 0.22),
+                Colors.white.withValues(
+                  alpha: refracting
+                      ? (light ? 0.16 : 0.09)
+                      : (light ? 0.45 : 0.22),
+                ),
                 Colors.white.withValues(alpha: 0),
               ],
             ),
@@ -201,6 +260,7 @@ class LiquidGlass extends StatelessWidget {
                 radius: radius,
                 circle: circle,
                 light: light,
+                refracting: refracting,
               ),
             ),
           ),
@@ -232,10 +292,11 @@ class LiquidGlass extends StatelessWidget {
           saturation: vibrancy,
           refractiveIndex: _refractiveIndex,
           chromaticAberration: _dispersion,
-          // L'éclat du shader reste discret : l'arête qui se voit, c'est
-          // celle que peint _SpecularRim, et deux liserés l'un sur l'autre
-          // feraient un bourrelet.
-          lightIntensity: 0.5,
+          // L'éclat du shader n'est plus bridé (idée #106) : c'est lui qui
+          // sait où la lumière se prend dans une surface bombée — la peinture,
+          // elle, ne peut que la supposer. Elle s'est donc effacée juste
+          // au-dessus, et il reprend sa place.
+          lightIntensity: 0.85,
           specularSharpness: lg.GlassSpecularSharpness.medium,
           shadow: circle ? _circleShadow : _panelShadow,
         ),
@@ -351,11 +412,19 @@ class _SpecularRim extends CustomPainter {
     required this.radius,
     required this.circle,
     required this.light,
+    this.refracting = false,
   });
 
   final double radius;
   final bool circle;
   final bool light;
+
+  /// Le fond se plie-t-il sous cette surface ? (idée #106) La TRANCHE peinte
+  /// occupait pile la bande où le shader resserre le fond : elle la recouvrait
+  /// d'un blanc laiteux. Là où il tourne, on ne garde donc que l'ARÊTE — le
+  /// trait qui découpe la lentille — et on laisse la tranche au shader, qui la
+  /// creuse pour de vrai.
+  final bool refracting;
 
   /// Le contour de la lentille, rétréci de [inset] : disque ou superellipse.
   Path _outline(Rect rect, double inset) {
@@ -382,7 +451,7 @@ class _SpecularRim extends CustomPainter {
     ).createShader(rect);
 
     // 1. La tranche : large, tenue, juste à l'intérieur de l'arête.
-    if (size.shortestSide > 2 * (stroke + band)) {
+    if (!refracting && size.shortestSide > 2 * (stroke + band)) {
       canvas.drawPath(
         _outline(rect, stroke + band / 2),
         Paint()
@@ -397,13 +466,20 @@ class _SpecularRim extends CustomPainter {
     }
 
     // 2. L'arête elle-même : le trait net qui découpe la lentille du fond.
+    // Elle reste dans les deux cas — c'est elle qui se voit de loin, et sans
+    // elle une barre finirait par se confondre avec ce qu'il y a dessous.
     canvas.drawPath(
       _outline(rect, stroke / 2),
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = stroke
         ..shader = rake(
-          light ? const [1.0, 0.24, 0.70] : const [0.86, 0.12, 0.48],
+          switch ((light, refracting)) {
+            (true, false) => const [1.0, 0.24, 0.70],
+            (true, true) => const [0.78, 0.14, 0.50],
+            (false, false) => const [0.86, 0.12, 0.48],
+            (false, true) => const [0.62, 0.07, 0.34],
+          },
         ),
     );
 
@@ -411,5 +487,8 @@ class _SpecularRim extends CustomPainter {
 
   @override
   bool shouldRepaint(_SpecularRim old) =>
-      old.radius != radius || old.circle != circle || old.light != light;
+      old.radius != radius ||
+      old.circle != circle ||
+      old.light != light ||
+      old.refracting != refracting;
 }

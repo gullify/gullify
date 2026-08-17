@@ -8,6 +8,27 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.33.0', [
+    'Le verre d\'Apple se voit enfin. La réfraction livrée la fois d\'avant '
+        'tournait bien — mais on la repeignait aussitôt : la vitre dessinée à '
+        'la main, son reflet et son éclat d\'angle s\'empilaient à près de '
+        'trois quarts de blanc dans le coin haut-gauche, c\'est-à-dire pile là '
+        'où le fond se plie et se sépare en couleurs. La peinture s\'efface '
+        'donc là où le shader tourne, et lui laisse la place',
+    'La vitre est aussi plus épaisse et son prisme plus franc : la bande où le '
+        'fond se déforme est maintenant assez large pour se voir sans la '
+        'chercher, sur le dock comme sur le mini-lecteur. Là où le shader ne '
+        'peut pas tourner, la vitre dessinée se peint en entier, comme avant — '
+        'aucune barre ne peut disparaître',
+    'Le lecteur plein écran a enfin du verre, lui aussi. Il était le seul '
+        'écran à n\'en avoir aucun : des commandes nues posées sur un voile '
+        'presque opaque. Le titre et la forme d\'onde se rangent maintenant '
+        'sur une vitre, le transport et les actions sur une seconde, la flèche '
+        'de fermeture devient un disque de verre, et le voile s\'allège pour '
+        'qu\'il reste quelque chose à laisser passer',
+    'Au passage, la pochette du lecteur rétrécit au lieu de pousser les '
+        'commandes hors de l\'écran sur un petit téléphone',
+  ]),
   ReleaseNote('3.32.0', [
     'Le thème Apple Liquid Glass réfracte enfin. C\'était ce qui lui manquait '
         'pour « vraiment » y ressembler : une lentille ne floute pas ce qu\'il '

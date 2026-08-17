@@ -11,6 +11,9 @@ import '../state/player.dart';
 import '../state/sleep_timer.dart';
 import '../widgets/artwork.dart';
 import '../widgets/chords_sheet.dart';
+import '../widgets/glass_box.dart';
+import '../widgets/glass_kit.dart';
+import '../widgets/liquid_glass.dart';
 import '../widgets/lyrics_sheet.dart';
 import '../widgets/retro_chrome.dart';
 import '../widgets/retro_lcd.dart';
@@ -45,6 +48,175 @@ class NowPlayingScreen extends ConsumerWidget {
     // hachurée, afficheur à segments, boutons de transport carrés — et pas de
     // pochette floutée derrière : une façade de 1999 est opaque (idée #83).
     final retro = isRetroSkin(context);
+    // Apple Liquid Glass (idée #106) : « il y a plein d'endroits où il ne
+    // s'affiche même pas, comme le player ». C'était vrai — le lecteur plein
+    // écran n'avait pas UNE surface de verre : des commandes nues posées sur
+    // un voile opaque. Elles se rangent maintenant sur deux vitres, la fiche
+    // du titre et le pupitre, et le voile s'éclaircit pour qu'il reste
+    // quelque chose à laisser passer.
+    final liquid = isLiquidSkin(context);
+
+    // Le bas du lecteur — la fiche du titre, le transport, les actions
+    // secondaires — est nommé ici plutôt que déplié dans l'arbre : sous
+    // l'Apple Liquid Glass, ces blocs se rangent sur deux vitres ; partout
+    // ailleurs ils restent posés les uns sous les autres, à l'identique.
+    final titleRow = Row(
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                item.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                // Sous le rétro, le titre reste écrit en clair sur la tôle
+                // (idée #85) : le vert est réservé à ce qui vit derrière une
+                // vitre — et l'afficheur juste au-dessus le dit déjà.
+                style: retro
+                    ? const TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: -0.2,
+                        color: Color(0xFFF2F2F7),
+                      )
+                    : const TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.5,
+                      ),
+              ),
+              if (item.artist != null)
+                _DetailLink(
+                  text: item.artist!,
+                  path: artistId == null ? null : '/artist/$artistId',
+                  chevronSize: 18,
+                  style: retro
+                      ? lcdTextStyle(size: 18, color: const Color(0xFF8F8FA0))
+                      : TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w500,
+                          color: scheme.onSurfaceVariant,
+                        ),
+                ),
+            ],
+          ),
+        ),
+        if (songId != null) _FavoriteButton(songId: songId),
+      ],
+    );
+
+    final transport = retro
+        ? _RetroControls(state: state, isRadio: isRadio)
+        : Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              IconButton(
+                icon: Icon(
+                  Icons.shuffle,
+                  color:
+                      (state?.shuffleMode ?? AudioServiceShuffleMode.none) !=
+                          AudioServiceShuffleMode.none
+                      ? scheme.primary
+                      : null,
+                ),
+                onPressed: isRadio ? null : actions.toggleShuffle,
+              ),
+              IconButton(
+                iconSize: 40,
+                icon: const Icon(Icons.skip_previous),
+                onPressed: isRadio ? null : actions.previous,
+              ),
+              IconButton(
+                iconSize: 72,
+                icon: Icon(
+                  (state?.playing ?? false)
+                      ? Icons.pause_circle_filled
+                      : Icons.play_circle_fill,
+                  color: scheme.primary,
+                ),
+                onPressed: actions.togglePlayPause,
+              ),
+              IconButton(
+                iconSize: 40,
+                icon: const Icon(Icons.skip_next),
+                onPressed: isRadio ? null : actions.next,
+              ),
+              IconButton(
+                icon: Icon(
+                  switch (state?.repeatMode ?? AudioServiceRepeatMode.none) {
+                    AudioServiceRepeatMode.one => Icons.repeat_one,
+                    _ => Icons.repeat,
+                  },
+                  color:
+                      (state?.repeatMode ?? AudioServiceRepeatMode.none) !=
+                          AudioServiceRepeatMode.none
+                      ? scheme.primary
+                      : null,
+                ),
+                onPressed: isRadio ? null : actions.cycleRepeat,
+              ),
+            ],
+          );
+
+    final actionsRow = Row(
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      children: [
+        if (!isRadio)
+          _actionPlate(
+            retro,
+            IconButton(
+              icon: const Icon(Icons.lyrics_outlined),
+              tooltip: 'Paroles',
+              onPressed: () =>
+                  showLyricsSheet(context, item.extras?['filePath'] as String?),
+            ),
+          ),
+        if (!isRadio)
+          _actionPlate(
+            retro,
+            IconButton(
+              icon: const ChordsIcon(),
+              tooltip: 'Accords guitare',
+              onPressed: () =>
+                  showChordsSheet(context, item.extras?['filePath'] as String?),
+            ),
+          ),
+        _actionPlate(retro, const _SleepTimerButton()),
+        if (!isRadio && songId != null)
+          _actionPlate(
+            retro,
+            IconButton(
+              icon: const Icon(Icons.ios_share_rounded),
+              tooltip: 'Partager',
+              onPressed: () => showShareSheet(
+                context,
+                ShareTarget.song(
+                  Song(
+                    id: songId,
+                    title: item.title,
+                    filePath: item.extras?['filePath'] as String? ?? '',
+                    albumId: albumId,
+                    albumName: item.album,
+                    artistId: artistId,
+                    artistName: item.artist,
+                    artworkUrl: artUrl,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        if (!isRadio)
+          _actionPlate(
+            retro,
+            IconButton(
+              icon: const Icon(Icons.queue_music),
+              tooltip: "File d'attente",
+              onPressed: () => _showQueue(context),
+            ),
+          ),
+      ],
+    );
 
     // Swipe vers le bas pour fermer le lecteur (en plus de la flèche).
     return Dismissible(
@@ -63,10 +235,22 @@ class NowPlayingScreen extends ConsumerWidget {
               )
             : AppBar(
                 backgroundColor: Colors.transparent,
-                leading: IconButton(
-                  icon: const Icon(Icons.keyboard_arrow_down, size: 32),
-                  onPressed: () => context.pop(),
-                ),
+                // Sous l'Apple Liquid Glass, la flèche de fermeture devient
+                // une lentille ronde — la même que partout ailleurs dans
+                // l'app (idée #106). Elle garde sa place et sa taille.
+                leading: liquid
+                    ? Center(
+                        child: GlassIconButton(
+                          icon: Icons.keyboard_arrow_down,
+                          tooltip: 'Fermer',
+                          size: 40,
+                          onPressed: () => context.pop(),
+                        ),
+                      )
+                    : IconButton(
+                        icon: const Icon(Icons.keyboard_arrow_down, size: 32),
+                        onPressed: () => context.pop(),
+                      ),
                 centerTitle: true,
                 title: Column(
                   children: [
@@ -104,9 +288,17 @@ class NowPlayingScreen extends ConsumerWidget {
             if (!retro)
               DecoratedBox(
                 decoration: BoxDecoration(
-                  color: light
-                      ? const Color(0xD9FFFFFF)
-                      : const Color(0xBF0A0C12),
+                  // Le voile qui rend le texte lisible par-dessus la pochette
+                  // floutée. Sous l'Apple Liquid Glass il s'allège d'un bon
+                  // tiers (idée #106) : la lisibilité passe désormais par les
+                  // vitres, et un voile à 85 % ne laisserait rien à réfracter
+                  // — c'est ce qui donnait « le verre ne s'affiche même pas ».
+                  color: switch ((light, liquid)) {
+                    (true, false) => const Color(0xD9FFFFFF),
+                    (true, true) => const Color(0x8CFFFFFF),
+                    (false, false) => const Color(0xBF0A0C12),
+                    (false, true) => const Color(0x8C0A0C12),
+                  },
                 ),
               ),
             SafeArea(
@@ -114,56 +306,61 @@ class NowPlayingScreen extends ConsumerWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 24),
                 child: Column(
                   children: [
-                    const Spacer(),
-                    Center(
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 340),
-                        child: AspectRatio(
-                          aspectRatio: 1,
-                          child: retro
-                              // La pochette est SERTIE dans une plaque de
-                              // chrome (idée #85) : le cadre est en relief,
-                              // la vitre en creux dessous. Pas d'ombre
-                              // portée — un châssis ne flotte pas.
-                              ? RetroBevel(
-                                  gradient: winampChrome,
-                                  padding: const EdgeInsets.all(7),
-                                  child: RetroBevel(
-                                    sunken: true,
-                                    fill: winampLcd,
-                                    padding: const EdgeInsets.all(2),
+                    // La pochette prend toute la place laissée libre et se
+                    // recentre dedans, sans jamais dépasser 340. Deux Spacer
+                    // et un carré de taille fixe la faisaient déborder du bas
+                    // de l'écran sur un petit téléphone : là, elle rétrécit
+                    // plutôt que de pousser les commandes dehors.
+                    Expanded(
+                      child: Center(
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 340),
+                          child: AspectRatio(
+                            aspectRatio: 1,
+                            child: retro
+                                // La pochette est SERTIE dans une plaque de
+                                // chrome (idée #85) : le cadre est en relief,
+                                // la vitre en creux dessous. Pas d'ombre
+                                // portée — un châssis ne flotte pas.
+                                ? RetroBevel(
+                                    gradient: winampChrome,
+                                    padding: const EdgeInsets.all(7),
+                                    child: RetroBevel(
+                                      sunken: true,
+                                      fill: winampLcd,
+                                      padding: const EdgeInsets.all(2),
+                                      child: Artwork(
+                                        url: item.artUri?.toString(),
+                                        borderRadius: 0,
+                                        icon: isRadio
+                                            ? Icons.radio
+                                            : Icons.music_note,
+                                      ),
+                                    ),
+                                  )
+                                : DecoratedBox(
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(28),
+                                      boxShadow: const [
+                                        BoxShadow(
+                                          color: Color(0x59141932),
+                                          blurRadius: 44,
+                                          offset: Offset(0, 22),
+                                        ),
+                                      ],
+                                    ),
                                     child: Artwork(
                                       url: item.artUri?.toString(),
-                                      borderRadius: 0,
+                                      borderRadius: 28,
                                       icon: isRadio
                                           ? Icons.radio
                                           : Icons.music_note,
                                     ),
                                   ),
-                                )
-                              : DecoratedBox(
-                                  decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(28),
-                                    boxShadow: const [
-                                      BoxShadow(
-                                        color: Color(0x59141932),
-                                        blurRadius: 44,
-                                        offset: Offset(0, 22),
-                                      ),
-                                    ],
-                                  ),
-                                  child: Artwork(
-                                    url: item.artUri?.toString(),
-                                    borderRadius: 28,
-                                    icon: isRadio
-                                        ? Icons.radio
-                                        : Icons.music_note,
-                                  ),
-                                ),
+                          ),
                         ),
                       ),
                     ),
-                    const Spacer(),
                     // Rétro Winamp (idée #82) : l'afficheur du lecteur de 1999
                     // se glisse au-dessus du titre — temps à segments, cases
                     // creuses, voyants et analyseur de spectre.
@@ -171,183 +368,56 @@ class NowPlayingScreen extends ConsumerWidget {
                       RetroLcd(item: item),
                       const SizedBox(height: 12),
                     ],
-                    Row(
-                      children: [
-                        Expanded(
+                    // Apple Liquid Glass (idée #106) : les commandes ne
+                    // flottent plus sur le voile, elles se posent sur deux
+                    // vitres — la FICHE (titre, artiste, favori, forme d'onde)
+                    // et le PUPITRE (transport et actions secondaires). C'est
+                    // la même matière que le dock et le mini-lecteur : le
+                    // lecteur cesse d'être le seul écran sans verre.
+                    if (liquid) ...[
+                      GlassBox(
+                        radius: 30,
+                        // Hors du shell, le flou en direct reste coupé (voir
+                        // GlassBox) : c'est la lentille peinte qui tient la
+                        // surface, comme sur les autres écrans de détail.
+                        blur: false,
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(14, 8, 14, 6),
                           child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
-                                item.title,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                // Sous le rétro, le titre reste écrit en
-                                // clair sur la tôle (idée #85) : le vert est
-                                // réservé à ce qui vit derrière une vitre —
-                                // et l'afficheur juste au-dessus le dit déjà.
-                                style: retro
-                                    ? const TextStyle(
-                                        fontSize: 22,
-                                        fontWeight: FontWeight.w700,
-                                        letterSpacing: -0.2,
-                                        color: Color(0xFFF2F2F7),
-                                      )
-                                    : const TextStyle(
-                                        fontSize: 24,
-                                        fontWeight: FontWeight.w800,
-                                        letterSpacing: -0.5,
-                                      ),
-                              ),
-                              if (item.artist != null)
-                                _DetailLink(
-                                  text: item.artist!,
-                                  path: artistId == null
-                                      ? null
-                                      : '/artist/$artistId',
-                                  chevronSize: 18,
-                                  style: retro
-                                      ? lcdTextStyle(
-                                          size: 18,
-                                          color: const Color(0xFF8F8FA0),
-                                        )
-                                      : TextStyle(
-                                          fontSize: 15,
-                                          fontWeight: FontWeight.w500,
-                                          color: scheme.onSurfaceVariant,
-                                        ),
+                              titleRow,
+                              if (!isRadio) ...[
+                                const SizedBox(height: 4),
+                                _Waveform(
+                                  duration: item.duration,
+                                  seed: item.title,
                                 ),
+                              ],
                             ],
                           ),
                         ),
-                        if (songId != null) _FavoriteButton(songId: songId),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    if (!isRadio)
-                      _Waveform(duration: item.duration, seed: item.title),
-                    const SizedBox(height: 8),
-                    if (retro)
-                      _RetroControls(state: state, isRadio: isRadio)
-                    else
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                        children: [
-                          IconButton(
-                            icon: Icon(
-                              Icons.shuffle,
-                              color:
-                                  (state?.shuffleMode ??
-                                          AudioServiceShuffleMode.none) !=
-                                      AudioServiceShuffleMode.none
-                                  ? scheme.primary
-                                  : null,
-                            ),
-                            onPressed: isRadio ? null : actions.toggleShuffle,
-                          ),
-                          IconButton(
-                            iconSize: 40,
-                            icon: const Icon(Icons.skip_previous),
-                            onPressed: isRadio ? null : actions.previous,
-                          ),
-                          IconButton(
-                            iconSize: 72,
-                            icon: Icon(
-                              (state?.playing ?? false)
-                                  ? Icons.pause_circle_filled
-                                  : Icons.play_circle_fill,
-                              color: scheme.primary,
-                            ),
-                            onPressed: actions.togglePlayPause,
-                          ),
-                          IconButton(
-                            iconSize: 40,
-                            icon: const Icon(Icons.skip_next),
-                            onPressed: isRadio ? null : actions.next,
-                          ),
-                          IconButton(
-                            icon: Icon(
-                              switch (state?.repeatMode ??
-                                  AudioServiceRepeatMode.none) {
-                                AudioServiceRepeatMode.one => Icons.repeat_one,
-                                _ => Icons.repeat,
-                              },
-                              color:
-                                  (state?.repeatMode ??
-                                          AudioServiceRepeatMode.none) !=
-                                      AudioServiceRepeatMode.none
-                                  ? scheme.primary
-                                  : null,
-                            ),
-                            onPressed: isRadio ? null : actions.cycleRepeat,
-                          ),
-                        ],
                       ),
-                    const SizedBox(height: 8),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: [
-                        if (!isRadio)
-                          _actionPlate(
-                            retro,
-                            IconButton(
-                              icon: const Icon(Icons.lyrics_outlined),
-                              tooltip: 'Paroles',
-                              onPressed: () => showLyricsSheet(
-                                context,
-                                item.extras?['filePath'] as String?,
-                              ),
-                            ),
-                          ),
-                        if (!isRadio)
-                          _actionPlate(
-                            retro,
-                            IconButton(
-                              icon: const ChordsIcon(),
-                              tooltip: 'Accords guitare',
-                              onPressed: () => showChordsSheet(
-                                context,
-                                item.extras?['filePath'] as String?,
-                              ),
-                            ),
-                          ),
-                        _actionPlate(retro, const _SleepTimerButton()),
-                        if (!isRadio && songId != null)
-                          _actionPlate(
-                            retro,
-                            IconButton(
-                              icon: const Icon(Icons.ios_share_rounded),
-                              tooltip: 'Partager',
-                              onPressed: () => showShareSheet(
-                                context,
-                                ShareTarget.song(
-                                  Song(
-                                    id: songId,
-                                    title: item.title,
-                                    filePath:
-                                        item.extras?['filePath'] as String? ??
-                                        '',
-                                    albumId: albumId,
-                                    albumName: item.album,
-                                    artistId: artistId,
-                                    artistName: item.artist,
-                                    artworkUrl: artUrl,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        if (!isRadio)
-                          _actionPlate(
-                            retro,
-                            IconButton(
-                              icon: const Icon(Icons.queue_music),
-                              tooltip: "File d'attente",
-                              onPressed: () => _showQueue(context),
-                            ),
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
+                      const SizedBox(height: 10),
+                      GlassBox(
+                        radius: 30,
+                        blur: false,
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(6, 4, 6, 2),
+                          child: Column(children: [transport, actionsRow]),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                    ] else ...[
+                      titleRow,
+                      const SizedBox(height: 10),
+                      if (!isRadio)
+                        _Waveform(duration: item.duration, seed: item.title),
+                      const SizedBox(height: 8),
+                      transport,
+                      const SizedBox(height: 8),
+                      actionsRow,
+                      const SizedBox(height: 16),
+                    ],
                   ],
                 ),
               ),
