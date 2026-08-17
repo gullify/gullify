@@ -373,9 +373,20 @@ void main() {
     );
   });
 
+  // La lentille d'Apple (idée #105) se peint dans un shader, et un shader se
+  // charge depuis les assets : deux frames après le premier affichage, il
+  // n'est pas encore là et les surfaces sortent nues. Ces quelques frames de
+  // plus laissent la matière arriver — sans elles, le golden ne garderait
+  // trace que du vide.
+  Future<void> pumpLens(WidgetTester tester) async {
+    for (var i = 0; i < 6; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+  }
+
   // Le thème Apple Liquid Glass (idée #98) : même écran, même mise en page —
   // seule la matière change. Le golden garde trace de ce que doivent donner
-  // la vitre plus fine, les arêtes éclairées et les angles en superellipse.
+  // la vitre plus fine, le fond réfracté et les angles en superellipse.
   testWidgets('home screen renders in the Apple Liquid Glass skin',
       (tester) async {
     await pumpScreen(
@@ -390,6 +401,7 @@ void main() {
         ),
       ),
     );
+    await pumpLens(tester);
     await expectLater(
       find.byKey(const Key('golden-root')),
       matchesGoldenFile('goldens/home_apple.png'),
@@ -413,6 +425,7 @@ void main() {
         ),
       ),
     );
+    await pumpLens(tester);
     await expectLater(
       find.byKey(const Key('golden-root')),
       matchesGoldenFile('goldens/home_apple_dark.png'),

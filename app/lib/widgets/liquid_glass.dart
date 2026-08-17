@@ -1,23 +1,34 @@
-import 'dart:ui' show ImageFilter;
-
 import 'package:flutter/material.dart';
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart' as lg;
 
 import '../theme.dart';
 
-/// La MATIÈRE du thème « Apple Liquid Glass » (idée #98).
+/// La MATIÈRE du thème « Apple Liquid Glass » (idées #98, #99 et #105).
 ///
 /// Gullify a toujours eu du verre ; celui d'Apple (iOS 26) n'est pas la même
-/// vitre. Ce qui le distingue tient en quatre choses, et ce sont exactement
-/// celles peintes ici :
+/// vitre. Ce qui le distingue tient en cinq choses :
 ///   1. il est BEAUCOUP plus fin — on lit au travers, la couleur du dessous
 ///      transparaît au lieu d'être masquée par un fond laiteux ;
 ///   2. il ravive ce qu'il laisse passer (vibrancy) : le flou sature les
 ///      couleurs du dessous au lieu de les délaver ;
 ///   3. ses ARÊTES accrochent la lumière — vive en haut à gauche, éteinte au
-///      milieu, reprise en bas à droite : c'est ce liseré, et lui seul, qui
-///      fait « une lentille » plutôt que « un rectangle translucide » ;
+///      milieu, reprise en bas à droite : c'est ce liseré qui fait « une
+///      lentille » plutôt que « un rectangle translucide » ;
 ///   4. ses angles sont des superellipses (le squircle), pas des quarts de
-///      cercle.
+///      cercle ;
+///   5. et surtout — c'est ce qui manquait (idée #105) — il RÉFRACTE : une
+///      lentille ne floute pas ce qu'il y a derrière, elle le PLIE. Le fond
+///      s'écrase et se décale sur le pourtour, les couleurs s'y séparent
+///      comme dans un prisme. Sans ça, ce n'est qu'un rectangle flouté de
+///      plus, aussi soigné soit son liseré.
+///
+/// Les quatre premières se peignent ici à la main. La cinquième demande un
+/// shader qui échantillonne le fond pixel par pixel : c'est le paquet
+/// `liquid_glass_widgets` (MIT, celui pointé par l'idée #105) qui la rend,
+/// via `AdaptiveGlass` — il connaît les pièges de chaque moteur de rendu
+/// (Impeller Vulkan/Metal, GLES à l'axe Y inversé, Skia, « transparence
+/// réduite ») et retombe tout seul sur une vitre givrée là où le shader ne
+/// peut pas tourner.
 ///
 /// Comme retro_chrome.dart, ce fichier ne peint qu'une matière : il ne décide
 /// de rien. C'est theme.dart qui vient y chercher sa palette.
@@ -26,9 +37,11 @@ import '../theme.dart';
 bool isLiquidSkin(BuildContext context) =>
     Theme.of(context).extension<GullifySurfaces>()?.liquid ?? false;
 
+/// Les couleurs de la vitre peinte à la main, celle des surfaces où le flou
+/// est coupé (petits boutons, écrans hors shell) : sans fond flouté à plier,
+/// le shader n'a rien à réfracter, alors la lentille se dessine.
+///
 /// Le verre clair : blanc lavé, presque rien (haut-gauche → bas-droite).
-/// Idée #99 : la vitre a encore maigri — à ces alphas, ce qu'on voit d'une
-/// surface est surtout ce qu'il y a DERRIÈRE elle, ravivé par le flou.
 const _lightFill = [Color(0x54FFFFFF), Color(0x14FFFFFF)];
 
 /// Le verre sombre : à peine blanchi — c'est le fond qui doit rester visible.
@@ -39,14 +52,43 @@ const _darkFill = [Color(0x24FFFFFF), Color(0x05FFFFFF)];
 const _lightGloss = [Color(0x59FFFFFF), Color(0x00FFFFFF)];
 const _darkGloss = [Color(0x2EFFFFFF), Color(0x00FFFFFF)];
 
-/// Ce qu'on glisse SOUS le verre quand le flou est coupé (sur certains GPU le
-/// BackdropFilter se peint en plein écran) : sans flou, la lisibilité ne tient
+/// Ce qu'on glisse SOUS cette vitre-là : sans flou, la lisibilité ne tient
 /// plus qu'à un fond un peu plus dense.
 const _lightScrim = Color(0x80FFFFFF);
 const _darkScrim = Color(0x800B0B10);
 
-/// Panneau de verre façon Apple : flou profond et couleurs ravivées, dégradé
-/// translucide, liseré spéculaire, angles en superellipse.
+/// La teinte que le shader pose sur le fond réfracté : presque rien, parce
+/// que la vitre peinte vient juste après y ajouter la sienne. Deux corps de
+/// verre l'un sur l'autre feraient un panneau laiteux — l'inverse de l'idée.
+const _lightTint = Color(0x0FE8EEFA);
+const _darkTint = Color(0x0AFFFFFF);
+
+/// L'épaisseur de la vitre, en pixels : c'est elle qui donne sa largeur à la
+/// bande où le fond se plie. Un petit disque en a moins qu'un bandeau, sinon
+/// la déformation lui mange tout l'intérieur.
+const _panelThickness = 22.0;
+const _circleThickness = 12.0;
+
+/// La dispersion du prisme (0 à 4 dans le paquet) : assez pour qu'une arête
+/// irise sur un fond contrasté, pas au point de border l'écran de rouge.
+const _dispersion = 0.35;
+
+/// L'indice de réfraction, c'est-à-dire à quel point le fond se plie. 1.2 est
+/// le maximum de l'échelle du paquet — Apple ne fait pas dans la demi-mesure.
+const _refractiveIndex = 1.2;
+
+/// L'ombre d'Apple : large et basse, elle décolle la lentille du fond d'écran
+/// sans jamais se voir comme un trait. Le paquet la découpe à l'extérieur de
+/// la vitre, pour que le verre ne floute pas sa propre ombre.
+const _panelShadow = [
+  BoxShadow(color: Color(0x260B1020), blurRadius: 52, offset: Offset(0, 22)),
+];
+const _circleShadow = [
+  BoxShadow(color: Color(0x260B1020), blurRadius: 22, offset: Offset(0, 8)),
+];
+
+/// Panneau de verre façon Apple : fond réfracté et ravivé, teinte à peine
+/// posée, liseré spéculaire, angles en superellipse.
 ///
 /// Même boîte, même place, même taille que `GlassBox` : seule la peinture
 /// change — la mise en page ne bouge pas d'un pixel d'un thème à l'autre.
@@ -122,6 +164,85 @@ class LiquidGlass extends StatelessWidget {
       ),
     );
 
+    // La vitre peinte : son dégradé, son reflet, son éclat d'angle et son
+    // liseré. C'est elle qui donne sa matière à la surface, avec ou sans
+    // shader — une barre qui ne tiendrait qu'au shader disparaîtrait sur le
+    // moindre appareil où il ne tourne pas.
+    final pane = Stack(
+      // passthrough : le contenu reçoit les contraintes du parent telles
+      // quelles, comme dans GlassBox. Sans ça, une barre à largeur imposée
+      // se replierait sur son contenu — la mise en page doit rester au
+      // pixel près celle des autres habillages.
+      fit: StackFit.passthrough,
+      children: [
+        // La vitre elle-même, derrière le contenu. Sans flou, il n'y a rien
+        // sous elle : la lisibilité ne tient plus alors qu'à un fond un peu
+        // plus dense.
+        Positioned.fill(
+          child: clip(
+            blur
+                ? fill
+                : DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: light ? _lightScrim : _darkScrim,
+                    ),
+                    child: fill,
+                  ),
+          ),
+        ),
+        // Le contenu : c'est lui qui donne sa taille au Stack.
+        clip(child),
+        // Le liseré passe PAR-DESSUS : une arête de verre n'est pas cachée
+        // par ce qu'elle contient.
+        Positioned.fill(
+          child: IgnorePointer(
+            child: CustomPaint(
+              painter: _SpecularRim(
+                radius: radius,
+                circle: circle,
+                light: light,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+
+    // Ce qui manquait (idée #105) : la RÉFRACTION. Le shader lit le fond,
+    // le plie sur le pourtour, en sépare les couleurs, puis la vitre peinte
+    // se pose par-dessus. Il lui faut un fond à plier — donc le flou en
+    // direct, donc le shell ; là où le flou est coupé (petits boutons,
+    // écrans hors shell), il n'y a rien à réfracter et la vitre peinte tient
+    // le rôle seule.
+    if (blur) {
+      return lg.AdaptiveGlass(
+        shape: circle
+            ? const lg.LiquidOval()
+            : lg.LiquidRoundedSuperellipse(borderRadius: radius),
+        // Le rendu complet : deux passes Impeller (flou puis réfraction).
+        // AdaptiveGlass redescend tout seul sur le shader léger (Skia, web)
+        // puis sur une simple vitre givrée (« transparence réduite »).
+        quality: lg.GlassQuality.premium,
+        settings: lg.LiquidGlassSettings(
+          blur: sigma,
+          thickness: circle ? _circleThickness : _panelThickness,
+          glassColor: light ? _lightTint : _darkTint,
+          // Vibrancy : ce qu'on voit au travers est ravivé, pas délavé —
+          // c'est ce qui sépare le verre d'un voile.
+          saturation: vibrancy,
+          refractiveIndex: _refractiveIndex,
+          chromaticAberration: _dispersion,
+          // L'éclat du shader reste discret : l'arête qui se voit, c'est
+          // celle que peint _SpecularRim, et deux liserés l'un sur l'autre
+          // feraient un bourrelet.
+          lightIntensity: 0.5,
+          specularSharpness: lg.GlassSpecularSharpness.medium,
+          shadow: circle ? _circleShadow : _panelShadow,
+        ),
+        child: pane,
+      );
+    }
+
     return DecoratedBox(
       // L'ombre d'Apple est large et basse : elle décolle la lentille du fond
       // sans jamais se voir comme un trait.
@@ -135,51 +256,7 @@ class LiquidGlass extends StatelessWidget {
           ),
         ],
       ),
-      child: Stack(
-        // passthrough : le contenu reçoit les contraintes du parent telles
-        // quelles, comme dans GlassBox. Sans ça, une barre à largeur imposée
-        // se replierait sur son contenu — la mise en page doit rester au
-        // pixel près celle des autres habillages.
-        fit: StackFit.passthrough,
-        children: [
-          // La vitre elle-même, derrière le contenu.
-          Positioned.fill(
-            child: clip(
-              blur
-                  ? BackdropFilter(
-                      // Vibrancy : ce qu'on voit au travers est ravivé, pas
-                      // délavé — c'est ce qui sépare le verre d'un voile.
-                      filter: ImageFilter.compose(
-                        outer: ColorFilter.matrix(saturationMatrix(vibrancy)),
-                        inner: ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
-                      ),
-                      child: fill,
-                    )
-                  : DecoratedBox(
-                      decoration: BoxDecoration(
-                        color: light ? _lightScrim : _darkScrim,
-                      ),
-                      child: fill,
-                    ),
-            ),
-          ),
-          // Le contenu : c'est lui qui donne sa taille au Stack.
-          clip(child),
-          // Le liseré passe PAR-DESSUS : une arête de verre n'est pas cachée
-          // par ce qu'elle contient.
-          Positioned.fill(
-            child: IgnorePointer(
-              child: CustomPaint(
-                painter: _SpecularRim(
-                  radius: radius,
-                  circle: circle,
-                  light: light,
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
+      child: pane,
     );
   }
 }
@@ -257,19 +334,6 @@ class LiquidWallpaper extends StatelessWidget {
       );
     },
   );
-}
-
-/// Matrice de saturation (identité à 1.0), coefficients de luminance Rec. 709
-/// — c'est le `saturate()` de CSS, celui qui donne la vibrancy d'Apple.
-List<double> saturationMatrix(double amount) {
-  const lr = 0.2126, lg = 0.7152, lb = 0.0722;
-  final s = amount;
-  return <double>[
-    lr + s * (1 - lr), lg * (1 - s), lb * (1 - s), 0, 0,
-    lr * (1 - s), lg + s * (1 - lg), lb * (1 - s), 0, 0,
-    lr * (1 - s), lg * (1 - s), lb + s * (1 - lb), 0, 0,
-    0, 0, 0, 1, 0,
-  ];
 }
 
 /// Le liseré qui fait la lentille : vif en haut à gauche (d'où vient la

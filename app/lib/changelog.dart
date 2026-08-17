@@ -8,6 +8,22 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.32.0', [
+    'Le thème Apple Liquid Glass réfracte enfin. C\'était ce qui lui manquait '
+        'pour « vraiment » y ressembler : une lentille ne floute pas ce qu\'il '
+        'y a derrière elle, elle le PLIE. Le fond se resserre et se décale sur '
+        'tout le pourtour des barres, et ses couleurs s\'y séparent comme dans '
+        'un prisme — c\'est cette déformation, bien plus que le liseré, qui '
+        'fait la différence entre du verre et un rectangle flouté',
+    'La déformation se calcule dans un shader, pixel par pixel, à partir du '
+        'moteur de rendu liquid_glass_widgets. Sur les appareils où il ne peut '
+        'pas tourner, la vitre dessinée d\'avant reprend la main : rien ne '
+        'disparaît nulle part',
+    'Le flou du thème redescend de 48 à 28. À 48, le fond n\'était plus qu\'une '
+        'bouillie de couleurs : la lentille n\'avait plus rien à plier. Le '
+        'givre reste plus profond que celui du verre Gullify, mais on '
+        'reconnaît de nouveau ce qui passe dessous',
+  ]),
   ReleaseNote('3.31.0', [
     'Le son ne remonte plus après un croisement. C\'est là que se cachait ce '
         'qui restait d\'enflure : un morceau finit presque toujours plus bas '

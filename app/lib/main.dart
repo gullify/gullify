@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart' as lg;
 
 import 'audio/audio_handler.dart';
 import 'router.dart';
@@ -44,8 +45,25 @@ Future<void> main() async {
   // sonnerie qui vient de retentir.
   container.listen(alarmProvider, (_, _) {}, fireImmediately: true);
 
+  // Les shaders du verre d'Apple (idée #105) se compilent au premier affichage
+  // sur Android GLES — plusieurs centaines de millisecondes en pleine ouverture
+  // d'écran. On les préchauffe donc en arrière-plan, sans jamais retarder le
+  // premier affichage : d'ici qu'ils soient prêts, la lentille se peint comme
+  // avant. Une erreur de compilation ne doit pas non plus geler le démarrage :
+  // AdaptiveGlass sait retomber sur une vitre givrée.
+  unawaited(lg.LiquidGlassWidgets.initialize().catchError((_) {}));
+
   runApp(
-    UncontrolledProviderScope(container: container, child: const GullifyApp()),
+    // …et le verre d'Apple doit suivre le clair/sombre CHOISI dans Gullify,
+    // pas celui du téléphone : sans ce pont, ses ombres et ses liserés se
+    // trompent de mode dès que les deux réglages divergent.
+    lg.LiquidGlassWidgets.wrap(
+      brightnessResolver: Theme.maybeBrightnessOf,
+      child: UncontrolledProviderScope(
+        container: container,
+        child: const GullifyApp(),
+      ),
+    ),
   );
 }
 

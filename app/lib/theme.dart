@@ -306,9 +306,14 @@ ThemeData _appleGlass(Color accent, {required bool dark}) {
       // avec le fond d'écran dessous (LiquidWallpaper) la différence se voit
       // enfin d'un coup d'œil.
       barColor: dark ? const Color(0x33202028) : const Color(0x38FFFFFF),
-      // Flou profond et couleurs ravivées : la signature de la matière.
-      blurSigma: 48,
-      vibrancy: 2.3,
+      // Idée #105 : la signature de la matière n'est pas le flou, c'est la
+      // réfraction. Un flou de 48 réduisait le fond en bouillie — la lentille
+      // n'avait plus rien à plier, et le verre redevenait le rectangle laiteux
+      // qu'on lui reprochait. Un givre franc mais lisible (au-dessus de celui
+      // du verre Gullify, 24), des couleurs ravivées sans excès : le reste se
+      // gagne maintenant dans le shader.
+      blurSigma: 28,
+      vibrancy: 1.8,
       // Un fond neutre et sourd : la couleur, désormais, vient des grands
       // halos peints par-dessus (idée #99).
       background: dark

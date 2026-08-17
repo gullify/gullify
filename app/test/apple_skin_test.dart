@@ -9,6 +9,7 @@
 // chez Apple, le verre est une matière, pas une palette.
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart' as lg;
 import 'package:gullify/theme.dart';
 import 'package:gullify/widgets/glass_box.dart';
 import 'package:gullify/widgets/glass_kit.dart';
@@ -36,18 +37,22 @@ void main() {
       expect(surfaces(retro()).liquid, isFalse);
     });
 
-    test('une vitre plus fine et un flou plus profond que le nôtre', () {
+    test('une vitre plus fine, un givre franc mais lisible', () {
       // Plus transparente : c'est LA différence qu'on voit d'abord. Idée #99 :
       // « je ne vois même pas la différence » — donc pas « un peu plus fine »,
       // deux fois moins dense au minimum.
       double alpha(ThemeData theme) => surfaces(theme).barColor!.a;
       expect(alpha(apple()), lessThan(alpha(glass()) / 2));
       expect(alpha(apple(dark: true)), lessThan(alpha(glass(dark: true)) / 2));
-      // Plus profond, et les couleurs du dessous ravivées (vibrancy).
+      // Idée #105 : le flou reste plus profond que le nôtre, mais il ne monte
+      // plus jusqu'à la bouillie — une lentille n'a rien à plier dans un fond
+      // qu'on a effacé. C'est la réfraction, pas le sigma, qui fait la
+      // matière ; les couleurs du dessous, elles, restent ravivées.
       expect(
         surfaces(apple()).blurSigma,
-        greaterThan(surfaces(glass()).blurSigma * 1.5),
+        greaterThan(surfaces(glass()).blurSigma),
       );
+      expect(surfaces(apple()).blurSigma, lessThan(30));
       expect(surfaces(apple()).vibrancy, greaterThan(1.0));
       expect(surfaces(glass()).vibrancy, 1.0);
     });
@@ -81,19 +86,99 @@ void main() {
       expect(button, isA<StadiumBorder>());
     });
 
-    test('la matrice de saturation ne touche à rien à 1.0', () {
+  });
+
+  // Idée #105 : « ton liquid glass est pas vrmt ça encore ». Ce qui manquait
+  // n'était ni le liseré ni la superellipse — c'était la RÉFRACTION. Une
+  // lentille ne floute pas ce qu'il y a derrière, elle le plie et en sépare
+  // les couleurs. Là où il y a un fond à plier (flou en direct), la matière
+  // passe donc par le shader de liquid_glass_widgets.
+  group('la lentille réfracte vraiment (idée #105)', () {
+    Widget box(ThemeData theme) => MaterialApp(
+      theme: theme,
+      home: const Scaffold(
+        body: Center(
+          child: GlassBox(
+            radius: 20,
+            child: SizedBox(width: 160, height: 80),
+          ),
+        ),
+      ),
+    );
+
+    testWidgets('le fond passe par le shader, pas par un simple flou',
+        (tester) async {
+      await tester.pumpWidget(box(apple()));
+      await tester.pump(const Duration(milliseconds: 500));
+
+      final lens = tester.widget<lg.AdaptiveGlass>(find.byType(lg.AdaptiveGlass));
+      // Le rendu complet : c'est lui, et lui seul, qui échantillonne le fond.
+      expect(lens.quality, lg.GlassQuality.premium);
+      // Le fond se plie, et les couleurs s'y séparent comme dans un prisme.
+      expect(lens.settings.refractiveIndex, greaterThan(1.0));
+      expect(lens.settings.chromaticAberration, greaterThan(0.0));
+      // Une vitre a une épaisseur : c'est elle qui donne sa largeur à la
+      // bande où le fond se plie.
+      expect(lens.settings.thickness, greaterThan(0.0));
+      // Le thème reste le patron : le givre et la vibrancy viennent de lui.
+      expect(lens.settings.blur, surfaces(apple()).blurSigma);
+      expect(lens.settings.saturation, surfaces(apple()).vibrancy);
+      // Et l'angle reste une superellipse.
+      expect(lens.shape, isA<lg.LiquidRoundedSuperellipse>());
       expect(
-        saturationMatrix(1.0),
-        // Identité : R, V, B inchangés, alpha inchangé.
-        const [
-          1.0, 0.0, 0.0, 0, 0, //
-          0.0, 1.0, 0.0, 0, 0, //
-          0.0, 0.0, 1.0, 0, 0, //
-          0, 0, 0, 1, 0, //
-        ],
+        (lens.shape as lg.LiquidRoundedSuperellipse).borderRadius,
+        20,
       );
-      // Au-delà de 1, la composante d'une couleur tire sur elle-même.
-      expect(saturationMatrix(1.7)[0], greaterThan(1.0));
+    });
+
+    testWidgets('le bouton rond réfracte en disque', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: apple(),
+          home: const Scaffold(
+            body: Center(
+              child: LiquidGlass(
+                circle: true,
+                child: SizedBox(width: 44, height: 44),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(
+        tester.widget<lg.AdaptiveGlass>(find.byType(lg.AdaptiveGlass)).shape,
+        isA<lg.LiquidOval>(),
+      );
+    });
+
+    testWidgets('sans flou, la vitre reste peinte à la main', (tester) async {
+      // Petits boutons, écrans hors shell : pas de BackdropFilter, donc aucun
+      // fond à réfracter. Inutile d'allumer un shader pour ne plier que du
+      // vide — c'est la lentille dessinée qui tient le rôle.
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: apple(),
+          home: const Scaffold(
+            body: Center(
+              child: GlassBox(
+                radius: 20,
+                blur: false,
+                child: SizedBox(width: 160, height: 80),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(find.byType(lg.AdaptiveGlass), findsNothing);
+      expect(find.byType(LiquidGlass), findsOneWidget);
+    });
+
+    testWidgets('le verre de Gullify n\'y touche pas', (tester) async {
+      await tester.pumpWidget(box(glass()));
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(find.byType(lg.AdaptiveGlass), findsNothing);
     });
   });
 

@@ -18,7 +18,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # of the product and file versions while build-number is used as the build suffix.
 # versionCode : doit rester supérieur à 26 (dernier code de l'ancienne app
 # pixelplay) pour que son auto-updater propose la migration vers la v2.
-version: 3.31.0+165
+version: 3.32.0+166
 
 environment:
   sdk: ^3.12.2
@@ -63,6 +63,13 @@ dependencies:
   # plugins de l'app (package_info_plus, wakelock_plus) — la 11 stable épingle
   # win32 ^5 et rend le paquet incompilable ici.
   file_picker: ^12.0.0-beta.7
+  # Le verre d'Apple qui RÉFRACTE (idée #105) : le shader qui plie le fond
+  # sur le pourtour des surfaces, sépare ses couleurs et y pose son éclat.
+  # C'est la seule pièce du thème qu'on ne pouvait pas peindre à la main —
+  # elle demande d'échantillonner le fond pixel par pixel, avec un chemin de
+  # rendu par moteur (Impeller Vulkan/Metal, GLES, Skia). Seule sa MATIÈRE
+  # est utilisée : la mise en page et les widgets de Gullify ne bougent pas.
+  liquid_glass_widgets: ^0.29.6
 
 dev_dependencies:
   flutter_test:
