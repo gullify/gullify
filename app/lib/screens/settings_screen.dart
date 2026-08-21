@@ -23,7 +23,7 @@ import '../widgets/retro_chrome.dart';
 import '../widgets/retro_lcd.dart';
 import '../widgets/update_dialog.dart';
 
-const appVersion = '3.34.0';
+const appVersion = '3.35.0';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});

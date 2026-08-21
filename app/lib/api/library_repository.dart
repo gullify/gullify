@@ -457,8 +457,6 @@ class LibraryRepository {
         decay: ms('decayMs'),
         lead: ms('leadMs'),
         level: db('levelDb'),
-        endLevel: db('endDb'),
-        startLevel: db('startDb'),
       );
     }
     return edges;

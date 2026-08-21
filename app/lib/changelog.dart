@@ -8,6 +8,30 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.35.0', [
+    'Le lecteur ne touche plus au volume en dehors des transitions. C\'est là '
+        'qu\'était l\'augmentation qui restait : pas dans le croisement, mais '
+        'dans la remise à niveau qui le suivait. Un titre entrant retenu se '
+        'voyait rendre ses décibels par une lente remontée — six secondes '
+        'd\'abord, une vingtaine ensuite —, et une dérive de volume sous une '
+        'musique installée s\'entend comme quelqu\'un qui monte le son, si '
+        'lente soit-elle',
+    'La mise à niveau se compare maintenant aux niveaux des MORCEAUX et non à '
+        'ceux de leurs bords. Se caler sur la fin du sortant revenait à '
+        'prendre son dernier soupir pour sa voix : un titre finit six décibels '
+        'et demi sous son propre niveau, si bien qu\'une transition sur trois '
+        'réclamait plus de douze décibels de correction. On retenait l\'entrant '
+        'du maximum permis — six décibels — sans rien égaler pour autant, et '
+        'il fallait bien les lui rendre ensuite',
+    'Le volume posé pendant le croisement est désormais celui que le titre '
+        'garde jusqu\'à sa dernière note : c\'est le niveau exact de celui '
+        'qu\'il remplace, une fois pour toutes. Une pause, une reprise, un '
+        'retour de fondu de fin ne l\'effacent plus',
+    'Et la correction va dans les deux sens. Elle ne savait que retenir : une '
+        'file de morceaux gravés fort ne pouvait que s\'enfoncer. Un morceau '
+        'gravé bas fait maintenant remonter le niveau — jamais au-delà du '
+        'plein volume, jamais plus de six décibels en dessous',
+  ]),
   ReleaseNote('3.34.0', [
     'Le verre d\'Apple arrête d\'en faire trop. La disposition ne bouge pas '
         'd\'un pixel — c\'est la MATIÈRE qui se reprend. La fois d\'avant, '
