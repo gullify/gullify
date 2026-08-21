@@ -14,6 +14,7 @@ const _kEnabled = 'gullify_fade_enabled';
 const _kSeconds = 'gullify_fade_seconds';
 const _kTracks = 'gullify_fade_tracks';
 const _kSmart = 'gullify_fade_smart';
+const _kNormalize = 'gullify_fade_normalize';
 
 /// Bornes du réglage de durée. En dessous d'une demi-seconde le fondu ne
 /// s'entend plus (autant l'éteindre), au-delà de huit secondes on n'appuie
@@ -225,18 +226,6 @@ const kSmartTailMax = Duration(seconds: 6);
 /// couvrir une longue descente naturelle.
 const kSmartStretch = 2;
 
-/// De combien un titre entrant peut être mis au niveau de celui qu'il
-/// remplace, en décibels, dans un sens comme dans l'autre (idée #104). Six
-/// décibels, c'est déjà la moitié de l'amplitude : au-delà, ce n'est plus une
-/// mise à niveau, c'est un titre qu'on n'entend plus arriver.
-const kCrossfadeMatchMaxDb = 6.0;
-
-/// Jamais plus bas que ça : le volume auquel un titre retenu au maximum
-/// ([kCrossfadeMatchMaxDb]) se retrouve. Sert de plancher aux croisements qui
-/// s'enchaînent — sans lui, une série de morceaux gravés fort ferait descendre
-/// le volume d'un cran à chaque passage.
-final kCrossfadeVolumeFloor = pow(10, -kCrossfadeMatchMaxDb / 20).toDouble();
-
 /// La forme d'un croisement : quand il part, et comment les deux volumes se
 /// croisent une fois parti.
 class CrossfadePlan {
@@ -244,7 +233,6 @@ class CrossfadePlan {
     required this.trigger,
     required this.rise,
     required this.fall,
-    this.gain = 1,
   });
 
   /// Le croisement part quand il ne reste plus que ça du titre en cours.
@@ -264,66 +252,91 @@ class CrossfadePlan {
   /// le passage sonnerait plus fort que les titres qu'il relie (idée #91).
   Duration get hold => rise - fall;
 
-  /// De combien le titre entrant doit être poussé ou retenu pour jouer au
-  /// niveau du sortant : 1 quand les deux morceaux sont gravés pareil, moins
-  /// quand l'entrant est gravé plus fort, plus quand il est gravé plus bas
-  /// (idée #104).
-  ///
-  /// C'est un rapport, pas un volume : le volume visé se calcule au moment du
-  /// croisement, quand on sait à quel volume le sortant tient l'antenne — voir
-  /// [crossfadeTarget]. Une fois posé, ce volume ne bouge plus jusqu'à la fin
-  /// du titre.
-  final double gain;
-
   bool get idle => trigger <= Duration.zero;
 }
 
-/// Le rapport de volume qui fait jouer le titre entrant au niveau du sortant
-/// (idée #104). Les deux niveaux sont les RMS de référence des morceaux, en
-/// décibels, tels que le serveur les mesure (voir src/TransitionAnalysis.php).
-///
-/// Ce sont les niveaux des MORCEAUX qu'on compare, et non plus ceux de leurs
-/// bords (idée #102). Un bord, c'est un instant ; un niveau de gravure, c'est
-/// une propriété du fichier — et seule une propriété du fichier justifie un
-/// volume qu'on garde jusqu'à la dernière note. Se caler sur la fin du sortant
-/// revenait à prendre son dernier soupir pour sa voix : sur cette
-/// bibliothèque, un titre finit six décibels et demi sous son propre niveau,
-/// et une transition sur trois demandait alors plus de DOUZE décibels de
-/// correction. On retenait donc l'entrant du maximum permis sans rien égaler
-/// pour autant — et il fallait bien les lui rendre ensuite. C'est cette
-/// restitution, audible en plein milieu du morceau, que l'idée #104 rouvre.
-///
-/// Le rapport va dans les deux sens, à la différence de l'idée #101 : un titre
-/// gravé bas qui suit un titre retenu remonte vers son propre niveau, sans
-/// quoi une file finirait par s'enfoncer sans jamais remonter. Rien ne sature
-/// pour autant — c'est [crossfadeTarget] qui borne le volume à 1.
-double crossfadeGain({double? outgoing, double? incoming}) {
-  if (outgoing == null || incoming == null) return 1;
-  final off = (outgoing - incoming)
-      .clamp(-kCrossfadeMatchMaxDb, kCrossfadeMatchMaxDb);
-  return pow(10, off / 20).toDouble();
-}
+// ────────────────────────────────────── la normalisation du volume (#108) ──
+//
+// Les idées #101, #102 et #104 ont toutes cherché à faire jouer le titre
+// ENTRANT au niveau du SORTANT : une correction relative, décidée au moment du
+// passage, transmise de titre en titre. Elle ne pouvait pas tenir, pour une
+// raison qui n'apparaît qu'en la mesurant sur toute une file.
+//
+// Un volume ne peut que descendre — au-delà de 1, un lecteur sature. Le
+// premier titre d'une file joue donc à plein, et la chaîne n'a plus qu'un sens
+// pour se rattraper : vers le bas. Simulation sur les 581 profils mesurés de
+// la bibliothèque, files de quarante titres tirés au sort : la correction bute
+// sur une de ses bornes 38 % du temps, et chaque fois qu'elle bute, l'écart
+// passe tel quel dans les oreilles. Résultat, 8,6 % des passages font entrer
+// le titre suivant plus de deux décibels au-dessus du précédent, et le
+// centile 99 monte à ONZE décibels. C'est l'enflure « dans certains cas » de
+// l'idée #108 : elle n'est pas dans la forme des rampes, elle est dans le
+// principe même d'une correction relative bornée.
+//
+// D'où le renversement : le volume d'un titre ne se décide plus par rapport à
+// son voisin, mais par rapport à un niveau de référence FIXE — c'est ce qu'on
+// appelle normaliser. Chaque titre reçoit le sien dès sa première note, le
+// garde jusqu'à la dernière, et le retrouve identique la fois d'après quoi
+// qu'on ait écouté avant. Deux titres qui se croisent sont alors déjà au même
+// niveau : le passage n'a plus rien à corriger, et le titre qui s'achève ne
+// voit plus rien lui passer au-dessus.
+//
+// Ce que ça coûte : la même simulation donne un niveau entendu médian de
+// −18 dB au lieu de −15,7, soit 2,3 décibels de moins qu'aujourd'hui. Ce que
+// ça rapporte : l'étalement du niveau entendu (centiles 10 à 90) tombe de
+// 4,8 dB à ZÉRO. Un niveau global plus bas se rattrape une fois avec le bouton
+// de volume ; un écart entre deux titres se subit à chaque passage.
 
-/// Le volume auquel le titre entrant monte pendant le croisement — et qu'il
-/// tient ensuite jusqu'à sa dernière note (idée #104).
+/// Le niveau auquel le lecteur amène tous les titres, en décibels. C'est un
+/// niveau de RMS de référence, comparable à ce que le serveur mesure (voir
+/// `levelDb` dans src/TransitionAnalysis.php).
 ///
-/// [gain] est le rapport mesuré ([CrossfadePlan.gain]) et [playing] le volume
-/// que le titre sortant tenait. Leur produit fait entendre l'entrant au niveau
-/// exact du sortant, et c'est ce qui permet de ne plus jamais y retoucher :
-/// une mise à niveau rendue en cours de route — six secondes dans l'idée #101,
-/// une vingtaine dans l'idée #104 — reste une dérive de volume sous une
-/// musique installée, et une dérive de volume sous une musique installée
-/// s'entend comme quelqu'un qui monte le son, si lente soit-elle. Le lecteur
-/// ne bouge donc plus le volume hors des transitions.
+/// −18 dB, c'est le décile inférieur de la bibliothèque mesurée : neuf titres
+/// sur dix y arrivent exactement. Viser plus haut laisserait remonter l'écart
+/// (à −16, un passage sur douze enfle encore de plus de deux décibels) ; viser
+/// plus bas ne gagnerait presque rien et coûterait du niveau à tout le monde,
+/// puisque le dernier dixième — les vieux enregistrements discrets — ne peut
+/// de toute façon pas être remonté.
+const kNormalizeTargetDb = -18.0;
+
+/// Ce qu'on accepte de retirer au plus à un titre. Dix décibels suffisent à
+/// amener le morceau le plus fort de la bibliothèque (−7,8 dB) sur la cible ;
+/// au-delà, on ne normaliserait plus, on éteindrait.
+const kNormalizeMaxCutDb = 10.0;
+
+/// Le volume le plus bas qu'une normalisation puisse poser — celui d'un titre
+/// retenu au maximum ([kNormalizeMaxCutDb]).
+final kNormalizeVolumeFloor = pow(10, -kNormalizeMaxCutDb / 20).toDouble();
+
+/// Le volume propre d'un titre (idée #108) : celui qui l'amène sur
+/// [kNormalizeTargetDb], et qu'il garde de sa première à sa dernière note.
 ///
-/// Deux bornes : jamais au-dessus du plein volume — pousser un lecteur au-delà
-/// ferait saturer un morceau gravé bas —, et jamais sous
-/// [kCrossfadeVolumeFloor], pour qu'une longue série de morceaux gravés fort ne
-/// fasse pas descendre le volume marche après marche.
-double crossfadeTarget({required double gain, required double playing}) {
-  // Volume du sortant inconnu ou aberrant : on s'en tient à la mesure.
-  final held = playing <= 0 || playing > 1 ? 1.0 : playing;
-  return (held * gain).clamp(kCrossfadeVolumeFloor, 1.0);
+/// [level] est le niveau de gravure mesuré par le serveur, toujours négatif.
+/// Renvoie null quand il manque — serveur muet, hors ligne, titre
+/// inanalysable : sans mesure, on ne DEVINE pas un volume, on garde celui du
+/// titre d'avant (voir l'appelant). Poser le plein volume à la place ferait
+/// passer le titre non mesuré au-dessus de toute une file normalisée, ce qui
+/// est exactement le défaut qu'on corrige.
+///
+/// Le volume ne dépasse jamais 1 : un titre gravé sous la cible reste sous la
+/// cible plutôt que de saturer. C'est la limite du procédé — on ne sait que
+/// retenir, jamais pousser.
+/// Jusqu'où dans un titre on accepte encore de poser son volume normalisé.
+///
+/// La mesure est demandée dès qu'une piste commence, et une piste à l'avance :
+/// elle est donc là avant la première note, sauf pour le tout premier titre
+/// d'une session, où elle voyage encore. Cinq secondes suffisent largement à
+/// l'attendre, et une correction posée dans l'entrée en matière d'un morceau
+/// ne s'entend pas. Plus tard, on laisse le titre tranquille : une marche de
+/// volume sous une musique installée s'entend comme quelqu'un qui monte le
+/// son (idée #104).
+const kNormalizeGrace = Duration(seconds: 5);
+
+double? trackVolumeFor(double? level) {
+  // Un RMS est toujours négatif : zéro ou positif, c'est « jamais mesuré ».
+  if (level == null || level >= 0) return null;
+  final cut = (kNormalizeTargetDb - level).clamp(-kNormalizeMaxCutDb, 0.0);
+  return pow(10, cut / 20).toDouble();
 }
 
 /// Taille le croisement sur ce que le serveur a mesuré (idée #79).
@@ -340,10 +353,12 @@ double crossfadeTarget({required double gain, required double playing}) {
 ///     première vraie note tombe à la fin de la précédente. Le sortant, lui,
 ///     garde son volume pendant cette avance : ce n'est pas une raison pour
 ///     l'effacer plus tôt. Le croisement à proprement parler n'a lieu qu'après
-///     ([hold] puis [fall]) : voir [CrossfadePlan.hold] ;
-///   - le titre entrant est mis au niveau du sortant pour toute sa durée, et
-///     non le temps du seul passage (idée #104) : voir [CrossfadePlan.gain] et
-///     [crossfadeGain].
+///     ([hold] puis [fall]) : voir [CrossfadePlan.hold].
+///
+/// Le plan ne dit plus rien du volume : depuis l'idée #108, les deux titres
+/// arrivent au croisement déjà normalisés, chacun au niveau que sa gravure lui
+/// vaut (voir [trackVolumeFor]). Le passage n'a donc plus de mise à niveau à
+/// faire — il ne fait plus que croiser deux rampes.
 CrossfadePlan crossfadePlan({
   required Duration fade,
   required Duration? total,
@@ -390,16 +405,7 @@ CrossfadePlan crossfadePlan({
   final half = total ~/ 2;
   if (trigger > half) trigger = half;
 
-  return CrossfadePlan(
-    trigger: trigger,
-    rise: rise,
-    fall: overlap,
-    // Les niveaux de gravure des deux morceaux, et non ceux de leurs bords
-    // (idée #104) : c'est un volume qui va tenir tout le titre entrant, il
-    // doit donc se décider sur ce que le titre est, pas sur l'instant où il
-    // arrive.
-    gain: crossfadeGain(outgoing: current?.level, incoming: next?.level),
-  );
+  return CrossfadePlan(trigger: trigger, rise: rise, fall: overlap);
 }
 
 /// Réglage du fondu à la lecture, à la pause et entre les titres (idée #75).
@@ -411,6 +417,7 @@ class PlaybackFade extends ChangeNotifier {
   double _seconds = kFadeDefaultSeconds;
   bool _betweenTracks = false;
   bool _smart = true;
+  bool _normalize = true;
   bool _loaded = false;
 
   /// Fondu à la lecture et à la pause.
@@ -432,6 +439,16 @@ class PlaybackFade extends ChangeNotifier {
   /// reste celui de la durée réglée.
   bool get smart => _smart;
 
+  /// Amener tous les titres au même niveau (idée #108) : le serveur mesure la
+  /// gravure de chaque morceau, le lecteur retient les plus forts pour qu'ils
+  /// jouent au niveau des autres. Le volume est posé à la première note et
+  /// tenu jusqu'à la dernière.
+  ///
+  /// Vit ici parce qu'il se sert de la même mesure que le croisement
+  /// intelligent, et se règle au même endroit — mais il ne dépend d'aucun
+  /// fondu : il vaut aussi pour qui écoute sans le moindre croisement.
+  bool get normalizes => _normalize;
+
   /// Durée effective d'un fondu — nulle quand le réglage est éteint, ce qui
   /// rend la lecture et la pause franches.
   Duration get duration => _enabled
@@ -444,6 +461,11 @@ class PlaybackFade extends ChangeNotifier {
   /// Croisement intelligent réellement actif : il n'a de sens que là où il y a
   /// un croisement.
   bool get measuresTracks => _smart && fadesTracks;
+
+  /// Le lecteur a besoin de ce que le serveur mesure : pour tailler ses
+  /// croisements (idée #79), pour normaliser le volume (idée #108), ou les
+  /// deux. Sinon, rien à demander.
+  bool get needsMeasures => measuresTracks || _normalize;
 
   /// De combien un titre peut être déclaré fini avant sa vraie fin. Sert au
   /// suivi d'écoute : un titre croisé n'est pas un titre abandonné. Le
@@ -469,6 +491,8 @@ class PlaybackFade extends ChangeNotifier {
       _betweenTracks = await _storage.read(key: _kTracks) == '1';
       final smart = await _storage.read(key: _kSmart);
       if (smart != null) _smart = smart == '1';
+      final normalize = await _storage.read(key: _kNormalize);
+      if (normalize != null) _normalize = normalize == '1';
     } catch (_) {
       // Réglages illisibles : on garde le fondu par défaut.
     }
@@ -497,6 +521,12 @@ class PlaybackFade extends ChangeNotifier {
     _smart = value;
     notifyListeners();
     await _save(_kSmart, value ? '1' : '0');
+  }
+
+  Future<void> setNormalize(bool value) async {
+    _normalize = value;
+    notifyListeners();
+    await _save(_kNormalize, value ? '1' : '0');
   }
 
   Future<void> _save(String key, String value) async {

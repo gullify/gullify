@@ -8,6 +8,40 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.36.0', [
+    'Le volume est normalisé : tous les titres jouent au même niveau, quel que '
+        'soit celui auquel ils ont été gravés. Le volume d\'un morceau est posé '
+        'à sa première note, tenu jusqu\'à la dernière, et le même d\'une '
+        'écoute à l\'autre quoi qu\'on ait entendu avant',
+    'C\'est le renversement que réclamait l\'augmentation qui restait. Depuis '
+        'l\'idée #101, le titre entrant était mis au niveau du SORTANT : une '
+        'correction relative, décidée au passage, transmise de titre en titre. '
+        'Or un volume ne peut que descendre — au-delà du plein volume, un '
+        'lecteur sature. Le premier titre d\'une file joue donc à fond, et la '
+        'chaîne n\'a plus qu\'un sens pour se rattraper',
+    'Ce que la mesure dit, files de quarante titres tirés au sort dans les 581 '
+        'profils de la bibliothèque : la correction butait sur une de ses '
+        'bornes 38 % du temps, et chaque fois qu\'elle butait, l\'écart passait '
+        'tel quel dans les oreilles. Un passage sur douze faisait entrer le '
+        'titre suivant plus de deux décibels au-dessus du précédent, et le '
+        'centile 99 montait à ONZE décibels. L\'enflure n\'était pas dans la '
+        'forme des rampes : elle était dans le principe',
+    'Chaque titre est donc désormais amené sur un niveau de référence FIXE, '
+        '−18 dB, le décile inférieur de la bibliothèque : neuf titres sur dix '
+        'y arrivent exactement. L\'étalement de ce qu\'on entend (centiles 10 '
+        'à 90) tombe de 4,8 décibels à ZÉRO. Deux titres qui se croisent sont '
+        'alors déjà à niveau — le passage n\'a plus rien à corriger, et rien ne '
+        'vient passer au-dessus de celui qui s\'achève',
+    'Ce que ça coûte, dit franchement : l\'ensemble joue 2,3 décibels moins '
+        'fort qu\'avant. On ne sait que retenir un morceau, jamais le pousser '
+        'sans le faire saturer. Un niveau global plus bas se rattrape une fois '
+        'avec le bouton de volume ; un écart entre deux titres se subit à '
+        'chaque passage. Le réglage se coupe dans Paramètres → Lecture → Fondu',
+    'Et le titre sortant est mis en sourdine AVANT qu\'on arrête son lecteur, '
+        'jamais après. Reprendre la main en plein croisement — saut, pause, '
+        'arrêt — pouvait lui laisser le temps d\'un éclat à plein volume : une '
+        'augmentation de la chanson qui termine, très exactement',
+  ]),
   ReleaseNote('3.35.0', [
     'Le lecteur ne touche plus au volume en dehors des transitions. C\'est là '
         'qu\'était l\'augmentation qui restait : pas dans le croisement, mais '

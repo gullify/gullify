@@ -107,6 +107,10 @@ class GullifyAudioHandler extends BaseAudioHandler
     // Un titre qui vient de descendre dans le tampon d'avance (idée #90) est
     // aussitôt repris dans la file : c'est le fichier qui jouera, pas le flux.
     buffer.onCached = (_) => unawaited(_adoptBuffered());
+    // Le réglage de normalisation (idée #108) change le volume du titre en
+    // cours : on le suit pour que la bascule s'entende tout de suite, plutôt
+    // que d'attendre le titre suivant.
+    fade.addListener(() => _applyNormalization());
     _listen();
     _watchAudioSession();
   }
@@ -953,7 +957,9 @@ class GullifyAudioHandler extends BaseAudioHandler
   Future<void> startWakeFade(Duration over) async {
     if (over <= Duration.zero) return;
     _endFading = false;
-    // Le réveil part d'une file toute neuve : rien à égaler, plein volume.
+    // Plein volume, et non le volume normalisé du titre (idée #108) : un
+    // réveil a pour métier de réveiller, pas de se tenir au niveau de la
+    // bibliothèque. La musique qui suivra, elle, reprendra le sien.
     _trackVolume = 1;
     // Le jeton d'abord : sans ça, le fondu d'entrée lancé par play() aurait le
     // temps de remonter le volume juste après qu'on l'a mis à zéro.
@@ -1084,16 +1090,49 @@ class GullifyAudioHandler extends BaseAudioHandler
   /// laisseraient le lecteur à un volume au hasard.
   int _fadeToken = 0;
 
-  /// Le volume que tient le titre en cours, du début à la fin : 1 en temps
-  /// normal, moins quand un croisement l'a mis au niveau du titre qu'il
-  /// remplaçait (idée #104). C'est le « plein volume » de tout ce qui remonte
-  /// le son — reprise, retour de fondu de fin, annulation — sans quoi la
-  /// moindre pause effacerait la mise à niveau et rendrait au titre les
-  /// décibels qu'on venait de lui retirer.
+  /// Le volume que tient le titre en cours, du début à la fin : celui qui
+  /// l'amène au niveau de référence commun à toute la bibliothèque
+  /// (idée #108). C'est le « plein volume » de tout ce qui remonte le son —
+  /// reprise, retour de fondu de fin, annulation — sans quoi la moindre pause
+  /// rendrait au titre les décibels qu'on venait de lui retirer.
   ///
-  /// Jamais sous [kCrossfadeVolumeFloor], et remis à 1 dès qu'un titre prend
-  /// l'antenne hors croisement : le son ne peut pas rester en sourdine.
+  /// Il se pose à la première note du titre et ne bouge plus : jamais au-dessus
+  /// de 1 (un lecteur poussé au-delà sature), jamais sous
+  /// [kNormalizeVolumeFloor] (au-delà, on n'égalise plus, on éteint).
   double _trackVolume = 1;
+
+  /// Le volume qu'un titre doit tenir, de sa première à sa dernière note
+  /// (idée #108) : celui qui l'amène sur [kNormalizeTargetDb].
+  ///
+  /// Réglage éteint, le titre joue tel qu'il est gravé. Titre jamais mesuré —
+  /// hors ligne, serveur muet —, il garde le volume de celui d'avant : le
+  /// poser à plein le ferait passer au-dessus de toute une file normalisée,
+  /// c'est-à-dire produirait exactement le saut qu'on corrige.
+  double _volumeForSong(int? songId) {
+    if (!fade.normalizes) return 1;
+    final level = songId == null ? null : _edges[songId]?.level;
+    return trackVolumeFor(level) ?? _trackVolume;
+  }
+
+  /// Rend au titre en cours le volume que sa gravure lui vaut. Sert deux fois :
+  /// quand le réglage bascule (la bascule s'entend tout de suite), et quand la
+  /// mesure d'un titre arrive après sa première note — ce qui n'arrive qu'au
+  /// tout premier titre d'une session, les suivants étant mesurés d'avance.
+  ///
+  /// [onlyEarly] limite alors le rattrapage à l'entrée en matière du morceau
+  /// ([kNormalizeGrace]) : passé ce délai, mieux vaut un titre au mauvais
+  /// volume qu'une marche de volume sous une musique installée (idée #104).
+  void _applyNormalization({bool onlyEarly = false}) {
+    // Un croisement, une descente de fin : ces passages-là posent eux-mêmes
+    // les volumes, on ne leur passe pas devant.
+    if (_crossfading || _outgoingBusy || _endFading) return;
+    if (onlyEarly && _player.position > kNormalizeGrace) return;
+    final volume = _volumeForSong(_currentSongId);
+    if ((volume - _trackVolume).abs() < 0.001) return;
+    _trackVolume = volume;
+    // À l'arrêt, il n'y a rien à corriger : c'est [play] qui posera le volume.
+    if (_player.playing) unawaited(_fadeTo(volume));
+  }
 
   /// Fondu de volume du lecteur courant : reprise, pause et changement de titre
   /// en douceur plutôt qu'à sec. Durée réglée par l'utilisateur (idée #75),
@@ -1223,21 +1262,32 @@ class GullifyAudioHandler extends BaseAudioHandler
     // mettre à l'antenne : le battement d'index qui l'annonce peut tomber une
     // fois le croisement rendu —, la montée est déjà faite, et à son niveau à
     // lui. La relancer d'ici la ferait repartir de zéro en plein milieu, et
-    // remettre le volume à plein effacerait la mise à niveau qu'on vient tout
-    // juste de calculer pour lui (idée #104).
+    // reposer le volume effacerait celui qu'on vient tout juste de calculer
+    // pour lui (idée #104).
     final crossfaded = _crossfadedIndex == _queueIndex;
     _crossfadedIndex = null;
     if (_crossfading || crossfaded) return;
-    // Un titre qui prend l'antenne autrement qu'en croisant (saut, enchaînement
-    // sec, nouvelle file) n'a personne à qui s'égaler : il joue à son volume.
-    _trackVolume = 1;
-    if (!fade.fadesTracks || !_player.playing) return;
+    // Le titre qui prend l'antenne autrement qu'en croisant (saut, enchaînement
+    // sec, nouvelle file) joue au volume que sa gravure lui vaut, et non à
+    // celui du titre d'avant (idée #108).
+    _trackVolume = _volumeForSong(_currentSongId);
+    // À l'arrêt, [play] posera le volume ; en lecture, il faut le poser ici —
+    // sans quoi le titre hériterait de celui du précédent.
+    if (!_player.playing) return;
+    if (!fade.fadesTracks) {
+      // Fondu enchaîné éteint : le volume se pose d'un coup, pour que le titre
+      // soit au bon niveau dès sa première note. Au ras d'un changement de
+      // piste, une marche de volume ne s'entend pas — ce qui s'entendrait,
+      // c'est une demi-seconde de morceau jouée au volume du précédent.
+      unawaited(_fadeTo(_trackVolume, over: Duration.zero));
+      return;
+    }
     _endFading = false;
     unawaited(() async {
       final token = ++_fadeToken;
       await _player.setVolume(0);
       if (token != _fadeToken) return;
-      await _fadeTo(1);
+      await _fadeTo(_trackVolume);
     }());
   }
 
@@ -1301,7 +1351,7 @@ class GullifyAudioHandler extends BaseAudioHandler
   /// changement de piste : la mesure a alors tout le morceau pour arriver.
   void _fetchEdges() {
     final repo = repository;
-    if (repo == null || !fade.measuresTracks) return;
+    if (repo == null || !fade.needsMeasures) return;
     final wanted = <int>[];
     for (final id in [_currentSongId, _songIdAt(_player.nextIndex)]) {
       if (id == null || _edges.containsKey(id)) continue;
@@ -1316,6 +1366,10 @@ class GullifyAudioHandler extends BaseAudioHandler
           _edges[id] = found[id];
         }
         _edgesAsked.removeAll(wanted);
+        // La mesure du titre en cours peut arriver après sa première note :
+        // on lui pose alors son volume, tant qu'on est encore dans son entrée
+        // en matière (idée #108).
+        _applyNormalization(onlyEarly: true);
       },
       onError: (Object e) {
         // Hors ligne, ou serveur muet : on réessaiera à la piste suivante.
@@ -1418,6 +1472,9 @@ class GullifyAudioHandler extends BaseAudioHandler
       }
 
       final outgoing = _player;
+      // Le volume du titre entrant se lit AVANT l'échange des lecteurs : après,
+      // c'est lui le titre courant et l'index de la file a déjà tourné.
+      final incomingVolume = _volumeForSong(_songIdAt(next));
       final token = ++_outgoingToken;
       _outgoingBusy = true;
       await incoming.setVolume(0);
@@ -1454,7 +1511,7 @@ class GullifyAudioHandler extends BaseAudioHandler
       // Le volume où la montée s'arrête est celui que le titre entrant tiendra
       // jusqu'à sa dernière note : rien ne le rattrape après le passage
       // (idée #104).
-      await _fadeIncoming(fall, after: hold, gain: plan.gain);
+      await _fadeIncoming(fall, after: hold, volume: incomingVolume);
     } catch (e) {
       logPlayback('fondu enchaîné : abandon ($e)');
     } finally {
@@ -1471,21 +1528,19 @@ class GullifyAudioHandler extends BaseAudioHandler
   /// volume. Monter dès la première note d'intro, alors que le titre d'avant
   /// joue encore à fond, faisait enfler le passage sans raison (idée #91).
   ///
-  /// [gain] est le rapport de niveau mesuré entre les deux morceaux : moins
-  /// que 1 quand l'entrant est gravé plus fort que le sortant, plus quand il
-  /// est gravé plus bas (idée #104).
-  ///
-  /// Le volume visé — le produit de ce rapport par celui que le sortant
-  /// tenait — devient le volume du titre entrant pour toute sa durée : c'est
-  /// [_trackVolume], et plus rien ne le fera bouger jusqu'au prochain titre.
-  /// Voir [crossfadeTarget].
+  /// [volume] est le volume propre du titre entrant — celui que sa gravure lui
+  /// vaut (idée #108, voir [_volumeForSong]). Il devient [_trackVolume] et
+  /// plus rien ne le fera bouger jusqu'au prochain titre : le sortant, lui,
+  /// descend depuis le sien. Deux titres déjà normalisés se croisent donc à
+  /// niveau égal, sans que le passage ait à corriger quoi que ce soit — et
+  /// sans que rien ne vienne recouvrir celui qui s'achève.
   ///
   /// Renvoie la marque du fondu, pour que l'appelant sache si la main lui est
   /// restée jusqu'au bout.
   Future<int> _fadeIncoming(
     Duration over, {
     Duration after = Duration.zero,
-    double gain = 1,
+    double volume = 1,
   }) async {
     if (after > Duration.zero) {
       // Le jeton est pris AVANT l'attente : tout ce qui reprend la main
@@ -1495,10 +1550,7 @@ class GullifyAudioHandler extends BaseAudioHandler
       await Future<void>.delayed(after);
       if (token != _fadeToken) return token;
     }
-    // Le volume que TENAIT le sortant, et non celui où sa descente en est
-    // rendue : c'est son niveau à lui qu'il s'agit d'égaler, pas l'endroit où
-    // le croisement l'a laissé.
-    _trackVolume = crossfadeTarget(gain: gain, playing: _trackVolume);
+    _trackVolume = volume;
     return _fadeTo(_trackVolume, over: over, curve: FadeCurve.crossing);
   }
 
@@ -1537,8 +1589,10 @@ class GullifyAudioHandler extends BaseAudioHandler
   }
 
   /// Fait taire le titre sortant pour de bon et range son lecteur : il devient
-  /// le lecteur de réserve du croisement suivant. Sans [token], c'est une
-  /// reprise en main (saut, pause, arrêt) : le sortant se tait tout de suite.
+  /// le lecteur de réserve du croisement suivant, rangé muet. Ses deux seuls
+  /// réemplois — préparation et croisement — lui posent son volume avant de le
+  /// faire jouer. Sans [token], c'est une reprise en main (saut, pause,
+  /// arrêt) : le sortant se tait tout de suite.
   Future<void> _hushOutgoing([int? token]) async {
     if (token != null && token != _outgoingToken) return;
     if (token == null) _outgoingToken++;
@@ -1550,8 +1604,13 @@ class GullifyAudioHandler extends BaseAudioHandler
     _armedIndex = null;
     _armedQueue = null;
     try {
+      // Muet AVANT l'arrêt, jamais après : quand on reprend la main en plein
+      // croisement (saut, pause, arrêt), le sortant joue encore, et rendre le
+      // volume à un lecteur qu'on n'a pas fini d'arrêter lui laisserait le
+      // temps d'un éclat à plein volume — une augmentation de la chanson qui
+      // termine, très exactement (idée #108).
+      await outgoing.setVolume(0);
       await outgoing.stop();
-      await outgoing.setVolume(1);
     } catch (_) {}
   }
 

@@ -23,7 +23,7 @@ import '../widgets/retro_chrome.dart';
 import '../widgets/retro_lcd.dart';
 import '../widgets/update_dialog.dart';
 
-const appVersion = '3.35.0';
+const appVersion = '3.36.0';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -315,10 +315,14 @@ class _FadeTile extends ConsumerWidget {
         leading: const Icon(Icons.graphic_eq),
         title: const Text('Fondu'),
         subtitle: Text(
-          !fade.enabled
-              ? 'Lecture et pause franches'
-              : '${formatFadeSeconds(fade.seconds)} à la lecture et à la pause'
+          [
+            if (!fade.enabled)
+              'Lecture et pause franches'
+            else
+              '${formatFadeSeconds(fade.seconds)} à la lecture et à la pause'
                   '${fade.betweenTracks ? ', titres enchaînés' : ''}',
+            if (fade.normalizes) 'volume normalisé',
+          ].join(', '),
         ),
         trailing: const Icon(Icons.chevron_right),
         onTap: () => context.push('/settings/fade'),

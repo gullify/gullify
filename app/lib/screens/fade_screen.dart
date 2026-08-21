@@ -71,6 +71,17 @@ class FadeScreen extends ConsumerWidget {
               value: fade.smart,
               onChanged: fade.fadesTracks ? fade.setSmart : null,
             ),
+            const Divider(height: 24),
+            SwitchListTile(
+              secondary: const Icon(Icons.equalizer_outlined),
+              title: const Text('Normaliser le volume'),
+              subtitle: const Text(
+                'Tous les titres sont amenés au même niveau, quel que soit le '
+                'volume auquel ils ont été gravés',
+              ),
+              value: fade.normalizes,
+              onChanged: fade.setNormalize,
+            ),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
               child: Text(
@@ -88,7 +99,18 @@ class FadeScreen extends ConsumerWidget {
                 'titre qui met du temps à démarrer part en avance, mais celui '
                 'qui joue garde son volume tant que rien ne vient. Sans réseau, '
                 'ou sur un titre que le serveur ne sait pas mesurer, le '
-                'croisement reprend la durée réglée.',
+                'croisement reprend la durée réglée.\n\n'
+                'La normalisation se sert de la même mesure, mais ne demande '
+                'aucun fondu : deux morceaux ne sont pas gravés au même volume '
+                '— un vieil album et un remaster peuvent tenir dix décibels '
+                'd\'écart —, et le lecteur retient les plus forts pour qu\'ils '
+                'jouent au niveau des autres. Le volume d\'un titre est posé à '
+                'sa première note, tenu jusqu\'à la dernière, et le même d\'une '
+                'écoute à l\'autre quoi qu\'on ait entendu avant. L\'ensemble '
+                'joue un peu moins fort qu\'avant — c\'est le prix : on ne '
+                'peut que retenir un morceau, jamais le pousser au-delà du '
+                'plein volume sans le faire saturer. Un titre que le serveur '
+                'ne sait pas mesurer garde le volume du précédent.',
                 style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
               ),
             ),

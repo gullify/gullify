@@ -21,17 +21,23 @@ class TrackEdges {
 
   /// Niveau de référence du titre, en décibels (toujours négatif) : le RMS de
   /// son troisième quartile. Deux morceaux ne sont pas gravés au même volume —
-  /// un vieil album et un remaster peuvent tenir six décibels d'écart. C'est ce
-  /// qui permet de croiser deux titres au même niveau plutôt que de laisser
-  /// l'entrant sonner plus fort que celui qu'il remplace (idée #101).
+  /// sur cette bibliothèque, du plus discret au plus fort, plus de vingt
+  /// décibels séparent les extrêmes. C'est ce niveau-là qui donne à chaque
+  /// titre son volume, celui qui l'amène sur la cible commune et qu'il tient
+  /// de sa première à sa dernière note — voir `trackVolumeFor` dans
+  /// audio/fade.dart (idée #108).
+  ///
+  /// Le volume ne se décide plus par rapport au titre d'avant, comme le
+  /// faisaient les idées #101 à #104 : une correction relative ne peut que
+  /// descendre (au-delà du plein volume, un lecteur sature), si bien qu'elle
+  /// butait sur ses bornes plus d'un passage sur trois, et que l'écart passait
+  /// alors tel quel dans les oreilles.
   ///
   /// Null quand le serveur n'a pas su le dire — vieux profil en cache, mesure
-  /// impossible : le croisement se fait alors sans correction.
+  /// impossible : le titre garde alors le volume du précédent.
   ///
   /// Le serveur mesure aussi le niveau des deux BORDS du titre (`endDb`,
-  /// `startDb`, idée #102) ; l'app ne les lit plus. Le volume donné au titre
-  /// entrant vaut désormais pour toute sa durée, et un volume qu'on tient
-  /// jusqu'à la dernière note se décide sur le morceau, pas sur la seconde où
-  /// il commence — voir `crossfadeGain` dans audio/fade.dart (idée #104).
+  /// `startDb`, idée #102) ; l'app ne les lit plus. Un bord, c'est un instant,
+  /// et un instant ne justifie pas un volume qu'on tient trois minutes.
   final double? level;
 }

@@ -437,10 +437,11 @@ void main() {
       expect(plan.fall, lessThanOrEqualTo(plan.rise));
     });
 
-    test('un titre entrant plus fort croise au niveau du sortant', () {
-      // Idée #101 : deux morceaux ne sont pas gravés au même volume. Un
-      // entrant six décibels au-dessus fait enfler le passage, quelle que
-      // soit la forme des rampes.
+    test('la forme du croisement ne dépend plus des niveaux', () {
+      // Idée #108 : le passage ne corrige plus rien, les deux titres y
+      // arrivent déjà normalisés. Les niveaux mesurés ne servent donc plus
+      // qu'à ce à quoi ils ont toujours servi ici — rien : c'est la forme du
+      // morceau qui taille le croisement, pas sa gravure.
       final plan = crossfadePlan(
         fade: fade,
         total: total,
@@ -448,111 +449,9 @@ void main() {
         next: const TrackEdges(level: -8),
       );
 
-      // Six décibels de trop, c'est la moitié de l'amplitude.
-      expect(plan.gain, closeTo(0.501, 0.005));
-      // La forme du croisement, elle, ne bouge pas.
       expect(plan.rise, fade);
       expect(plan.fall, fade);
-    });
-
-    test('un titre entrant plus discret remonte vers son niveau', () {
-      // Idée #104 : l'idée #101 ne savait que retenir. Une file finissait donc
-      // par s'enfoncer sans jamais revenir, puisque la remontée d'après-passage
-      // — la seule chose qui rendait les décibels retenus — n'existe plus.
-      final plan = crossfadePlan(
-        fade: fade,
-        total: total,
-        current: const TrackEdges(level: -8),
-        next: const TrackEdges(level: -14),
-      );
-
-      expect(plan.gain, closeTo(pow(10, 6 / 20).toDouble(), 0.005));
-      // Rien ne sature pour autant : c'est le volume final qui est borné.
-      expect(crossfadeTarget(gain: plan.gain, playing: 1), 1);
-      expect(crossfadeTarget(gain: plan.gain, playing: 0.501), closeTo(1, 0.01));
-    });
-
-    test('le croisement se cale sur les morceaux, pas sur leurs bords', () {
-      // Idée #104 : deux morceaux gravés au même niveau se croisent sans
-      // correction, même si le sortant finit cinq décibels plus bas qu'il n'a
-      // joué — c'est le cas le plus courant, et l'idée #102 y retenait
-      // l'entrant de ces cinq décibels-là. Il fallait ensuite les lui rendre,
-      // et cette restitution s'entendait en plein milieu du morceau.
-      final plan = crossfadePlan(
-        fade: fade,
-        total: total,
-        current: const TrackEdges(level: -12),
-        next: const TrackEdges(level: -12),
-      );
-
-      expect(plan.gain, 1);
-      // Le volume posé au croisement est celui qu'on gardera : à niveaux
-      // égaux, c'est exactement celui du sortant.
-      expect(crossfadeTarget(gain: plan.gain, playing: 0.8), closeTo(0.8, 1e-9));
-    });
-
-    test('la mise à niveau ne fait pas disparaître le titre entrant', () {
-      // Un écart énorme (mesure douteuse, morceau très discret) : on retient
-      // ce qu'on a le droit de retenir, pas plus — et dans l'autre sens non
-      // plus, on ne pousse pas plus haut que permis.
-      expect(
-        crossfadeGain(outgoing: -30, incoming: -2),
-        closeTo(pow(10, -kCrossfadeMatchMaxDb / 20).toDouble(), 0.001),
-      );
-      expect(
-        crossfadeGain(outgoing: -2, incoming: -30),
-        closeTo(pow(10, kCrossfadeMatchMaxDb / 20).toDouble(), 0.001),
-      );
-      // Sans mesure des deux côtés, aucune correction.
-      expect(crossfadeGain(outgoing: null, incoming: -8), 1);
-      expect(crossfadeGain(outgoing: -8, incoming: null), 1);
-      expect(crossfadePlan(fade: fade, total: total).gain, 1);
-    });
-
-    test('le volume posé au croisement ne bouge plus ensuite', () {
-      // Le cœur de l'idée #104. Le titre entrant joue au niveau exact du
-      // sortant, et il le tient jusqu'à sa dernière note : plus de remontée
-      // d'après-passage, donc plus de dérive de volume sous une musique
-      // installée — c'est elle, et non le croisement, qui s'entendait comme
-      // quelqu'un qui monte le son.
-      const sortantDb = -12.0;
-      for (final entrantDb in [-18.0, -14.0, -12.0, -10.0, -6.0]) {
-        final gain = crossfadeGain(outgoing: sortantDb, incoming: entrantDb);
-        for (final tenu in [0.55, 0.8, 1.0]) {
-          final cible = crossfadeTarget(gain: gain, playing: tenu);
-          // Ce que les deux titres font ENTENDRE, une fois le passage fini.
-          final sortantSonne = sortantDb + 20 * log(tenu) / ln10;
-          final entrantSonne = entrantDb + 20 * log(cible) / ln10;
-          // Égalité parfaite tant que la correction tient dans ses bornes.
-          final borne = cible >= 1 || cible <= kCrossfadeVolumeFloor;
-          if (!borne) {
-            expect(entrantSonne, closeTo(sortantSonne, 0.001));
-          }
-          expect(cible, lessThanOrEqualTo(1));
-          expect(cible, greaterThanOrEqualTo(kCrossfadeVolumeFloor - 1e-9));
-        }
-      }
-    });
-
-    test('une série de croisements ne fait ni sombrer ni enfler le volume', () {
-      // Le revers de la mise à niveau : sans plancher, une file de morceaux
-      // gravés fort descendrait marche après marche jusqu'au silence.
-      var volume = 1.0;
-      for (var i = 0; i < 20; i++) {
-        volume = crossfadeTarget(gain: 0.501, playing: volume);
-      }
-      expect(volume, closeTo(kCrossfadeVolumeFloor, 0.001));
-
-      // Et la file se redresse dès qu'un morceau gravé bas passe : c'est ce
-      // que l'idée #101, qui ne savait que retenir, ne pouvait pas faire.
-      for (var i = 0; i < 20; i++) {
-        volume = crossfadeTarget(gain: 1.995, playing: volume);
-      }
-      expect(volume, 1);
-
-      // Volume du sortant inconnu ou aberrant : on s'en tient à la mesure.
-      expect(crossfadeTarget(gain: 0.6, playing: 0), closeTo(0.6, 1e-9));
-      expect(crossfadeTarget(gain: 0.6, playing: 3), closeTo(0.6, 1e-9));
+      expect(plan.hold, Duration.zero);
     });
 
     test('le suivi d\'écoute sait de combien un titre peut partir tôt', () {
@@ -571,6 +470,84 @@ void main() {
       fade.setBetweenTracks(false);
       expect(fade.measuresTracks, isFalse);
       expect(fade.crossfadeReach, Duration.zero);
+    });
+  });
+
+  group('normalisation du volume (#108)', () {
+    // Ce que fait entendre un titre gravé à [level] une fois normalisé.
+    double sonne(double level) {
+      final volume = trackVolumeFor(level)!;
+      return level + 20 * log(volume) / ln10;
+    }
+
+    test('un morceau gravé fort est retenu jusqu\'à la cible', () {
+      // Le cœur de l'idée #108 : le volume ne se décide plus par rapport au
+      // titre d'avant, mais par rapport à un niveau de référence fixe.
+      expect(sonne(-12), closeTo(kNormalizeTargetDb, 0.001));
+      expect(sonne(-9), closeTo(kNormalizeTargetDb, 0.001));
+      expect(sonne(kNormalizeTargetDb), closeTo(kNormalizeTargetDb, 0.001));
+    });
+
+    test('un morceau gravé sous la cible reste où il est', () {
+      // La limite du procédé : pousser un lecteur au-delà du plein volume
+      // ferait saturer. Un morceau discret est donc laissé tel quel plutôt
+      // que remonté de force.
+      expect(trackVolumeFor(-24), 1);
+      expect(sonne(-24), closeTo(-24, 0.001));
+      expect(trackVolumeFor(kNormalizeTargetDb), 1);
+    });
+
+    test('la retenue ne dépasse jamais ce qui est permis', () {
+      // Mesure aberrante, morceau écrasé au mastering : on retient ce qu'on a
+      // le droit de retenir, pas plus — au-delà, on n'égalise plus, on éteint.
+      expect(trackVolumeFor(-1), closeTo(kNormalizeVolumeFloor, 1e-9));
+      expect(trackVolumeFor(0.5), isNull);
+      for (final level in [-40.0, -30.0, -18.0, -12.0, -8.0, -0.5]) {
+        final volume = trackVolumeFor(level);
+        if (volume == null) continue;
+        expect(volume, lessThanOrEqualTo(1));
+        expect(volume, greaterThanOrEqualTo(kNormalizeVolumeFloor - 1e-9));
+      }
+    });
+
+    test('sans mesure, aucun volume n\'est deviné', () {
+      // Un RMS est toujours négatif : zéro, c'est un profil mis en cache avant
+      // que le serveur ne sache le mesurer. Le lecteur garde alors le volume
+      // du titre d'avant — poser le plein volume ferait passer ce titre-là
+      // au-dessus de toute une file normalisée.
+      expect(trackVolumeFor(null), isNull);
+      expect(trackVolumeFor(0), isNull);
+    });
+
+    test('une file entière joue au même niveau, quel que soit son ordre', () {
+      // Ce que l'appariement relatif des idées #101 à #104 ne pouvait pas
+      // donner : le volume d'un titre ne dépend plus de ce qu'on a écouté
+      // avant lui. Deux titres qui se croisent sont donc déjà à niveau, et
+      // rien ne vient recouvrir celui qui s'achève.
+      final graves = [-9.0, -17.0, -11.5, -14.0, -10.2, -13.7];
+      for (final level in graves) {
+        expect(sonne(level), closeTo(kNormalizeTargetDb, 0.001));
+      }
+      // Le passage le plus violent de la file — du plus fort au plus discret —
+      // ne fait plus entendre le moindre écart.
+      expect(sonne(graves.first) - sonne(graves[1]), closeTo(0, 0.001));
+    });
+
+    test('le réglage se mémorise et n\'attend aucun fondu', () {
+      final fade = PlaybackFade();
+
+      // Allumé d'origine, et indépendant du fondu : il vaut aussi pour qui
+      // écoute sans le moindre croisement.
+      expect(fade.normalizes, isTrue);
+      expect(fade.needsMeasures, isTrue);
+      expect(fade.measuresTracks, isFalse);
+
+      fade.setNormalize(false);
+      expect(fade.normalizes, isFalse);
+      // Plus rien à demander au serveur tant qu'aucun croisement n'en a besoin.
+      expect(fade.needsMeasures, isFalse);
+      fade.setBetweenTracks(true);
+      expect(fade.needsMeasures, isTrue);
     });
   });
 
@@ -620,6 +597,27 @@ void main() {
     await tester.tap(find.text('Croisement intelligent'));
     await tester.pumpAndSettle();
     expect(fade.smart, isFalse);
+  });
+
+  testWidgets('la normalisation se règle sans dépendre d\'aucun fondu',
+      (tester) async {
+    final fade = PlaybackFade();
+    await tester.pumpWidget(_wrap(fade));
+
+    SwitchListTile normalize() => tester.widget<SwitchListTile>(
+          find.widgetWithText(SwitchListTile, 'Normaliser le volume'),
+        );
+
+    // Ni le fondu ni le croisement ne la commandent : elle vaut pour qui
+    // écoute sans le moindre passage (idée #108).
+    await tester.tap(find.text('Fondu à la lecture et à la pause'));
+    await tester.pumpAndSettle();
+    expect(fade.enabled, isFalse);
+    expect(normalize().onChanged, isNotNull);
+
+    await tester.tap(find.text('Normaliser le volume'));
+    await tester.pumpAndSettle();
+    expect(fade.normalizes, isFalse);
   });
 
   testWidgets('fondu éteint, les réglages de durée sont hors service',
