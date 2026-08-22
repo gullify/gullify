@@ -1719,11 +1719,16 @@ class GullifyAudioHandler extends BaseAudioHandler
       );
 
   /// Entrées « Tout lire » / « Aléatoire » en tête d'une liste de pistes.
-  List<MediaItem> _playAllItems(String prefix, {String playLabel = 'Tout lire'}) => [
+  List<MediaItem> _playAllItems(
+    String prefix, {
+    String playLabel = 'Tout lire',
+    String shuffleLabel = 'Lecture aléatoire',
+  }) =>
+      [
         MediaItem(id: '${prefix}_PLAY', title: playLabel, playable: true),
         MediaItem(
           id: '${prefix}_SHUFFLE',
-          title: 'Lecture aléatoire',
+          title: shuffleLabel,
           playable: true,
         ),
       ];
@@ -2123,8 +2128,15 @@ class GullifyAudioHandler extends BaseAudioHandler
         if (genres.isEmpty) return [];
         return [
           // Comme sur les artistes et les albums : de quoi lancer la musique
-          // sans avoir à descendre d'un cran de plus au volant.
-          ..._playAllItems('ALL', playLabel: 'Tout lire'),
+          // sans avoir à descendre d'un cran de plus au volant. Les libellés
+          // disent toute la bibliothèque : un cran plus bas, dans un genre,
+          // les deux mêmes entrées ne jouent que ce genre (idée #109) et on
+          // ne doit pas pouvoir les confondre d'un coup d'œil.
+          ..._playAllItems(
+            'ALL',
+            playLabel: 'Tout lire — toute la bibliothèque',
+            shuffleLabel: 'Lecture aléatoire — toute la bibliothèque',
+          ),
           for (final g in genres)
             MediaItem(
               id: BrowseIds.genre(g.name),
@@ -2247,19 +2259,46 @@ class GullifyAudioHandler extends BaseAudioHandler
 
     if (parentMediaId.startsWith('GENRE_')) {
       final name = parentMediaId.substring('GENRE_'.length);
-      final artists = await repo.artistsByGenre(name);
-      if (artists.isEmpty) return [];
-      return [
-        // Tout le genre d'un coup, sans choisir d'artiste.
-        ..._playAllItems(parentMediaId, playLabel: 'Tout lire'),
-        for (final ar in artists)
+      // Ce qu'on vient chercher dans un genre au volant, c'est d'abord « tout
+      // ce genre, mélangé » (idée #109) : l'aléatoire passe donc en tête, et
+      // les deux entrées portent le nom du genre — un cran plus haut, les
+      // mêmes libellés lancent toute la bibliothèque.
+      final playAll = _playAllItems(
+        parentMediaId,
+        playLabel: 'Tout lire — $name',
+        shuffleLabel: 'Lecture aléatoire — $name',
+      ).reversed.toList();
+      try {
+        final artists = await repo.artistsByGenre(name);
+        return [
+          // Tout le genre d'un coup, sans choisir d'artiste. Les entrées
+          // restent là même quand le genre ne liste aucun artiste : le vivier
+          // du serveur, lui, sait encore quoi jouer.
+          ...playAll,
+          for (final ar in artists)
+            MediaItem(
+              id: BrowseIds.artist(ar.id),
+              title: ar.name,
+              artUri: _artUri(ar.imageUrl),
+              playable: false,
+            ),
+        ];
+      } catch (e) {
+        // La liste des artistes n'est pas venue : hors de question que le
+        // genre devienne injouable pour autant. On garde de quoi le lancer et
+        // de quoi réessayer, au lieu de tomber sur le repli hors ligne (qui
+        // ne propose que les téléchargements).
+        logAA('artistes du genre « $name » indisponibles : $e');
+        return [
+          ...playAll,
           MediaItem(
-            id: BrowseIds.artist(ar.id),
-            title: ar.name,
-            artUri: _artUri(ar.imageUrl),
+            id: BrowseIds.retry(parentMediaId),
+            title: 'Réessayer',
+            artist: "La liste des artistes n'a pas pu être chargée",
             playable: false,
           ),
-      ];
+        ];
+      }
     }
 
     return [];
@@ -2588,7 +2627,16 @@ class GullifyAudioHandler extends BaseAudioHandler
       // ne se découpe pas à l'expression régulière des autres catégories.
       if (mediaId.startsWith('GENRE_')) {
         final songs = await genreSongs(mediaId, repo);
-        if (songs.isNotEmpty) await playSongs(songs);
+        if (songs.isEmpty) {
+          // Sans ça l'état reste sur « chargement » : dans la voiture, c'est
+          // un écran qui tourne sans fin plutôt qu'un échec avouable.
+          logAA('→ genre sans titre jouable');
+          playbackState.add(playbackState.value.copyWith(
+            processingState: AudioProcessingState.idle,
+          ));
+          return;
+        }
+        await playSongs(songs);
         return;
       }
 
@@ -2678,14 +2726,21 @@ class GullifyAudioHandler extends BaseAudioHandler
     if (!rest.endsWith(suffix)) return const [];
     final name = rest.substring(0, rest.length - suffix.length);
     if (name.isEmpty) return const [];
-    final songs = await repo.randomSongs(
+    var songs = await repo.randomSongs(
       limit: 500,
       source: GameSource(mode: GameSourceMode.genres, genres: [name]),
     );
+    if (songs.isEmpty) {
+      // Le vivier du serveur n'a rien rendu pour ce genre. Plutôt que le
+      // silence au volant, on rassemble le genre artiste par artiste — c'est
+      // lent, d'où le repli seulement, et borné.
+      songs = await _genreSongsByArtist(name, repo);
+      if (songs.isNotEmpty) songs = songs.toList()..shuffle();
+    }
     logAA('genre « $name » : ${songs.length} titres '
         '(${shuffle ? 'aléatoire' : 'tout lire'})');
-    // Le serveur rend la liste mélangée : l'aléatoire se joue telle quelle,
-    // « Tout lire » la remet en ordre artiste / album / piste.
+    // La liste est mélangée (serveur, ou repli) : l'aléatoire se joue telle
+    // quelle, « Tout lire » la remet en ordre artiste / album / piste.
     if (shuffle) return songs;
     return songs.toList()
       ..sort((a, b) {
@@ -2695,6 +2750,30 @@ class GullifyAudioHandler extends BaseAudioHandler
         if (album != 0) return album;
         return (a.trackNumber ?? 0).compareTo(b.trackNumber ?? 0);
       });
+  }
+
+  /// Repli du genre : ses artistes, puis leurs titres. Un genre peut compter
+  /// cinquante artistes et chacun coûte un détail par album — on s'arrête donc
+  /// à une poignée d'artistes tirés au hasard, de quoi remplir une file sans
+  /// faire attendre la voiture. Un artiste illisible est simplement sauté.
+  Future<List<Song>> _genreSongsByArtist(
+    String name,
+    LibraryRepository repo,
+  ) async {
+    const maxArtists = 8;
+    final artists = await repo.artistsByGenre(name);
+    if (artists.isEmpty) return const [];
+    final picked = artists.toList()..shuffle();
+    final songs = <Song>[];
+    for (final ar in picked.take(maxArtists)) {
+      try {
+        songs.addAll(await _artistSongs(repo, ar.id));
+      } catch (e) {
+        logAA('genre « $name » : artiste ${ar.name} illisible ($e)');
+      }
+    }
+    logAA('genre « $name » : repli par artiste, ${songs.length} titres');
+    return songs;
   }
 
   /// « Tout lire », « Lecture aléatoire » ou un titre précis parmi les

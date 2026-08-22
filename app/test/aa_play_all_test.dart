@@ -18,13 +18,46 @@ class _Repository extends LibraryRepository {
   GameSource? lastSource;
   int? lastLimit;
 
+  /// Le serveur ne sait pas lister les artistes du genre (réseau coupé).
+  bool artistsFail = false;
+
+  /// Ce que le serveur répond à `artistsByGenre`.
+  List<Artist> artistsOfGenre = const [Artist(id: 7, name: 'Un groupe')];
+
+  /// Le vivier du genre ne rend rien : le repli par artiste doit prendre.
+  bool genrePoolEmpty = false;
+
   @override
   Future<List<GenreCount>> genres() async =>
       [GenreCount('Rock', 3), GenreCount('Jazz', 1)];
 
   @override
-  Future<List<Artist>> artistsByGenre(String genre) async =>
-      const [Artist(id: 7, name: 'Un groupe')];
+  Future<List<Artist>> artistsByGenre(String genre) async {
+    if (artistsFail) throw Exception('hors réseau');
+    return artistsOfGenre;
+  }
+
+  @override
+  Future<ArtistDetail> artistDetail(int id) async => const ArtistDetail(
+        artist: Artist(id: 7, name: 'Un groupe'),
+        albums: [Album(id: 1, name: 'Un album', artistName: 'Un groupe')],
+        topTracks: [],
+      );
+
+  @override
+  Future<AlbumDetail> albumDetail(int id) async => const AlbumDetail(
+        album: Album(id: 1, name: 'Un album', artistName: 'Un groupe'),
+        songs: [
+          Song(
+            id: 9,
+            title: 'Repli',
+            filePath: '/repli.mp3',
+            artistName: 'Un groupe',
+            albumName: 'Un album',
+            trackNumber: 1,
+          ),
+        ],
+      );
 
   @override
   Future<List<Album>> albums({
@@ -46,6 +79,9 @@ class _Repository extends LibraryRepository {
   }) async {
     lastLimit = limit;
     lastSource = source;
+    if (genrePoolEmpty && source.effectiveMode == GameSourceMode.genres) {
+      return const [];
+    }
     // Renvoyés mélangés, comme le fait le serveur (ORDER BY RAND()).
     return const [
       Song(
@@ -79,8 +115,8 @@ class _Repository extends LibraryRepository {
   String streamUrl(Song song) => 'https://exemple.test/stream/${song.id}';
 }
 
-GullifyAudioHandler _handler() {
-  final handler = GullifyAudioHandler()..repository = _Repository();
+GullifyAudioHandler _handler([_Repository? repository]) {
+  final handler = GullifyAudioHandler()..repository = repository ?? _Repository();
   addTearDown(handler.player.dispose);
   return handler;
 }
@@ -93,11 +129,36 @@ void main() {
 
     final items = await handler.getChildren(BrowseIds.genre('Rock'));
 
+    // L'aléatoire du genre passe en tête : c'est ce qu'on vient chercher là
+    // (idée #109), et le libellé nomme le genre pour ne pas se confondre avec
+    // le « tout lire » de toute la bibliothèque, un cran plus haut.
     expect(items.map((i) => i.id).take(2),
-        ['GENRE_Rock_PLAY', 'GENRE_Rock_SHUFFLE']);
-    expect(items.map((i) => i.title).take(2), ['Tout lire', 'Lecture aléatoire']);
+        ['GENRE_Rock_SHUFFLE', 'GENRE_Rock_PLAY']);
+    expect(items.map((i) => i.title).take(2),
+        ['Lecture aléatoire — Rock', 'Tout lire — Rock']);
     // Les artistes du genre restent listés en dessous.
     expect(items.map((i) => i.id), contains(BrowseIds.artist(7)));
+  });
+
+  test('un genre reste jouable même sans liste d\'artistes', () async {
+    final handler = _handler(_Repository()..artistsFail = true);
+
+    final items = await handler.getChildren(BrowseIds.genre('Rock'));
+
+    // Sans ça, le genre tombait sur le repli hors ligne : plus moyen de le
+    // lancer alors que le serveur sait encore quoi jouer.
+    expect(items.map((i) => i.id).take(2),
+        ['GENRE_Rock_SHUFFLE', 'GENRE_Rock_PLAY']);
+    expect(items.map((i) => i.id), contains(BrowseIds.retry('GENRE_Rock')));
+  });
+
+  test('un genre sans artiste listé garde ses deux entrées', () async {
+    final handler = _handler(_Repository()..artistsOfGenre = const []);
+
+    final items = await handler.getChildren(BrowseIds.genre('Rock'));
+
+    expect(items.map((i) => i.id),
+        ['GENRE_Rock_SHUFFLE', 'GENRE_Rock_PLAY']);
   });
 
   test('la liste des genres et celle des albums lancent aussi la musique',
@@ -138,6 +199,17 @@ void main() {
     final songs = await handler.genreSongs('GENRE_Rock_SHUFFLE', repo);
 
     expect(songs.map((s) => s.title), ['B', 'C', 'A']);
+  });
+
+  test('un genre dont le vivier est vide se rabat sur ses artistes', () async {
+    final handler = _handler(_Repository()..genrePoolEmpty = true);
+    final repo = handler.repository! as _Repository;
+
+    final songs = await handler.genreSongs('GENRE_Rock_SHUFFLE', repo);
+
+    // Le silence au volant n'est pas une réponse : on va chercher le genre
+    // artiste par artiste plutôt que de ne rien jouer.
+    expect(songs.map((s) => s.title), ['Repli']);
   });
 
   test('un genre non jouable ne lance rien', () async {

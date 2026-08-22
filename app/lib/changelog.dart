@@ -8,6 +8,23 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.37.0', [
+    'Dans Android Auto, un genre se lance mélangé d\'un seul geste : '
+        '« Lecture aléatoire — Punk » est la PREMIÈRE entrée du genre, avant '
+        'ses artistes. Elle portait jusqu\'ici le même libellé que celle du '
+        'cran au-dessus, qui lance toute la bibliothèque ; les deux se '
+        'nomment désormais, on ne peut plus les confondre au volant',
+    'Un genre reste jouable même quand sa liste d\'artistes ne vient pas. Le '
+        'moindre accroc réseau sur cette liste faisait basculer l\'écran '
+        'entier sur le repli hors ligne : le genre devenait injouable alors '
+        'que le serveur savait très bien quoi jouer. Les deux entrées de '
+        'lecture restent en place, avec de quoi réessayer',
+    'Et quand le vivier d\'un genre revient vide, on va le chercher artiste '
+        'par artiste plutôt que de laisser le silence. Un genre qui ne rend '
+        'rien ne laisse plus non plus la voiture sur un chargement sans fin — '
+        'c\'était l\'« Impossible de charger votre sélection » qui ne partait '
+        'jamais',
+  ]),
   ReleaseNote('3.36.0', [
     'Le volume est normalisé : tous les titres jouent au même niveau, quel que '
         'soit celui auquel ils ont été gravés. Le volume d\'un morceau est posé '
