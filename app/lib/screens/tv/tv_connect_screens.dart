@@ -62,9 +62,7 @@ class _TvServerScreenState extends ConsumerState<TvServerScreen> {
   Widget build(BuildContext context) {
     return _ConnectFrame(
       title: 'Ton serveur Gullify',
-      subtitle:
-          'Appuie sur OK pour ouvrir le clavier de Google, tape l\'adresse, '
-          'puis valide. Les flèches reprennent la main dès qu\'il se referme.',
+      subtitle: 'Appuie sur OK pour ouvrir le clavier de la télé.',
       error: _error,
       busy: _busy,
       child: Column(
@@ -185,7 +183,13 @@ class _TvLoginScreenState extends ConsumerState<TvLoginScreen> {
   }
 }
 
-/// La coque commune : mascotte, titre, la saisie, et l'erreur éventuelle.
+/// La coque commune : la mascotte, le titre, la saisie — centrés, dans une
+/// colonne étroite.
+///
+/// Volontairement proche de l'écran du téléphone plutôt qu'étalé sur toute la
+/// largeur : sur un téléviseur, un formulaire de trois lignes n'a aucune
+/// raison d'occuper deux mètres de diagonale, et le regard n'a alors plus
+/// rien à suivre. Les tailles restent au-dessus du plancher des dix pieds.
 class _ConnectFrame extends StatelessWidget {
   const _ConnectFrame({
     required this.title,
@@ -205,58 +209,65 @@ class _ConnectFrame extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return TvScaffold(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Expanded(
+      child: Center(
+        child: SingleChildScrollView(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 620),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Image.asset('assets/icon/mascot.png', width: 150, height: 150),
-                const SizedBox(height: 20),
-                TvTitle(title),
+                Image.asset('assets/icon/mascot.png', width: 108, height: 108),
                 const SizedBox(height: 14),
-                SizedBox(
-                  width: 560,
-                  child: Text(
-                    subtitle,
-                    style: TextStyle(
-                      fontSize: 26,
-                      height: 1.4,
-                      color: scheme.onSurfaceVariant,
-                    ),
+                Text(
+                  title,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 40,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -1,
+                    height: 1.1,
                   ),
                 ),
+                const SizedBox(height: 10),
+                Text(
+                  subtitle,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 23,
+                    height: 1.4,
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 30),
+                child,
                 if (busy) ...[
-                  const SizedBox(height: 26),
-                  const SizedBox(
-                    width: 34,
-                    height: 34,
-                    child: CircularProgressIndicator(strokeWidth: 3),
+                  const SizedBox(height: 22),
+                  const Center(
+                    child: SizedBox(
+                      width: 30,
+                      height: 30,
+                      child: CircularProgressIndicator(strokeWidth: 3),
+                    ),
                   ),
                 ],
                 if (error != null) ...[
-                  const SizedBox(height: 26),
-                  SizedBox(
-                    width: 560,
-                    child: Text(
-                      error!,
-                      style: TextStyle(
-                        fontSize: 26,
-                        height: 1.35,
-                        fontWeight: FontWeight.w700,
-                        color: scheme.error,
-                      ),
+                  const SizedBox(height: 20),
+                  Text(
+                    error!,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 23,
+                      height: 1.35,
+                      fontWeight: FontWeight.w700,
+                      color: scheme.error,
                     ),
                   ),
                 ],
               ],
             ),
           ),
-          const SizedBox(width: 60),
-          SizedBox(width: 760, child: SingleChildScrollView(child: child)),
-        ],
+        ),
       ),
     );
   }

@@ -7,18 +7,26 @@ import 'tv_kit.dart';
 
 /// Un champ de saisie pour téléviseur, **avec le clavier de Google**.
 ///
-/// Le piège d'Android TV n'est pas le clavier système — il fait très bien son
-/// travail — c'est ce qui se passe quand il se referme : le champ Flutter
-/// garde le focus, et la croix directionnelle se met alors à déplacer le
-/// curseur au lieu de changer d'élément. On reste coincé dans le champ, et
-/// l'app paraît figée.
+/// Deux pièges, pas un — et c'est le second qui a résisté le plus longtemps.
+///
+/// **Pendant la frappe.** Flutter capte les flèches et les traduit en
+/// « déplacer le focus »… puis cette action refuse d'agir tant qu'un champ de
+/// texte est visé. La touche est donc consommée pour rien : elle ne déplace
+/// pas le focus, et surtout elle n'est jamais renvoyée à Android — le clavier
+/// de Google s'affiche mais reste impossible à parcourir. La parade est de
+/// rendre ces touches INOFFENSIVES pendant la frappe (`DoNothingAction` sans
+/// consommation) : Flutter les considère alors comme non traitées et les
+/// repasse au système, à qui elles étaient destinées.
+///
+/// **Après la frappe.** Le champ garde le focus une fois le clavier refermé,
+/// et la croix se met à déplacer le curseur au lieu de changer d'élément.
 ///
 /// D'où ce champ en deux temps, qui est le geste attendu sur un téléviseur :
 ///
 ///  1. au repos, c'est un simple élément focalisable — la croix le traverse
 ///     comme un bouton, rien ne peut la piéger ;
-///  2. « OK » ouvre le clavier de Google, qui prend la main et se pilote
-///     normalement ;
+///  2. « OK » ouvre le clavier de Google — et pendant qu'il est ouvert, la
+///     croix et « OK » lui sont intégralement rendus ;
 ///  3. dès qu'il se referme — validation, retour, ou perte de focus — on rend
 ///     immédiatement le focus à l'élément, et la croix repart.
 ///
@@ -129,8 +137,8 @@ class _TvImeFieldState extends State<TvImeField> {
           onPressed: _startEditing,
           scale: 1.0,
           builder: (context, focused) => Container(
-            height: 96,
-            padding: const EdgeInsets.symmetric(horizontal: 28),
+            height: 82,
+            padding: const EdgeInsets.symmetric(horizontal: 24),
             decoration: BoxDecoration(
               color: Colors.white.withValues(alpha: focused ? 0.12 : 0.06),
               borderRadius: BorderRadius.circular(22),
@@ -160,11 +168,13 @@ class _TvImeFieldState extends State<TvImeField> {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        shown.isEmpty ? (widget.hint ?? 'Appuie sur OK') : shown,
+                        shown.isEmpty
+                            ? (widget.hint ?? 'Appuie sur OK')
+                            : shown,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          fontSize: 32,
+                          fontSize: 28,
                           height: 1.15,
                           fontWeight: FontWeight.w700,
                           color: shown.isEmpty
@@ -177,7 +187,7 @@ class _TvImeFieldState extends State<TvImeField> {
                 ),
                 Icon(
                   _editing ? Icons.keyboard_rounded : Icons.edit_rounded,
-                  size: 30,
+                  size: 26,
                   color: _editing ? scheme.primary : scheme.onSurfaceVariant,
                 ),
               ],
@@ -194,19 +204,31 @@ class _TvImeFieldState extends State<TvImeField> {
             height: 1,
             child: Opacity(
               opacity: 0,
-              child: TextField(
-                focusNode: _input,
-                controller: widget.controller,
-                obscureText: widget.obscure,
-                autocorrect: false,
-                enableSuggestions: false,
-                keyboardType: widget.keyboardType,
-                textInputAction: TextInputAction.done,
-                onSubmitted: (_) {
-                  _stopEditing();
-                  widget.onSubmitted?.call();
+              child: Actions(
+                // Le clavier du téléviseur a besoin de la croix et de « OK ».
+                // Sans ces neutralisations, Flutter consomme ces touches sans
+                // rien en faire et le clavier reste inerte.
+                actions: <Type, Action<Intent>>{
+                  DirectionalFocusIntent: DoNothingAction(consumesKey: false),
+                  NextFocusIntent: DoNothingAction(consumesKey: false),
+                  PreviousFocusIntent: DoNothingAction(consumesKey: false),
+                  ActivateIntent: DoNothingAction(consumesKey: false),
+                  ButtonActivateIntent: DoNothingAction(consumesKey: false),
                 },
-                onTapOutside: (_) => _stopEditing(),
+                child: TextField(
+                  focusNode: _input,
+                  controller: widget.controller,
+                  obscureText: widget.obscure,
+                  autocorrect: false,
+                  enableSuggestions: false,
+                  keyboardType: widget.keyboardType,
+                  textInputAction: TextInputAction.done,
+                  onSubmitted: (_) {
+                    _stopEditing();
+                    widget.onSubmitted?.call();
+                  },
+                  onTapOutside: (_) => _stopEditing(),
+                ),
               ),
             ),
           ),

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 
 /// Journal de bord du téléviseur, **conservé sur le disque**.
@@ -69,6 +70,23 @@ class TvLog {
       add('ERREUR ASYNC $error');
       return false;
     };
+  }
+
+  /// Consigne chaque touche reçue par l'application.
+  ///
+  /// Sur un téléviseur, savoir si une touche de la croix arrive jusqu'à
+  /// Flutter — et sous quel nom — départage en une ligne ce que trois
+  /// hypothèses de code ne feront jamais. Le gestionnaire ne consomme jamais
+  /// rien : il regarde passer.
+  static void captureKeys() {
+    HardwareKeyboard.instance.addHandler((event) {
+      if (event is KeyDownEvent) {
+        add(
+          'touche ${event.logicalKey.keyLabel.isEmpty ? event.logicalKey.debugName ?? event.logicalKey : event.logicalKey.keyLabel}',
+        );
+      }
+      return false;
+    });
   }
 
   /// Ajoute une ligne horodatée. Ne lève jamais et n'attend rien : le journal

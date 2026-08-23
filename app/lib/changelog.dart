@@ -8,6 +8,21 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.43.0', [
+    'Google TV — le clavier de la télé se pilote enfin à la croix. La cause '
+        'était plus retorse qu\'il n\'y paraissait : quand un champ de texte a '
+        'le focus, Flutter capte les flèches pour « déplacer le focus », puis '
+        'cette action refuse d\'agir dans un champ. La touche était donc '
+        'avalée pour rien — elle ne déplaçait pas le focus ET n\'atteignait '
+        'jamais le clavier. Pendant la frappe, ces touches sont maintenant '
+        'rendues intégralement au système',
+    'Les écrans de connexion retrouvent leur mise en page d\'origine : la '
+        'mascotte, le titre et les champs centrés dans une colonne étroite, '
+        'au lieu d\'être étalés sur toute la largeur de l\'écran',
+    'Le Journal du téléviseur note désormais chaque touche reçue. Si la '
+        'télécommande semble encore ignorée quelque part, il dira en une '
+        'ligne si la touche atteint l\'app, et sous quel nom',
+  ]),
   ReleaseNote('3.42.0', [
     'Google TV — retour au clavier de Google. Le clavier maison de la 3.41.0 '
         'était une mauvaise réponse : c\'est celui du téléviseur qu\'on veut, '

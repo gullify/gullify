@@ -43,6 +43,7 @@ Future<void> main() async {
     // brancher un ordinateur sur son téléviseur.
     await TvLog.start();
     TvLog.captureErrors();
+    TvLog.captureKeys();
     TvLog.add('téléviseur ${tv.detected ? "détecté" : "forcé"}');
   }
 
