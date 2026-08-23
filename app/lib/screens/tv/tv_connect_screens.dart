@@ -10,7 +10,7 @@ import 'tv_text_entry.dart';
 /// Les deux écrans d'entrée, version téléviseur : adresse du serveur, puis
 /// identifiants. Ils reprennent exactement la logique des écrans tactiles —
 /// seule la saisie change, parce que taper à la télécommande n'a rien à voir
-/// avec taper au doigt (voir [TvTextEntry]).
+/// avec taper au doigt (voir [TvImeField]).
 
 class TvServerScreen extends ConsumerStatefulWidget {
   const TvServerScreen({super.key});
@@ -21,12 +21,18 @@ class TvServerScreen extends ConsumerStatefulWidget {
 
 class _TvServerScreenState extends ConsumerState<TvServerScreen> {
   /// Pré-rempli : personne n'a envie de taper « https:// » lettre par lettre.
-  String _url = 'https://';
+  final _url = TextEditingController(text: 'https://');
   bool _busy = false;
   String? _error;
 
+  @override
+  void dispose() {
+    _url.dispose();
+    super.dispose();
+  }
+
   Future<void> _connect() async {
-    final url = _url.trim();
+    final url = _url.text.trim();
     // Une adresse réduite au préfixe ne mène nulle part : le dire plutôt que
     // de laisser le bouton paraître mort.
     if (url.isEmpty || url == 'https://' || url == 'http://') {
@@ -57,21 +63,29 @@ class _TvServerScreenState extends ConsumerState<TvServerScreen> {
     return _ConnectFrame(
       title: 'Ton serveur Gullify',
       subtitle:
-          'Saisis l\'adresse avec la croix directionnelle : « OK » tape la '
-          'lettre visée.',
+          'Appuie sur OK pour ouvrir le clavier de Google, tape l\'adresse, '
+          'puis valide. Les flèches reprennent la main dès qu\'il se referme.',
       error: _error,
       busy: _busy,
-      child: TvTextEntry(
-        fields: [TvEntryField(label: 'ADRESSE', value: _url)],
-        active: 0,
-        onSelectField: (_) {},
-        onType: (c) => setState(() => _url += c),
-        onBackspace: () => setState(() {
-          if (_url.isNotEmpty) _url = _url.substring(0, _url.length - 1);
-        }),
-        onSubmit: _connect,
-        submitLabel: _busy ? 'Connexion…' : 'Se connecter',
-        submitEnabled: !_busy,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TvImeField(
+            label: 'ADRESSE DU SERVEUR',
+            controller: _url,
+            autofocus: true,
+            keyboardType: TextInputType.url,
+            onSubmitted: _connect,
+          ),
+          const SizedBox(height: 26),
+          TvPill(
+            label: _busy ? 'Connexion…' : 'Se connecter',
+            icon: Icons.arrow_forward_rounded,
+            expand: true,
+            onPressed: _busy ? null : _connect,
+          ),
+        ],
       ),
     );
   }
@@ -85,14 +99,21 @@ class TvLoginScreen extends ConsumerStatefulWidget {
 }
 
 class _TvLoginScreenState extends ConsumerState<TvLoginScreen> {
-  final _values = <String>['', ''];
-  int _active = 0;
+  final _user = TextEditingController();
+  final _pass = TextEditingController();
   bool _busy = false;
   String? _error;
 
+  @override
+  void dispose() {
+    _user.dispose();
+    _pass.dispose();
+    super.dispose();
+  }
+
   Future<void> _login() async {
-    final username = _values[0].trim();
-    final password = _values[1];
+    final username = _user.text.trim();
+    final password = _pass.text;
     if (username.isEmpty || password.isEmpty) {
       setState(
         () => _error = 'Il faut un nom d\'utilisateur et un mot de passe.',
@@ -130,26 +151,35 @@ class _TvLoginScreenState extends ConsumerState<TvLoginScreen> {
     return _ConnectFrame(
       title: 'Connexion',
       subtitle: server.isEmpty
-          ? 'Choisis un champ, puis tape avec la croix directionnelle.'
-          : 'Sur $server — choisis un champ, puis tape avec la croix.',
+          ? 'Appuie sur OK sur un champ pour ouvrir le clavier.'
+          : 'Sur $server — appuie sur OK sur un champ pour ouvrir le clavier.',
       error: _error,
       busy: _busy,
-      child: TvTextEntry(
-        fields: [
-          TvEntryField(label: 'UTILISATEUR', value: _values[0]),
-          TvEntryField(label: 'MOT DE PASSE', value: _values[1], obscure: true),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TvImeField(
+            label: 'NOM D\'UTILISATEUR',
+            controller: _user,
+            autofocus: true,
+            onSubmitted: () => FocusScope.of(context).nextFocus(),
+          ),
+          const SizedBox(height: 16),
+          TvImeField(
+            label: 'MOT DE PASSE',
+            controller: _pass,
+            obscure: true,
+            onSubmitted: _login,
+          ),
+          const SizedBox(height: 26),
+          TvPill(
+            label: _busy ? 'Connexion…' : 'Se connecter',
+            icon: Icons.arrow_forward_rounded,
+            expand: true,
+            onPressed: _busy ? null : _login,
+          ),
         ],
-        active: _active,
-        onSelectField: (i) => setState(() => _active = i),
-        onType: (c) => setState(() => _values[_active] += c),
-        onBackspace: () => setState(() {
-          final v = _values[_active];
-          if (v.isNotEmpty) _values[_active] = v.substring(0, v.length - 1);
-        }),
-        onSubmit: _login,
-        submitLabel: _busy ? 'Connexion…' : 'Se connecter',
-        submitEnabled: !_busy,
-        symbols: const ['.', '-', '_', '@', '!', '?'],
       ),
     );
   }

@@ -438,7 +438,7 @@ void main() {
     });
   });
 
-  group('la saisie à la télécommande', () {
+  group('la saisie, avec le clavier de Google', () {
     Widget connect(Widget child) => ProviderScope(
       overrides: [
         tvDetectedProvider.overrideWithValue(true),
@@ -458,24 +458,46 @@ void main() {
       ),
     );
 
-    testWidgets('le clavier maison tape dans le champ', (tester) async {
+    testWidgets('au repos, aucun champ de texte ne retient la croix', (
+      tester,
+    ) async {
       await _tvScreen(tester);
       await tester.pumpWidget(connect(const TvServerScreen()));
       await tester.pumpAndSettle();
 
-      // Le préfixe est déjà là : personne ne veut le taper à la
-      // télécommande, lettre par lettre.
+      // C'est TOUT le principe : tant qu'on ne demande pas à écrire, il n'y a
+      // pas de champ de texte à l'écran — donc rien qui puisse avaler les
+      // flèches.
+      expect(find.byType(EditableText), findsNothing);
       expect(find.text('https://'), findsOneWidget);
 
-      for (final c in ['g', 'u', 'l']) {
-        await tester.tap(find.widgetWithText(TvFocusable, c).first);
-        await tester.pump();
-      }
-      expect(find.text('https://gul'), findsOneWidget);
+      // Et la croix descend normalement vers le bouton.
+      final before = FocusManager.instance.primaryFocus;
+      await _press(tester, LogicalKeyboardKey.arrowDown);
+      await tester.pumpAndSettle();
+      expect(FocusManager.instance.primaryFocus, isNot(same(before)));
+    });
 
-      await tester.tap(find.widgetWithText(TvFocusable, 'effacer').first);
-      await tester.pump();
-      expect(find.text('https://gu'), findsOneWidget);
+    testWidgets('« OK » ouvre le clavier, la validation le referme', (
+      tester,
+    ) async {
+      await _tvScreen(tester);
+      await tester.pumpWidget(connect(const TvServerScreen()));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('ADRESSE DU SERVEUR'));
+      await tester.pumpAndSettle();
+      // Le champ réel n'existe que le temps de la frappe.
+      expect(find.byType(EditableText), findsOneWidget);
+
+      await tester.enterText(find.byType(EditableText), 'https://exemple.test');
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pumpAndSettle();
+
+      // Refermé : plus de champ, et le focus est revenu sur l'élément.
+      expect(find.byType(EditableText), findsNothing);
+      expect(find.text('https://exemple.test'), findsOneWidget);
+      expect(FocusManager.instance.primaryFocus?.debugLabel, 'tv-field');
     });
 
     testWidgets('valider sans adresse le dit, au lieu de ne rien faire', (
@@ -484,55 +506,28 @@ void main() {
       await _tvScreen(tester);
       await tester.pumpWidget(connect(const TvServerScreen()));
       await tester.pumpAndSettle();
-      // C'est exactement le symptôme rapporté : un bouton qui semblait mort.
       await tester.tap(find.widgetWithText(TvPill, 'Se connecter').first);
       await tester.pump();
       expect(find.text('Saisis l\'adresse de ton serveur.'), findsOneWidget);
     });
 
-    testWidgets('la croix parcourt les touches du clavier', (tester) async {
-      await _tvScreen(tester);
-      await tester.pumpWidget(connect(const TvServerScreen()));
-      await tester.pumpAndSettle();
-
-      // Depuis le champ (visé d'entrée), on descend dans le clavier puis on
-      // se déplace de touche en touche — ce qui était impossible avec le
-      // clavier d'Android.
-      await _press(tester, LogicalKeyboardKey.arrowDown);
-      await tester.pumpAndSettle();
-      final first = FocusManager.instance.primaryFocus;
-      expect(first, isNotNull);
-      await _press(tester, LogicalKeyboardKey.arrowRight);
-      await tester.pumpAndSettle();
-      expect(
-        FocusManager.instance.primaryFocus,
-        isNot(same(first)),
-        reason: 'la flèche droite doit changer de touche',
-      );
-      // Et « OK » tape bien la lettre visée.
-      await _press(tester, LogicalKeyboardKey.enter);
-      await tester.pumpAndSettle();
-      expect(find.text('https://'), findsNothing);
-    });
-
-    testWidgets('mot de passe : le champ choisi reçoit la frappe', (
+    testWidgets('mot de passe : masqué, et deux champs indépendants', (
       tester,
     ) async {
       await _tvScreen(tester);
       await tester.pumpWidget(connect(const TvLoginScreen()));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.widgetWithText(TvFocusable, 'm').first);
-      await tester.pump();
-      expect(find.text('m'), findsWidgets);
-
-      // On bascule sur le mot de passe : la frappe y va, et s'y montre en
-      // points.
       await tester.tap(find.text('MOT DE PASSE'));
-      await tester.pump();
-      await tester.tap(find.widgetWithText(TvFocusable, 'x').first);
-      await tester.pump();
-      expect(find.text('•'), findsOneWidget);
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(EditableText), 'secret');
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pumpAndSettle();
+
+      expect(find.text('••••••'), findsOneWidget);
+      expect(find.text('secret'), findsNothing);
+      // L'autre champ n'a rien reçu.
+      expect(find.text('Appuie sur OK'), findsOneWidget);
     });
 
     testWidgets('se connecter sans identifiants le dit', (tester) async {

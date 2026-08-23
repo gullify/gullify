@@ -8,6 +8,20 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.42.0', [
+    'Google TV — retour au clavier de Google. Le clavier maison de la 3.41.0 '
+        'était une mauvaise réponse : c\'est celui du téléviseur qu\'on veut, '
+        'avec sa disposition connue et sa dictée vocale',
+    'Le vrai problème était ailleurs, et il est réglé : un champ de texte qui '
+        'garde le focus après la fermeture du clavier accapare la croix '
+        'directionnelle pour déplacer le curseur. Les champs fonctionnent '
+        'maintenant en deux temps — au repos ce sont de simples éléments que '
+        'la croix traverse, « OK » ouvre le clavier, et dès qu\'il se referme '
+        'le focus revient à l\'élément. Il n\'existe aucun champ de texte à '
+        'l\'écran en dehors de la frappe',
+    'La recherche suit la même règle : le clavier du téléviseur s\'ouvre sur '
+        '« OK », et les résultats suivent la saisie',
+  ]),
   ReleaseNote('3.41.0', [
     'Google TV — l\'adresse du serveur et les identifiants se tapent enfin. '
         'Gullify n\'utilise plus le clavier d\'Android sur téléviseur : il '

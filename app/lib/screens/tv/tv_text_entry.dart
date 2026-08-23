@@ -1,294 +1,216 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
+import '../../state/tv_log.dart';
 import 'tv_kit.dart';
 
-/// Saisie de texte à la télécommande, **sans le clavier d'Android**.
+/// Un champ de saisie pour téléviseur, **avec le clavier de Google**.
 ///
-/// Le clavier système d'un téléviseur est une loterie : selon le boîtier il
-/// prend la croix directionnelle ou la laisse à l'application, s'ouvre en
-/// plein écran ou en bandeau, et se referme au premier déplacement de focus.
-/// Impossible de garantir une saisie qui marche partout en s'appuyant dessus.
+/// Le piège d'Android TV n'est pas le clavier système — il fait très bien son
+/// travail — c'est ce qui se passe quand il se referme : le champ Flutter
+/// garde le focus, et la croix directionnelle se met alors à déplacer le
+/// curseur au lieu de changer d'élément. On reste coincé dans le champ, et
+/// l'app paraît figée.
 ///
-/// On dessine donc notre propre clavier : chaque touche est un élément
-/// focalisable comme les autres, la croix le parcourt par construction, et
-/// « OK » tape la lettre. Rien à négocier avec le système.
-
-/// Un champ de la saisie : ce qu'on tape, et où ça va.
-class TvEntryField {
-  const TvEntryField({
+/// D'où ce champ en deux temps, qui est le geste attendu sur un téléviseur :
+///
+///  1. au repos, c'est un simple élément focalisable — la croix le traverse
+///     comme un bouton, rien ne peut la piéger ;
+///  2. « OK » ouvre le clavier de Google, qui prend la main et se pilote
+///     normalement ;
+///  3. dès qu'il se referme — validation, retour, ou perte de focus — on rend
+///     immédiatement le focus à l'élément, et la croix repart.
+///
+/// Le champ de texte réel n'existe donc que le temps de la frappe.
+class TvImeField extends StatefulWidget {
+  const TvImeField({
+    super.key,
     required this.label,
-    required this.value,
+    required this.controller,
     this.obscure = false,
+    this.autofocus = false,
+    this.keyboardType,
+    this.hint,
+    this.onSubmitted,
   });
 
   final String label;
-  final String value;
-
-  /// Mot de passe : on montre des points, pas les lettres.
+  final TextEditingController controller;
   final bool obscure;
-}
+  final bool autofocus;
+  final TextInputType? keyboardType;
+  final String? hint;
 
-/// Le clavier et ses champs, sur un écran de connexion.
-class TvTextEntry extends StatefulWidget {
-  const TvTextEntry({
-    super.key,
-    required this.fields,
-    required this.active,
-    required this.onSelectField,
-    required this.onType,
-    required this.onBackspace,
-    required this.onSubmit,
-    required this.submitLabel,
-    this.submitEnabled = true,
-    this.symbols = const ['.', '-', '_', '/', ':', '@'],
-  });
-
-  final List<TvEntryField> fields;
-
-  /// Index du champ que le clavier alimente.
-  final int active;
-
-  final ValueChanged<int> onSelectField;
-  final ValueChanged<String> onType;
-  final VoidCallback onBackspace;
-  final VoidCallback onSubmit;
-  final String submitLabel;
-  final bool submitEnabled;
-
-  /// Caractères utiles au contexte (une adresse de serveur en demande
-  /// d'autres qu'un nom d'utilisateur).
-  final List<String> symbols;
+  /// Appelé quand l'utilisateur valide au clavier. Sert à enchaîner sur le
+  /// champ suivant, ou à lancer la connexion depuis le dernier.
+  final VoidCallback? onSubmitted;
 
   @override
-  State<TvTextEntry> createState() => _TvTextEntryState();
+  State<TvImeField> createState() => _TvImeFieldState();
 }
 
-class _TvTextEntryState extends State<TvTextEntry> {
-  bool _caps = false;
+class _TvImeFieldState extends State<TvImeField> {
+  /// Le nœud de l'élément « au repos » : celui que la croix visite.
+  final _tile = FocusNode(debugLabel: 'tv-field');
+
+  /// Le nœud du champ de texte, vivant seulement pendant la frappe.
+  final _input = FocusNode(debugLabel: 'tv-input');
+
+  bool _editing = false;
+  Timer? _watchdog;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.controller.addListener(_onChanged);
+    _input.addListener(_onInputFocus);
+  }
+
+  @override
+  void dispose() {
+    _watchdog?.cancel();
+    widget.controller.removeListener(_onChanged);
+    _input.removeListener(_onInputFocus);
+    _tile.dispose();
+    _input.dispose();
+    super.dispose();
+  }
+
+  void _onChanged() {
+    if (mounted) setState(() {});
+  }
+
+  /// Le champ a perdu le focus : le clavier s'est refermé (validation, retour,
+  /// ou bascule d'application). On revient à l'état « au repos ».
+  void _onInputFocus() {
+    if (_input.hasFocus || !_editing) return;
+    _stopEditing();
+  }
+
+  void _startEditing() {
+    TvLog.add('clavier ouvert (${widget.label})');
+    setState(() => _editing = true);
+    _input.requestFocus();
+    // Filet : si le clavier ne s'ouvre pas du tout (boîtier sans IME, ou
+    // clavier physique branché), on ne doit pas rester bloqué dans un champ
+    // invisible. Sans frappe ni focus au bout de deux secondes, on rend la
+    // main.
+    _watchdog?.cancel();
+    _watchdog = Timer(const Duration(seconds: 2), () {
+      if (mounted && _editing && !_input.hasFocus) {
+        TvLog.add('clavier non ouvert : retour à la navigation');
+        _stopEditing();
+      }
+    });
+  }
+
+  void _stopEditing() {
+    _watchdog?.cancel();
+    if (!mounted) return;
+    setState(() => _editing = false);
+    // Le focus retourne à l'élément : la croix directionnelle repart de là,
+    // et surtout plus aucun champ de texte ne la retient.
+    _tile.requestFocus();
+    TvLog.add('clavier refermé (${widget.label})');
+  }
 
   @override
   Widget build(BuildContext context) {
-    const letters = 'abcdefghijklmnopqrstuvwxyz';
-    const digits = '0123456789';
+    final scheme = Theme.of(context).colorScheme;
+    final value = widget.controller.text;
+    final shown = widget.obscure ? '•' * value.length : value;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      mainAxisSize: MainAxisSize.min,
+    return Stack(
       children: [
-        for (var i = 0; i < widget.fields.length; i++)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: _Field(
-              field: widget.fields[i],
-              active: i == widget.active,
-              autofocus: i == 0,
-              onPressed: () => widget.onSelectField(i),
+        TvFocusable(
+          focusNode: _tile,
+          autofocus: widget.autofocus,
+          onPressed: _startEditing,
+          scale: 1.0,
+          builder: (context, focused) => Container(
+            height: 96,
+            padding: const EdgeInsets.symmetric(horizontal: 28),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: focused ? 0.12 : 0.06),
+              borderRadius: BorderRadius.circular(22),
+              border: focused || _editing
+                  ? tvFocusBorder(scheme.primary)
+                  : Border.all(color: Colors.white.withValues(alpha: 0.14)),
+              boxShadow: focused || _editing
+                  ? tvFocusGlow(scheme.primary, spread: 4)
+                  : null,
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        widget.label,
+                        style: TextStyle(
+                          fontSize: tvMinText,
+                          height: 1.2,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 1.4,
+                          color: scheme.onSurfaceVariant,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        shown.isEmpty ? (widget.hint ?? 'Appuie sur OK') : shown,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 32,
+                          height: 1.15,
+                          fontWeight: FontWeight.w700,
+                          color: shown.isEmpty
+                              ? scheme.onSurfaceVariant.withValues(alpha: 0.55)
+                              : scheme.onSurface,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(
+                  _editing ? Icons.keyboard_rounded : Icons.edit_rounded,
+                  size: 30,
+                  color: _editing ? scheme.primary : scheme.onSurfaceVariant,
+                ),
+              ],
             ),
           ),
-        const SizedBox(height: 8),
-        // Six colonnes : traverser un clavier de dix demanderait deux fois
-        // plus de trajet à la croix.
-        GridView.count(
-          crossAxisCount: 6,
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          mainAxisSpacing: 8,
-          crossAxisSpacing: 8,
-          childAspectRatio: 1.62,
-          children: [
-            for (final c in letters.split(''))
-              _Key(
-                label: _caps ? c.toUpperCase() : c,
-                onPressed: () => widget.onType(_caps ? c.toUpperCase() : c),
-              ),
-            for (final c in digits.split(''))
-              _Key(label: c, onPressed: () => widget.onType(c)),
-            for (final c in widget.symbols)
-              _Key(label: c, onPressed: () => widget.onType(c)),
-          ],
         ),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: _Key(
-                label: _caps ? 'abc' : 'ABC',
-                small: true,
-                onPressed: () => setState(() => _caps = !_caps),
+        // Le champ réel : invisible, mais bien monté pendant la frappe — c'est
+        // lui qui fait apparaître le clavier de Google et reçoit les lettres.
+        if (_editing)
+          Positioned(
+            left: 0,
+            top: 0,
+            width: 1,
+            height: 1,
+            child: Opacity(
+              opacity: 0,
+              child: TextField(
+                focusNode: _input,
+                controller: widget.controller,
+                obscureText: widget.obscure,
+                autocorrect: false,
+                enableSuggestions: false,
+                keyboardType: widget.keyboardType,
+                textInputAction: TextInputAction.done,
+                onSubmitted: (_) {
+                  _stopEditing();
+                  widget.onSubmitted?.call();
+                },
+                onTapOutside: (_) => _stopEditing(),
               ),
             ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _Key(
-                label: 'espace',
-                small: true,
-                onPressed: () => widget.onType(' '),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _Key(
-                label: 'effacer',
-                small: true,
-                icon: Icons.backspace_outlined,
-                onPressed: widget.onBackspace,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        TvPill(
-          label: widget.submitLabel,
-          icon: Icons.arrow_forward_rounded,
-          expand: true,
-          onPressed: widget.submitEnabled ? widget.onSubmit : null,
-        ),
+          ),
       ],
-    );
-  }
-}
-
-/// Un champ : son intitulé, ce qu'il contient, et un curseur quand c'est lui
-/// que le clavier alimente.
-class _Field extends StatelessWidget {
-  const _Field({
-    required this.field,
-    required this.active,
-    required this.onPressed,
-    this.autofocus = false,
-  });
-
-  final TvEntryField field;
-  final bool active;
-  final bool autofocus;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final shown = field.obscure ? '•' * field.value.length : field.value;
-
-    return TvFocusable(
-      onPressed: onPressed,
-      autofocus: autofocus,
-      scale: 1.0,
-      builder: (context, focused) => Container(
-        height: 72,
-        padding: const EdgeInsets.symmetric(horizontal: 24),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: focused ? 0.12 : 0.06),
-          borderRadius: BorderRadius.circular(20),
-          border: focused
-              ? tvFocusBorder(scheme.primary)
-              : Border.all(
-                  color: active
-                      ? scheme.primary.withValues(alpha: 0.8)
-                      : Colors.white.withValues(alpha: 0.14),
-                  width: active ? 2 : 1,
-                ),
-          boxShadow: focused ? tvFocusGlow(scheme.primary, spread: 4) : null,
-        ),
-        child: Row(
-          children: [
-            SizedBox(
-              width: 210,
-              child: Text(
-                field.label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: tvMinText,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 1.4,
-                  color: scheme.onSurfaceVariant,
-                ),
-              ),
-            ),
-            Expanded(
-              child: Text(
-                shown,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.right,
-                style: const TextStyle(
-                  fontSize: 30,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-            if (active) ...[
-              const SizedBox(width: 8),
-              Container(
-                width: 3,
-                height: 34,
-                decoration: BoxDecoration(
-                  color: scheme.primary,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _Key extends StatelessWidget {
-  const _Key({
-    required this.label,
-    required this.onPressed,
-    this.small = false,
-    this.icon,
-  });
-
-  final String label;
-  final VoidCallback onPressed;
-  final bool small;
-  final IconData? icon;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return TvFocusable(
-      onPressed: onPressed,
-      scale: 1.1,
-      builder: (context, focused) => Container(
-        height: small ? 58 : null,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: focused
-              ? scheme.primary
-              : Colors.white.withValues(alpha: 0.07),
-          borderRadius: BorderRadius.circular(16),
-          border: focused
-              ? tvFocusBorder(scheme.primary)
-              : Border.all(color: Colors.white.withValues(alpha: 0.15)),
-          boxShadow: focused ? tvFocusGlow(scheme.primary, spread: 4) : null,
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (icon != null) ...[
-              Icon(
-                icon,
-                size: 22,
-                color: focused ? Colors.white : scheme.onSurface,
-              ),
-              const SizedBox(width: 8),
-            ],
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: small ? 22 : 30,
-                fontWeight: FontWeight.w700,
-                color: focused ? Colors.white : scheme.onSurface,
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

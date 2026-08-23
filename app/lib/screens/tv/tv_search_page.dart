@@ -5,14 +5,18 @@ import 'package:go_router/go_router.dart';
 import '../../state/library.dart';
 import '../../state/player.dart';
 import 'tv_kit.dart';
+import 'tv_text_entry.dart';
 
-/// La recherche au clavier à l'écran.
+/// La recherche, avec le clavier de Google.
 ///
-/// Une télécommande n'a pas de clavier : chaque lettre coûte plusieurs appuis.
-/// D'où deux partis pris — une grille **alphabétique** (on cherche une lettre
-/// des yeux, on ne tape pas au toucher) et **six colonnes** plutôt que dix
-/// (traverser un QWERTY demanderait deux fois plus de trajet). Et pas de
-/// bouton « chercher » : les résultats suivent chaque lettre.
+/// Le champ est un simple élément focalisable tant qu'on n'écrit pas : « OK »
+/// ouvre le clavier du système (celui de la télé, avec sa dictée vocale), et
+/// dès qu'il se referme la croix directionnelle repart vers les résultats.
+/// C'est le même mécanisme que sur les écrans de connexion — voir
+/// [TvImeField], qui explique pourquoi un champ de texte ne doit jamais
+/// garder le focus sur un téléviseur.
+///
+/// Pas de bouton « chercher » : les résultats suivent la saisie.
 class TvSearchPage extends ConsumerStatefulWidget {
   const TvSearchPage({super.key});
 
@@ -21,17 +25,25 @@ class TvSearchPage extends ConsumerStatefulWidget {
 }
 
 class _TvSearchPageState extends ConsumerState<TvSearchPage> {
-  static const _letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  final _field = TextEditingController();
 
-  String _query = '';
+  String get _query => _field.text;
 
-  void _type(String c) => _set(_query + c);
-  void _backspace() =>
-      _set(_query.isEmpty ? '' : _query.substring(0, _query.length - 1));
+  @override
+  void initState() {
+    super.initState();
+    // Les résultats suivent la saisie : pas de bouton « chercher » à aller
+    // viser après chaque mot.
+    _field.addListener(() {
+      if (mounted) setState(() {});
+      ref.read(searchQueryProvider.notifier).set(_field.text);
+    });
+  }
 
-  void _set(String q) {
-    setState(() => _query = q);
-    ref.read(searchQueryProvider.notifier).set(q);
+  @override
+  void dispose() {
+    _field.dispose();
+    super.dispose();
   }
 
   @override
@@ -151,142 +163,34 @@ class _TvSearchPageState extends ConsumerState<TvSearchPage> {
 
   Widget _keyboard(ColorScheme scheme) => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
+    mainAxisSize: MainAxisSize.min,
     children: [
-      TvGlass(
-        padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 24),
-        child: Row(
-          children: [
-            Icon(Icons.search_rounded, size: 32, color: scheme.primary),
-            const SizedBox(width: 18),
-            Expanded(
-              child: Text(
-                _query.isEmpty ? 'Tape ton mot' : _query.toLowerCase(),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 38,
-                  fontWeight: FontWeight.w700,
-                  color: _query.isEmpty
-                      ? scheme.onSurfaceVariant.withValues(alpha: 0.6)
-                      : scheme.onSurface,
-                ),
-              ),
-            ),
-            if (_query.isNotEmpty)
-              Container(
-                width: 3,
-                height: 38,
-                decoration: BoxDecoration(
-                  color: scheme.primary,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-          ],
+      TvImeField(
+        label: 'RECHERCHER',
+        controller: _field,
+        autofocus: true,
+        hint: 'Appuie sur OK',
+      ),
+      const SizedBox(height: 20),
+      Text(
+        'Le clavier de la télé s\'ouvre sur OK — la dictée vocale de la '
+        'télécommande y marche aussi. Les résultats suivent la saisie.',
+        style: TextStyle(
+          fontSize: tvMinText,
+          height: 1.4,
+          color: scheme.onSurfaceVariant.withValues(alpha: 0.75),
         ),
       ),
-      const SizedBox(height: 26),
-      GridView.count(
-        crossAxisCount: 6,
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        mainAxisSpacing: 12,
-        crossAxisSpacing: 12,
-        children: [
-          for (var i = 0; i < _letters.length; i++)
-            _Key(
-              label: _letters[i],
-              autofocus: i == 0,
-              onPressed: () => _type(_letters[i]),
-            ),
-        ],
-      ),
-      const SizedBox(height: 12),
-      Row(
-        children: [
-          Expanded(
-            child: _Key(
-              label: 'espace',
-              small: true,
-              onPressed: () => _type(' '),
-              height: 80,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: _Key(
-              label: 'effacer',
-              small: true,
-              icon: Icons.backspace_outlined,
-              onPressed: _backspace,
-              height: 80,
-            ),
-          ),
-        ],
-      ),
+      if (_query.isNotEmpty) ...[
+        const SizedBox(height: 20),
+        TvPill(
+          label: 'Effacer',
+          icon: Icons.backspace_outlined,
+          accent: false,
+          expand: true,
+          onPressed: _field.clear,
+        ),
+      ],
     ],
   );
-}
-
-class _Key extends StatelessWidget {
-  const _Key({
-    required this.label,
-    required this.onPressed,
-    this.small = false,
-    this.icon,
-    this.autofocus = false,
-    this.height,
-  });
-
-  final String label;
-  final VoidCallback onPressed;
-  final bool small;
-  final IconData? icon;
-  final bool autofocus;
-  final double? height;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return TvFocusable(
-      onPressed: onPressed,
-      autofocus: autofocus,
-      scale: 1.08,
-      builder: (context, focused) => Container(
-        height: height,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: focused
-              ? scheme.primary
-              : Colors.white.withValues(alpha: 0.07),
-          borderRadius: BorderRadius.circular(18),
-          border: focused
-              ? tvFocusBorder(scheme.primary)
-              : Border.all(color: Colors.white.withValues(alpha: 0.15)),
-          boxShadow: focused ? tvFocusGlow(scheme.primary, spread: 4) : null,
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (icon != null) ...[
-              Icon(
-                icon,
-                size: 24,
-                color: focused ? Colors.white : scheme.onSurface,
-              ),
-              const SizedBox(width: 10),
-            ],
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: small ? 24 : 34,
-                fontWeight: FontWeight.w700,
-                color: focused ? Colors.white : scheme.onSurface,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }
