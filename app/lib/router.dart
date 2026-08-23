@@ -42,6 +42,7 @@ import 'screens/settings_screen.dart';
 import 'screens/shell_screen.dart';
 import 'screens/splash_screen.dart';
 import 'screens/stats_screen.dart';
+import 'screens/tv/tv_connect_screens.dart';
 import 'screens/tv_log_screen.dart';
 import 'screens/tv/tv_album_screen.dart';
 import 'screens/tv/tv_artist_screen.dart';
@@ -65,8 +66,21 @@ final routerProvider = Provider<GoRouter>((ref) {
     observers: [KeyboardDismissObserver()],
     routes: [
       GoRoute(path: '/splash', builder: (_, _) => const SplashScreen()),
-      GoRoute(path: '/server', builder: (_, _) => const ServerScreen()),
-      GoRoute(path: '/login', builder: (_, _) => const LoginScreen()),
+      // Taper une adresse ou un mot de passe à la télécommande n'a rien à
+      // voir avec le faire au doigt : sur téléviseur, ces deux écrans ont
+      // leur propre clavier (voir TvTextEntry).
+      GoRoute(
+        path: '/server',
+        builder: (_, _) => ref.read(tvModeProvider)
+            ? const TvServerScreen()
+            : const ServerScreen(),
+      ),
+      GoRoute(
+        path: '/login',
+        builder: (_, _) => ref.read(tvModeProvider)
+            ? const TvLoginScreen()
+            : const LoginScreen(),
+      ),
       StatefulShellRoute.indexedStack(
         builder: (_, _, shell) => ShellScreen(navigationShell: shell),
         // Ordre = index du dock : 0 Accueil, 1 Bibliothèque, 2 Recherche,

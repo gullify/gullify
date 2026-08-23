@@ -3,8 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../api/api_client.dart';
 import '../state/auth.dart';
-import '../state/tv.dart';
-import 'tv/tv_kit.dart';
 
 class ServerScreen extends ConsumerStatefulWidget {
   const ServerScreen({super.key});
@@ -44,9 +42,6 @@ class _ServerScreenState extends ConsumerState<ServerScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Sur téléviseur, les flèches doivent pouvoir sortir des champs de
-    // saisie : voir TvFieldEscape.
-    final tv = ref.watch(tvModeProvider);
     return Scaffold(
       body: Center(
         child: ConstrainedBox(
@@ -63,8 +58,8 @@ class _ServerScreenState extends ConsumerState<ServerScreen> {
                   'Gullify',
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
+                        fontWeight: FontWeight.w700,
+                      ),
                 ),
                 const SizedBox(height: 8),
                 Text(
@@ -73,19 +68,16 @@ class _ServerScreenState extends ConsumerState<ServerScreen> {
                   style: Theme.of(context).textTheme.bodyMedium,
                 ),
                 const SizedBox(height: 32),
-                TvFieldEscape(
-                  enabled: tv,
-                  child: TextField(
-                    controller: _urlController,
-                    keyboardType: TextInputType.url,
-                    autocorrect: false,
-                    decoration: const InputDecoration(
-                      labelText: 'Adresse du serveur',
-                      hintText: 'https://gullify.example.com',
-                      prefixIcon: Icon(Icons.dns_outlined),
-                    ),
-                    onSubmitted: (_) => _connect(),
+                TextField(
+                  controller: _urlController,
+                  keyboardType: TextInputType.url,
+                  autocorrect: false,
+                  decoration: const InputDecoration(
+                    labelText: 'Adresse du serveur',
+                    hintText: 'https://gullify.example.com',
+                    prefixIcon: Icon(Icons.dns_outlined),
                   ),
+                  onSubmitted: (_) => _connect(),
                 ),
                 if (_error != null) ...[
                   const SizedBox(height: 12),

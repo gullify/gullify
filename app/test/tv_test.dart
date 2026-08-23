@@ -16,11 +16,13 @@ import 'package:gullify/models/album.dart';
 import 'package:gullify/models/artist.dart';
 import 'package:gullify/models/song.dart';
 import 'package:gullify/screens/tv/tv_album_screen.dart';
+import 'package:gullify/screens/tv/tv_connect_screens.dart';
 import 'package:gullify/screens/tv/tv_kit.dart';
 import 'package:gullify/screens/tv/tv_now_playing_screen.dart';
 import 'package:gullify/screens/tv/tv_shell.dart';
 import 'package:gullify/screens/tv/tv_update.dart';
 import 'package:gullify/state/app_update.dart';
+import 'package:gullify/state/auth.dart';
 import 'package:gullify/state/favorites.dart';
 import 'package:gullify/state/library.dart';
 import 'package:gullify/state/party.dart';
@@ -30,16 +32,42 @@ import 'package:gullify/state/tv.dart';
 import 'package:gullify/theme.dart';
 
 const _songs = [
-  Song(id: 1, title: 'Ruby Soho', filePath: 'a.mp3', duration: 158,
-      artistName: 'Rancid', albumName: 'Wolves', trackNumber: 1),
-  Song(id: 2, title: 'Time Bomb', filePath: 'b.mp3', duration: 146,
-      artistName: 'Rancid', albumName: 'Wolves', trackNumber: 2),
-  Song(id: 3, title: 'Drain the Blood', filePath: 'c.mp3', duration: 187,
-      artistName: 'The Distillers', albumName: 'Coral Fang', trackNumber: 3),
+  Song(
+    id: 1,
+    title: 'Ruby Soho',
+    filePath: 'a.mp3',
+    duration: 158,
+    artistName: 'Rancid',
+    albumName: 'Wolves',
+    trackNumber: 1,
+  ),
+  Song(
+    id: 2,
+    title: 'Time Bomb',
+    filePath: 'b.mp3',
+    duration: 146,
+    artistName: 'Rancid',
+    albumName: 'Wolves',
+    trackNumber: 2,
+  ),
+  Song(
+    id: 3,
+    title: 'Drain the Blood',
+    filePath: 'c.mp3',
+    duration: 187,
+    artistName: 'The Distillers',
+    albumName: 'Coral Fang',
+    trackNumber: 3,
+  ),
 ];
 
-const _wolves =
-    Album(id: 1, name: 'Wolves', year: 1995, artistId: 1, artistName: 'Rancid');
+const _wolves = Album(
+  id: 1,
+  name: 'Wolves',
+  year: 1995,
+  artistId: 1,
+  artistName: 'Rancid',
+);
 
 const _albums = [
   _wolves,
@@ -58,11 +86,26 @@ const _artists = [
 ];
 
 const _stations = [
-  RadioStation(id: 'r1', name: 'CISM', streamUrl: 'http://x/1', genres: ['Indé']),
+  RadioStation(
+    id: 'r1',
+    name: 'CISM',
+    streamUrl: 'http://x/1',
+    genres: ['Indé'],
+  ),
   RadioStation(id: 'r2', name: 'CKOI', streamUrl: 'http://x/2'),
 ];
 
 class _FakePlayerActions extends Fake implements PlayerActions {}
+
+/// Auth figée : le vrai contrôleur relit le trousseau et interroge le serveur.
+class _FixedAuth extends AuthController {
+  _FixedAuth(this.value);
+
+  final AuthState value;
+
+  @override
+  AuthState build() => value;
+}
 
 /// Mise à jour figée : le vrai notifier interroge le réseau et le paquet
 /// installé, dont aucun n'existe en test.
@@ -127,12 +170,26 @@ Map<String, dynamic> _partyJson({
   'me': {'id': 1, 'name': 'Salon', 'isHost': true},
   'players': [
     {
-      'id': 1, 'name': 'Salon', 'isHost': true, 'score': 130, 'lives': 3,
-      'answered': true, 'correct': null, 'gained': null, 'timeline': null,
+      'id': 1,
+      'name': 'Salon',
+      'isHost': true,
+      'score': 130,
+      'lives': 3,
+      'answered': true,
+      'correct': null,
+      'gained': null,
+      'timeline': null,
     },
     {
-      'id': 2, 'name': 'Léa', 'isHost': false, 'score': 210, 'lives': 2,
-      'answered': false, 'correct': null, 'gained': null, 'timeline': null,
+      'id': 2,
+      'name': 'Léa',
+      'isHost': false,
+      'score': 210,
+      'lives': 2,
+      'answered': false,
+      'correct': null,
+      'gained': null,
+      'timeline': null,
     },
   ],
   'round': round,
@@ -154,11 +211,15 @@ Widget _wrap(
     tvDetectedProvider.overrideWithValue(tv),
     tvForceInitialProvider.overrideWithValue(TvForce.auto),
     playerActionsProvider.overrideWithValue(_FakePlayerActions()),
-    currentMediaItemProvider.overrideWith((ref) => Stream<MediaItem?>.value(item)),
-    playbackStateProvider
-        .overrideWith((ref) => Stream.value(PlaybackState(playing: item != null))),
-    positionProvider
-        .overrideWith((ref) => Stream.value(const Duration(seconds: 61))),
+    currentMediaItemProvider.overrideWith(
+      (ref) => Stream<MediaItem?>.value(item),
+    ),
+    playbackStateProvider.overrideWith(
+      (ref) => Stream.value(PlaybackState(playing: item != null)),
+    ),
+    positionProvider.overrideWith(
+      (ref) => Stream.value(const Duration(seconds: 61)),
+    ),
     queueProvider.overrideWith(
       (ref) => Stream.value(item == null ? const <MediaItem>[] : [item]),
     ),
@@ -172,8 +233,7 @@ Widget _wrap(
     albumDetailProvider(1).overrideWith(
       (ref) async => const AlbumDetail(album: _wolves, songs: _songs),
     ),
-    if (party != null)
-      partyProvider.overrideWith(() => _FixedParty(party)),
+    if (party != null) partyProvider.overrideWith(() => _FixedParty(party)),
   ],
   child: MaterialApp(
     theme: gullifyThemeFor(GullifyAccent.indigo, dark: true),
@@ -378,65 +438,120 @@ void main() {
     });
   });
 
+  group('la saisie à la télécommande', () {
+    Widget connect(Widget child) => ProviderScope(
+      overrides: [
+        tvDetectedProvider.overrideWithValue(true),
+        tvForceInitialProvider.overrideWithValue(TvForce.auto),
+        authProvider.overrideWith(
+          () => _FixedAuth(
+            const AuthState(
+              status: AuthStatus.needsLogin,
+              serverUrl: 'https://gullify.app',
+            ),
+          ),
+        ),
+      ],
+      child: MaterialApp(
+        theme: gullifyThemeFor(GullifyAccent.indigo, dark: true),
+        home: child,
+      ),
+    );
+
+    testWidgets('le clavier maison tape dans le champ', (tester) async {
+      await _tvScreen(tester);
+      await tester.pumpWidget(connect(const TvServerScreen()));
+      await tester.pumpAndSettle();
+
+      // Le préfixe est déjà là : personne ne veut le taper à la
+      // télécommande, lettre par lettre.
+      expect(find.text('https://'), findsOneWidget);
+
+      for (final c in ['g', 'u', 'l']) {
+        await tester.tap(find.widgetWithText(TvFocusable, c).first);
+        await tester.pump();
+      }
+      expect(find.text('https://gul'), findsOneWidget);
+
+      await tester.tap(find.widgetWithText(TvFocusable, 'effacer').first);
+      await tester.pump();
+      expect(find.text('https://gu'), findsOneWidget);
+    });
+
+    testWidgets('valider sans adresse le dit, au lieu de ne rien faire', (
+      tester,
+    ) async {
+      await _tvScreen(tester);
+      await tester.pumpWidget(connect(const TvServerScreen()));
+      await tester.pumpAndSettle();
+      // C'est exactement le symptôme rapporté : un bouton qui semblait mort.
+      await tester.tap(find.widgetWithText(TvPill, 'Se connecter').first);
+      await tester.pump();
+      expect(find.text('Saisis l\'adresse de ton serveur.'), findsOneWidget);
+    });
+
+    testWidgets('la croix parcourt les touches du clavier', (tester) async {
+      await _tvScreen(tester);
+      await tester.pumpWidget(connect(const TvServerScreen()));
+      await tester.pumpAndSettle();
+
+      // Depuis le champ (visé d'entrée), on descend dans le clavier puis on
+      // se déplace de touche en touche — ce qui était impossible avec le
+      // clavier d'Android.
+      await _press(tester, LogicalKeyboardKey.arrowDown);
+      await tester.pumpAndSettle();
+      final first = FocusManager.instance.primaryFocus;
+      expect(first, isNotNull);
+      await _press(tester, LogicalKeyboardKey.arrowRight);
+      await tester.pumpAndSettle();
+      expect(
+        FocusManager.instance.primaryFocus,
+        isNot(same(first)),
+        reason: 'la flèche droite doit changer de touche',
+      );
+      // Et « OK » tape bien la lettre visée.
+      await _press(tester, LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+      expect(find.text('https://'), findsNothing);
+    });
+
+    testWidgets('mot de passe : le champ choisi reçoit la frappe', (
+      tester,
+    ) async {
+      await _tvScreen(tester);
+      await tester.pumpWidget(connect(const TvLoginScreen()));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.widgetWithText(TvFocusable, 'm').first);
+      await tester.pump();
+      expect(find.text('m'), findsWidgets);
+
+      // On bascule sur le mot de passe : la frappe y va, et s'y montre en
+      // points.
+      await tester.tap(find.text('MOT DE PASSE'));
+      await tester.pump();
+      await tester.tap(find.widgetWithText(TvFocusable, 'x').first);
+      await tester.pump();
+      expect(find.text('•'), findsOneWidget);
+    });
+
+    testWidgets('se connecter sans identifiants le dit', (tester) async {
+      await _tvScreen(tester);
+      await tester.pumpWidget(connect(const TvLoginScreen()));
+      await tester.pumpAndSettle();
+      final submit = find.widgetWithText(TvPill, 'Se connecter').first;
+      await tester.ensureVisible(submit);
+      await tester.pumpAndSettle();
+      await tester.tap(submit);
+      await tester.pump();
+      expect(
+        find.text('Il faut un nom d\'utilisateur et un mot de passe.'),
+        findsOneWidget,
+      );
+    });
+  });
+
   group('ce qui bloquait sur la vraie télé', () {
-    testWidgets('la croix sort d\'un champ de saisie', (tester) async {
-      await _tvScreen(tester);
-      final field = FocusNode();
-      final below = FocusNode();
-      addTearDown(field.dispose);
-      addTearDown(below.dispose);
-      await tester.pumpWidget(
-        _wrap(
-          Scaffold(
-            body: Column(
-              children: [
-                TvFieldEscape(
-                  child: TextField(focusNode: field, autofocus: true),
-                ),
-                TvPill(
-                  label: 'Se connecter',
-                  focusNode: below,
-                  onPressed: () {},
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-      expect(field.hasPrimaryFocus, isTrue);
-      // Sans l'échappement, la flèche du bas déplacerait le curseur dans le
-      // texte et le focus ne quitterait jamais le champ.
-      await _press(tester, LogicalKeyboardKey.arrowDown);
-      await tester.pumpAndSettle();
-      expect(below.hasPrimaryFocus, isTrue, reason: 'le focus doit sortir du champ');
-    });
-
-    testWidgets('un champ non-TV garde son comportement', (tester) async {
-      await _tvScreen(tester);
-      final field = FocusNode();
-      addTearDown(field.dispose);
-      await tester.pumpWidget(
-        _wrap(
-          Scaffold(
-            body: Column(
-              children: [
-                TvFieldEscape(
-                  enabled: false,
-                  child: TextField(focusNode: field, autofocus: true),
-                ),
-                TvPill(label: 'Se connecter', onPressed: () {}),
-              ],
-            ),
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-      await _press(tester, LogicalKeyboardKey.arrowDown);
-      await tester.pumpAndSettle();
-      expect(field.hasPrimaryFocus, isTrue, reason: 'sur téléphone, rien ne change');
-    });
-
     testWidgets('l\'accueil vise toujours quelque chose', (tester) async {
       await _tvScreen(tester);
       // Bibliothèque vide et rien en lecture : l'état exact d'un premier
@@ -447,10 +562,12 @@ void main() {
             tvDetectedProvider.overrideWithValue(true),
             tvForceInitialProvider.overrideWithValue(TvForce.auto),
             playerActionsProvider.overrideWithValue(_FakePlayerActions()),
-            currentMediaItemProvider
-                .overrideWith((ref) => Stream<MediaItem?>.value(null)),
-            playbackStateProvider
-                .overrideWith((ref) => Stream.value(PlaybackState())),
+            currentMediaItemProvider.overrideWith(
+              (ref) => Stream<MediaItem?>.value(null),
+            ),
+            playbackStateProvider.overrideWith(
+              (ref) => Stream.value(PlaybackState()),
+            ),
             recentAlbumsProvider.overrideWith((ref) async => <Album>[]),
             popularSongsProvider.overrideWith((ref) async => <Song>[]),
             artistsProvider.overrideWith((ref) async => <Artist>[]),

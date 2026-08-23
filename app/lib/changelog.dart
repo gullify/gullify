@@ -8,6 +8,18 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.41.0', [
+    'Google TV — l\'adresse du serveur et les identifiants se tapent enfin. '
+        'Gullify n\'utilise plus le clavier d\'Android sur téléviseur : il '
+        'affiche le sien, dont chaque touche se vise à la croix '
+        'directionnelle et se tape avec « OK ». Le clavier système laissait '
+        'la moitié des boîtiers sans navigation possible',
+    'L\'adresse est pré-remplie avec « https:// », et le bouton de '
+        'validation dit ce qui manque au lieu de sembler mort quand un champ '
+        'est vide',
+    'Écran de connexion : on choisit le champ (utilisateur ou mot de passe) '
+        'puis on tape, le mot de passe s\'affichant en points',
+  ]),
   ReleaseNote('3.40.0', [
     'Google TV — connexion débloquée : les flèches sortent enfin des champs '
         'de saisie. Un champ de texte Android accapare la croix '

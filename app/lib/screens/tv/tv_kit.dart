@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import '../../widgets/artwork.dart';
 
@@ -795,47 +794,6 @@ class TvDot extends StatelessWidget {
     height: size,
     decoration: BoxDecoration(color: color, shape: BoxShape.circle),
   );
-}
-
-/// Laisse la croix directionnelle SORTIR d'un champ de saisie.
-///
-/// Sur Android, un `TextField` qui a le focus consomme les flèches pour
-/// déplacer le curseur : à la télécommande, on entre dans le champ et on n'en
-/// ressort jamais — l'app paraît figée. On réattribue donc haut et bas au
-/// déplacement du focus, en laissant gauche et droite au curseur (utile pour
-/// corriger une lettre).
-///
-/// Un `Shortcuts` placé ici l'emporte sur celui de `WidgetsApp` : la
-/// résolution part du nœud qui a le focus et remonte, le plus proche gagne.
-class TvFieldEscape extends StatelessWidget {
-  const TvFieldEscape({super.key, required this.child, this.enabled = true});
-
-  final Widget child;
-
-  /// Hors téléviseur, on ne touche à rien : le comportement du champ sur
-  /// téléphone reste exactement celui d'avant.
-  final bool enabled;
-
-  @override
-  Widget build(BuildContext context) {
-    if (!enabled) return child;
-    return Shortcuts(
-      // `ignoreTextFields: false` est le cœur de l'affaire : par défaut,
-      // l'action de déplacement du focus ne fait RIEN quand un champ de texte
-      // est visé — c'est précisément la situation dont on cherche à sortir.
-      shortcuts: const {
-        SingleActivator(LogicalKeyboardKey.arrowUp): DirectionalFocusIntent(
-          TraversalDirection.up,
-          ignoreTextFields: false,
-        ),
-        SingleActivator(LogicalKeyboardKey.arrowDown): DirectionalFocusIntent(
-          TraversalDirection.down,
-          ignoreTextFields: false,
-        ),
-      },
-      child: child,
-    );
-  }
 }
 
 /// Une pochette, à l'échelle du téléviseur.
