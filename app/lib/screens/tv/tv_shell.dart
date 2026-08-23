@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../state/tv_log.dart';
 import 'tv_favorites_page.dart';
 import 'tv_home_page.dart';
 import 'tv_kit.dart';
@@ -49,8 +52,49 @@ class _TvShellState extends ConsumerState<TvShell> {
   late TvTab _tab = widget.initialTab;
   bool _railFocused = false;
 
+  /// Filet de sécurité du focus, différé (voir [_rescueFocus]).
+  Timer? _rescue;
+
+  @override
+  void initState() {
+    super.initState();
+    TvLog.add('coque ouverte (${widget.initialTab.name})');
+    _rescueFocus();
+  }
+
+  @override
+  void dispose() {
+    _rescue?.cancel();
+    super.dispose();
+  }
+
+  /// Rattrape un focus tombé dans le vide.
+  ///
+  /// En arrivant de l'écran de connexion, les nœuds de l'écran précédent ont
+  /// disparu et plus rien n'est visé : les flèches ne font alors strictement
+  /// rien, et l'app a l'air plantée. Même chose quand une page se vide en
+  /// attendant ses données. On redonne donc le focus au premier élément
+  /// atteignable, à chaque image où il n'y en a plus.
+  void _rescueFocus() {
+    // Différé : les `autofocus` de la page sont posés au fil des premières
+    // images, et rattraper trop tôt volerait le focus à la page pour le
+    // donner au rail (le premier élément atteignable de la pile).
+    _rescue?.cancel();
+    _rescue = Timer(const Duration(milliseconds: 450), () {
+      if (!mounted) return;
+      final primary = FocusManager.instance.primaryFocus;
+      if (primary == null || primary is FocusScopeNode) {
+        FocusScope.of(context).nextFocus();
+      }
+    });
+  }
+
   void _select(TvTab tab) {
-    if (tab != _tab) setState(() => _tab = tab);
+    if (tab != _tab) {
+      setState(() => _tab = tab);
+      TvLog.add('onglet ${tab.name}');
+    }
+    _rescueFocus();
     // Passer au contenu tout de suite : rester dans le rail après avoir
     // choisi obligerait à un aller-retour de plus à chaque navigation. On
     // pousse le focus vers la droite plutôt que de viser un nœud précis —

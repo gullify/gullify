@@ -42,6 +42,7 @@ import 'screens/settings_screen.dart';
 import 'screens/shell_screen.dart';
 import 'screens/splash_screen.dart';
 import 'screens/stats_screen.dart';
+import 'screens/tv_log_screen.dart';
 import 'screens/tv/tv_album_screen.dart';
 import 'screens/tv/tv_artist_screen.dart';
 import 'screens/tv/tv_now_playing_screen.dart';
@@ -133,10 +134,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(path: '/games/cover', builder: (_, _) => const CoverGameScreen()),
       GoRoute(path: '/games/duel', builder: (_, _) => const DuelGameScreen()),
-      GoRoute(
-        path: '/games/swipe',
-        builder: (_, _) => const SwipeGameScreen(),
-      ),
+      GoRoute(path: '/games/swipe', builder: (_, _) => const SwipeGameScreen()),
       GoRoute(path: '/games/party', builder: (_, _) => const PartyScreen()),
       GoRoute(
         path: '/artist/:id',
@@ -186,18 +184,12 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/settings/equalizer',
         builder: (_, _) => const EqualizerScreen(),
       ),
-      GoRoute(
-        path: '/settings/fade',
-        builder: (_, _) => const FadeScreen(),
-      ),
+      GoRoute(path: '/settings/fade', builder: (_, _) => const FadeScreen()),
       GoRoute(
         path: '/settings/buffer',
         builder: (_, _) => const BufferScreen(),
       ),
-      GoRoute(
-        path: '/settings/alarm',
-        builder: (_, _) => const AlarmScreen(),
-      ),
+      GoRoute(path: '/settings/alarm', builder: (_, _) => const AlarmScreen()),
       // Le réveil qui sonne (idée #81) : hors du shell, plein écran — il
       // s'ouvre souvent par-dessus l'écran verrouillé.
       GoRoute(path: '/alarm', builder: (_, _) => const AlarmRingScreen()),
@@ -256,6 +248,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       // Une interface entière en parallèle plutôt que des conditions dans les
       // écrans tactiles : les deux mises en page n'ont presque rien en commun,
       // et les mêler rendrait les deux illisibles.
+      GoRoute(path: '/settings/tv-log', builder: (_, _) => const TvLogScreen()),
       GoRoute(path: '/tv', builder: (_, _) => const TvShell()),
       GoRoute(
         path: '/tv/album/:id',

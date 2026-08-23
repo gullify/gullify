@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
+import '../../widgets/artwork.dart';
 
 /// Les briques de l'interface à dix pieds.
 ///
@@ -31,8 +34,16 @@ const _ko = Color(0xFFE5484D);
 /// accent. Deux couches plutôt qu'une seule couleur — sur une pochette
 /// claire, un halo indigo seul disparaît.
 List<BoxShadow> tvFocusGlow(Color accent, {double spread = 6}) => [
-  BoxShadow(color: accent.withValues(alpha: 0.55), blurRadius: spread * 4, spreadRadius: spread),
-  const BoxShadow(color: Color(0x99000000), blurRadius: 40, offset: Offset(0, 18)),
+  BoxShadow(
+    color: accent.withValues(alpha: 0.55),
+    blurRadius: spread * 4,
+    spreadRadius: spread,
+  ),
+  const BoxShadow(
+    color: Color(0x99000000),
+    blurRadius: 40,
+    offset: Offset(0, 18),
+  ),
 ];
 
 Border tvFocusBorder(Color accent) =>
@@ -267,7 +278,11 @@ class TvCard extends StatelessWidget {
                     artwork ??
                     ColoredBox(
                       color: scheme.surfaceContainerHighest,
-                      child: Icon(icon, size: size * 0.3, color: scheme.onSurfaceVariant),
+                      child: Icon(
+                        icon,
+                        size: size * 0.3,
+                        color: scheme.onSurfaceVariant,
+                      ),
                     ),
               ),
             ),
@@ -386,11 +401,16 @@ class TvPill extends StatelessWidget {
     this.accent = true,
     this.autofocus = false,
     this.expand = false,
+    this.focusNode,
   });
 
   final String label;
   final IconData? icon;
   final VoidCallback? onPressed;
+
+  /// Pour viser ce bouton depuis l'extérieur (ordre de parcours imposé,
+  /// tests).
+  final FocusNode? focusNode;
 
   /// Fond accent (l'action principale) ou verre (les secondaires).
   final bool accent;
@@ -403,6 +423,7 @@ class TvPill extends StatelessWidget {
     return TvFocusable(
       onPressed: onPressed,
       autofocus: autofocus,
+      focusNode: focusNode,
       scale: 1.05,
       builder: (context, focused) {
         final bg = accent
@@ -410,7 +431,9 @@ class TvPill extends StatelessWidget {
             : Colors.white.withValues(alpha: focused ? 0.18 : 0.08);
         return Container(
           height: 66,
-          padding: EdgeInsets.symmetric(horizontal: icon != null && label.isEmpty ? 22 : 34),
+          padding: EdgeInsets.symmetric(
+            horizontal: icon != null && label.isEmpty ? 22 : 34,
+          ),
           decoration: BoxDecoration(
             color: bg,
             borderRadius: BorderRadius.circular(33),
@@ -474,7 +497,11 @@ class TvGlass extends StatelessWidget {
       borderRadius: BorderRadius.circular(radius),
       border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
       boxShadow: const [
-        BoxShadow(color: Color(0x73000000), blurRadius: 60, offset: Offset(0, 24)),
+        BoxShadow(
+          color: Color(0x73000000),
+          blurRadius: 60,
+          offset: Offset(0, 24),
+        ),
       ],
     ),
     child: child,
@@ -651,7 +678,12 @@ class _TvEqBarsState extends State<TvEqBars>
 
 /// Message d'écran vide, à l'échelle du salon.
 class TvEmpty extends StatelessWidget {
-  const TvEmpty({super.key, required this.message, this.hint, this.icon = Icons.music_off_rounded});
+  const TvEmpty({
+    super.key,
+    required this.message,
+    this.hint,
+    this.icon = Icons.music_off_rounded,
+  });
 
   final String message;
   final String? hint;
@@ -664,12 +696,20 @@ class TvEmpty extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 84, color: scheme.onSurfaceVariant.withValues(alpha: 0.5)),
+          Icon(
+            icon,
+            size: 84,
+            color: scheme.onSurfaceVariant.withValues(alpha: 0.5),
+          ),
           const SizedBox(height: 22),
           Text(
             message,
             textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 34, fontWeight: FontWeight.w800, letterSpacing: -0.5),
+            style: const TextStyle(
+              fontSize: 34,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.5,
+            ),
           ),
           if (hint != null) ...[
             const SizedBox(height: 10),
@@ -678,7 +718,11 @@ class TvEmpty extends StatelessWidget {
               child: Text(
                 hint!,
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 24, height: 1.4, color: scheme.onSurfaceVariant),
+                style: TextStyle(
+                  fontSize: 24,
+                  height: 1.4,
+                  color: scheme.onSurfaceVariant,
+                ),
               ),
             ),
           ],
@@ -750,5 +794,90 @@ class TvDot extends StatelessWidget {
     width: size,
     height: size,
     decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+  );
+}
+
+/// Laisse la croix directionnelle SORTIR d'un champ de saisie.
+///
+/// Sur Android, un `TextField` qui a le focus consomme les flèches pour
+/// déplacer le curseur : à la télécommande, on entre dans le champ et on n'en
+/// ressort jamais — l'app paraît figée. On réattribue donc haut et bas au
+/// déplacement du focus, en laissant gauche et droite au curseur (utile pour
+/// corriger une lettre).
+///
+/// Un `Shortcuts` placé ici l'emporte sur celui de `WidgetsApp` : la
+/// résolution part du nœud qui a le focus et remonte, le plus proche gagne.
+class TvFieldEscape extends StatelessWidget {
+  const TvFieldEscape({super.key, required this.child, this.enabled = true});
+
+  final Widget child;
+
+  /// Hors téléviseur, on ne touche à rien : le comportement du champ sur
+  /// téléphone reste exactement celui d'avant.
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!enabled) return child;
+    return Shortcuts(
+      // `ignoreTextFields: false` est le cœur de l'affaire : par défaut,
+      // l'action de déplacement du focus ne fait RIEN quand un champ de texte
+      // est visé — c'est précisément la situation dont on cherche à sortir.
+      shortcuts: const {
+        SingleActivator(LogicalKeyboardKey.arrowUp): DirectionalFocusIntent(
+          TraversalDirection.up,
+          ignoreTextFields: false,
+        ),
+        SingleActivator(LogicalKeyboardKey.arrowDown): DirectionalFocusIntent(
+          TraversalDirection.down,
+          ignoreTextFields: false,
+        ),
+      },
+      child: child,
+    );
+  }
+}
+
+/// Une pochette, à l'échelle du téléviseur.
+///
+/// Identique à [Artwork], mais demande au serveur une image DÉJÀ réduite :
+/// `serve_image.php` rend la source (souvent 1400 px et plus), et un écran
+/// d'accueil en charge soixante d'un coup. Sur un boîtier Google TV, c'est
+/// autant de mégaoctets à faire transiter et à décoder pour rien.
+///
+/// La taille demandée est arrondie à une poignée de paliers : le serveur
+/// garde une copie par palier, autant qu'elle serve à toutes les vignettes.
+class TvArtwork extends StatelessWidget {
+  const TvArtwork({
+    super.key,
+    required this.url,
+    this.size,
+    this.borderRadius = 10,
+    this.icon = Icons.album,
+  });
+
+  final String? url;
+  final double? size;
+  final double borderRadius;
+  final IconData icon;
+
+  /// Paliers demandés au serveur (qui plafonne lui-même à 1024).
+  static const _steps = [128, 256, 384, 512, 768, 1024];
+
+  static String? sized(String? url, double? size, double dpr) {
+    if (url == null || size == null || !url.contains('serve_image.php')) {
+      return url;
+    }
+    final needed = (size * dpr).round();
+    final step = _steps.firstWhere((s) => s >= needed, orElse: () => 1024);
+    return '$url&size=$step';
+  }
+
+  @override
+  Widget build(BuildContext context) => Artwork(
+    url: sized(url, size, MediaQuery.maybeDevicePixelRatioOf(context) ?? 1.0),
+    size: size,
+    borderRadius: borderRadius,
+    icon: icon,
   );
 }

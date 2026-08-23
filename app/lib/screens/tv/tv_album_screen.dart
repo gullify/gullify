@@ -5,7 +5,6 @@ import 'package:go_router/go_router.dart';
 import '../../models/song.dart';
 import '../../state/library.dart';
 import '../../state/player.dart';
-import '../../widgets/artwork.dart';
 import 'tv_kit.dart';
 
 /// Un album : son identité plantée à gauche, ses pistes à droite.
@@ -40,7 +39,11 @@ class TvAlbumScreen extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Artwork(url: d.album.artworkUrl, size: 430, borderRadius: 30),
+                  TvArtwork(
+                    url: d.album.artworkUrl,
+                    size: 430,
+                    borderRadius: 30,
+                  ),
                   const SizedBox(height: 28),
                   Text(
                     d.album.name,

@@ -7,7 +7,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../state/player.dart';
-import '../../widgets/artwork.dart';
 import 'tv_kit.dart';
 
 /// L'écran de lecture, plein cadre.
@@ -48,10 +47,7 @@ class TvNowPlayingScreen extends ConsumerWidget {
         fit: StackFit.expand,
         children: [
           // Le fond, c'est la pochette : floutée, saturée, voilée.
-          if (art != null)
-            _Backdrop(url: art)
-          else
-            const SizedBox.shrink(),
+          if (art != null) _Backdrop(url: art) else const SizedBox.shrink(),
           Positioned.fill(
             child: DecoratedBox(
               decoration: BoxDecoration(
@@ -80,7 +76,7 @@ class TvNowPlayingScreen extends ConsumerWidget {
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      Artwork(url: art, size: 440, borderRadius: 32),
+                      TvArtwork(url: art, size: 440, borderRadius: 32),
                       const SizedBox(width: 70),
                       Expanded(
                         child: _Details(
@@ -92,7 +88,8 @@ class TvNowPlayingScreen extends ConsumerWidget {
                     ],
                   ),
                 ),
-                if (upNext.isNotEmpty) _UpNext(items: upNext, total: queue.length - index - 1),
+                if (upNext.isNotEmpty)
+                  _UpNext(items: upNext, total: queue.length - index - 1),
               ],
             ),
           ),
@@ -111,11 +108,12 @@ class _Backdrop extends StatelessWidget {
   Widget build(BuildContext context) => Transform.scale(
     scale: 1.3,
     child: ImageFiltered(
-      imageFilter: ImageFilter.blur(sigmaX: 70, sigmaY: 70, tileMode: TileMode.decal),
-      child: Opacity(
-        opacity: 0.5,
-        child: Artwork(url: url, borderRadius: 0),
+      imageFilter: ImageFilter.blur(
+        sigmaX: 70,
+        sigmaY: 70,
+        tileMode: TileMode.decal,
       ),
+      child: Opacity(opacity: 0.5, child: TvArtwork(url: url, borderRadius: 0)),
     ),
   );
 }
@@ -251,11 +249,13 @@ class _Scrubber extends ConsumerWidget {
 
     void seekBy(int seconds) {
       final target = position + Duration(seconds: seconds);
-      ref.read(playerActionsProvider).seek(
-        target < Duration.zero
-            ? Duration.zero
-            : (target > total ? total : target),
-      );
+      ref
+          .read(playerActionsProvider)
+          .seek(
+            target < Duration.zero
+                ? Duration.zero
+                : (target > total ? total : target),
+          );
     }
 
     return Focus(
@@ -368,9 +368,7 @@ class _WavePainter extends CustomPainter {
       final x = i * (width + gap);
       final y = (size.height - h) / 2;
       final paint = Paint()
-        ..color = i == head
-            ? Colors.white
-            : (i < head ? played : rest);
+        ..color = i == head ? Colors.white : (i < head ? played : rest);
       canvas.drawRRect(
         RRect.fromRectAndRadius(
           Rect.fromLTWH(x, y, width, h),
@@ -411,7 +409,7 @@ class _UpNext extends StatelessWidget {
         for (var i = 0; i < items.length; i++) ...[
           Opacity(
             opacity: 1 - i * 0.14,
-            child: Artwork(
+            child: TvArtwork(
               url: items[i].artUri?.toString(),
               size: 74,
               borderRadius: 14,

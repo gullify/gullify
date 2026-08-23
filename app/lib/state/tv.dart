@@ -30,7 +30,8 @@ TvForce _parseForce(String? raw) => switch (raw) {
 /// routeur en a besoin avant de construire quoi que ce soit, et une valeur
 /// qui arriverait après coup ferait clignoter l'app d'une interface à l'autre.
 final tvDetectedProvider = Provider<bool>(
-  (_) => throw StateError('tvDetectedProvider doit être surchargé au démarrage'),
+  (_) =>
+      throw StateError('tvDetectedProvider doit être surchargé au démarrage'),
 );
 
 /// Le forçage manuel relu au démarrage (surchargé depuis `main()` lui aussi).

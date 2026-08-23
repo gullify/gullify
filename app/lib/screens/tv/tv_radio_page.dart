@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 
 import '../../state/player.dart';
 import '../../state/radio.dart';
-import '../../widgets/artwork.dart';
 import 'tv_kit.dart';
 
 /// Les radios : une grille de logos, un appui pour lancer le flux.
@@ -46,7 +45,9 @@ class TvRadioPage extends ConsumerWidget {
                       crossAxisCount: columns,
                       mainAxisSpacing: 34,
                       crossAxisSpacing: gap,
-                      childAspectRatio: cell / (cell + 84),
+                      // Une contrainte dégénérée ne doit jamais produire un rapport
+                      // nul : en release, il finirait en NaN dans la géométrie.
+                      childAspectRatio: cell > 0 ? cell / (cell + 84) : 1,
                     ),
                     itemCount: list.length,
                     itemBuilder: (context, i) => TvCard(
@@ -57,7 +58,7 @@ class TvRadioPage extends ConsumerWidget {
                       size: cell,
                       autofocus: i == 0,
                       icon: Icons.radio_rounded,
-                      artwork: Artwork(url: list[i].logo, borderRadius: 0),
+                      artwork: TvArtwork(url: list[i].logo, borderRadius: 0),
                       onPressed: () async {
                         await ref
                             .read(playerActionsProvider)

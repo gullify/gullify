@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../api/api_client.dart';
 import '../state/auth.dart';
+import '../state/tv.dart';
+import 'tv/tv_kit.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -50,6 +52,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Sur téléviseur, les flèches doivent pouvoir sortir des champs de
+    // saisie : voir TvFieldEscape.
+    final tv = ref.watch(tvModeProvider);
     final serverUrl = ref.watch(authProvider).serverUrl ?? '';
     return Scaffold(
       body: Center(
@@ -67,8 +72,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   'Connexion',
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
                 const SizedBox(height: 8),
                 Text(
@@ -77,29 +82,35 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
                 const SizedBox(height: 32),
-                TextField(
-                  controller: _userController,
-                  autocorrect: false,
-                  decoration: const InputDecoration(
-                    labelText: "Nom d'utilisateur",
-                    prefixIcon: Icon(Icons.person_outline),
+                TvFieldEscape(
+                  enabled: tv,
+                  child: TextField(
+                    controller: _userController,
+                    autocorrect: false,
+                    decoration: const InputDecoration(
+                      labelText: "Nom d'utilisateur",
+                      prefixIcon: Icon(Icons.person_outline),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 16),
-                TextField(
-                  controller: _passController,
-                  obscureText: _obscure,
-                  decoration: InputDecoration(
-                    labelText: 'Mot de passe',
-                    prefixIcon: const Icon(Icons.lock_outline),
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        _obscure ? Icons.visibility_off : Icons.visibility,
+                TvFieldEscape(
+                  enabled: tv,
+                  child: TextField(
+                    controller: _passController,
+                    obscureText: _obscure,
+                    decoration: InputDecoration(
+                      labelText: 'Mot de passe',
+                      prefixIcon: const Icon(Icons.lock_outline),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _obscure ? Icons.visibility_off : Icons.visibility,
+                        ),
+                        onPressed: () => setState(() => _obscure = !_obscure),
                       ),
-                      onPressed: () => setState(() => _obscure = !_obscure),
                     ),
+                    onSubmitted: (_) => _login(),
                   ),
-                  onSubmitted: (_) => _login(),
                 ),
                 if (_error != null) ...[
                   const SizedBox(height: 12),

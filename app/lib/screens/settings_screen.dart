@@ -24,7 +24,7 @@ import '../widgets/retro_chrome.dart';
 import '../widgets/retro_lcd.dart';
 import '../widgets/update_dialog.dart';
 
-const appVersion = '3.39.0';
+const appVersion = '3.40.0';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -127,6 +127,13 @@ class SettingsScreen extends ConsumerWidget {
             onTap: () => context.push('/settings/ideas'),
           ),
           const _TvModeTile(),
+          ListTile(
+            leading: const Icon(Icons.tv_outlined),
+            title: const Text('Journal du téléviseur'),
+            subtitle: const Text('Fil des écrans et erreurs, gardé sur disque'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.push('/settings/tv-log'),
+          ),
           if (!kIsWeb && Platform.isAndroid)
             ListTile(
               leading: const Icon(Icons.directions_car_outlined),
@@ -218,9 +225,7 @@ class _ProfilePhotoTileState extends ConsumerState<_ProfilePhotoTile> {
     try {
       await ref.read(authProvider.notifier).setAvatar(picked.path);
     } catch (e) {
-      messenger.showSnackBar(
-        SnackBar(content: Text("Échec de l'envoi : $e")),
-      );
+      messenger.showSnackBar(SnackBar(content: Text("Échec de l'envoi : $e")));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -232,9 +237,7 @@ class _ProfilePhotoTileState extends ConsumerState<_ProfilePhotoTile> {
     try {
       await ref.read(authProvider.notifier).removeAvatar();
     } catch (e) {
-      messenger.showSnackBar(
-        SnackBar(content: Text('Échec : $e')),
-      );
+      messenger.showSnackBar(SnackBar(content: Text('Échec : $e')));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -289,9 +292,7 @@ class _ProfilePhotoTileState extends ConsumerState<_ProfilePhotoTile> {
             : null,
       ),
       title: Text(user?.fullName ?? user?.username ?? ''),
-      subtitle: Text(
-        user == null ? '' : '${user.username} · Photo de profil',
-      ),
+      subtitle: Text(user == null ? '' : '${user.username} · Photo de profil'),
       trailing: _busy
           ? const SizedBox(
               width: 20,
@@ -351,7 +352,7 @@ class _BufferTile extends ConsumerWidget {
           buffer.ahead == 0
               ? 'Tout passe par le réseau au moment de jouer'
               : '${formatBufferAhead(buffer.ahead)}'
-                  '${buffer.count > 0 ? ' · ${buffer.count} en réserve' : ''}',
+                    '${buffer.count > 0 ? ' · ${buffer.count} en réserve' : ''}',
         ),
         trailing: const Icon(Icons.chevron_right),
         onTap: () => context.push('/settings/buffer'),
@@ -414,13 +415,11 @@ class _BackgroundPlaybackTileState extends State<_BackgroundPlaybackTile> {
         color: _ok == false ? scheme.error : null,
       ),
       title: const Text('Lecture écran éteint'),
-      subtitle: Text(
-        switch (_ok) {
-          true => 'Exemption de batterie accordée',
-          false => 'À autoriser — sinon la musique se coupe en veille',
-          null => 'Vérification…',
-        },
-      ),
+      subtitle: Text(switch (_ok) {
+        true => 'Exemption de batterie accordée',
+        false => 'À autoriser — sinon la musique se coupe en veille',
+        null => 'Vérification…',
+      }),
       onTap: _ok == true
           ? null
           : () async {
@@ -731,8 +730,7 @@ class _TvModeTile extends ConsumerWidget {
       ),
       trailing: Switch(
         value: tv,
-        onChanged: (v) =>
-            notifier.setForce(v ? TvForce.tv : TvForce.handheld),
+        onChanged: (v) => notifier.setForce(v ? TvForce.tv : TvForce.handheld),
       ),
       onLongPress: auto ? null : () => notifier.setForce(TvForce.auto),
     );

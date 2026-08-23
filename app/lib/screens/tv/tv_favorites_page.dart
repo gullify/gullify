@@ -5,7 +5,6 @@ import 'package:go_router/go_router.dart';
 import '../../models/song.dart';
 import '../../state/favorites.dart';
 import '../../state/player.dart';
-import '../../widgets/artwork.dart';
 import 'tv_kit.dart';
 
 /// Les favoris : une liste de titres, la pochette du titre visé en grand.
@@ -66,7 +65,7 @@ class _TvFavoritesPageState extends ConsumerState<TvFavoritesPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Artwork(
+                      TvArtwork(
                         url: songs[_preview.clamp(0, songs.length - 1)]
                             .artworkUrl,
                         size: 380,

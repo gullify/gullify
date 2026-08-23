@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 
 import '../../state/library.dart';
 import '../../state/player.dart';
-import '../../widgets/artwork.dart';
 import 'tv_kit.dart';
 
 /// La recherche au clavier à l'écran.
@@ -80,11 +79,12 @@ class _TvSearchPageState extends ConsumerState<TvSearchPage> {
                                   height: 300,
                                   itemBuilder: (context, i, onFocus) => TvCard(
                                     title: r.artists[i].name,
-                                    subtitle: '${r.artists[i].albumCount} albums',
+                                    subtitle:
+                                        '${r.artists[i].albumCount} albums',
                                     size: 200,
                                     round: true,
                                     icon: Icons.person_rounded,
-                                    artwork: Artwork(
+                                    artwork: TvArtwork(
                                       url: r.artists[i].imageUrl,
                                       borderRadius: 0,
                                     ),
@@ -106,7 +106,7 @@ class _TvSearchPageState extends ConsumerState<TvSearchPage> {
                                     title: r.albums[i].name,
                                     subtitle: r.albums[i].artistName,
                                     size: 200,
-                                    artwork: Artwork(
+                                    artwork: TvArtwork(
                                       url: r.albums[i].artworkUrl,
                                       borderRadius: 0,
                                     ),
@@ -132,10 +132,7 @@ class _TvSearchPageState extends ConsumerState<TvSearchPage> {
                                       onPressed: () async {
                                         await ref
                                             .read(playerActionsProvider)
-                                            .playSongs(
-                                              r.songs,
-                                              startIndex: i,
-                                            );
+                                            .playSongs(r.songs, startIndex: i);
                                         if (context.mounted) {
                                           context.push('/tv/playing');
                                         }

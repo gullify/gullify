@@ -44,6 +44,17 @@ class Artwork extends StatelessWidget {
     final retro =
         Theme.of(context).extension<GullifySurfaces>()?.retro ?? false;
 
+    // Décodage borné à ce qui est réellement affiché.
+    //
+    // `serve_image.php` rend la pochette SOURCE, souvent en 1400 px et plus :
+    // sans cette borne, une vignette de 56 px occupait quand même ~8 Mo en
+    // mémoire une fois décodée. Sur un téléphone ça passait ; sur un boîtier
+    // Google TV, un écran d'accueil plein de pochettes épuisait la mémoire et
+    // l'app finissait par se faire tuer. On décode donc à la taille affichée,
+    // au facteur de pixels près pour rester net.
+    final dpr = MediaQuery.maybeDevicePixelRatioOf(context) ?? 1.0;
+    final decode = size == null ? null : (size! * dpr).round();
+
     return ClipRRect(
       borderRadius: BorderRadius.circular(retro ? 0 : borderRadius),
       child: url == null
@@ -52,6 +63,8 @@ class Artwork extends StatelessWidget {
               imageUrl: url!,
               width: size,
               height: size,
+              memCacheWidth: decode,
+              memCacheHeight: decode,
               fit: BoxFit.cover,
               placeholder: (_, _) => placeholder,
               errorWidget: (_, _, _) => placeholder,

@@ -10,6 +10,7 @@ import 'state/alarm.dart';
 import 'state/app_theme.dart';
 import 'state/player.dart';
 import 'state/tv.dart';
+import 'state/tv_log.dart';
 import 'theme.dart';
 import 'widgets/keyboard_guard.dart';
 import 'widgets/liquid_glass.dart';
@@ -32,6 +33,18 @@ Future<void> main() async {
   // le premier affichage : le routeur choisit son interface là-dessus, et une
   // réponse qui arriverait après coup ferait clignoter l'app.
   final tv = await detectTelevision();
+
+  if (tv.detected || tv.force == TvForce.tv) {
+    // Un boîtier Google TV a rarement plus de 2 Go : les 100 Mo que Flutter
+    // réserve par défaut aux images décodées y pèsent trop lourd.
+    PaintingBinding.instance.imageCache.maximumSizeBytes = 48 << 20;
+    // Journal gardé sur le disque : c'est la seule façon de savoir ce qui
+    // s'est passé quand l'app a été fermée d'autorité, personne n'allant
+    // brancher un ordinateur sur son téléviseur.
+    await TvLog.start();
+    TvLog.captureErrors();
+    TvLog.add('téléviseur ${tv.detected ? "détecté" : "forcé"}');
+  }
 
   // Container indépendant de l'arbre de widgets : quand Android Auto lance
   // l'app sans interface (téléphone verrouillé), aucun widget ne se
@@ -164,40 +177,41 @@ class _GullifyAppState extends ConsumerState<GullifyApp>
             decoration: BoxDecoration(gradient: bg),
             child: chassis(
               Stack(
-              children: [
-                // Apple Liquid Glass : le fond d'écran d'iOS (idée #99). Il
-                // REMPLACE les deux halos discrets — c'est lui qui donne au
-                // verre quelque chose à laisser passer, sans quoi la vitre la
-                // plus fine ne rend qu'un gris (« je ne vois même pas la
-                // différence »).
-                if ((surfaces?.liquid ?? false) && surfaces?.accentBlob != null)
-                  Positioned.fill(
-                    child: LiquidWallpaper(
-                      accent: surfaces!.accentBlob!,
-                      dark: Theme.of(context).brightness == Brightness.dark,
-                    ),
-                  )
-                // Halo d'accent diffus (design) : lueur douce en haut d'écran.
-                else if (surfaces?.accentBlob != null)
-                  Positioned(
-                    top: -140,
-                    left: -60,
-                    child: Container(
-                      width: 420,
-                      height: 420,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: RadialGradient(
-                          colors: [
-                            surfaces!.accentBlob!.withValues(alpha: 0.16),
-                            surfaces.accentBlob!.withValues(alpha: 0.0),
-                          ],
+                children: [
+                  // Apple Liquid Glass : le fond d'écran d'iOS (idée #99). Il
+                  // REMPLACE les deux halos discrets — c'est lui qui donne au
+                  // verre quelque chose à laisser passer, sans quoi la vitre la
+                  // plus fine ne rend qu'un gris (« je ne vois même pas la
+                  // différence »).
+                  if ((surfaces?.liquid ?? false) &&
+                      surfaces?.accentBlob != null)
+                    Positioned.fill(
+                      child: LiquidWallpaper(
+                        accent: surfaces!.accentBlob!,
+                        dark: Theme.of(context).brightness == Brightness.dark,
+                      ),
+                    )
+                  // Halo d'accent diffus (design) : lueur douce en haut d'écran.
+                  else if (surfaces?.accentBlob != null)
+                    Positioned(
+                      top: -140,
+                      left: -60,
+                      child: Container(
+                        width: 420,
+                        height: 420,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: RadialGradient(
+                            colors: [
+                              surfaces!.accentBlob!.withValues(alpha: 0.16),
+                              surfaces.accentBlob!.withValues(alpha: 0.0),
+                            ],
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                child,
-              ],
+                  child,
+                ],
               ),
             ),
           ),

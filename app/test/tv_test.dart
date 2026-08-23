@@ -378,6 +378,119 @@ void main() {
     });
   });
 
+  group('ce qui bloquait sur la vraie télé', () {
+    testWidgets('la croix sort d\'un champ de saisie', (tester) async {
+      await _tvScreen(tester);
+      final field = FocusNode();
+      final below = FocusNode();
+      addTearDown(field.dispose);
+      addTearDown(below.dispose);
+      await tester.pumpWidget(
+        _wrap(
+          Scaffold(
+            body: Column(
+              children: [
+                TvFieldEscape(
+                  child: TextField(focusNode: field, autofocus: true),
+                ),
+                TvPill(
+                  label: 'Se connecter',
+                  focusNode: below,
+                  onPressed: () {},
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(field.hasPrimaryFocus, isTrue);
+      // Sans l'échappement, la flèche du bas déplacerait le curseur dans le
+      // texte et le focus ne quitterait jamais le champ.
+      await _press(tester, LogicalKeyboardKey.arrowDown);
+      await tester.pumpAndSettle();
+      expect(below.hasPrimaryFocus, isTrue, reason: 'le focus doit sortir du champ');
+    });
+
+    testWidgets('un champ non-TV garde son comportement', (tester) async {
+      await _tvScreen(tester);
+      final field = FocusNode();
+      addTearDown(field.dispose);
+      await tester.pumpWidget(
+        _wrap(
+          Scaffold(
+            body: Column(
+              children: [
+                TvFieldEscape(
+                  enabled: false,
+                  child: TextField(focusNode: field, autofocus: true),
+                ),
+                TvPill(label: 'Se connecter', onPressed: () {}),
+              ],
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await _press(tester, LogicalKeyboardKey.arrowDown);
+      await tester.pumpAndSettle();
+      expect(field.hasPrimaryFocus, isTrue, reason: 'sur téléphone, rien ne change');
+    });
+
+    testWidgets('l\'accueil vise toujours quelque chose', (tester) async {
+      await _tvScreen(tester);
+      // Bibliothèque vide et rien en lecture : l'état exact d'un premier
+      // démarrage, juste après la connexion.
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            tvDetectedProvider.overrideWithValue(true),
+            tvForceInitialProvider.overrideWithValue(TvForce.auto),
+            playerActionsProvider.overrideWithValue(_FakePlayerActions()),
+            currentMediaItemProvider
+                .overrideWith((ref) => Stream<MediaItem?>.value(null)),
+            playbackStateProvider
+                .overrideWith((ref) => Stream.value(PlaybackState())),
+            recentAlbumsProvider.overrideWith((ref) async => <Album>[]),
+            popularSongsProvider.overrideWith((ref) async => <Song>[]),
+            artistsProvider.overrideWith((ref) async => <Artist>[]),
+            allFavoritesProvider.overrideWith((ref) async => <Song>[]),
+          ],
+          child: MaterialApp(
+            theme: gullifyThemeFor(GullifyAccent.indigo, dark: true),
+            home: const TvShell(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        FocusManager.instance.primaryFocus?.context,
+        isNotNull,
+        reason: 'sans nœud visé, la télécommande ne répond à rien',
+      );
+      expect(tester.takeException(), isNull);
+    });
+
+    test('les pochettes sont demandées à la taille affichée', () {
+      // La source fait souvent 1400 px : la demander telle quelle pour une
+      // vignette de 250 px est ce qui saturait la mémoire du boîtier.
+      expect(
+        TvArtwork.sized('serve_image.php?album_id=1', 250, 1),
+        'serve_image.php?album_id=1&size=256',
+      );
+      expect(
+        TvArtwork.sized('serve_image.php?album_id=1', 440, 2),
+        'serve_image.php?album_id=1&size=1024',
+      );
+      // Ce qui ne vient pas du serveur d'images n'est pas touché.
+      expect(
+        TvArtwork.sized('https://ailleurs.test/x.jpg', 250, 1),
+        'https://ailleurs.test/x.jpg',
+      );
+      expect(TvArtwork.sized(null, 250, 1), isNull);
+    });
+  });
+
   group('les mises à jour, depuis la télé', () {
     const info = UpdateInfo(
       versionCode: 200,

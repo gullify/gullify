@@ -8,7 +8,6 @@ import '../../models/song.dart';
 import '../../state/favorites.dart';
 import '../../state/library.dart';
 import '../../state/player.dart';
-import '../../widgets/artwork.dart';
 import 'tv_kit.dart';
 
 /// L'accueil du téléviseur : un bandeau de reprise, puis des rangées.
@@ -37,10 +36,7 @@ class TvHomePage extends ConsumerWidget {
         _Hero(albums: albums.value ?? const []),
         const SizedBox(height: 54),
         if ((albums.value ?? const []).isNotEmpty)
-          _AlbumShelf(
-            label: 'Derniers ajouts',
-            albums: albums.value!,
-          ),
+          _AlbumShelf(label: 'Derniers ajouts', albums: albums.value!),
         if ((popular.value ?? const []).isNotEmpty) ...[
           const SizedBox(height: 46),
           _SongShelf(label: 'Les plus écoutés', songs: popular.value!),
@@ -84,8 +80,7 @@ class _Hero extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final scheme = Theme.of(context).colorScheme;
     final current = ref.watch(currentMediaItemProvider).value;
-    final playing =
-        ref.watch(playbackStateProvider).value?.playing ?? false;
+    final playing = ref.watch(playbackStateProvider).value?.playing ?? false;
     final album = albums.isEmpty ? null : albums.first;
 
     final title = current?.title ?? album?.name ?? 'Ta bibliothèque';
@@ -110,7 +105,7 @@ class _Hero extends ConsumerWidget {
               ),
             ],
           ),
-          child: Artwork(url: art, size: 300, borderRadius: 26),
+          child: TvArtwork(url: art, size: 300, borderRadius: 26),
         ),
         const SizedBox(width: 44),
         Expanded(
@@ -154,6 +149,10 @@ class _Hero extends ConsumerWidget {
                   ),
                 ],
                 const SizedBox(height: 26),
+                // Une seule cible, toujours à la même place : le premier
+                // bouton. Au chargement il n'y a que « Tout mélanger », et
+                // quand la bibliothèque arrive il devient « Écouter » — le
+                // même emplacement, donc le focus ne bouge pas.
                 Row(
                   children: [
                     if (current != null)
@@ -171,14 +170,23 @@ class _Hero extends ConsumerWidget {
                         icon: Icons.play_arrow_rounded,
                         autofocus: true,
                         onPressed: () => _playAlbum(context, ref, album),
+                      )
+                    else
+                      TvPill(
+                        label: 'Tout mélanger',
+                        icon: Icons.shuffle_rounded,
+                        autofocus: true,
+                        onPressed: () => _shuffleAll(context, ref),
                       ),
-                    const SizedBox(width: 16),
-                    TvPill(
-                      label: 'Tout mélanger',
-                      icon: Icons.shuffle_rounded,
-                      accent: false,
-                      onPressed: () => _shuffleAll(context, ref),
-                    ),
+                    if (current != null || album != null) ...[
+                      const SizedBox(width: 16),
+                      TvPill(
+                        label: 'Tout mélanger',
+                        icon: Icons.shuffle_rounded,
+                        accent: false,
+                        onPressed: () => _shuffleAll(context, ref),
+                      ),
+                    ],
                   ],
                 ),
               ],
@@ -225,7 +233,11 @@ class _AlbumShelf extends StatelessWidget {
       itemBuilder: (context, i, onFocus) => TvCard(
         title: shown[i].name,
         subtitle: shown[i].artistName,
-        artwork: Artwork(url: shown[i].artworkUrl, size: 250, borderRadius: 0),
+        artwork: TvArtwork(
+          url: shown[i].artworkUrl,
+          size: 250,
+          borderRadius: 0,
+        ),
         onFocusChange: (f) {
           if (f) onFocus();
         },
@@ -250,15 +262,17 @@ class _SongShelf extends ConsumerWidget {
       itemBuilder: (context, i, onFocus) => TvCard(
         title: shown[i].title,
         subtitle: shown[i].artistName,
-        artwork: Artwork(url: shown[i].artworkUrl, size: 250, borderRadius: 0),
+        artwork: TvArtwork(
+          url: shown[i].artworkUrl,
+          size: 250,
+          borderRadius: 0,
+        ),
         icon: Icons.music_note_rounded,
         onFocusChange: (f) {
           if (f) onFocus();
         },
         onPressed: () async {
-          await ref
-              .read(playerActionsProvider)
-              .playSongs(shown, startIndex: i);
+          await ref.read(playerActionsProvider).playSongs(shown, startIndex: i);
           if (context.mounted) context.push('/tv/playing');
         },
       ),
@@ -286,7 +300,7 @@ class _ArtistShelf extends StatelessWidget {
         subtitle: '${top[i].albumCount} albums',
         round: true,
         icon: Icons.person_rounded,
-        artwork: Artwork(url: top[i].imageUrl, size: 250, borderRadius: 0),
+        artwork: TvArtwork(url: top[i].imageUrl, size: 250, borderRadius: 0),
         onFocusChange: (f) {
           if (f) onFocus();
         },

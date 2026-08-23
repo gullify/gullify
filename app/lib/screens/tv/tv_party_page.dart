@@ -11,7 +11,6 @@ import '../../state/games.dart';
 import '../../state/party.dart';
 import '../../state/player.dart';
 import '../../screens/games/game_kit.dart';
-import '../../widgets/artwork.dart';
 import 'tv_kit.dart';
 
 /// Les jeux à plusieurs, la télé en hôte.
@@ -286,10 +285,7 @@ class _Rules extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 10),
-          Text(
-            game.goal,
-            style: const TextStyle(fontSize: 26, height: 1.4),
-          ),
+          Text(game.goal, style: const TextStyle(fontSize: 26, height: 1.4)),
           const SizedBox(height: 26),
           Text(
             'COMMENT ON JOUE',
@@ -527,7 +523,9 @@ class _Round extends ConsumerWidget {
     final scheme = Theme.of(context).colorScheme;
     final round = party.round;
     if (round == null) {
-      return const TvScaffold(child: Center(child: CircularProgressIndicator()));
+      return const TvScaffold(
+        child: Center(child: CircularProgressIndicator()),
+      );
     }
 
     return TvScaffold(
@@ -576,7 +574,9 @@ class _Round extends ConsumerWidget {
                   ),
                 ),
                 const SizedBox(height: 38),
-                Expanded(child: _RoundBody(party: party, round: round)),
+                Expanded(
+                  child: _RoundBody(party: party, round: round),
+                ),
               ],
             ),
           ),
@@ -620,9 +620,7 @@ class _RoundBody extends StatelessWidget {
                 : Colors.white.withValues(alpha: 0.07),
             borderRadius: BorderRadius.circular(22),
             border: Border.all(
-              color: correct
-                  ? TvDot.ok
-                  : Colors.white.withValues(alpha: 0.14),
+              color: correct ? TvDot.ok : Colors.white.withValues(alpha: 0.14),
               width: correct ? 2.5 : 1,
             ),
           ),
@@ -789,10 +787,7 @@ class _RoundBody extends StatelessWidget {
               ),
               Text(
                 round.artist ?? '',
-                style: TextStyle(
-                  fontSize: 26,
-                  color: scheme.onSurfaceVariant,
-                ),
+                style: TextStyle(fontSize: 26, color: scheme.onSurfaceVariant),
               ),
             ] else
               Padding(
@@ -830,14 +825,14 @@ class _BlurredCover extends StatelessWidget {
       width: 340,
       height: 340,
       child: blur <= 0.02
-          ? Artwork(url: url, size: 340, borderRadius: 0)
+          ? TvArtwork(url: url, size: 340, borderRadius: 0)
           : ImageFiltered(
               imageFilter: ImageFilter.blur(
                 sigmaX: blur,
                 sigmaY: blur,
                 tileMode: TileMode.decal,
               ),
-              child: Artwork(url: url, size: 340, borderRadius: 0),
+              child: TvArtwork(url: url, size: 340, borderRadius: 0),
             ),
     ),
   );
@@ -873,7 +868,7 @@ class _DuelSide extends StatelessWidget {
         ),
         child: Row(
           children: [
-            Artwork(url: side.artworkUrl, size: 150, borderRadius: 18),
+            TvArtwork(url: side.artworkUrl, size: 150, borderRadius: 18),
             const SizedBox(width: 22),
             Expanded(
               child: Column(
@@ -947,7 +942,7 @@ class _Timeline extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Artwork(url: cards[i].artworkUrl, size: 62, borderRadius: 12),
+              TvArtwork(url: cards[i].artworkUrl, size: 62, borderRadius: 12),
               const SizedBox(height: 8),
               Text(
                 '${cards[i].year}',
@@ -961,10 +956,7 @@ class _Timeline extends StatelessWidget {
                 cards[i].title,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 16,
-                  color: scheme.onSurfaceVariant,
-                ),
+                style: TextStyle(fontSize: 16, color: scheme.onSurfaceVariant),
               ),
             ],
           ),
@@ -1109,10 +1101,7 @@ class _Finished extends ConsumerWidget {
             const SizedBox(height: 10),
             Text(
               '${winner.score} $unit',
-              style: TextStyle(
-                fontSize: 34,
-                color: scheme.onSurfaceVariant,
-              ),
+              style: TextStyle(fontSize: 34, color: scheme.onSurfaceVariant),
             ),
           ],
           const SizedBox(height: 40),

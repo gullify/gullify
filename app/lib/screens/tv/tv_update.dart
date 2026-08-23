@@ -178,11 +178,7 @@ class _Panel extends ConsumerWidget {
                   autofocus: true,
                   onPressed: notifier.install,
                 ),
-                TvPill(
-                  label: 'Plus tard',
-                  accent: false,
-                  onPressed: onLater,
-                ),
+                TvPill(label: 'Plus tard', accent: false, onPressed: onLater),
               ],
             ),
           ],

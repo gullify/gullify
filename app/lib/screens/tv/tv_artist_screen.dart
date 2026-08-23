@@ -5,7 +5,6 @@ import 'package:go_router/go_router.dart';
 import '../../models/song.dart';
 import '../../state/library.dart';
 import '../../state/player.dart';
-import '../../widgets/artwork.dart';
 import 'tv_kit.dart';
 
 /// Un artiste : un bandeau, ses albums en rangée, ses titres phares dessous.
@@ -34,7 +33,7 @@ class TvArtistScreen extends ConsumerWidget {
             Row(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Artwork(url: d.artist.imageUrl, size: 240, borderRadius: 120),
+                TvArtwork(url: d.artist.imageUrl, size: 240, borderRadius: 120),
                 const SizedBox(width: 40),
                 Expanded(
                   child: Column(
@@ -97,7 +96,7 @@ class TvArtistScreen extends ConsumerWidget {
                 itemBuilder: (context, i, onFocus) => TvCard(
                   title: d.albums[i].name,
                   subtitle: d.albums[i].year?.toString(),
-                  artwork: Artwork(
+                  artwork: TvArtwork(
                     url: d.albums[i].artworkUrl,
                     size: 250,
                     borderRadius: 0,

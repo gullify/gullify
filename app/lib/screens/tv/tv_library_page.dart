@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../state/library.dart';
-import '../../widgets/artwork.dart';
 import 'tv_kit.dart';
 
 /// La bibliothèque en grille : albums ou artistes.
@@ -76,7 +75,9 @@ class _TvLibraryPageState extends ConsumerState<TvLibraryPage> {
                     mainAxisSpacing: 34,
                     crossAxisSpacing: gap,
                     // Pochette carrée + deux lignes de texte.
-                    childAspectRatio: cell / (cell + 84),
+                    // Une contrainte dégénérée ne doit jamais produire un rapport
+                    // nul : en release, il finirait en NaN dans la géométrie.
+                    childAspectRatio: cell > 0 ? cell / (cell + 84) : 1,
                   ),
                   itemCount: count,
                   itemBuilder: (context, i) {
@@ -87,7 +88,7 @@ class _TvLibraryPageState extends ConsumerState<TvLibraryPage> {
                         subtitle: a.artistName,
                         size: cell,
                         autofocus: i == 0,
-                        artwork: Artwork(url: a.artworkUrl, borderRadius: 0),
+                        artwork: TvArtwork(url: a.artworkUrl, borderRadius: 0),
                         onPressed: () => context.push('/tv/album/${a.id}'),
                       );
                     }
@@ -99,7 +100,7 @@ class _TvLibraryPageState extends ConsumerState<TvLibraryPage> {
                       round: true,
                       autofocus: i == 0,
                       icon: Icons.person_rounded,
-                      artwork: Artwork(url: a.imageUrl, borderRadius: 0),
+                      artwork: TvArtwork(url: a.imageUrl, borderRadius: 0),
                       onPressed: () => context.push('/tv/artist/${a.id}'),
                     );
                   },

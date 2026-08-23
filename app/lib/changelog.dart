@@ -8,6 +8,25 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.40.0', [
+    'Google TV — connexion débloquée : les flèches sortent enfin des champs '
+        'de saisie. Un champ de texte Android accapare la croix '
+        'directionnelle pour déplacer le curseur ; on ne pouvait donc plus '
+        'atteindre le champ suivant ni le bouton, et l\'app semblait figée '
+        'juste après avoir tapé ses identifiants',
+    'Google TV — les pochettes ne sont plus chargées en pleine résolution. '
+        'Le serveur les rend désormais déjà réduites à la taille affichée, et '
+        'elles sont décodées à cette taille : un écran d\'accueil qui en '
+        'montre soixante ne dévore plus la mémoire du boîtier, ce qui finissait '
+        'par faire fermer l\'app',
+    'Google TV — le focus ne se perd plus. Au tout premier démarrage, quand '
+        'la bibliothèque n\'est pas encore chargée, un bouton reste visé : '
+        'sans cible, la télécommande ne répondait à rien',
+    'Nouveau « Journal du téléviseur » (Paramètres → Développement) : le fil '
+        'des écrans et les erreurs, gardés sur le disque pour survivre à une '
+        'fermeture. De quoi dire ce qui s\'est passé sans brancher '
+        'd\'ordinateur sur la télé',
+  ]),
   ReleaseNote('3.39.0', [
     'Sur Google TV, Gullify se met à jour tout seul : il vérifie au démarrage '
         'et à chaque retour au premier plan, et propose la nouvelle version en '
