@@ -8,6 +8,14 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.49.0', [
+    'Google TV — « Retour » ne ferme plus l\'application du premier coup : un '
+        'bandeau prévient qu\'il faut réappuyer. Passé trois secondes, '
+        'l\'avertissement s\'efface et il faut recommencer',
+    'Et « Retour » annule d\'abord ce qu\'il y a de plus proche : il referme '
+        'le panneau de mise à jour s\'il est ouvert, puis le menu s\'il a la '
+        'main, et seulement ensuite propose de quitter',
+  ]),
   ReleaseNote('3.48.0', [
     'Google TV — les paroles défilent au rythme de la chanson, la phrase en '
         'cours en surbrillance, exactement comme dans l\'app mobile : c\'est '

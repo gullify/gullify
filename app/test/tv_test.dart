@@ -742,6 +742,115 @@ void main() {
     });
   });
 
+  group('« Retour » ne doit pas faire sortir par erreur', () {
+    /// Ce que l'app demande à Android quand elle veut vraiment se fermer.
+    List<MethodCall> watchExit(WidgetTester tester) {
+      final calls = <MethodCall>[];
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (call) async {
+          if (call.method == 'SystemNavigator.pop') calls.add(call);
+          return null;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        ),
+      );
+      return calls;
+    }
+
+    testWidgets('le premier appui prévient, le second quitte', (tester) async {
+      await _tvScreen(tester);
+      final exits = watchExit(tester);
+      await tester.pumpWidget(_wrap(const TvShell()));
+      await tester.pumpAndSettle();
+
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Appuie encore sur Retour pour quitter Gullify'),
+        findsOneWidget,
+      );
+      expect(exits, isEmpty, reason: 'le premier appui ne doit rien fermer');
+
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      expect(exits, hasLength(1));
+    });
+
+    testWidgets('passé le délai, il faut recommencer', (tester) async {
+      await _tvScreen(tester);
+      final exits = watchExit(tester);
+      await tester.pumpWidget(_wrap(const TvShell()));
+      await tester.pumpAndSettle();
+
+      await tester.binding.handlePopRoute();
+      await tester.pump();
+      // Trois secondes plus tard, l'avertissement a disparu : un appui isolé
+      // ne doit pas rester « armé » indéfiniment.
+      await tester.pump(const Duration(seconds: 4));
+      expect(
+        find.text('Appuie encore sur Retour pour quitter Gullify'),
+        findsNothing,
+      );
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      expect(exits, isEmpty);
+    });
+
+    testWidgets('le menu ouvert, « Retour » le referme au lieu de sortir', (
+      tester,
+    ) async {
+      await _tvScreen(tester);
+      final exits = watchExit(tester);
+      await tester.pumpWidget(_wrap(const TvShell()));
+      await tester.pumpAndSettle();
+
+      await _press(tester, LogicalKeyboardKey.arrowLeft);
+      await tester.pumpAndSettle();
+      expect(find.text('Bibliothèque'), findsOneWidget);
+
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      expect(find.text('Bibliothèque'), findsNothing);
+      expect(exits, isEmpty);
+      expect(
+        find.text('Appuie encore sur Retour pour quitter Gullify'),
+        findsNothing,
+      );
+    });
+
+    testWidgets('une mise à jour ouverte, « Retour » la referme', (
+      tester,
+    ) async {
+      await _tvScreen(tester);
+      final exits = watchExit(tester);
+      await tester.pumpWidget(
+        _wrap(
+          const TvShell(),
+          update: const AppUpdateState(
+            status: UpdateStatus.available,
+            available: UpdateInfo(
+              versionCode: 200,
+              versionName: '4.0.0',
+              downloadUrl: 'https://example.test/g.apk',
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Mettre à jour'), findsOneWidget);
+
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      expect(find.text('Mettre à jour'), findsNothing);
+      expect(exits, isEmpty);
+    });
+  });
+
   group('ce qui doit rester hors d\'atteinte', () {
     testWidgets('une mise à jour prend la main : le fond ne se vise plus', (
       tester,

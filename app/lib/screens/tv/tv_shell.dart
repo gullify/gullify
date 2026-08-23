@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../state/app_update.dart';
 import '../../state/tv_log.dart';
 import 'tv_favorites_page.dart';
 import 'tv_games_page.dart';
@@ -70,6 +71,11 @@ class _TvShellState extends ConsumerState<TvShell> {
   /// Filet de sécurité du focus, différé (voir [_rescueFocus]).
   Timer? _rescue;
 
+  /// Dernier appui sur « Retour », et le bandeau qui l'accompagne.
+  DateTime? _lastBack;
+  Timer? _backHint;
+  bool _askingToQuit = false;
+
   @override
   void initState() {
     super.initState();
@@ -86,6 +92,7 @@ class _TvShellState extends ConsumerState<TvShell> {
   @override
   void dispose() {
     _rescue?.cancel();
+    _backHint?.cancel();
     _railScope.dispose();
     _contentScope.dispose();
     _railCurrent.dispose();
@@ -93,6 +100,47 @@ class _TvShellState extends ConsumerState<TvShell> {
   }
 
   bool get _railFocused => _railScope.hasFocus;
+
+  /// « Retour », par ordre de ce qu'il y a de plus proche à annuler.
+  ///
+  /// Sur une télécommande, « Retour » est la touche qu'on effleure le plus
+  /// souvent par mégarde : elle ne doit fermer l'application qu'en dernier
+  /// recours, et jamais du premier coup.
+  void _onBack() {
+    // 1. Un panneau de mise à jour ouvert : c'est lui qu'on referme.
+    if (ref.read(tvUpdateBlockingProvider)) {
+      ref
+          .read(tvUpdateSnoozeProvider.notifier)
+          .snooze(ref.read(appUpdateProvider).available?.versionCode);
+      return;
+    }
+    // 2. Le menu ouvert : on le referme en rendant la main à la page.
+    if (_railFocused) {
+      _contentScope.requestFocus();
+      return;
+    }
+    // 3. Sinon, quitter — mais en deux temps.
+    final now = DateTime.now();
+    final last = _lastBack;
+    if (last != null && now.difference(last) < const Duration(seconds: 3)) {
+      TvLog.add('sortie de l\'app');
+      SystemNavigator.pop();
+      return;
+    }
+    setState(() {
+      _lastBack = now;
+      _askingToQuit = true;
+    });
+    _backHint?.cancel();
+    _backHint = Timer(const Duration(seconds: 3), () {
+      if (mounted) {
+        setState(() {
+          _askingToQuit = false;
+          _lastBack = null;
+        });
+      }
+    });
+  }
 
   /// Sortir du menu vers la page.
   KeyEventResult _leaveRail() {
@@ -189,70 +237,85 @@ class _TvShellState extends ConsumerState<TvShell> {
     // intouchable, sans quoi la croix directionnelle continue de parcourir la
     // page et l'on ne peut jamais atteindre « Mettre à jour ».
     final blocked = ref.watch(tvUpdateBlockingProvider);
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      body: Stack(
-        children: [
-          Positioned.fill(
-            left: _railClosed + 42,
-            // Pas de FocusScope autour du contenu : un périmètre de focus
-            // enferme la navigation directionnelle, et la flèche gauche ne
-            // sortirait jamais pour aller chercher le rail.
-            //
-            // La clé fait repartir chaque page de zéro : sans elle, Flutter
-            // réutiliserait l'état de la précédente (position de défilement,
-            // focus) d'un onglet à l'autre.
-            child: Focus(
-              canRequestFocus: false,
-              skipTraversal: true,
-              onKeyEvent: (_, event) =>
-                  event.logicalKey == LogicalKeyboardKey.arrowLeft
-                  ? _onKey(event, _maybeEnterRail)
-                  : KeyEventResult.ignored,
-              child: FocusScope(
-                node: _contentScope,
-                child: ExcludeFocus(
-                  excluding: blocked,
-                  child: KeyedSubtree(key: ValueKey(_tab), child: _page),
-                ),
-              ),
-            ),
-          ),
-          Positioned(
-            left: 0,
-            top: 0,
-            bottom: 0,
-            child: Focus(
-              // Nœud non focalisable qui écoute ses descendants : c'est ce
-              // qui dit « le focus est entré dans le rail ».
-              canRequestFocus: false,
-              skipTraversal: true,
-              onFocusChange: (_) => setState(() {}),
-              onKeyEvent: (_, event) =>
-                  event.logicalKey == LogicalKeyboardKey.arrowRight
-                  ? _onKey(event, _leaveRail)
-                  : KeyEventResult.ignored,
-              child: FocusScope(
-                node: _railScope,
-                child: ExcludeFocus(
-                  excluding: blocked,
-                  child: _Rail(
-                    open: _railFocused,
-                    width: _railFocused ? _railOpen : _railClosed,
-                    current: _tab,
-                    onSelect: _select,
-                    currentNode: _railCurrent,
-                    onSettings: () => context.push('/settings'),
+    return PopScope(
+      // Jamais de sortie directe : c'est `_onBack` qui décide, et il ne ferme
+      // l'application qu'au second appui.
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _onBack();
+      },
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        body: Stack(
+          children: [
+            Positioned.fill(
+              left: _railClosed + 42,
+              // Pas de FocusScope autour du contenu : un périmètre de focus
+              // enferme la navigation directionnelle, et la flèche gauche ne
+              // sortirait jamais pour aller chercher le rail.
+              //
+              // La clé fait repartir chaque page de zéro : sans elle, Flutter
+              // réutiliserait l'état de la précédente (position de défilement,
+              // focus) d'un onglet à l'autre.
+              child: Focus(
+                canRequestFocus: false,
+                skipTraversal: true,
+                onKeyEvent: (_, event) =>
+                    event.logicalKey == LogicalKeyboardKey.arrowLeft
+                    ? _onKey(event, _maybeEnterRail)
+                    : KeyEventResult.ignored,
+                child: FocusScope(
+                  node: _contentScope,
+                  child: ExcludeFocus(
+                    excluding: blocked,
+                    child: KeyedSubtree(key: ValueKey(_tab), child: _page),
                   ),
                 ),
               ),
             ),
-          ),
-          // Par-dessus tout le reste : devant une télé, personne n'ira
-          // chercher une mise à jour dans les réglages. Positionnée, sinon un
-          // enfant libre de zéro pixel ferait s'effondrer toute la pile.
-          const Positioned.fill(child: TvUpdateOverlay()),
-        ],
+            Positioned(
+              left: 0,
+              top: 0,
+              bottom: 0,
+              child: Focus(
+                // Nœud non focalisable qui écoute ses descendants : c'est ce
+                // qui dit « le focus est entré dans le rail ».
+                canRequestFocus: false,
+                skipTraversal: true,
+                onFocusChange: (_) => setState(() {}),
+                onKeyEvent: (_, event) =>
+                    event.logicalKey == LogicalKeyboardKey.arrowRight
+                    ? _onKey(event, _leaveRail)
+                    : KeyEventResult.ignored,
+                child: FocusScope(
+                  node: _railScope,
+                  child: ExcludeFocus(
+                    excluding: blocked,
+                    child: _Rail(
+                      open: _railFocused,
+                      width: _railFocused ? _railOpen : _railClosed,
+                      current: _tab,
+                      onSelect: _select,
+                      currentNode: _railCurrent,
+                      onSettings: () => context.push('/settings'),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            // Par-dessus tout le reste : devant une télé, personne n'ira
+            // chercher une mise à jour dans les réglages. Positionnée, sinon un
+            // enfant libre de zéro pixel ferait s'effondrer toute la pile.
+            const Positioned.fill(child: TvUpdateOverlay()),
+            if (_askingToQuit)
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: tvSafeV,
+                child: Center(child: _QuitHint()),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -261,6 +324,42 @@ class _TvShellState extends ConsumerState<TvShell> {
 /// Largeur utile du rail ouvert, marges déduites : c'est à cette largeur-là
 /// que le contenu est composé, quelle que soit l'ouverture du tiroir.
 const _railContent = 390.0 - 60 - 34;
+
+/// « Appuie encore sur Retour pour quitter ».
+class _QuitHint extends StatelessWidget {
+  const _QuitHint();
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 18),
+      decoration: BoxDecoration(
+        color: const Color(0xE6141620),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.16)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x99000000),
+            blurRadius: 40,
+            offset: Offset(0, 14),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.logout_rounded, size: 26, color: scheme.primary),
+          const SizedBox(width: 16),
+          const Text(
+            'Appuie encore sur Retour pour quitter Gullify',
+            style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 class _Rail extends StatelessWidget {
   const _Rail({
