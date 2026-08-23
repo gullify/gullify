@@ -19,11 +19,15 @@ import 'package:gullify/screens/tv/tv_album_screen.dart';
 import 'package:gullify/screens/tv/tv_connect_screens.dart';
 import 'package:gullify/screens/tv/tv_kit.dart';
 import 'package:gullify/screens/tv/tv_now_playing_screen.dart';
+import 'package:gullify/screens/tv/tv_party_page.dart';
 import 'package:gullify/screens/tv/tv_shell.dart';
 import 'package:gullify/screens/tv/tv_update.dart';
 import 'package:gullify/state/app_update.dart';
 import 'package:gullify/state/auth.dart';
+import 'package:gullify/models/game_track.dart';
+import 'package:gullify/screens/tv/tv_solo_game_screen.dart';
 import 'package:gullify/state/favorites.dart';
+import 'package:gullify/state/games.dart';
 import 'package:gullify/state/library.dart';
 import 'package:gullify/state/party.dart';
 import 'package:gullify/state/player.dart';
@@ -96,6 +100,44 @@ const _stations = [
 ];
 
 class _FakePlayerActions extends Fake implements PlayerActions {}
+
+/// Les jeux ne demandent au dépôt que l'URL de lecture d'un extrait.
+class _FakeLibrary extends Fake implements LibraryRepository {
+  @override
+  String streamUrl(Song song) => 'https://example.test/${song.id}.mp3';
+}
+
+final _blindPool = [
+  for (var i = 1; i <= 12; i++)
+    Song(
+      id: i,
+      title: 'Titre $i',
+      filePath: '$i.mp3',
+      duration: 180 + i,
+      albumName: 'Album \$i',
+      artistName: 'Artiste \$i',
+    ),
+];
+
+final _gameAlbums = [
+  for (var i = 1; i <= 12; i++)
+    Album(
+      id: i,
+      name: 'Album $i',
+      year: 1970 + i * 3,
+      artistName: 'Artiste $i',
+    ),
+];
+
+final _gameTracks = [
+  for (var i = 1; i <= 12; i++)
+    GameTrack(song: _blindPool[i - 1], year: 1970 + i * 3),
+];
+
+final _discovery = [
+  for (var i = 1; i <= 12; i++)
+    DiscoveryTrack(song: _blindPool[i - 1], year: 1970 + i * 3),
+];
 
 /// Auth figée : le vrai contrôleur relit le trousseau et interroge le serveur.
 class _FixedAuth extends AuthController {
@@ -230,6 +272,14 @@ Widget _wrap(
     allFavoritesProvider.overrideWith((ref) async => _songs),
     radioStationsProvider.overrideWith((ref) async => _stations),
     searchResultsProvider.overrideWith((ref) async => const SearchResults()),
+    blindPoolProvider.overrideWith((ref) async => _blindPool),
+    gamePoolProvider.overrideWith(
+      // La pochette mystère exige huit albums pochettés : le catalogue de la
+      // bibliothèque du harnais en compte moins.
+      (ref) async => GamePool(tracks: _gameTracks, albums: _gameAlbums),
+    ),
+    discoveryTracksProvider.overrideWith((ref) async => _discovery),
+    libraryRepositoryProvider.overrideWithValue(_FakeLibrary()),
     albumDetailProvider(1).overrideWith(
       (ref) async => const AlbumDetail(album: _wolves, songs: _songs),
     ),
@@ -261,6 +311,15 @@ bool _focusInside(Type type) {
     return true;
   });
   return found;
+}
+
+/// Laisse un jeu charger son vivier sans faire courir son chrono : une
+/// manche dure quinze secondes, et `pumpAndSettle` les consommerait toutes
+/// avant la première vérification.
+Future<void> _settleGame(WidgetTester tester) async {
+  for (var i = 0; i < 6; i++) {
+    await tester.pump(const Duration(milliseconds: 16));
+  }
 }
 
 Future<void> _press(WidgetTester tester, LogicalKeyboardKey key) async {
@@ -495,7 +554,10 @@ void main() {
         ),
       );
       await tester.pump();
-      expect(tester.getRect(find.byType(Placeholder)).width, closeTo(1920, 0.5));
+      expect(
+        tester.getRect(find.byType(Placeholder)).width,
+        closeTo(1920, 0.5),
+      );
     });
   });
 
@@ -750,11 +812,7 @@ void main() {
       for (var i = 0; i < TvTab.values.length + 1; i++) {
         await _press(tester, LogicalKeyboardKey.arrowDown);
         await tester.pumpAndSettle();
-        expect(
-          inRail(),
-          isTrue,
-          reason: 'sorti du menu après \$i descentes',
-        );
+        expect(inRail(), isTrue, reason: 'sorti du menu après \$i descentes');
       }
       expect(find.text('Réglages'), findsOneWidget);
 
@@ -781,10 +839,7 @@ void main() {
       // Le rail se referme, et le focus est passé dans la page : sinon on
       // monte et descend dans le menu sans jamais pouvoir rien choisir.
       expect(find.text('Bibliothèque'), findsNothing);
-      expect(
-        _focusInside(TvShell) && !_focusInside(TvUpdateOverlay),
-        isTrue,
-      );
+      expect(_focusInside(TvShell) && !_focusInside(TvUpdateOverlay), isTrue);
       final focused = FocusManager.instance.primaryFocus?.context;
       var inRail = false;
       focused?.visitAncestorElements((e) {
@@ -897,12 +952,90 @@ void main() {
     });
   });
 
+  group('jouer seul sur la télé', () {
+    testWidgets('l\'onglet Jeux propose les cinq jeux et le multijoueur', (
+      tester,
+    ) async {
+      await _tvScreen(tester);
+      await tester.pumpWidget(_wrap(const TvShell(initialTab: TvTab.games)));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Jouer à plusieurs'), findsOneWidget);
+      for (final game in kGames) {
+        expect(
+          find.text(game.name),
+          findsOneWidget,
+          reason: '${game.name} manque au catalogue',
+        );
+      }
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('le blind test se joue et se répond à la croix', (
+      tester,
+    ) async {
+      await _tvScreen(tester);
+      await tester.pumpWidget(
+        _wrap(const TvCanvas(child: TvSoloGameScreen(gameId: 'blind'))),
+      );
+      await _settleGame(tester);
+
+      expect(find.text('Quel est ce titre ?'), findsOneWidget);
+      expect(find.text('1/10'), findsOneWidget);
+      // Quatre propositions, toutes visables.
+      expect(find.byType(TvFocusable), findsAtLeast(4));
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('le duel présente deux albums datés', (tester) async {
+      await _tvScreen(tester);
+      await tester.pumpWidget(
+        _wrap(const TvCanvas(child: TvSoloGameScreen(gameId: 'duel'))),
+      );
+      await _settleGame(tester);
+      expect(find.text('Lequel est le plus ancien ?'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('le chrono ouvre sa frise avec ses trous', (tester) async {
+      await _tvScreen(tester);
+      await tester.pumpWidget(
+        _wrap(const TvCanvas(child: TvSoloGameScreen(gameId: 'chrono'))),
+      );
+      await _settleGame(tester);
+      expect(find.text('Où se place ce titre ?'), findsOneWidget);
+      // Une carte de départ, donc deux trous : avant et après.
+      expect(find.byIcon(Icons.add_rounded), findsNWidgets(2));
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('la pochette mystère démarre floutée', (tester) async {
+      await _tvScreen(tester);
+      await tester.pumpWidget(
+        _wrap(const TvCanvas(child: TvSoloGameScreen(gameId: 'cover'))),
+      );
+      await _settleGame(tester);
+      expect(find.text('Quel est cet album ?'), findsOneWidget);
+      expect(find.byType(ImageFiltered), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('un jeu inconnu ne casse rien', (tester) async {
+      await _tvScreen(tester);
+      await tester.pumpWidget(
+        _wrap(const TvCanvas(child: TvSoloGameScreen(gameId: 'pouet'))),
+      );
+      await _settleGame(tester);
+      expect(find.text('Jeu inconnu'), findsOneWidget);
+    });
+  });
+
   group('les jeux à plusieurs, la télé en hôte', () {
     testWidgets('le salon montre le code et le lien', (tester) async {
       await _tvScreen(tester);
       await tester.pumpWidget(
         _wrap(
-          TvShell(initialTab: TvTab.games),
+          const TvPartyPage(),
           party: PartySession(
             code: 'K7M2',
             token: 't',
@@ -922,7 +1055,7 @@ void main() {
       await _tvScreen(tester);
       await tester.pumpWidget(
         _wrap(
-          TvShell(initialTab: TvTab.games),
+          const TvPartyPage(),
           party: PartySession(
             code: 'K7M2',
             token: 't',
@@ -958,7 +1091,7 @@ void main() {
       await _tvScreen(tester);
       await tester.pumpWidget(
         _wrap(
-          TvShell(initialTab: TvTab.games),
+          const TvPartyPage(),
           party: PartySession(
             code: 'K7M2',
             token: 't',

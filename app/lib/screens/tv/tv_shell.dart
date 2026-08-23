@@ -7,10 +7,10 @@ import 'package:go_router/go_router.dart';
 
 import '../../state/tv_log.dart';
 import 'tv_favorites_page.dart';
+import 'tv_games_page.dart';
 import 'tv_home_page.dart';
 import 'tv_kit.dart';
 import 'tv_library_page.dart';
-import 'tv_party_page.dart';
 import 'tv_radio_page.dart';
 import 'tv_search_page.dart';
 import 'tv_update.dart';
@@ -180,7 +180,7 @@ class _TvShellState extends ConsumerState<TvShell> {
     TvTab.search => const TvSearchPage(),
     TvTab.favorites => const TvFavoritesPage(),
     TvTab.radio => const TvRadioPage(),
-    TvTab.games => const TvPartyPage(),
+    TvTab.games => const TvGamesPage(),
   };
 
   @override

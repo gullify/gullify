@@ -8,6 +8,19 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.47.0', [
+    'Google TV — les cinq jeux se jouent enfin seul sur la télé : Chrono, '
+        'Blind test, Pochette mystère, Duel d\'années et Défricheur. Mêmes '
+        'règles, mêmes barèmes et mêmes records que sur téléphone — battre son '
+        'score au salon compte aussi dans la poche',
+    'L\'onglet Jeux devient un catalogue : la partie à plusieurs en tête, les '
+        'jeux solo dessous avec leur meilleur score',
+    'Tout se manœuvre à la croix : les propositions se visent et se valident '
+        'avec « OK », les trous de la frise du Chrono aussi, et le Défricheur '
+        'garde ou passe un titre avec les flèches gauche et droite',
+    'Le lecteur gagne un bouton « Paroles » : elles s\'affichent en grand, se '
+        'font défiler avec haut et bas, et se referment avec Retour',
+  ]),
   ReleaseNote('3.46.0', [
     'Google TV — le panneau de mise à jour prend vraiment la main. La croix '
         'continuait de parcourir la page derrière lui : on voyait « Mettre à '

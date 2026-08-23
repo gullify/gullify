@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../state/library.dart';
 import '../../state/player.dart';
 import 'tv_kit.dart';
 
@@ -14,11 +15,19 @@ import 'tv_kit.dart';
 /// C'est ici que le verre translucide prend enfin son sens : sur un téléphone
 /// la surface est trop petite pour qu'on voie le flou, sur un téléviseur la
 /// pochette floutée occupe le salon. Le panneau de commandes flotte dessus.
-class TvNowPlayingScreen extends ConsumerWidget {
+class TvNowPlayingScreen extends ConsumerStatefulWidget {
   const TvNowPlayingScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<TvNowPlayingScreen> createState() => _TvNowPlayingScreenState();
+}
+
+class _TvNowPlayingScreenState extends ConsumerState<TvNowPlayingScreen> {
+  /// Chemin du morceau dont on lit les paroles (nul = panneau fermé).
+  String? _lyricsFor;
+
+  @override
+  Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final item = ref.watch(currentMediaItemProvider).value;
     final playback = ref.watch(playbackStateProvider).value;
@@ -83,6 +92,10 @@ class TvNowPlayingScreen extends ConsumerWidget {
                           item: item,
                           playing: playing,
                           hasQueue: queue.length > 1,
+                          onLyrics: () => setState(
+                            () => _lyricsFor =
+                                item.extras?['filePath'] as String?,
+                          ),
                         ),
                       ),
                     ],
@@ -93,7 +106,154 @@ class TvNowPlayingScreen extends ConsumerWidget {
               ],
             ),
           ),
+          if (_lyricsFor != null)
+            _LyricsPanel(
+              filePath: _lyricsFor!,
+              onClose: () => setState(() => _lyricsFor = null),
+            ),
         ],
+      ),
+    );
+  }
+}
+
+/// Les paroles, plein écran.
+///
+/// Pas une feuille glissante comme sur téléphone : on ne fait pas glisser une
+/// télécommande. Le panneau prend l'écran, se fait défiler avec haut et bas,
+/// et se referme avec « Retour » ou son bouton.
+class _LyricsPanel extends ConsumerStatefulWidget {
+  const _LyricsPanel({required this.filePath, required this.onClose});
+
+  final String filePath;
+  final VoidCallback onClose;
+
+  @override
+  ConsumerState<_LyricsPanel> createState() => _LyricsPanelState();
+}
+
+class _LyricsPanelState extends ConsumerState<_LyricsPanel> {
+  final _scroll = ScrollController();
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  void _scrollBy(double delta) {
+    if (!_scroll.hasClients) return;
+    _scroll.animateTo(
+      (_scroll.offset + delta).clamp(0.0, _scroll.position.maxScrollExtent),
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final lyrics = ref.watch(lyricsProvider(widget.filePath));
+
+    return Positioned.fill(
+      child: ColoredBox(
+        color: const Color(0xF0070810),
+        child: FocusScope(
+          autofocus: true,
+          child: Focus(
+            onKeyEvent: (node, event) {
+              if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
+                return KeyEventResult.ignored;
+              }
+              if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+                _scrollBy(140);
+                return KeyEventResult.handled;
+              }
+              if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+                _scrollBy(-140);
+                return KeyEventResult.handled;
+              }
+              return KeyEventResult.ignored;
+            },
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(
+                tvSafeH,
+                tvSafeV,
+                tvSafeH,
+                tvSafeV,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.lyrics_outlined,
+                        size: 32,
+                        color: scheme.primary,
+                      ),
+                      const SizedBox(width: 14),
+                      const Expanded(child: TvTitle('Paroles', size: 40)),
+                      TvPill(
+                        label: 'Fermer',
+                        icon: Icons.close_rounded,
+                        accent: false,
+                        compact: true,
+                        autofocus: true,
+                        onPressed: widget.onClose,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  Expanded(
+                    child: lyrics.when(
+                      loading: () =>
+                          const Center(child: CircularProgressIndicator()),
+                      error: (e, _) => TvEmpty(
+                        message: 'Paroles introuvables',
+                        hint: '$e',
+                        icon: Icons.lyrics_outlined,
+                      ),
+                      data: (text) => (text == null || text.trim().isEmpty)
+                          ? const TvEmpty(
+                              message: 'Pas de paroles pour ce titre',
+                              hint:
+                                  'Le serveur n\'en a trouvé nulle part. '
+                                  'Certains titres n\'en ont tout simplement '
+                                  'pas.',
+                              icon: Icons.lyrics_outlined,
+                            )
+                          : Center(
+                              child: SizedBox(
+                                width: 1100,
+                                child: ListView(
+                                  controller: _scroll,
+                                  children: [
+                                    Text(
+                                      text.trim(),
+                                      textAlign: TextAlign.center,
+                                      style: const TextStyle(
+                                        fontSize: 30,
+                                        height: 1.6,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 60),
+                                  ],
+                                ),
+                              ),
+                            ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  const TvKeyHints(
+                    hints: [('↑ ↓', 'Faire défiler'), ('Retour', 'Fermer')],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -123,11 +283,13 @@ class _Details extends ConsumerWidget {
     required this.item,
     required this.playing,
     required this.hasQueue,
+    required this.onLyrics,
   });
 
   final MediaItem item;
   final bool playing;
   final bool hasQueue;
+  final VoidCallback onLyrics;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -211,6 +373,17 @@ class _Details extends ConsumerWidget {
                 icon: Icons.shuffle_rounded,
                 accent: false,
                 onPressed: actions.toggleShuffle,
+              ),
+            ],
+            // Une radio n'a pas de paroles à chercher : le bouton ne sert
+            // qu'aux morceaux de la bibliothèque.
+            if (!live) ...[
+              const SizedBox(width: 18),
+              TvPill(
+                label: 'Paroles',
+                icon: Icons.lyrics_outlined,
+                accent: false,
+                onPressed: onLyrics,
               ),
             ],
           ],

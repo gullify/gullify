@@ -44,6 +44,8 @@ import 'screens/splash_screen.dart';
 import 'screens/stats_screen.dart';
 import 'screens/tv/tv_kit.dart';
 import 'screens/tv/tv_connect_screens.dart';
+import 'screens/tv/tv_party_page.dart';
+import 'screens/tv/tv_solo_game_screen.dart';
 import 'screens/tv_log_screen.dart';
 import 'screens/tv/tv_album_screen.dart';
 import 'screens/tv/tv_artist_screen.dart';
@@ -285,6 +287,16 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/tv/playing',
         builder: (_, _) => const TvCanvas(child: TvNowPlayingScreen()),
+      ),
+      GoRoute(
+        path: '/tv/party',
+        builder: (_, _) => const TvCanvas(child: TvPartyPage()),
+      ),
+      GoRoute(
+        path: '/tv/game/:id',
+        builder: (_, state) => TvCanvas(
+          child: TvSoloGameScreen(gameId: state.pathParameters['id']!),
+        ),
       ),
     ],
     redirect: (context, state) {
