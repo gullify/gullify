@@ -76,11 +76,12 @@ class _TvServerScreenState extends ConsumerState<TvServerScreen> {
             keyboardType: TextInputType.url,
             onSubmitted: _connect,
           ),
-          const SizedBox(height: 22),
+          const SizedBox(height: 18),
           TvPill(
             label: _busy ? 'Connexion…' : 'Se connecter',
             icon: Icons.arrow_forward_rounded,
             expand: true,
+            compact: true,
             onPressed: _busy ? null : _connect,
           ),
         ],
@@ -163,18 +164,19 @@ class _TvLoginScreenState extends ConsumerState<TvLoginScreen> {
             autofocus: true,
             onSubmitted: () => FocusScope.of(context).nextFocus(),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
           TvImeField(
             label: 'MOT DE PASSE',
             controller: _pass,
             obscure: true,
             onSubmitted: _login,
           ),
-          const SizedBox(height: 22),
+          const SizedBox(height: 18),
           TvPill(
             label: _busy ? 'Connexion…' : 'Se connecter',
             icon: Icons.arrow_forward_rounded,
             expand: true,
+            compact: true,
             onPressed: _busy ? null : _login,
           ),
         ],
@@ -212,52 +214,52 @@ class _ConnectFrame extends StatelessWidget {
       child: Center(
         child: SingleChildScrollView(
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 620),
+            constraints: const BoxConstraints(maxWidth: 500),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Image.asset('assets/icon/mascot.png', width: 108, height: 108),
-                const SizedBox(height: 14),
+                Image.asset('assets/icon/mascot.png', width: 78, height: 78),
+                const SizedBox(height: 10),
                 Text(
                   title,
                   textAlign: TextAlign.center,
                   style: const TextStyle(
-                    fontSize: 40,
+                    fontSize: 32,
                     fontWeight: FontWeight.w800,
-                    letterSpacing: -1,
+                    letterSpacing: -0.8,
                     height: 1.1,
                   ),
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 7),
                 Text(
                   subtitle,
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    fontSize: 23,
+                    fontSize: 19,
                     height: 1.4,
                     color: scheme.onSurfaceVariant,
                   ),
                 ),
-                const SizedBox(height: 30),
+                const SizedBox(height: 22),
                 child,
                 if (busy) ...[
-                  const SizedBox(height: 22),
+                  const SizedBox(height: 16),
                   const Center(
                     child: SizedBox(
-                      width: 30,
-                      height: 30,
+                      width: 24,
+                      height: 24,
                       child: CircularProgressIndicator(strokeWidth: 3),
                     ),
                   ),
                 ],
                 if (error != null) ...[
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 16),
                   Text(
                     error!,
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      fontSize: 23,
+                      fontSize: 19,
                       height: 1.35,
                       fontWeight: FontWeight.w700,
                       color: scheme.error,

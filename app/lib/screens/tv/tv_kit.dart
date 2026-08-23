@@ -400,6 +400,7 @@ class TvPill extends StatelessWidget {
     this.accent = true,
     this.autofocus = false,
     this.expand = false,
+    this.compact = false,
     this.focusNode,
   });
 
@@ -416,6 +417,10 @@ class TvPill extends StatelessWidget {
   final bool autofocus;
   final bool expand;
 
+  /// Version resserrée, pour les formulaires : la pilule pleine taille est
+  /// dessinée pour une pochette d'album, pas pour trois lignes de saisie.
+  final bool compact;
+
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
@@ -429,13 +434,15 @@ class TvPill extends StatelessWidget {
             ? scheme.primary
             : Colors.white.withValues(alpha: focused ? 0.18 : 0.08);
         return Container(
-          height: 66,
+          height: compact ? 52 : 66,
           padding: EdgeInsets.symmetric(
-            horizontal: icon != null && label.isEmpty ? 22 : 34,
+            horizontal: icon != null && label.isEmpty
+                ? (compact ? 18 : 22)
+                : (compact ? 26 : 34),
           ),
           decoration: BoxDecoration(
             color: bg,
-            borderRadius: BorderRadius.circular(33),
+            borderRadius: BorderRadius.circular(compact ? 26 : 33),
             border: focused
                 ? tvFocusBorder(scheme.primary)
                 : Border.all(color: Colors.white.withValues(alpha: 0.14)),
@@ -455,13 +462,15 @@ class TvPill extends StatelessWidget {
             mainAxisSize: expand ? MainAxisSize.max : MainAxisSize.min,
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              if (icon != null) Icon(icon, size: 30, color: Colors.white),
-              if (icon != null && label.isNotEmpty) const SizedBox(width: 14),
+              if (icon != null)
+                Icon(icon, size: compact ? 24 : 30, color: Colors.white),
+              if (icon != null && label.isNotEmpty)
+                SizedBox(width: compact ? 11 : 14),
               if (label.isNotEmpty)
                 Text(
                   label,
-                  style: const TextStyle(
-                    fontSize: 26,
+                  style: TextStyle(
+                    fontSize: compact ? 21 : 26,
                     fontWeight: FontWeight.w700,
                     color: Colors.white,
                   ),

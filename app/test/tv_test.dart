@@ -565,6 +565,31 @@ void main() {
       expect(find.text('Saisis l\'adresse de ton serveur.'), findsOneWidget);
     });
 
+    testWidgets('la page identifiants tient sans écraser l\'écran', (
+      tester,
+    ) async {
+      // Vraies dimensions d'un téléviseur 1080p, tel qu'Android les rapporte.
+      await tester.binding.setSurfaceSize(const Size(960, 540));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(connect(const TvCanvas(child: TvLoginScreen())));
+      await tester.pumpAndSettle();
+
+      // Deux champs, un bouton, la mascotte et le titre : le tout doit
+      // occuper une part raisonnable de l'écran, pas le remplir.
+      final title = tester.getRect(find.text('Connexion'));
+      final submit = tester.getRect(
+        find.widgetWithText(TvPill, 'Se connecter').first,
+      );
+      final used = submit.bottom - title.top;
+      expect(used, lessThan(340), reason: 'formulaire trop haut pour 540 px');
+      // Un titre de 32 sur la toile : 16 px réels de haut, pas davantage.
+      expect(title.height, lessThan(30));
+      // Et la colonne reste étroite : un formulaire ne s'étale pas sur toute
+      // la largeur d'un téléviseur.
+      expect(submit.width, lessThan(300));
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('se connecter sans identifiants le dit', (tester) async {
       await _tvScreen(tester);
       await tester.pumpWidget(connect(const TvLoginScreen()));

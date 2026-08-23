@@ -8,6 +8,11 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.45.0', [
+    'Google TV — les écrans de connexion sont resserrés : mascotte, titre, '
+        'champs et bouton reprennent des proportions de formulaire plutôt que '
+        'd\'affiche. La colonne reste étroite et centrée',
+  ]),
   ReleaseNote('3.44.0', [
     'Google TV — la saisie passe par un vrai champ Android, comme dans les '
         'autres applications de la télé. Flutter dessine ses propres champs et '
