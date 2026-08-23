@@ -438,6 +438,51 @@ void main() {
     });
   });
 
+  group('la taille du dessin', () {
+    testWidgets('une toile de 1920 se réduit à l\'écran réel', (tester) async {
+      // Un téléviseur 1080p ne rapporte pas 1920 points logiques mais 960 :
+      // sa densité vaut 2. Sans mise à l'échelle, tout s'affichait deux fois
+      // trop grand — c'est ce qui débordait de l'écran.
+      await tester.binding.setSurfaceSize(const Size(960, 540));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: TvCanvas(
+            child: Align(
+              alignment: Alignment.topLeft,
+              child: SizedBox(width: 1920, height: 200, child: Placeholder()),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      // Composé en 1920, rendu en 960 : la moitié, exactement.
+      final painted = tester.getSize(find.byType(Placeholder));
+      expect(painted.width, TvCanvas.design);
+      final rect = tester.getRect(find.byType(Placeholder));
+      expect(rect.width, closeTo(960, 0.5));
+      expect(rect.height, closeTo(100, 0.5));
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('sur un écran déjà en 1920, rien ne bouge', (tester) async {
+      await _tvScreen(tester);
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: TvCanvas(
+            child: Align(
+              alignment: Alignment.topLeft,
+              child: SizedBox(width: 1920, height: 200, child: Placeholder()),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(tester.getRect(find.byType(Placeholder)).width, closeTo(1920, 0.5));
+    });
+  });
+
   group('la saisie, avec le clavier de Google', () {
     Widget connect(Widget child) => ProviderScope(
       overrides: [
@@ -457,6 +502,37 @@ void main() {
         home: child,
       ),
     );
+
+    testWidgets('la saisie passe par le champ natif d\'Android', (
+      tester,
+    ) async {
+      await _tvScreen(tester);
+      final calls = <MethodCall>[];
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        const MethodChannel('gullify/textinput'),
+        (call) async {
+          calls.add(call);
+          return 'https://exemple.test';
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          const MethodChannel('gullify/textinput'),
+          null,
+        ),
+      );
+
+      await tester.pumpWidget(connect(const TvServerScreen()));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('ADRESSE DU SERVEUR'));
+      await tester.pumpAndSettle();
+
+      // C'est là tout le remède : le texte est saisi par une vraie vue
+      // Android, la seule à qui le système confie la croix directionnelle.
+      expect(calls.single.method, 'prompt');
+      expect(calls.single.arguments['value'], 'https://');
+      expect(find.text('https://exemple.test'), findsOneWidget);
+    });
 
     testWidgets('au repos, aucun champ de texte ne retient la croix', (
       tester,
@@ -478,28 +554,6 @@ void main() {
       expect(FocusManager.instance.primaryFocus, isNot(same(before)));
     });
 
-    testWidgets('« OK » ouvre le clavier, la validation le referme', (
-      tester,
-    ) async {
-      await _tvScreen(tester);
-      await tester.pumpWidget(connect(const TvServerScreen()));
-      await tester.pumpAndSettle();
-
-      await tester.tap(find.text('ADRESSE DU SERVEUR'));
-      await tester.pumpAndSettle();
-      // Le champ réel n'existe que le temps de la frappe.
-      expect(find.byType(EditableText), findsOneWidget);
-
-      await tester.enterText(find.byType(EditableText), 'https://exemple.test');
-      await tester.testTextInput.receiveAction(TextInputAction.done);
-      await tester.pumpAndSettle();
-
-      // Refermé : plus de champ, et le focus est revenu sur l'élément.
-      expect(find.byType(EditableText), findsNothing);
-      expect(find.text('https://exemple.test'), findsOneWidget);
-      expect(FocusManager.instance.primaryFocus?.debugLabel, 'tv-field');
-    });
-
     testWidgets('valider sans adresse le dit, au lieu de ne rien faire', (
       tester,
     ) async {
@@ -509,25 +563,6 @@ void main() {
       await tester.tap(find.widgetWithText(TvPill, 'Se connecter').first);
       await tester.pump();
       expect(find.text('Saisis l\'adresse de ton serveur.'), findsOneWidget);
-    });
-
-    testWidgets('mot de passe : masqué, et deux champs indépendants', (
-      tester,
-    ) async {
-      await _tvScreen(tester);
-      await tester.pumpWidget(connect(const TvLoginScreen()));
-      await tester.pumpAndSettle();
-
-      await tester.tap(find.text('MOT DE PASSE'));
-      await tester.pumpAndSettle();
-      await tester.enterText(find.byType(EditableText), 'secret');
-      await tester.testTextInput.receiveAction(TextInputAction.done);
-      await tester.pumpAndSettle();
-
-      expect(find.text('••••••'), findsOneWidget);
-      expect(find.text('secret'), findsNothing);
-      // L'autre champ n'a rien reçu.
-      expect(find.text('Appuie sur OK'), findsOneWidget);
     });
 
     testWidgets('se connecter sans identifiants le dit', (tester) async {

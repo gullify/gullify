@@ -76,7 +76,7 @@ class _TvServerScreenState extends ConsumerState<TvServerScreen> {
             keyboardType: TextInputType.url,
             onSubmitted: _connect,
           ),
-          const SizedBox(height: 26),
+          const SizedBox(height: 22),
           TvPill(
             label: _busy ? 'Connexion…' : 'Se connecter',
             icon: Icons.arrow_forward_rounded,
@@ -163,14 +163,14 @@ class _TvLoginScreenState extends ConsumerState<TvLoginScreen> {
             autofocus: true,
             onSubmitted: () => FocusScope.of(context).nextFocus(),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
           TvImeField(
             label: 'MOT DE PASSE',
             controller: _pass,
             obscure: true,
             onSubmitted: _login,
           ),
-          const SizedBox(height: 26),
+          const SizedBox(height: 22),
           TvPill(
             label: _busy ? 'Connexion…' : 'Se connecter',
             icon: Icons.arrow_forward_rounded,

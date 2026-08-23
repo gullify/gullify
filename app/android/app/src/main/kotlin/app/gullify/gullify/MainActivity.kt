@@ -9,6 +9,11 @@ import android.media.audiofx.Equalizer
 import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.PowerManager
+import android.text.InputType
+import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.InputMethodManager
+import android.widget.EditText
+import android.widget.FrameLayout
 import android.view.WindowManager
 import androidx.core.content.FileProvider
 import com.ryanheise.audioservice.AudioServiceActivity
@@ -147,6 +152,35 @@ class MainActivity : AudioServiceActivity() {
             }
         }
 
+        // Saisie de texte sur téléviseur : un VRAI champ Android.
+        //
+        // Flutter dessine ses propres champs et raccorde le clavier système à
+        // sa propre vue. Sur un téléviseur, le clavier de Google s'affiche
+        // alors sans jamais recevoir la croix directionnelle : il reste
+        // inerte. Les applications natives n'ont pas ce problème parce
+        // qu'elles utilisent un EditText, une vue qui prend réellement le
+        // focus et à qui le système confie les touches.
+        //
+        // On ouvre donc une boîte de dialogue avec un EditText le temps de la
+        // frappe, et on rend le texte à Flutter. C'est exactement le
+        // mécanisme des autres applications de la télé.
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            "gullify/textinput",
+        ).setMethodCallHandler { call, result ->
+            if (call.method == "prompt") {
+                promptForText(
+                    call.argument<String>("title") ?: "",
+                    call.argument<String>("value") ?: "",
+                    call.argument<Boolean>("password") ?: false,
+                    call.argument<Boolean>("url") ?: false,
+                    result,
+                )
+            } else {
+                result.notImplemented()
+            }
+        }
+
         // Verrous réseau tenus pendant la lecture. just_audio (0.10) ne pose
         // aucun WAKE_MODE sur ExoPlayer : écran éteint, la radio Wi-Fi passe en
         // power-save et le flux cale en pleine chanson (« mise en tampon ») pour
@@ -236,6 +270,78 @@ class MainActivity : AudioServiceActivity() {
             } catch (e: Exception) {
                 result.error("eq_unavailable", e.message, null)
             }
+        }
+    }
+
+    /// Ouvre un champ Android natif, le temps d'une saisie.
+    ///
+    /// La réponse part une seule fois, quelle que soit la façon dont la boîte
+    /// se ferme (validation au clavier, bouton, retour) : un MethodChannel
+    /// qui reçoit deux réponses lève une exception côté Flutter.
+    private fun promptForText(
+        title: String,
+        value: String,
+        password: Boolean,
+        url: Boolean,
+        result: MethodChannel.Result,
+    ) {
+        runOnUiThread {
+            val input = EditText(this).apply {
+                setText(value)
+                setSelection(value.length)
+                isSingleLine = true
+                inputType = when {
+                    password ->
+                        InputType.TYPE_CLASS_TEXT or
+                            InputType.TYPE_TEXT_VARIATION_PASSWORD
+                    url ->
+                        InputType.TYPE_CLASS_TEXT or
+                            InputType.TYPE_TEXT_VARIATION_URI
+                    else ->
+                        InputType.TYPE_CLASS_TEXT or
+                            InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+                }
+                imeOptions = EditorInfo.IME_ACTION_DONE
+            }
+            val frame = FrameLayout(this).apply {
+                val pad = (24 * resources.displayMetrics.density).toInt()
+                setPadding(pad, pad / 2, pad, 0)
+                addView(input)
+            }
+
+            var answered = false
+            fun answer(text: String?) {
+                if (answered) return
+                answered = true
+                result.success(text)
+            }
+
+            val dialog = android.app.AlertDialog.Builder(this)
+                .setTitle(title)
+                .setView(frame)
+                .setPositiveButton("OK") { _, _ -> answer(input.text.toString()) }
+                .setNegativeButton("Annuler") { _, _ -> answer(null) }
+                .setOnCancelListener { answer(null) }
+                .create()
+
+            // « Terminé » sur le clavier vaut validation : sur une
+            // télécommande, atteindre le bouton OK demande plusieurs appuis
+            // de plus.
+            input.setOnEditorActionListener { _, actionId, _ ->
+                if (actionId == EditorInfo.IME_ACTION_DONE) {
+                    answer(input.text.toString())
+                    dialog.dismiss()
+                    true
+                } else {
+                    false
+                }
+            }
+
+            dialog.setOnDismissListener { answer(null) }
+            dialog.show()
+            input.requestFocus()
+            (getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager)
+                ?.showSoftInput(input, InputMethodManager.SHOW_IMPLICIT)
         }
     }
 

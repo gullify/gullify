@@ -839,3 +839,54 @@ class TvArtwork extends StatelessWidget {
     icon: icon,
   );
 }
+
+/// Compose l'interface sur une toile de 1920 points, puis la met à l'échelle
+/// de l'écran réel.
+///
+/// Un téléviseur 1080p ne rapporte pas 1920 points logiques à Android mais
+/// 960 : sa densité vaut 2. Les tailles écrites ici — 56 pour un titre, 250
+/// pour une pochette — s'y afficheraient donc deux fois trop grandes, et
+/// certains boîtiers en tvdpi donneraient encore un autre résultat.
+///
+/// Plutôt que de saupoudrer des facteurs dans chaque écran, on compose une
+/// bonne fois pour toutes sur une toile de 1920 de large et on la réduit. Une
+/// mesure écrite dans le code est ainsi toujours un pixel de téléviseur, quel
+/// que soit ce que la boîte raconte — et le rendu du texte suit la
+/// transformation, donc rien ne devient flou.
+class TvCanvas extends StatelessWidget {
+  const TvCanvas({super.key, required this.child});
+
+  /// Largeur de référence : celle du dessin, et celle des mesures du code.
+  static const design = 1920.0;
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, box) {
+      if (!box.hasBoundedWidth || box.maxWidth <= 0) return child;
+      final scale = box.maxWidth / design;
+      // La hauteur n'est pas forcément en 16/9 (barres système, encoches de
+      // certains boîtiers) : on garde celle qu'on a, ramenée à la toile.
+      final height = box.hasBoundedHeight
+          ? box.maxHeight / scale
+          : design * 9 / 16;
+      return Transform.scale(
+        scale: scale,
+        alignment: Alignment.topLeft,
+        // `Transform` ne touche qu'à la peinture : sans desserrer les
+        // contraintes, l'enfant serait mis en page à la largeur de l'écran
+        // puis rétréci — soit une interface deux fois trop petite, collée à
+        // gauche. `OverflowBox` lui donne bel et bien la toile.
+        child: OverflowBox(
+          alignment: Alignment.topLeft,
+          minWidth: design,
+          maxWidth: design,
+          minHeight: height,
+          maxHeight: height,
+          child: SizedBox(width: design, height: height, child: child),
+        ),
+      );
+    },
+  );
+}

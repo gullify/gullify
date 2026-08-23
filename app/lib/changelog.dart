@@ -8,6 +8,21 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.44.0', [
+    'Google TV — la saisie passe par un vrai champ Android, comme dans les '
+        'autres applications de la télé. Flutter dessine ses propres champs et '
+        'raccorde le clavier système à sa propre vue : celui-ci s\'affichait '
+        'bien, mais ne recevait jamais la croix directionnelle. « OK » ouvre '
+        'désormais une boîte de saisie native, où le clavier de Google se '
+        'comporte exactement comme partout ailleurs',
+    'Toute l\'interface téléviseur retrouve sa juste taille. Un téléviseur '
+        '1080p ne rapporte pas 1920 points logiques mais 960 : tout '
+        's\'affichait deux fois trop grand, et débordait de l\'écran. '
+        'L\'interface est maintenant composée sur une toile de 1920 puis '
+        'ramenée à l\'écran réel, quel que soit le boîtier',
+    'Les écrans de connexion restent centrés autour de la mascotte, dans une '
+        'colonne étroite',
+  ]),
   ReleaseNote('3.43.0', [
     'Google TV — le clavier de la télé se pilote enfin à la croix. La cause '
         'était plus retorse qu\'il n\'y paraissait : quand un champ de texte a '

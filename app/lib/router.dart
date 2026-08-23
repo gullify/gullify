@@ -42,6 +42,7 @@ import 'screens/settings_screen.dart';
 import 'screens/shell_screen.dart';
 import 'screens/splash_screen.dart';
 import 'screens/stats_screen.dart';
+import 'screens/tv/tv_kit.dart';
 import 'screens/tv/tv_connect_screens.dart';
 import 'screens/tv_log_screen.dart';
 import 'screens/tv/tv_album_screen.dart';
@@ -72,7 +73,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/server',
         builder: (_, _) => ref.read(tvModeProvider)
-            ? const TvServerScreen()
+            ? const TvCanvas(child: TvServerScreen())
             : const ServerScreen(),
       ),
       GoRoute(
@@ -263,20 +264,27 @@ final routerProvider = Provider<GoRouter>((ref) {
       // écrans tactiles : les deux mises en page n'ont presque rien en commun,
       // et les mêler rendrait les deux illisibles.
       GoRoute(path: '/settings/tv-log', builder: (_, _) => const TvLogScreen()),
-      GoRoute(path: '/tv', builder: (_, _) => const TvShell()),
+      GoRoute(
+        path: '/tv',
+        builder: (_, _) => const TvCanvas(child: TvShell()),
+      ),
       GoRoute(
         path: '/tv/album/:id',
-        builder: (_, state) =>
-            TvAlbumScreen(albumId: int.parse(state.pathParameters['id']!)),
+        builder: (_, state) => TvCanvas(
+          child: TvAlbumScreen(albumId: int.parse(state.pathParameters['id']!)),
+        ),
       ),
       GoRoute(
         path: '/tv/artist/:id',
-        builder: (_, state) =>
-            TvArtistScreen(artistId: int.parse(state.pathParameters['id']!)),
+        builder: (_, state) => TvCanvas(
+          child: TvArtistScreen(
+            artistId: int.parse(state.pathParameters['id']!),
+          ),
+        ),
       ),
       GoRoute(
         path: '/tv/playing',
-        builder: (_, _) => const TvNowPlayingScreen(),
+        builder: (_, _) => const TvCanvas(child: TvNowPlayingScreen()),
       ),
     ],
     redirect: (context, state) {
