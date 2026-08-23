@@ -17,6 +17,36 @@ import 'tv_kit.dart';
 /// chaque retour au premier plan — et propose la mise à jour en grand, sur
 /// place. Tout le mécanisme (manifeste, téléchargement, installeur système)
 /// est celui de l'app mobile : seule la présentation change.
+/// Version écartée pour la session : on ne repropose pas la même mise à jour
+/// à chaque retour au premier plan.
+class TvUpdateSnooze extends Notifier<int?> {
+  @override
+  int? build() => null;
+
+  void snooze(int? versionCode) => state = versionCode;
+}
+
+final tvUpdateSnoozeProvider = NotifierProvider<TvUpdateSnooze, int?>(
+  TvUpdateSnooze.new,
+);
+
+/// Vrai quand le panneau de mise à jour occupe l'écran.
+///
+/// La coque s'en sert pour rendre tout le reste NON focalisable : un panneau
+/// qu'on voit mais dont la croix directionnelle traverse le fond est pire
+/// qu'inutile — on ne peut même plus atteindre son bouton.
+final tvUpdateBlockingProvider = Provider<bool>((ref) {
+  final update = ref.watch(appUpdateProvider);
+  final snoozed = ref.watch(tvUpdateSnoozeProvider);
+  return switch (update.status) {
+    UpdateStatus.available => update.available?.versionCode != snoozed,
+    UpdateStatus.downloading ||
+    UpdateStatus.readyToInstall ||
+    UpdateStatus.error => true,
+    _ => false,
+  };
+});
+
 class TvUpdateOverlay extends ConsumerStatefulWidget {
   const TvUpdateOverlay({super.key});
 
@@ -26,10 +56,6 @@ class TvUpdateOverlay extends ConsumerStatefulWidget {
 
 class _TvUpdateOverlayState extends ConsumerState<TvUpdateOverlay>
     with WidgetsBindingObserver {
-  /// Mise à jour écartée pour cette session : on ne la repropose pas à
-  /// chaque retour au premier plan.
-  int? _snoozed;
-
   /// Première vérification, différée. Gardée pour être annulée : un minuteur
   /// qui survit à l'écran retomberait sur un état démonté.
   Timer? _firstCheck;
@@ -72,27 +98,25 @@ class _TvUpdateOverlayState extends ConsumerState<TvUpdateOverlay>
   Widget build(BuildContext context) {
     final update = ref.watch(appUpdateProvider);
     final version = update.available?.versionCode;
-
-    final show = switch (update.status) {
-      UpdateStatus.available => version != _snoozed,
-      UpdateStatus.downloading ||
-      UpdateStatus.readyToInstall ||
-      UpdateStatus.error => true,
-      _ => false,
-    };
-    if (!show) return const SizedBox.shrink();
+    if (!ref.watch(tvUpdateBlockingProvider)) return const SizedBox.shrink();
 
     return SizedBox.expand(
       child: ColoredBox(
         color: const Color(0xD9070810),
         child: Center(
           child: SizedBox(
-            width: 900,
-            child: TvGlass(
-              padding: const EdgeInsets.fromLTRB(50, 44, 50, 40),
-              child: _Panel(
-                update: update,
-                onLater: () => setState(() => _snoozed = version),
+            width: 760,
+            // Périmètre de focus à part : la croix ne peut plus en sortir, et
+            // le premier bouton se vise tout seul à l'ouverture.
+            child: FocusScope(
+              autofocus: true,
+              child: TvGlass(
+                padding: const EdgeInsets.fromLTRB(44, 38, 44, 34),
+                child: _Panel(
+                  update: update,
+                  onLater: () =>
+                      ref.read(tvUpdateSnoozeProvider.notifier).snooze(version),
+                ),
               ),
             ),
           ),

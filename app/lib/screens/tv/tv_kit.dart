@@ -467,12 +467,18 @@ class TvPill extends StatelessWidget {
               if (icon != null && label.isNotEmpty)
                 SizedBox(width: compact ? 11 : 14),
               if (label.isNotEmpty)
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: compact ? 21 : 26,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white,
+                // Souple : un libellé long doit se laisser rogner plutôt que
+                // de faire déborder la pilule de son panneau.
+                Flexible(
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: compact ? 21 : 26,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
                   ),
                 ),
             ],

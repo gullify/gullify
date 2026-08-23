@@ -8,6 +8,21 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.46.0', [
+    'Google TV — le panneau de mise à jour prend vraiment la main. La croix '
+        'continuait de parcourir la page derrière lui : on voyait « Mettre à '
+        'jour » sans jamais pouvoir l\'atteindre. Tout ce qui est derrière '
+        'devient maintenant intouchable, et le premier bouton est visé d\'emblée',
+    'Le menu se parcourt de bout en bout. Haut et bas s\'échappaient vers la '
+        'page — qui vit juste derrière lui — et l\'on ressortait du menu avant '
+        'd\'arriver aux réglages. Le menu et la page ont désormais chacun leur '
+        'périmètre : haut et bas ne quittent jamais la liste, la flèche droite '
+        'en sort, et la flèche gauche y entre depuis le début d\'une ligne',
+    'Choisir une destination referme le menu et rend la main à la page : il '
+        'restait ouvert par-dessus, sans qu\'on puisse rien y sélectionner',
+    'Le menu porte le vrai logo de Gullify, avec le nom écrit à côté quand il '
+        'est déployé',
+  ]),
   ReleaseNote('3.45.0', [
     'Google TV — les écrans de connexion sont resserrés : mascotte, titre, '
         'champs et bouton reprennent des proportions de formulaire plutôt que '

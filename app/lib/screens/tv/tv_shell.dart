@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -50,7 +51,21 @@ class _TvShellState extends ConsumerState<TvShell> {
   static const _railOpen = 390.0;
 
   late TvTab _tab = widget.initialTab;
-  bool _railFocused = false;
+
+  /// Deux périmètres de focus, et des passages explicites entre les deux.
+  ///
+  /// Laissé au calcul géométrique, le déplacement haut/bas dans le rail
+  /// s'échappait vers la page — qui vit juste derrière lui, le rail ouvert la
+  /// recouvrant. On enferme donc chacun chez soi : haut et bas ne quittent
+  /// jamais la liste, et ce sont la flèche droite (sortir du menu) et la
+  /// flèche gauche en butée (y entrer) qui font le passage.
+  final _railScope = FocusScopeNode(debugLabel: 'tv-rail');
+  final _contentScope = FocusScopeNode(debugLabel: 'tv-content');
+
+  /// L'entrée du menu correspondant à la page ouverte. Entrer dans le menu
+  /// doit viser CET élément — un `FocusScopeNode` à qui l'on demande le focus
+  /// ne désigne aucun de ses enfants, et l'écran paraît alors ne rien faire.
+  final _railCurrent = FocusNode(debugLabel: 'tv-rail-current');
 
   /// Filet de sécurité du focus, différé (voir [_rescueFocus]).
   Timer? _rescue;
@@ -59,13 +74,65 @@ class _TvShellState extends ConsumerState<TvShell> {
   void initState() {
     super.initState();
     TvLog.add('coque ouverte (${widget.initialTab.name})');
+    // Le périmètre du contenu doit être actif dès l'ouverture : un `autofocus`
+    // ne s'applique qu'à un périmètre qui détient le focus, sinon plus rien
+    // n'est visé du tout.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _contentScope.requestFocus();
+    });
     _rescueFocus();
   }
 
   @override
   void dispose() {
     _rescue?.cancel();
+    _railScope.dispose();
+    _contentScope.dispose();
+    _railCurrent.dispose();
     super.dispose();
+  }
+
+  bool get _railFocused => _railScope.hasFocus;
+
+  /// Sortir du menu vers la page.
+  KeyEventResult _leaveRail() {
+    _contentScope.requestFocus();
+    return KeyEventResult.handled;
+  }
+
+  /// Entrer dans le menu — mais seulement depuis la première colonne.
+  ///
+  /// « Rien à gauche » ne suffit pas comme critère : Flutter accepte alors un
+  /// candidat situé plus bas à gauche, et la flèche gauche partait dans une
+  /// rangée au lieu d'aller au menu. On regarde donc où se trouve vraiment
+  /// l'élément visé dans la page ; ailleurs qu'en tête, on laisse la
+  /// traversée normale faire son travail.
+  KeyEventResult _maybeEnterRail() {
+    final current = FocusManager.instance.primaryFocus;
+    final rect = current?.rect;
+    if (current == null || rect == null) {
+      _railCurrent.requestFocus();
+      return KeyEventResult.handled;
+    }
+    // Y a-t-il quelque chose à viser à gauche, SUR LA MÊME LIGNE ? C'est la
+    // seule question qui compte : « rien à gauche » tout court laisserait
+    // Flutter partir vers une rangée située plus bas.
+    final hasLeftNeighbour = _contentScope.traversalDescendants.any((node) {
+      if (node == current) return false;
+      final other = node.rect;
+      final sameRow = other.top < rect.bottom && other.bottom > rect.top;
+      return sameRow && other.center.dx < rect.center.dx;
+    });
+    if (hasLeftNeighbour) return KeyEventResult.ignored;
+    _railCurrent.requestFocus();
+    return KeyEventResult.handled;
+  }
+
+  KeyEventResult _onKey(KeyEvent event, KeyEventResult Function() action) {
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
+      return KeyEventResult.ignored;
+    }
+    return action();
   }
 
   /// Rattrape un focus tombé dans le vide.
@@ -118,6 +185,10 @@ class _TvShellState extends ConsumerState<TvShell> {
 
   @override
   Widget build(BuildContext context) {
+    // Une mise à jour occupe l'écran : tout ce qui est derrière devient
+    // intouchable, sans quoi la croix directionnelle continue de parcourir la
+    // page et l'on ne peut jamais atteindre « Mettre à jour ».
+    final blocked = ref.watch(tvUpdateBlockingProvider);
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: Stack(
@@ -131,7 +202,21 @@ class _TvShellState extends ConsumerState<TvShell> {
             // La clé fait repartir chaque page de zéro : sans elle, Flutter
             // réutiliserait l'état de la précédente (position de défilement,
             // focus) d'un onglet à l'autre.
-            child: KeyedSubtree(key: ValueKey(_tab), child: _page),
+            child: Focus(
+              canRequestFocus: false,
+              skipTraversal: true,
+              onKeyEvent: (_, event) =>
+                  event.logicalKey == LogicalKeyboardKey.arrowLeft
+                  ? _onKey(event, _maybeEnterRail)
+                  : KeyEventResult.ignored,
+              child: FocusScope(
+                node: _contentScope,
+                child: ExcludeFocus(
+                  excluding: blocked,
+                  child: KeyedSubtree(key: ValueKey(_tab), child: _page),
+                ),
+              ),
+            ),
           ),
           Positioned(
             left: 0,
@@ -142,15 +227,24 @@ class _TvShellState extends ConsumerState<TvShell> {
               // qui dit « le focus est entré dans le rail ».
               canRequestFocus: false,
               skipTraversal: true,
-              onFocusChange: (v) {
-                if (v != _railFocused) setState(() => _railFocused = v);
-              },
-              child: _Rail(
-                open: _railFocused,
-                width: _railFocused ? _railOpen : _railClosed,
-                current: _tab,
-                onSelect: _select,
-                onSettings: () => context.push('/settings'),
+              onFocusChange: (_) => setState(() {}),
+              onKeyEvent: (_, event) =>
+                  event.logicalKey == LogicalKeyboardKey.arrowRight
+                  ? _onKey(event, _leaveRail)
+                  : KeyEventResult.ignored,
+              child: FocusScope(
+                node: _railScope,
+                child: ExcludeFocus(
+                  excluding: blocked,
+                  child: _Rail(
+                    open: _railFocused,
+                    width: _railFocused ? _railOpen : _railClosed,
+                    current: _tab,
+                    onSelect: _select,
+                    currentNode: _railCurrent,
+                    onSettings: () => context.push('/settings'),
+                  ),
+                ),
               ),
             ),
           ),
@@ -174,6 +268,7 @@ class _Rail extends StatelessWidget {
     required this.width,
     required this.current,
     required this.onSelect,
+    required this.currentNode,
     required this.onSettings,
   });
 
@@ -181,6 +276,10 @@ class _Rail extends StatelessWidget {
   final double width;
   final TvTab current;
   final ValueChanged<TvTab> onSelect;
+
+  /// Attaché à l'entrée de la page ouverte : c'est là qu'on arrive en entrant
+  /// dans le menu.
+  final FocusNode currentNode;
   final VoidCallback onSettings;
 
   @override
@@ -222,6 +321,7 @@ class _Rail extends StatelessWidget {
                 label: tab.label,
                 open: open,
                 selected: tab == current,
+                focusNode: tab == current ? currentNode : null,
                 onPressed: () => onSelect(tab),
               ),
             ),
@@ -260,7 +360,6 @@ class _Logo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     // Hauteur imposée : un OverflowBox prend tout ce qu'on lui laisse, et
     // dans une colonne il n'y a pas de limite en hauteur.
     return SizedBox(
@@ -271,40 +370,16 @@ class _Logo extends StatelessWidget {
           maxWidth: _railContent,
           child: Row(
             children: [
-              Container(
+              // Le vrai logo, pas une pastille à initiale : c'est lui qu'on
+              // reconnaît sur la rangée d'applications du téléviseur.
+              Image.asset(
+                'assets/icon/logo.png',
                 width: 56,
                 height: 56,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(18),
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      Color.lerp(scheme.primary, Colors.white, 0.3)!,
-                      scheme.primary,
-                    ],
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: scheme.primary.withValues(alpha: 0.45),
-                      blurRadius: 24,
-                      offset: const Offset(0, 8),
-                    ),
-                  ],
-                ),
-                child: const Center(
-                  child: Text(
-                    'G',
-                    style: TextStyle(
-                      fontSize: 30,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
+                filterQuality: FilterQuality.medium,
               ),
               if (open) ...[
-                const SizedBox(width: 16),
+                const SizedBox(width: 14),
                 const Expanded(
                   child: Text(
                     'Gullify',
@@ -334,6 +409,7 @@ class _RailItem extends StatelessWidget {
     required this.open,
     required this.selected,
     required this.onPressed,
+    this.focusNode,
   });
 
   /// Nul pour l'entrée « Réglages », qui n'est pas une page de la coque mais
@@ -344,12 +420,14 @@ class _RailItem extends StatelessWidget {
   final bool open;
   final bool selected;
   final VoidCallback onPressed;
+  final FocusNode? focusNode;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return TvFocusable(
       onPressed: onPressed,
+      focusNode: focusNode,
       scale: 1.0,
       builder: (context, focused) => Container(
         height: 66,

@@ -247,6 +247,22 @@ Future<void> _tvScreen(WidgetTester tester) async {
   addTearDown(() => tester.binding.setSurfaceSize(null));
 }
 
+/// Vrai quand l'élément qui a le focus se trouve à l'intérieur d'un widget
+/// du type donné.
+bool _focusInside(Type type) {
+  final ctx = FocusManager.instance.primaryFocus?.context;
+  if (ctx == null) return false;
+  var found = false;
+  ctx.visitAncestorElements((e) {
+    if (e.widget.runtimeType == type) {
+      found = true;
+      return false;
+    }
+    return true;
+  });
+  return found;
+}
+
 Future<void> _press(WidgetTester tester, LogicalKeyboardKey key) async {
   await tester.sendKeyEvent(key);
   await tester.pump();
@@ -660,6 +676,122 @@ void main() {
         'https://ailleurs.test/x.jpg',
       );
       expect(TvArtwork.sized(null, 250, 1), isNull);
+    });
+  });
+
+  group('ce qui doit rester hors d\'atteinte', () {
+    testWidgets('une mise à jour prend la main : le fond ne se vise plus', (
+      tester,
+    ) async {
+      await _tvScreen(tester);
+      await tester.pumpWidget(
+        _wrap(
+          const TvShell(),
+          update: const AppUpdateState(
+            status: UpdateStatus.available,
+            available: UpdateInfo(
+              versionCode: 200,
+              versionName: '4.0.0',
+              downloadUrl: 'https://example.test/g.apk',
+            ),
+            currentVersion: '3.45.0',
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Mettre à jour'), findsOneWidget);
+      expect(
+        _focusInside(TvUpdateOverlay),
+        isTrue,
+        reason: 'le panneau doit tenir le focus dès son ouverture',
+      );
+
+      // Et la croix ne doit pas pouvoir redescendre dans la page derrière.
+      for (final key in [
+        LogicalKeyboardKey.arrowDown,
+        LogicalKeyboardKey.arrowLeft,
+        LogicalKeyboardKey.arrowUp,
+        LogicalKeyboardKey.arrowRight,
+      ]) {
+        await _press(tester, key);
+        await tester.pumpAndSettle();
+        expect(
+          _focusInside(TvUpdateOverlay),
+          isTrue,
+          reason: 'la croix est sortie du panneau vers l\'arrière-plan',
+        );
+      }
+    });
+
+    testWidgets('le menu se parcourt de bout en bout sans s\'échapper', (
+      tester,
+    ) async {
+      await _tvScreen(tester);
+      await tester.pumpWidget(_wrap(const TvShell()));
+      await tester.pumpAndSettle();
+
+      await _press(tester, LogicalKeyboardKey.arrowLeft);
+      await tester.pumpAndSettle();
+
+      bool inRail() {
+        final ctx = FocusManager.instance.primaryFocus?.context;
+        var found = false;
+        ctx?.visitAncestorElements((e) {
+          if (e.widget.runtimeType.toString() == '_Rail') found = true;
+          return !found;
+        });
+        return found;
+      }
+
+      expect(inRail(), isTrue);
+      // Six destinations plus les réglages : on doit pouvoir descendre
+      // jusqu'en bas sans jamais retomber dans la page derrière.
+      for (var i = 0; i < TvTab.values.length + 1; i++) {
+        await _press(tester, LogicalKeyboardKey.arrowDown);
+        await tester.pumpAndSettle();
+        expect(
+          inRail(),
+          isTrue,
+          reason: 'sorti du menu après \$i descentes',
+        );
+      }
+      expect(find.text('Réglages'), findsOneWidget);
+
+      // Et la flèche droite en sort, une fois pour toutes.
+      await _press(tester, LogicalKeyboardKey.arrowRight);
+      await tester.pumpAndSettle();
+      expect(inRail(), isFalse);
+    });
+
+    testWidgets('choisir un onglet referme le rail et rend la main', (
+      tester,
+    ) async {
+      await _tvScreen(tester);
+      await tester.pumpWidget(_wrap(const TvShell()));
+      await tester.pumpAndSettle();
+
+      await _press(tester, LogicalKeyboardKey.arrowLeft);
+      await tester.pumpAndSettle();
+      expect(find.text('Jeux'), findsOneWidget);
+
+      await tester.tap(find.text('Jeux'));
+      await tester.pumpAndSettle();
+
+      // Le rail se referme, et le focus est passé dans la page : sinon on
+      // monte et descend dans le menu sans jamais pouvoir rien choisir.
+      expect(find.text('Bibliothèque'), findsNothing);
+      expect(
+        _focusInside(TvShell) && !_focusInside(TvUpdateOverlay),
+        isTrue,
+      );
+      final focused = FocusManager.instance.primaryFocus?.context;
+      var inRail = false;
+      focused?.visitAncestorElements((e) {
+        if (e.widget.runtimeType.toString() == '_Rail') inRail = true;
+        return !inRail;
+      });
+      expect(inRail, isFalse, reason: 'le focus est resté dans le menu');
     });
   });
 
