@@ -31,10 +31,24 @@
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT"/>
     <uses-permission android:name="android.permission.VIBRATE"/>
 
+    <!-- Google TV. Un seul APK sert le téléphone et le téléviseur : c'est au
+         démarrage que l'app demande à Android sur quoi elle s'ouvre, et bascule
+         vers l'interface à dix pieds.
+
+         · touchscreen non requise, sinon le Play Store considère l'app comme
+           incompatible avec les téléviseurs et le lanceur TV ne la voit pas ;
+         · leanback souhaitée mais non requise, sinon on perdrait les
+           téléphones ;
+         · le micro et la télécommande d'un boîtier ne sont pas garantis. -->
+    <uses-feature android:name="android.hardware.touchscreen" android:required="false"/>
+    <uses-feature android:name="android.software.leanback" android:required="false"/>
+    <uses-feature android:name="android.hardware.microphone" android:required="false"/>
+
     <application
         android:label="Gullify"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
+        android:banner="@drawable/tv_banner"
         android:usesCleartextTraffic="true">
         <activity
             android:name=".MainActivity"
@@ -56,6 +70,11 @@
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
+                <!-- La même activité sert de point d'entrée au lanceur Google
+                     TV : c'est cette catégorie, et elle seule, qui fait
+                     apparaître Gullify sur la rangée d'applications du
+                     téléviseur. -->
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER"/>
             </intent-filter>
         </activity>
 

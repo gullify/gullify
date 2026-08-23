@@ -10,6 +10,7 @@ import '../audio/alarm_platform.dart';
 import '../audio/equalizer.dart';
 import '../audio/fade.dart';
 import '../audio/prefetch.dart';
+import '../state/tv.dart';
 import '../state/alarm.dart';
 import '../state/app_theme.dart';
 import '../state/app_update.dart';
@@ -23,7 +24,7 @@ import '../widgets/retro_chrome.dart';
 import '../widgets/retro_lcd.dart';
 import '../widgets/update_dialog.dart';
 
-const appVersion = '3.37.0';
+const appVersion = '3.38.0';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -125,6 +126,7 @@ class SettingsScreen extends ConsumerWidget {
             trailing: const Icon(Icons.chevron_right),
             onTap: () => context.push('/settings/ideas'),
           ),
+          const _TvModeTile(),
           if (!kIsWeb && Platform.isAndroid)
             ListTile(
               leading: const Icon(Icons.directions_car_outlined),
@@ -700,6 +702,39 @@ class _UpdateTile extends ConsumerWidget {
           showUpdateDialog(context);
         }
       },
+    );
+  }
+}
+
+/// Forcer l'interface Google TV, pour l'essayer sans téléviseur.
+///
+/// En temps normal c'est Android qui répond, et ce réglage n'a pas à servir :
+/// il n'existe que pour voir l'interface à dix pieds sur un téléphone (et
+/// pour s'en sortir si un boîtier se déclarait mal).
+class _TvModeTile extends ConsumerWidget {
+  const _TvModeTile();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final tv = ref.watch(tvModeProvider);
+    final notifier = ref.read(tvModeProvider.notifier);
+    final auto = notifier.isAutomatic;
+    return ListTile(
+      leading: const Icon(Icons.tv_rounded),
+      title: const Text('Interface téléviseur'),
+      subtitle: Text(
+        auto
+            ? (tv
+                  ? "Détectée : cet appareil est un téléviseur"
+                  : "Détectée : cet appareil n'est pas un téléviseur")
+            : (tv ? 'Forcée : interface télé' : 'Forcée : interface tactile'),
+      ),
+      trailing: Switch(
+        value: tv,
+        onChanged: (v) =>
+            notifier.setForce(v ? TvForce.tv : TvForce.handheld),
+      ),
+      onLongPress: auto ? null : () => notifier.setForce(TvForce.auto),
     );
   }
 }

@@ -42,6 +42,10 @@ import 'screens/settings_screen.dart';
 import 'screens/shell_screen.dart';
 import 'screens/splash_screen.dart';
 import 'screens/stats_screen.dart';
+import 'screens/tv/tv_album_screen.dart';
+import 'screens/tv/tv_artist_screen.dart';
+import 'screens/tv/tv_now_playing_screen.dart';
+import 'screens/tv/tv_shell.dart';
 import 'screens/user_library_screen.dart';
 import 'screens/video_watch_screen.dart';
 import 'screens/videos_screen.dart';
@@ -49,6 +53,7 @@ import 'screens/year_screen.dart';
 import 'screens/yt_downloads_screen.dart';
 import 'models/server_user.dart';
 import 'state/auth.dart';
+import 'state/tv.dart';
 import 'widgets/keyboard_guard.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
@@ -247,6 +252,25 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (_, state) =>
             UserLibraryScreen(user: state.extra as ServerUser),
       ),
+      // ── Google TV ────────────────────────────────────────────────────
+      // Une interface entière en parallèle plutôt que des conditions dans les
+      // écrans tactiles : les deux mises en page n'ont presque rien en commun,
+      // et les mêler rendrait les deux illisibles.
+      GoRoute(path: '/tv', builder: (_, _) => const TvShell()),
+      GoRoute(
+        path: '/tv/album/:id',
+        builder: (_, state) =>
+            TvAlbumScreen(albumId: int.parse(state.pathParameters['id']!)),
+      ),
+      GoRoute(
+        path: '/tv/artist/:id',
+        builder: (_, state) =>
+            TvArtistScreen(artistId: int.parse(state.pathParameters['id']!)),
+      ),
+      GoRoute(
+        path: '/tv/playing',
+        builder: (_, _) => const TvNowPlayingScreen(),
+      ),
     ],
     redirect: (context, state) {
       final status = ref.read(authProvider).status;
@@ -265,13 +289,20 @@ final routerProvider = Provider<GoRouter>((ref) {
         case AuthStatus.needsLogin:
           return loc == '/login' ? null : '/login';
         case AuthStatus.authenticated:
-          return onAuthScreen ? '/' : null;
+          // Sur un téléviseur, l'accueil n'est pas la coque tactile : elle n'a
+          // ni focus ni zone sûre, et son dock se manœuvre au doigt.
+          final home = ref.read(tvModeProvider) ? '/tv' : '/';
+          if (onAuthScreen) return home;
+          return home == '/tv' && loc == '/' ? '/tv' : null;
       }
     },
   );
 
   // Re-run redirect whenever auth state changes.
   ref.listen(authProvider, (_, _) => router.refresh());
+  // Idem quand on force l'interface TV depuis les réglages (essai sur
+  // téléphone) : sans ça, le basculement n'aurait lieu qu'au prochain écran.
+  ref.listen(tvModeProvider, (_, _) => router.refresh());
   ref.onDispose(router.dispose);
   return router;
 });

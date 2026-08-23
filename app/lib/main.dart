@@ -9,6 +9,7 @@ import 'router.dart';
 import 'state/alarm.dart';
 import 'state/app_theme.dart';
 import 'state/player.dart';
+import 'state/tv.dart';
 import 'theme.dart';
 import 'widgets/keyboard_guard.dart';
 import 'widgets/liquid_glass.dart';
@@ -27,12 +28,21 @@ Future<void> main() async {
   // est encore sur le disque.
   unawaited(audioHandler.buffer.loadSaved().catchError((_) {}));
 
+  // Téléphone ou téléviseur ? La question se pose une seule fois, ici, avant
+  // le premier affichage : le routeur choisit son interface là-dessus, et une
+  // réponse qui arriverait après coup ferait clignoter l'app.
+  final tv = await detectTelevision();
+
   // Container indépendant de l'arbre de widgets : quand Android Auto lance
   // l'app sans interface (téléphone verrouillé), aucun widget ne se
   // construit — la liaison auth → repositories du handler doit donc vivre
   // ici, pas dans un écran.
   final container = ProviderContainer(
-    overrides: [audioHandlerProvider.overrideWithValue(audioHandler)],
+    overrides: [
+      audioHandlerProvider.overrideWithValue(audioHandler),
+      tvDetectedProvider.overrideWithValue(tv.detected),
+      tvForceInitialProvider.overrideWithValue(tv.force),
+    ],
   );
   container.listen(
     audioHandlerBinderProvider,
@@ -113,7 +123,11 @@ class _GullifyAppState extends ConsumerState<GullifyApp>
   @override
   Widget build(BuildContext context) {
     final accent = ref.watch(accentColorProvider);
-    final skin = ref.watch(skinProvider);
+    final tv = ref.watch(tvModeProvider);
+    // Sur un téléviseur, une seule tête : le verre en sombre. Un salon se
+    // regarde dans la pénombre, et ni le rétro Winamp ni le verre d'Apple ne
+    // sont dessinés pour être lus à trois mètres.
+    final skin = tv ? GullifySkin.glass : ref.watch(skinProvider);
     // Le réveil sonne : l'écran du réveil passe devant tout le reste, quel que
     // soit l'endroit où l'app avait été laissée la veille.
     ref.listen(alarmProvider, (prev, next) {
@@ -127,9 +141,9 @@ class _GullifyAppState extends ConsumerState<GullifyApp>
       // rétro Winamp (idée #82), lui, n'a qu'une seule tête : les deux
       // entrées valent alors le même thème, et le mode clair/sombre n'a plus
       // de prise dessus.
-      theme: gullifyTheme(skin, accent, dark: false),
+      theme: gullifyTheme(skin, accent, dark: tv),
       darkTheme: gullifyTheme(skin, accent, dark: true),
-      themeMode: ref.watch(themeModeProvider),
+      themeMode: tv ? ThemeMode.dark : ref.watch(themeModeProvider),
       routerConfig: ref.watch(routerProvider),
       debugShowCheckedModeBanner: false,
       // Fond en dégradé du thème « verre » : les scaffolds y sont

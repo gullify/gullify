@@ -1,7 +1,10 @@
 package app.gullify.gullify
 
+import android.app.UiModeManager
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.content.res.Configuration
 import android.media.audiofx.Equalizer
 import android.net.wifi.WifiManager
 import android.os.Build
@@ -131,6 +134,19 @@ class MainActivity : AudioServiceActivity() {
             }
         }
 
+        // Google TV : l'app doit savoir dès le démarrage si elle s'ouvre sur un
+        // téléviseur, parce que l'interface à dix pieds n'a rien à voir avec
+        // celle du téléphone — et qu'il n'y a pas de doigt pour la manœuvrer.
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            "gullify/device",
+        ).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "isTelevision" -> result.success(isTelevision())
+                else -> result.notImplemented()
+            }
+        }
+
         // Verrous réseau tenus pendant la lecture. just_audio (0.10) ne pose
         // aucun WAKE_MODE sur ExoPlayer : écran éteint, la radio Wi-Fi passe en
         // power-save et le flux cale en pleine chanson (« mise en tampon ») pour
@@ -221,6 +237,24 @@ class MainActivity : AudioServiceActivity() {
                 result.error("eq_unavailable", e.message, null)
             }
         }
+    }
+
+    /// Téléviseur ou pas.
+    ///
+    /// `FEATURE_LEANBACK` est la réponse officielle d'Android, mais quelques
+    /// boîtiers et émulateurs ne la déclarent pas tout en tournant bel et bien
+    /// en mode télévision — d'où le second test. Au moindre doute on répond
+    /// « non » : servir l'interface TV à un téléphone serait bien pire que
+    /// l'inverse.
+    private fun isTelevision(): Boolean = try {
+        val pm = packageManager
+        val leanback = pm.hasSystemFeature(PackageManager.FEATURE_LEANBACK) ||
+            pm.hasSystemFeature("android.software.leanback")
+        val uiMode = (getSystemService(Context.UI_MODE_SERVICE) as? UiModeManager)
+            ?.currentModeType == Configuration.UI_MODE_TYPE_TELEVISION
+        leanback || uiMode
+    } catch (_: Exception) {
+        false
     }
 
     companion object {

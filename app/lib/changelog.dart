@@ -8,6 +8,30 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.38.0', [
+    'Gullify s\'installe maintenant sur Google TV. Le même fichier sert le '
+        'téléphone et le téléviseur : l\'app demande à Android sur quoi elle '
+        's\'ouvre et bascule toute seule vers une interface prévue pour être '
+        'lue à trois mètres et manœuvrée à la croix directionnelle',
+    'Six écrans pensés pour le salon : accueil en rangées, bibliothèque en '
+        'grille, recherche avec clavier à l\'écran, favoris, radios, et les '
+        'jeux à plusieurs. L\'élément visé grossit et s\'auréole d\'indigo — '
+        'sur un téléviseur, le focus tient lieu de curseur',
+    'L\'écran de lecture prend enfin toute la place : la pochette floutée '
+        'occupe le fond, le panneau de verre flotte dessus, et les flèches '
+        'gauche et droite avancent de dix secondes quand la barre de '
+        'progression est visée',
+    'Les jeux à plusieurs trouvent leur écran : la télé affiche le code et '
+        'son QR, chacun rejoint depuis son téléphone, et le son sort des '
+        'haut-parleurs du salon. Rien à changer côté serveur — la télé est un '
+        'joueur hôte de plus',
+    'Le rail de navigation ne s\'ouvre qu\'en recevant le focus : le reste du '
+        'temps il se réduit à une bande d\'icônes et laisse la place à la '
+        'musique',
+    'Paramètres → Développement → « Interface téléviseur » permet d\'essayer '
+        'cette interface depuis un téléphone, sans attendre d\'être devant '
+        'la télé',
+  ]),
   ReleaseNote('3.37.0', [
     'Dans Android Auto, un genre se lance mélangé d\'un seul geste : '
         '« Lecture aléatoire — Punk » est la PREMIÈRE entrée du genre, avant '

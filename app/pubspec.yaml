@@ -18,7 +18,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # of the product and file versions while build-number is used as the build suffix.
 # versionCode : doit rester supérieur à 26 (dernier code de l'ancienne app
 # pixelplay) pour que son auto-updater propose la migration vers la v2.
-version: 3.37.0+171
+version: 3.38.0+172
 
 environment:
   sdk: ^3.12.2
@@ -70,6 +70,10 @@ dependencies:
   # rendu par moteur (Impeller Vulkan/Metal, GLES, Skia). Seule sa MATIÈRE
   # est utilisée : la mise en page et les widgets de Gullify ne bougent pas.
   liquid_glass_widgets: ^0.29.6
+  # Google TV : le code d'une partie s'affiche en QR sur le téléviseur, et se
+  # scanne au téléphone. Un faux QR décoratif ne serait pas scannable — donc
+  # un vrai encodeur, en Dart pur.
+  qr_flutter: ^4.1.0
 
 dev_dependencies:
   flutter_test:
