@@ -8,6 +8,19 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.39.0', [
+    'Sur Google TV, Gullify se met à jour tout seul : il vérifie au démarrage '
+        'et à chaque retour au premier plan, et propose la nouvelle version en '
+        'grand, sur place. Télécharger et installer se fait à la '
+        'télécommande, sans passer par le téléphone',
+    'Le panneau explique l\'écran d\'Android qui demande l\'autorisation '
+        'd\'installer depuis Gullify — c\'est le seul moment où l\'on sort de '
+        'l\'app, et savoir que c\'est normal évite de croire à une panne. Un '
+        'échec se dit, avec sa cause, et se réessaie',
+    'Une adresse courte pour la première installation : gullify.app/tv sert '
+        'directement le dernier APK, assez court pour se taper à la '
+        'télécommande dans une app de téléchargement',
+  ]),
   ReleaseNote('3.38.0', [
     'Gullify s\'installe maintenant sur Google TV. Le même fichier sert le '
         'téléphone et le téléviseur : l\'app demande à Android sur quoi elle '

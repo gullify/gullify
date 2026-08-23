@@ -9,6 +9,7 @@ import 'tv_library_page.dart';
 import 'tv_party_page.dart';
 import 'tv_radio_page.dart';
 import 'tv_search_page.dart';
+import 'tv_update.dart';
 
 /// Les destinations du rail, dans l'ordre où on les rencontre en montant.
 enum TvTab {
@@ -109,6 +110,10 @@ class _TvShellState extends ConsumerState<TvShell> {
               ),
             ),
           ),
+          // Par-dessus tout le reste : devant une télé, personne n'ira
+          // chercher une mise à jour dans les réglages. Positionnée, sinon un
+          // enfant libre de zéro pixel ferait s'effondrer toute la pile.
+          const Positioned.fill(child: TvUpdateOverlay()),
         ],
       ),
     );

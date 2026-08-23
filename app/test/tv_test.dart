@@ -19,6 +19,8 @@ import 'package:gullify/screens/tv/tv_album_screen.dart';
 import 'package:gullify/screens/tv/tv_kit.dart';
 import 'package:gullify/screens/tv/tv_now_playing_screen.dart';
 import 'package:gullify/screens/tv/tv_shell.dart';
+import 'package:gullify/screens/tv/tv_update.dart';
+import 'package:gullify/state/app_update.dart';
 import 'package:gullify/state/favorites.dart';
 import 'package:gullify/state/library.dart';
 import 'package:gullify/state/party.dart';
@@ -61,6 +63,20 @@ const _stations = [
 ];
 
 class _FakePlayerActions extends Fake implements PlayerActions {}
+
+/// Mise à jour figée : le vrai notifier interroge le réseau et le paquet
+/// installé, dont aucun n'existe en test.
+class _FixedUpdate extends AppUpdateNotifier {
+  _FixedUpdate(this.value);
+
+  final AppUpdateState value;
+
+  @override
+  AppUpdateState build() => value;
+
+  @override
+  Future<void> check({bool silent = false}) async {}
+}
 
 /// Partie figée : le vrai contrôleur sonderait le serveur en boucle.
 class _FixedParty extends PartyController {
@@ -129,9 +145,12 @@ Widget _wrap(
   Widget child, {
   MediaItem? item,
   PartySession? party,
+  AppUpdateState? update,
   bool tv = true,
 }) => ProviderScope(
   overrides: [
+    if (update != null)
+      appUpdateProvider.overrideWith(() => _FixedUpdate(update)),
     tvDetectedProvider.overrideWithValue(tv),
     tvForceInitialProvider.overrideWithValue(TvForce.auto),
     playerActionsProvider.overrideWithValue(_FakePlayerActions()),
@@ -355,6 +374,108 @@ void main() {
       await tester.pumpWidget(_wrap(const TvNowPlayingScreen()));
       await tester.pumpAndSettle();
       expect(find.text('Rien en lecture'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  });
+
+  group('les mises à jour, depuis la télé', () {
+    const info = UpdateInfo(
+      versionCode: 200,
+      versionName: '4.0.0',
+      downloadUrl: 'https://example.test/gullify.apk',
+      changelog: 'Une nouveauté épatante.',
+    );
+
+    testWidgets('rien à signaler : aucun bandeau', (tester) async {
+      await _tvScreen(tester);
+      await tester.pumpWidget(
+        _wrap(
+          const TvUpdateOverlay(),
+          update: const AppUpdateState(status: UpdateStatus.upToDate),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byType(TvPill), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('une version disponible se propose en grand', (tester) async {
+      await _tvScreen(tester);
+      await tester.pumpWidget(
+        _wrap(
+          const TvUpdateOverlay(),
+          update: const AppUpdateState(
+            status: UpdateStatus.available,
+            available: info,
+            currentVersion: '3.38.0',
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Gullify 4.0.0'), findsOneWidget);
+      expect(find.text('Tu es en 3.38.0'), findsOneWidget);
+      expect(find.text('Une nouveauté épatante.'), findsOneWidget);
+      expect(find.text('Mettre à jour'), findsOneWidget);
+      expect(find.text('Plus tard'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('le téléchargement montre sa progression', (tester) async {
+      await _tvScreen(tester);
+      await tester.pumpWidget(
+        _wrap(
+          const TvUpdateOverlay(),
+          update: const AppUpdateState(
+            status: UpdateStatus.downloading,
+            available: info,
+            progress: 0.42,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Téléchargement…'), findsOneWidget);
+      expect(find.text('42 %'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('l\'installation explique l\'écran d\'Android', (tester) async {
+      await _tvScreen(tester);
+      await tester.pumpWidget(
+        _wrap(
+          const TvUpdateOverlay(),
+          update: const AppUpdateState(
+            status: UpdateStatus.readyToInstall,
+            available: info,
+            apkPath: '/tmp/x.apk',
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      // La permission « sources inconnues » est le seul moment où l'écran
+      // sort de Gullify : il faut le dire, sinon on croit que ça a planté.
+      expect(find.textContaining('autorisation'), findsOneWidget);
+      expect(find.text('Relancer l\'installation'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('un échec se dit et se réessaie', (tester) async {
+      await _tvScreen(tester);
+      await tester.pumpWidget(
+        _wrap(
+          const TvUpdateOverlay(),
+          update: const AppUpdateState(
+            status: UpdateStatus.error,
+            message: 'Échec du téléchargement : connectionTimeout',
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Mise à jour impossible'), findsOneWidget);
+      expect(
+        find.text('Échec du téléchargement : connectionTimeout'),
+        findsOneWidget,
+      );
+      expect(find.text('Réessayer'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
   });

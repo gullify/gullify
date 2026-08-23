@@ -1,0 +1,8 @@
+# gullify.app/tv répond SANS redirection.
+#
+# L'adresse se tape à la télécommande, dans un gestionnaire de téléchargement.
+# « tv » n'est donc volontairement PAS un répertoire : mod_dir renverrait un
+# 301 vers « /tv/ » — et ce 301 repart en http:// derrière le proxy, ce que
+# certains clients refusent de suivre.
+RewriteEngine On
+RewriteRule ^tv$ tv.php [L]
