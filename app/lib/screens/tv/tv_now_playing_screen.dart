@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../state/library.dart';
 import '../../state/player.dart';
+import '../../widgets/lyrics_sheet.dart';
 import 'tv_kit.dart';
 
 /// L'écran de lecture, plein cadre.
@@ -225,21 +226,22 @@ class _LyricsPanelState extends ConsumerState<_LyricsPanel> {
                             )
                           : Center(
                               child: SizedBox(
-                                width: 1100,
-                                child: ListView(
-                                  controller: _scroll,
-                                  children: [
-                                    Text(
-                                      text.trim(),
-                                      textAlign: TextAlign.center,
-                                      style: const TextStyle(
-                                        fontSize: 30,
-                                        height: 1.6,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 60),
-                                  ],
+                                width: 1200,
+                                // Le même défilement synchronisé que sur
+                                // téléphone : LyricsView lit le format LRC,
+                                // met la phrase en cours en surbrillance et
+                                // la ramène au centre. On ne le réécrit pas —
+                                // on l'agrandit, en jouant sur l'échelle du
+                                // texte, qui commande aussi la mesure des
+                                // lignes et donc le calage du défilement.
+                                child: MediaQuery(
+                                  data: MediaQuery.of(context).copyWith(
+                                    textScaler: const TextScaler.linear(3.4),
+                                  ),
+                                  child: LyricsView(
+                                    text: text,
+                                    controller: _scroll,
+                                  ),
                                 ),
                               ),
                             ),

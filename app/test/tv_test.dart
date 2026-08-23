@@ -245,9 +245,12 @@ Widget _wrap(
   MediaItem? item,
   PartySession? party,
   AppUpdateState? update,
+  String? lyrics,
+  Duration position = const Duration(seconds: 61),
   bool tv = true,
 }) => ProviderScope(
   overrides: [
+    lyricsProvider('a.mp3').overrideWith((ref) async => lyrics),
     if (update != null)
       appUpdateProvider.overrideWith(() => _FixedUpdate(update)),
     tvDetectedProvider.overrideWithValue(tv),
@@ -259,9 +262,7 @@ Widget _wrap(
     playbackStateProvider.overrideWith(
       (ref) => Stream.value(PlaybackState(playing: item != null)),
     ),
-    positionProvider.overrideWith(
-      (ref) => Stream.value(const Duration(seconds: 61)),
-    ),
+    positionProvider.overrideWith((ref) => Stream.value(position)),
     queueProvider.overrideWith(
       (ref) => Stream.value(item == null ? const <MediaItem>[] : [item]),
     ),
@@ -949,6 +950,89 @@ void main() {
       );
       expect(find.text('Réessayer'), findsOneWidget);
       expect(tester.takeException(), isNull);
+    });
+  });
+
+  group('les paroles sur la télé', () {
+    const lrc = '''
+[00:00.00] Première ligne
+[00:05.00] Deuxième ligne
+[00:10.00] Troisième ligne
+[00:15.00] Quatrième ligne
+[00:20.00] Cinquième ligne
+''';
+
+    Widget player({String? lyrics, Duration at = Duration.zero}) => _wrap(
+      const TvCanvas(child: TvNowPlayingScreen()),
+      item: const MediaItem(
+        id: '1',
+        title: 'Ruby Soho',
+        artist: 'Rancid',
+        duration: Duration(seconds: 158),
+        extras: {'filePath': 'a.mp3'},
+      ),
+      position: at,
+      lyrics: lyrics,
+    );
+
+    testWidgets('le bouton Paroles ouvre le panneau', (tester) async {
+      await _tvScreen(tester);
+      await tester.pumpWidget(player(lyrics: lrc));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.widgetWithText(TvPill, 'Paroles'));
+      await tester.pumpAndSettle();
+      expect(find.text('Deuxième ligne'), findsOneWidget);
+    });
+
+    testWidgets('la ligne en cours suit la lecture, en surbrillance', (
+      tester,
+    ) async {
+      await _tvScreen(tester);
+      // Douze secondes de lecture : on en est à la troisième ligne.
+      await tester.pumpWidget(
+        player(lyrics: lrc, at: const Duration(seconds: 12)),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(TvPill, 'Paroles'));
+      await tester.pumpAndSettle();
+
+      final scheme = gullifyThemeFor(
+        GullifyAccent.indigo,
+        dark: true,
+      ).colorScheme;
+      final current = tester.widget<Text>(find.text('Troisième ligne'));
+      final other = tester.widget<Text>(find.text('Première ligne'));
+      expect(
+        current.style?.color,
+        scheme.primary,
+        reason: 'la phrase en cours doit ressortir',
+      );
+      expect(current.style?.fontWeight, FontWeight.w700);
+      expect(other.style?.color, isNot(scheme.primary));
+      // …et elle est écrite plus grand que les autres.
+      expect(current.style!.fontSize!, greaterThan(other.style!.fontSize!));
+    });
+
+    testWidgets('sans paroles, le panneau le dit', (tester) async {
+      await _tvScreen(tester);
+      await tester.pumpWidget(player());
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(TvPill, 'Paroles'));
+      await tester.pumpAndSettle();
+      expect(find.text('Pas de paroles pour ce titre'), findsOneWidget);
+    });
+
+    testWidgets('une radio n\'a pas de bouton Paroles', (tester) async {
+      await _tvScreen(tester);
+      await tester.pumpWidget(
+        _wrap(
+          const TvCanvas(child: TvNowPlayingScreen()),
+          item: const MediaItem(id: 'r', title: 'CISM', artist: 'Radio'),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.widgetWithText(TvPill, 'Paroles'), findsNothing);
     });
   });
 

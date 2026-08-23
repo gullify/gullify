@@ -8,6 +8,13 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.48.0', [
+    'Google TV — les paroles défilent au rythme de la chanson, la phrase en '
+        'cours en surbrillance, exactement comme dans l\'app mobile : c\'est '
+        'le même affichage, agrandi pour être lu de loin',
+    'Quand le titre n\'a pas de paroles horodatées, le texte reste affiché en '
+        'entier et se fait défiler à la main avec haut et bas',
+  ]),
   ReleaseNote('3.47.0', [
     'Google TV — les cinq jeux se jouent enfin seul sur la télé : Chrono, '
         'Blind test, Pochette mystère, Duel d\'années et Défricheur. Mêmes '
