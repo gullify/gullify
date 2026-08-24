@@ -26,6 +26,16 @@ const tvMinText = 21.0;
 /// Grossissement de l'élément visé.
 const _focusScale = 1.09;
 
+/// La place à réserver autour d'une grille ou d'une rangée pour que
+/// l'élément visé puisse grandir.
+///
+/// Un élément grossit de [_focusScale] autour de son centre, et son halo
+/// déborde encore un peu. Sans cette marge, la liste le rogne à ses bords :
+/// le premier et le dernier d'une rangée se retrouvent tronqués — l'image
+/// comme le texte — alors que ceux du milieu, eux, ont la gouttière de leurs
+/// voisins pour respirer.
+const tvFocusMargin = 26.0;
+
 const _ok = Color(0xFF2FA36B);
 const _ko = Color(0xFFE5484D);
 
@@ -352,7 +362,7 @@ class _TvShelfState extends State<TvShelf> {
   void _bring(int index) {
     if (!_scroll.hasClients) return;
     const stride = 250.0 + 26.0;
-    final target = (index * stride - 40).clamp(
+    final target = (index * stride - 40 + tvFocusMargin).clamp(
       0.0,
       _scroll.position.maxScrollExtent,
     );
@@ -371,14 +381,16 @@ class _TvShelfState extends State<TvShelf> {
       children: [
         TvShelfLabel(widget.label),
         SizedBox(
-          height: widget.height,
+          // La hauteur comprend la marge de grossissement, en haut comme en
+          // bas : sinon la vignette visée se fait couper par la rangée.
+          height: widget.height + tvFocusMargin * 2,
           child: ListView.separated(
             controller: _scroll,
             scrollDirection: Axis.horizontal,
             // Le focus décide du défilement : le doigt n'existe pas ici, et
             // laisser la liste défiler seule désynchroniserait les deux.
             physics: const NeverScrollableScrollPhysics(),
-            padding: EdgeInsets.zero,
+            padding: const EdgeInsets.all(tvFocusMargin),
             itemCount: widget.itemCount,
             separatorBuilder: (_, _) => const SizedBox(width: 26),
             itemBuilder: (context, i) =>

@@ -38,9 +38,18 @@ class TvRadioPage extends ConsumerWidget {
                 builder: (context, box) {
                   const columns = 5;
                   const gap = 26.0;
-                  final cell = (box.maxWidth - gap * (columns - 1)) / columns;
+                  final cell =
+                      (box.maxWidth - tvFocusMargin * 2 - gap * (columns - 1)) /
+                      columns;
                   return GridView.builder(
-                    padding: const EdgeInsets.only(top: 8, bottom: 40),
+                    // Marge de grossissement : sans elle, les vignettes des
+                    // bords sont rognées dès qu'on les vise.
+                    padding: const EdgeInsets.fromLTRB(
+                      tvFocusMargin,
+                      tvFocusMargin,
+                      tvFocusMargin,
+                      40,
+                    ),
                     gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                       crossAxisCount: columns,
                       mainAxisSpacing: 34,

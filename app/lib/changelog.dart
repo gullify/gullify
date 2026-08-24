@@ -8,6 +8,14 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.52.0', [
+    'Google TV — l\'élément visé n\'est plus rogné. Il grossit quand on le '
+        'vise, mais la grille le coupait à ses bords : l\'image et le texte se '
+        'retrouvaient tronqués sur le premier et le dernier d\'une rangée, '
+        'ceux du milieu ayant la gouttière de leurs voisins pour respirer. '
+        'Grilles et rangées réservent maintenant la place du grossissement — '
+        'albums, artistes, genres, playlists, radios et rangées d\'accueil',
+  ]),
   ReleaseNote('3.51.0', [
     'Google TV — le panneau de mise à jour ne peut plus rester bloqué. Quand '
         'Android refusait le paquet, « Plus tard » et « Retour » n\'avaient '

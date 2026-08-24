@@ -324,6 +324,17 @@ Future<void> _tvScreen(WidgetTester tester) async {
   addTearDown(() => tester.binding.setSurfaceSize(null));
 }
 
+/// Le contenu agrandi d'une vignette : ce que porte l'AnimatedScale, et donc
+/// ce qui déborde quand la place manque.
+Finder _scaledContent(Finder within) => find
+    .descendant(
+      of: find
+          .descendant(of: within, matching: find.byType(AnimatedScale))
+          .first,
+      matching: find.byType(Column),
+    )
+    .first;
+
 /// Vrai quand l'élément qui a le focus se trouve à l'intérieur d'un widget
 /// du type donné.
 bool _focusInside(Type type) {
@@ -551,6 +562,56 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Rien en lecture'), findsOneWidget);
       expect(tester.takeException(), isNull);
+    });
+  });
+
+  group('l\'élément visé a la place de grandir', () {
+    testWidgets('en tête de rangée, rien n\'est rogné', (tester) async {
+      await _tvScreen(tester);
+      await tester.pumpWidget(
+        _wrap(
+          Scaffold(
+            body: TvShelf(
+              label: 'Albums',
+              itemCount: 6,
+              itemBuilder: (context, i, onFocus) => TvCard(
+                title: 'Album $i',
+                autofocus: i == 0,
+                onPressed: () {},
+              ),
+            ),
+          ),
+        ),
+      );
+      // L'agrandissement est animé : il faut le laisser arriver au bout.
+      await tester.pumpAndSettle();
+
+      final list = tester.getRect(find.byType(ListView));
+      // On mesure le CONTENU de la vignette, pas sa boîte de mise en page :
+      // c'est lui qui porte l'agrandissement, la boîte, elle, ne bouge pas.
+      final first = tester.getRect(_scaledContent(find.byType(ListView)));
+      expect(
+        first.left,
+        greaterThanOrEqualTo(list.left),
+        reason: 'la première vignette dépasse à gauche, donc se fait couper',
+      );
+      expect(first.top, greaterThanOrEqualTo(list.top));
+      expect(first.bottom, lessThanOrEqualTo(list.bottom));
+    });
+
+    testWidgets('dans une grille non plus', (tester) async {
+      await _tvScreen(tester);
+      await tester.pumpWidget(_wrap(const TvShell(initialTab: TvTab.library)));
+      await tester.pumpAndSettle();
+
+      final grid = tester.getRect(find.byType(GridView));
+      final first = tester.getRect(_scaledContent(find.byType(GridView)));
+      expect(
+        first.left,
+        greaterThanOrEqualTo(grid.left),
+        reason: 'la vignette de la première colonne se fait couper',
+      );
+      expect(first.top, greaterThanOrEqualTo(grid.top));
     });
   });
 
