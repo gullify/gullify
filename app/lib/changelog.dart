@@ -8,6 +8,20 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.55.0', [
+    'Google TV — « Le chercher » cherche pour de bon. Il posait la requête et '
+        'ouvrait l\'onglet Recherche, mais le champ de la page partait vide : '
+        'on voyait les nouveautés, et rien n\'était cherché',
+    'Google TV — les résultats YouTube apparaissent même quand la '
+        'bibliothèque n\'a rien. Ils vivaient dans la branche « il y a des '
+        'résultats locaux » et disparaissaient donc précisément quand ils '
+        'servent : pour un artiste qu\'on ne possède pas encore. La section '
+        'annonce maintenant sa recherche en cours, et le dit quand elle ne '
+        'trouve rien',
+    'Google TV — la recherche montre huit titres locaux à la fois, « Plus de '
+        'titres » pour la suite. Une recherche large en alignait des dizaines, '
+        'et YouTube se retrouvait à vingt appuis de croix directionnelle',
+  ]),
   ReleaseNote('3.54.0', [
     'Google TV — « À découvrir » devient un bandeau encadré sur toute la '
         'largeur, ses commandes à l\'autre bout. Il reprenait la silhouette de '

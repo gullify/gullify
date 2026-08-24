@@ -264,6 +264,16 @@ Map<String, dynamic> _partyJson({
 PartyState _party(Map<String, dynamic> json) =>
     PartyState.fromJson(json, (u) => u);
 
+/// Requête figée : le champ de recherche la relit à l'ouverture.
+class _FixedQuery extends SearchQuery {
+  _FixedQuery(this.value);
+
+  final String value;
+
+  @override
+  String build() => value;
+}
+
 /// Le titre porté par la carte actuellement visée.
 String? _focusedCardTitle(WidgetTester tester) {
   final node = FocusManager.instance.primaryFocus;
@@ -294,6 +304,7 @@ Widget _wrap(
   AppUpdateState? update,
   String? lyrics,
   DiscoverArtist? discovery,
+  String? query,
   Duration position = const Duration(seconds: 61),
   bool tv = true,
 }) => ProviderScope(
@@ -325,7 +336,13 @@ Widget _wrap(
     genresProvider.overrideWith((ref) async => _genres),
     playlistsProvider.overrideWith((ref) async => _playlists),
     discoverArtistProvider.overrideWith((ref) async => discovery),
+    if (query != null)
+      searchQueryProvider.overrideWith(() => _FixedQuery(query)),
     ytNewReleasesProvider.overrideWith((ref) async => <YtAlbum>[]),
+    // Sans quoi la vraie recherche YouTube part sur le réseau et laisse un
+    // minuteur en suspens à la fin du test.
+    ytAlbumSearchProvider.overrideWith((ref, q) async => <YtAlbum>[]),
+    ytSongSearchProvider.overrideWith((ref, q) async => <YtSong>[]),
     blindPoolProvider.overrideWith((ref) async => _blindPool),
     gamePoolProvider.overrideWith(
       // La pochette mystère exige huit albums pochettés : le catalogue de la
@@ -635,6 +652,22 @@ void main() {
     });
   });
 
+  group('la recherche sur la télé', () {
+    testWidgets('YouTube apparaît même quand la bibliothèque n\'a rien', (
+      tester,
+    ) async {
+      await _tvScreen(tester);
+      await tester.pumpWidget(_wrap(const TvSearchPage(), query: 'Belvedere'));
+      await tester.pump(const Duration(milliseconds: 400));
+
+      // La section YouTube vivait dans la branche « il y a des résultats
+      // locaux » : elle disparaissait précisément quand elle sert, pour un
+      // artiste qu'on ne possède pas encore.
+      expect(find.text('SUR YOUTUBE — À TÉLÉCHARGER'), findsOneWidget);
+      expect(find.textContaining('Rien dans ta bibliothèque'), findsOneWidget);
+    });
+  });
+
   group('remonter une page', () {
     testWidgets('rend le haut de la page, pas seulement le dernier bouton', (
       tester,
@@ -713,6 +746,9 @@ void main() {
       // l'écran, pas un second accueil empilé par-dessus.
       expect(find.byType(TvSearchPage), findsOneWidget);
       expect(find.text('Derniers ajouts'), findsNothing);
+      // Et le nom doit être dans le champ : changer d'onglet sans le porter
+      // laissait la page sur ses nouveautés, sans rien chercher.
+      expect(find.text('Les Trois Accords'), findsWidgets);
     });
   });
 

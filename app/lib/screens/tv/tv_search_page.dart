@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../api/library_repository.dart';
 import '../../api/yt_downloads_repository.dart';
 import '../../state/library.dart';
 import '../../state/player.dart';
@@ -43,13 +44,24 @@ class _TvSearchPageState extends ConsumerState<TvSearchPage> {
 
   String get _query => _field.text;
 
+  /// Combien de titres locaux la liste montre. Sans plafond, une recherche
+  /// large en alignait des dizaines et la section YouTube se retrouvait à
+  /// vingt appuis de croix directionnelle — donc jamais vue.
+  static const _songPage = 8;
+  int _songCap = _songPage;
+
   @override
   void initState() {
     super.initState();
+    // Une recherche peut venir d'ailleurs : « Le chercher », sur l'artiste à
+    // découvrir, pose la requête puis ouvre cet onglet. Le champ partait vide
+    // et la page affichait les nouveautés — on avait bien changé d'onglet,
+    // mais rien n'était cherché.
+    _field.text = ref.read(searchQueryProvider);
     // Les résultats suivent la saisie : pas de bouton « chercher » à aller
     // viser après chaque mot.
     _field.addListener(() {
-      if (mounted) setState(() {});
+      if (mounted) setState(() => _songCap = _songPage);
       ref.read(searchQueryProvider.notifier).set(_field.text);
     });
   }
@@ -116,102 +128,17 @@ class _TvSearchPageState extends ConsumerState<TvSearchPage> {
               Expanded(
                 child: _query.trim().length < 2
                     ? _NewReleases(onDownload: _ask)
-                    : results.when(
-                        loading: () =>
-                            const Center(child: CircularProgressIndicator()),
-                        error: (e, _) => TvEmpty(
-                          message: 'Recherche impossible',
-                          hint: '$e',
-                          icon: Icons.cloud_off_rounded,
-                        ),
-                        data: (r) => r.isEmpty
-                            ? TvEmpty(
-                                message: 'Rien pour « $_query »',
-                                hint: 'Essaie moins de lettres.',
-                                icon: Icons.search_off_rounded,
-                              )
-                            : ListView(
-                                padding: const EdgeInsets.only(bottom: 40),
-                                children: [
-                                  if (r.artists.isNotEmpty)
-                                    TvShelf(
-                                      label: 'Artistes',
-                                      itemCount: r.artists.length,
-                                      height: 300,
-                                      itemBuilder: (context, i, onFocus) => TvCard(
-                                        title: r.artists[i].name,
-                                        subtitle:
-                                            '${r.artists[i].albumCount} albums',
-                                        size: 200,
-                                        round: true,
-                                        icon: Icons.person_rounded,
-                                        artwork: TvArtwork(
-                                          url: r.artists[i].imageUrl,
-                                          borderRadius: 0,
-                                        ),
-                                        onFocusChange: (f) {
-                                          if (f) onFocus();
-                                        },
-                                        onPressed: () => context.push(
-                                          '/tv/artist/${r.artists[i].id}',
-                                        ),
-                                      ),
-                                    ),
-                                  if (r.albums.isNotEmpty) ...[
-                                    const SizedBox(height: 34),
-                                    TvShelf(
-                                      label: 'Albums',
-                                      itemCount: r.albums.length,
-                                      height: 300,
-                                      itemBuilder: (context, i, onFocus) =>
-                                          TvCard(
-                                            title: r.albums[i].name,
-                                            subtitle: r.albums[i].artistName,
-                                            size: 200,
-                                            artwork: TvArtwork(
-                                              url: r.albums[i].artworkUrl,
-                                              borderRadius: 0,
-                                            ),
-                                            onFocusChange: (f) {
-                                              if (f) onFocus();
-                                            },
-                                            onPressed: () => context.push(
-                                              '/tv/album/${r.albums[i].id}',
-                                            ),
-                                          ),
-                                    ),
-                                  ],
-                                  if (r.songs.isNotEmpty) ...[
-                                    const SizedBox(height: 34),
-                                    const TvShelfLabel('Titres'),
-                                    for (var i = 0; i < r.songs.length; i++)
-                                      Padding(
-                                        padding: const EdgeInsets.only(
-                                          bottom: 6,
-                                        ),
-                                        child: TvTrackTile(
-                                          index: i + 1,
-                                          title: r.songs[i].title,
-                                          subtitle: r.songs[i].artistName,
-                                          onPressed: () async {
-                                            await ref
-                                                .read(playerActionsProvider)
-                                                .playSongs(
-                                                  r.songs,
-                                                  startIndex: i,
-                                                );
-                                            if (context.mounted) {
-                                              context.push('/tv/playing');
-                                            }
-                                          },
-                                        ),
-                                      ),
-                                  ],
-                                  // La bibliothèque d'abord, YouTube ensuite :
-                                  // on cherche presque toujours ce qu'on a déjà.
-                                  _YtResults(query: _query, onDownload: _ask),
-                                ],
-                              ),
+                    : ListView(
+                        padding: const EdgeInsets.only(bottom: 40),
+                        children: [
+                          _local(results),
+                          // Toujours rendue, quoi qu'ait donné la
+                          // bibliothèque : la placer dans la branche « il y a
+                          // des résultats locaux » la rendait invisible
+                          // précisément quand elle sert — un artiste qu'on
+                          // n'a pas encore.
+                          _YtResults(query: _query, onDownload: _ask),
+                        ],
                       ),
               ),
             ],
@@ -241,6 +168,115 @@ class _TvSearchPageState extends ConsumerState<TvSearchPage> {
             }),
           ),
       ],
+    );
+  }
+
+  /// Ce que la bibliothèque a trouvé. Rend toujours quelque chose : la
+  /// section YouTube vient juste après, et un trou muet à sa place laisserait
+  /// croire que la recherche entière a échoué.
+  Widget _local(AsyncValue<SearchResults> results) {
+    final scheme = Theme.of(context).colorScheme;
+    return results.when(
+      loading: () => const Padding(
+        padding: EdgeInsets.symmetric(vertical: 40),
+        child: Center(child: CircularProgressIndicator()),
+      ),
+      error: (e, _) => TvEmpty(
+        message: 'Bibliothèque injoignable',
+        hint: '$e',
+        icon: Icons.cloud_off_rounded,
+      ),
+      data: (r) {
+        if (r.isEmpty) {
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: Text(
+              'Rien dans ta bibliothèque pour « $_query ».',
+              style: TextStyle(
+                fontSize: tvMinText,
+                color: scheme.onSurfaceVariant,
+              ),
+            ),
+          );
+        }
+        final songs = r.songs.take(_songCap).toList();
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (r.artists.isNotEmpty)
+              TvShelf(
+                label: 'Artistes',
+                itemCount: r.artists.length,
+                height: 300,
+                itemBuilder: (context, i, onFocus) => TvCard(
+                  title: r.artists[i].name,
+                  subtitle: '${r.artists[i].albumCount} albums',
+                  size: 200,
+                  round: true,
+                  icon: Icons.person_rounded,
+                  artwork: TvArtwork(
+                    url: r.artists[i].imageUrl,
+                    borderRadius: 0,
+                  ),
+                  onFocusChange: (f) {
+                    if (f) onFocus();
+                  },
+                  onPressed: () =>
+                      context.push('/tv/artist/${r.artists[i].id}'),
+                ),
+              ),
+            if (r.albums.isNotEmpty) ...[
+              const SizedBox(height: 34),
+              TvShelf(
+                label: 'Albums',
+                itemCount: r.albums.length,
+                height: 300,
+                itemBuilder: (context, i, onFocus) => TvCard(
+                  title: r.albums[i].name,
+                  subtitle: r.albums[i].artistName,
+                  size: 200,
+                  artwork: TvArtwork(
+                    url: r.albums[i].artworkUrl,
+                    borderRadius: 0,
+                  ),
+                  onFocusChange: (f) {
+                    if (f) onFocus();
+                  },
+                  onPressed: () => context.push('/tv/album/${r.albums[i].id}'),
+                ),
+              ),
+            ],
+            if (songs.isNotEmpty) ...[
+              const SizedBox(height: 34),
+              const TvShelfLabel('Titres'),
+              for (var i = 0; i < songs.length; i++)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: TvTrackTile(
+                    index: i + 1,
+                    title: songs[i].title,
+                    subtitle: songs[i].artistName,
+                    onPressed: () async {
+                      await ref
+                          .read(playerActionsProvider)
+                          .playSongs(r.songs, startIndex: i);
+                      if (mounted) context.push('/tv/playing');
+                    },
+                  ),
+                ),
+              if (r.songs.length > songs.length) ...[
+                const SizedBox(height: 12),
+                TvPill(
+                  label: 'Plus de titres (${r.songs.length - songs.length})',
+                  icon: Icons.expand_more_rounded,
+                  accent: false,
+                  onPressed: () => setState(() => _songCap += _songPage),
+                ),
+              ],
+            ],
+          ],
+        );
+      },
     );
   }
 
@@ -333,11 +369,16 @@ class _YtResults extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final scheme = Theme.of(context).colorScheme;
-    final albumList =
-        ref.watch(ytAlbumSearchProvider(query)).value ?? const <YtAlbum>[];
-    final songList =
-        ref.watch(ytSongSearchProvider(query)).value ?? const <YtSong>[];
-    if (albumList.isEmpty && songList.isEmpty) return const SizedBox.shrink();
+    final albums = ref.watch(ytAlbumSearchProvider(query));
+    final songs = ref.watch(ytSongSearchProvider(query));
+    final albumList = albums.value ?? const <YtAlbum>[];
+    final songList = songs.value ?? const <YtSong>[];
+
+    // L'en-tête est là dans tous les cas, même sans résultat. Escamoter la
+    // section pendant qu'elle charge donnait à croire que Gullify ne cherche
+    // que dans la bibliothèque — c'était le reproche.
+    final waiting = albums.isLoading || songs.isLoading;
+    final failed = albums.hasError && songs.hasError;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -353,6 +394,33 @@ class _YtResults extends ConsumerWidget {
           ),
         ),
         const SizedBox(height: 16),
+        if (albumList.isEmpty && songList.isEmpty)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 20),
+            child: Row(
+              children: [
+                if (waiting) ...[
+                  const SizedBox(
+                    width: 26,
+                    height: 26,
+                    child: CircularProgressIndicator(strokeWidth: 3),
+                  ),
+                  const SizedBox(width: 16),
+                ],
+                Text(
+                  waiting
+                      ? 'Recherche sur YouTube Music…'
+                      : failed
+                      ? 'YouTube Music est injoignable.'
+                      : 'Rien sur YouTube Music pour « $query ».',
+                  style: TextStyle(
+                    fontSize: tvMinText,
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
         if (albumList.isNotEmpty)
           _YtAlbumShelf(
             label: 'Albums',
