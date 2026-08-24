@@ -257,12 +257,29 @@ function personalNewReleases($user) {
             'thumbnail' => $entry['thumbnail'] ?? '',
             'browseId'  => $entry['browseId']  ?? '',
             'becauseOf' => $entry['becauseOf'] ?? '',
+            '_rank'     => (int) ($entry['rank'] ?? PHP_INT_MAX),
         ];
     }
-    // Le script écrit déjà du plus récent au plus ancien ; on le refait ici
-    // parce que le filtrage par utilisateur ne garantit pas l'ordre du fichier.
-    usort($mine, fn($a, $b) => (int) $b['year'] <=> (int) $a['year']);
-    return $mine;
+
+    // Du plus écouté au moins écouté, et le plus récent d'abord chez chacun.
+    usort($mine, function ($a, $b) {
+        $r = $a['_rank'] <=> $b['_rank'];
+        return $r !== 0 ? $r : ((int) $b['year'] <=> (int) $a['year']);
+    });
+
+    // Deux sorties par artiste, pas davantage. Un groupe qui ressort huit
+    // rééditions la même année remplissait tout l'écran à lui seul, et les
+    // trente autres artistes n'apparaissaient jamais.
+    $perArtist = [];
+    $kept = [];
+    foreach ($mine as $album) {
+        $who = normalizeName($album['becauseOf'] ?: $album['artist']);
+        $perArtist[$who] = ($perArtist[$who] ?? 0) + 1;
+        if ($perArtist[$who] > 2) continue;
+        unset($album['_rank']);
+        $kept[] = $album;
+    }
+    return $kept;
 }
 
 /**

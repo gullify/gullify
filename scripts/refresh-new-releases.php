@@ -83,6 +83,18 @@ function nrNormalize($name) {
 }
 
 /**
+ * Ce qui n'est pas une nouvelle sortie malgré une année récente : rééditions,
+ * anniversaires, compilations d'éditeur, hommages et reprises au piano. Elles
+ * portent l'année de leur remise en vente, et sans ce filtre elles occupent la
+ * moitié de la liste — or l'utilisateur a déjà le disque d'origine.
+ */
+const NR_JUNK = '/(anniversary edition|expanded edition|remaster|greatest hits|'
+              . 'best of|oldies|golden collection|vintage|essential|'
+              . 'collection series|the collection|int(e|é)grale?\b|integral\b|'
+              . 'karaok|tribute to|lullaby|renditions?|instrumental versions?|'
+              . 'piano versions?|8-?bit|made popular by|originally performed)/iu';
+
+/**
  * Les albums d'un artiste selon YouTube Music. Une seule requête : la
  * recherche « albums » porte déjà l'année et le browseId, ce qui suffit —
  * ouvrir la page de l'artiste coûterait un aller-retour de plus par nom.
@@ -197,6 +209,7 @@ foreach ($users as $user) {
             $bid   = trim((string) ($album['browseId'] ?? ''));
             $year  = (int) ($album['year'] ?? 0);
             if ($title === '' || $bid === '' || $year < $cutoff) continue;
+            if (preg_match(NR_JUNK, $title)) continue;
 
             // La recherche ratisse large : « Rancid » remonte aussi des
             // hommages et des compilations d'autres artistes. On ne garde que
@@ -225,6 +238,10 @@ foreach ($users as $user) {
                 // Pour qui c'est proposé : l'app peut le dire, et cela sert à
                 // reclasser quand deux artistes sortent la même semaine.
                 'becauseOf' => $name,
+                // Le rang d'écoute de l'artiste : c'est lui qui décide de
+                // l'ordre servi. Sans quoi la liste sort par ordre
+                // alphabétique d'artiste, ce qui ne veut rien dire.
+                'rank'      => $cursor + $i,
                 'seenAt'    => $now,
             ];
             say("   + $name — $title ($year)");
@@ -244,7 +261,10 @@ foreach ($users as $user) {
         $stale = (int) ($entry['year'] ?? 0) < $cutoff;
         $has   = isset($owned[nrNormalize($entry['becauseOf'] ?? $entry['artist'] ?? '')
                              . '|' . nrNormalize($entry['title'] ?? '')]);
-        if ($stale || $has) unset($found[$slot]);
+        // Aussi ce qu'un passage précédent avait retenu avant que le filtre
+        // des rééditions n'existe : sans cela, elles resteraient à demeure.
+        $junk  = preg_match(NR_JUNK, (string) ($entry['title'] ?? '')) === 1;
+        if ($stale || $has || $junk) unset($found[$slot]);
     }
 
     // Enregistré utilisateur par utilisateur : un balayage complet dure une
