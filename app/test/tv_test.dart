@@ -21,6 +21,7 @@ import 'package:gullify/screens/tv/tv_connect_screens.dart';
 import 'package:gullify/screens/tv/tv_kit.dart';
 import 'package:gullify/screens/tv/tv_now_playing_screen.dart';
 import 'package:gullify/screens/tv/tv_party_page.dart';
+import 'package:gullify/screens/tv/tv_home_page.dart';
 import 'package:gullify/screens/tv/tv_search_page.dart';
 import 'package:gullify/screens/tv/tv_shell.dart';
 import 'package:gullify/screens/tv/tv_update.dart';
@@ -686,6 +687,25 @@ void main() {
       final decouverte = tester.getTopLeft(find.text('À DÉCOUVRIR')).dy;
       final rangee = tester.getTopLeft(find.text('Derniers ajouts')).dy;
       expect(decouverte, lessThan(rangee));
+
+      // Un bandeau, pas un demi-écran : il court d'un bord à l'autre de la
+      // page, sinon il redouble la silhouette de la bannière au-dessus.
+      final bandeau = tester.getRect(
+        find
+            .ancestor(
+              of: find.text('À DÉCOUVRIR'),
+              matching: find.byType(Container),
+            )
+            .first,
+      );
+      final page = tester.getRect(find.byType(TvHomePage));
+      expect(bandeau.left, lessThan(page.left + 40));
+      expect(bandeau.right, greaterThan(page.right - 140));
+      // Et les commandes vivent à l'autre bout, pas collées au texte.
+      expect(
+        tester.getRect(find.text('Le chercher')).center.dx,
+        greaterThan(bandeau.center.dx),
+      );
 
       await tester.tap(find.text('Le chercher'));
       await tester.pump(const Duration(milliseconds: 400));

@@ -239,104 +239,132 @@ class _Discovery extends ConsumerWidget {
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 46),
-      child: Row(
-        children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(110),
-            child: SizedBox(
-              width: 220,
-              height: 220,
-              child: found.artist.thumbnail.isEmpty
-                  ? ColoredBox(
-                      color: scheme.surfaceContainerHighest,
-                      child: Icon(
-                        Icons.person_search_rounded,
-                        size: 80,
-                        color: scheme.onSurfaceVariant,
-                      ),
-                    )
-                  : Image.network(
-                      found.artist.thumbnail,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, _, _) => ColoredBox(
+      child: Container(
+        // Un bandeau encadré, sur toute la largeur. Sans lui, la suggestion
+        // reprenait la silhouette de la bannière juste au-dessus — pochette à
+        // gauche, texte à côté, moitié d'écran vide à droite — et les deux se
+        // confondaient en un même bloc bancal.
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(30),
+          border: Border.all(color: scheme.primary.withValues(alpha: 0.35)),
+          gradient: LinearGradient(
+            begin: Alignment.centerLeft,
+            end: Alignment.centerRight,
+            colors: [
+              scheme.primary.withValues(alpha: 0.20),
+              Colors.white.withValues(alpha: 0.05),
+            ],
+          ),
+        ),
+        padding: const EdgeInsets.fromLTRB(32, 28, 36, 28),
+        child: Row(
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(90),
+              child: SizedBox(
+                width: 180,
+                height: 180,
+                child: found.artist.thumbnail.isEmpty
+                    ? ColoredBox(
                         color: scheme.surfaceContainerHighest,
                         child: Icon(
                           Icons.person_search_rounded,
-                          size: 80,
+                          size: 70,
                           color: scheme.onSurfaceVariant,
                         ),
+                      )
+                    : Image.network(
+                        found.artist.thumbnail,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, _, _) => ColoredBox(
+                          color: scheme.surfaceContainerHighest,
+                          child: Icon(
+                            Icons.person_search_rounded,
+                            size: 70,
+                            color: scheme.onSurfaceVariant,
+                          ),
+                        ),
                       ),
-                    ),
+              ),
             ),
-          ),
-          const SizedBox(width: 36),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'À DÉCOUVRIR',
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 3,
-                    color: scheme.primary,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  found.artist.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 48,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -1.4,
-                    height: 1.05,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Parce que tu écoutes ${found.becauseOf}',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 26,
-                    color: scheme.onSurfaceVariant,
-                  ),
-                ),
-                const SizedBox(height: 22),
-                Row(
-                  children: [
-                    TvPill(
-                      label: 'Le chercher',
-                      icon: Icons.search_rounded,
-                      onPressed: () {
-                        ref
-                            .read(searchQueryProvider.notifier)
-                            .set(found.artist.name);
-                        // `push('/tv')` empilait une seconde coque sur la même
-                        // adresse : à l'écran, l'accueil se rechargeait et rien
-                        // d'autre. La recherche est un onglet, pas une route.
-                        ref
-                            .read(tvTabRequestProvider.notifier)
-                            .ask(TvTab.search);
-                      },
+            const SizedBox(width: 34),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'À DÉCOUVRIR',
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 3,
+                      color: scheme.primary,
                     ),
-                    const SizedBox(width: 16),
-                    TvPill(
-                      label: 'Un autre',
-                      icon: Icons.refresh_rounded,
-                      accent: false,
-                      onPressed: () => ref.invalidate(discoverArtistProvider),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    found.artist.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 46,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -1.4,
+                      height: 1.05,
                     ),
-                  ],
-                ),
-              ],
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Parce que tu écoutes ${found.becauseOf}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 26,
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+            const SizedBox(width: 28),
+            // Les commandes à l'autre bout du bandeau : c'est ce qui l'étire
+            // vraiment sur toute la largeur, au lieu de le laisser s'entasser
+            // à gauche comme la bannière.
+            SizedBox(
+              // Largeur fixe : les deux boutons alignés à droite forment un
+              // bloc, et `stretch` leur donne la même largeur — sans borne, la
+              // colonne n'aurait rien à quoi s'étirer.
+              width: 300,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  TvPill(
+                    label: 'Le chercher',
+                    icon: Icons.search_rounded,
+                    onPressed: () {
+                      ref
+                          .read(searchQueryProvider.notifier)
+                          .set(found.artist.name);
+                      // `push('/tv')` empilait une seconde coque sur la même
+                      // adresse : à l'écran, l'accueil se rechargeait et rien
+                      // d'autre. La recherche est un onglet, pas une route.
+                      ref.read(tvTabRequestProvider.notifier).ask(TvTab.search);
+                    },
+                  ),
+                  const SizedBox(height: 14),
+                  TvPill(
+                    label: 'Un autre',
+                    icon: Icons.refresh_rounded,
+                    accent: false,
+                    onPressed: () => ref.invalidate(discoverArtistProvider),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

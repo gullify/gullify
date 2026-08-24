@@ -8,6 +8,18 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.54.0', [
+    'Google TV — « À découvrir » devient un bandeau encadré sur toute la '
+        'largeur, ses commandes à l\'autre bout. Il reprenait la silhouette de '
+        'la bannière juste au-dessus — pochette à gauche, texte à côté, moitié '
+        'd\'écran vide à droite — et les deux se confondaient en un même bloc '
+        'bancal',
+    'Nouveautés — les rééditions ne passent plus pour des nouvelles sorties. '
+        'Éditions anniversaire, « Oldies Selection », compilations d\'éditeur : '
+        'elles portent l\'année de leur remise en vente alors que le disque '
+        'd\'origine est déjà là. Et un même artiste ne prend plus que deux '
+        'places, au lieu d\'occuper l\'écran entier à lui seul',
+  ]),
   ReleaseNote('3.53.0', [
     'Nouveautés — la liste se renouvelle enfin. Elle venait de la page '
         'publique de YouTube Music, qui sans compte renvoie un fourre-tout '
