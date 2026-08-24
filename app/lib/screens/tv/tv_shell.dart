@@ -31,6 +31,25 @@ enum TvTab {
   final IconData icon;
 }
 
+/// L'onglet qu'une page demande à la coque d'afficher.
+///
+/// Le rail vit dans l'état de [TvShell] et non dans la route : sur la télé,
+/// tous les onglets partagent l'adresse `/tv`. Une page qui veut en ouvrir un
+/// autre — « Le chercher », depuis l'artiste à découvrir — n'a donc pas de
+/// `push` à faire ; elle dépose sa demande ici, la coque la voit et bascule.
+class TvTabRequest extends Notifier<TvTab?> {
+  @override
+  TvTab? build() => null;
+
+  void ask(TvTab tab) => state = tab;
+
+  void done() => state = null;
+}
+
+final tvTabRequestProvider = NotifierProvider<TvTabRequest, TvTab?>(
+  TvTabRequest.new,
+);
+
 /// La coque de l'app sur téléviseur : un rail à gauche, un écran à droite.
 ///
 /// Le rail ne s'ouvre qu'en recevant le focus — c'est ce qui permet de garder
@@ -239,6 +258,15 @@ class _TvShellState extends ConsumerState<TvShell> {
     // intouchable, sans quoi la croix directionnelle continue de parcourir la
     // page et l'on ne peut jamais atteindre « Mettre à jour ».
     final blocked = ref.watch(tvUpdateBlockingProvider);
+    ref.listen(tvTabRequestProvider, (_, asked) {
+      if (asked == null) return;
+      _select(asked);
+      // Reposer la demande tout de suite : sans quoi revenir à l'accueil à la
+      // main rebasculerait vers l'onglet demandé la fois d'après.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) ref.read(tvTabRequestProvider.notifier).done();
+      });
+    });
     return PopScope(
       // Jamais de sortie directe : c'est `_onBack` qui décide, et il ne ferme
       // l'application qu'au second appui.

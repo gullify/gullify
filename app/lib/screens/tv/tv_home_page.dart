@@ -10,6 +10,7 @@ import '../../state/favorites.dart';
 import '../../state/library.dart';
 import '../../state/player.dart';
 import 'tv_kit.dart';
+import 'tv_shell.dart';
 
 /// L'accueil du téléviseur : un bandeau de reprise, puis des rangées.
 ///
@@ -36,6 +37,9 @@ class TvHomePage extends ConsumerWidget {
       children: [
         _Hero(albums: albums.value ?? const []),
         const SizedBox(height: 54),
+        // L'artiste à découvrir passe avant les rangées : en bas de page il
+        // fallait descendre à travers tout l'accueil pour le voir.
+        const _Discovery(),
         if ((albums.value ?? const []).isNotEmpty)
           _AlbumShelf(label: 'Derniers ajouts', albums: albums.value!),
         if ((popular.value ?? const []).isNotEmpty) ...[
@@ -50,8 +54,6 @@ class TvHomePage extends ConsumerWidget {
           const SizedBox(height: 46),
           _ArtistShelf(artists: artists.value!),
         ],
-        const SizedBox(height: 46),
-        const _Discovery(),
         if (albums.isLoading && artists.isLoading)
           const SizedBox(
             height: 360,
@@ -235,96 +237,107 @@ class _Discovery extends ConsumerWidget {
     final found = discover.value;
     if (found == null) return const SizedBox.shrink();
 
-    return Row(
-      children: [
-        ClipRRect(
-          borderRadius: BorderRadius.circular(110),
-          child: SizedBox(
-            width: 220,
-            height: 220,
-            child: found.artist.thumbnail.isEmpty
-                ? ColoredBox(
-                    color: scheme.surfaceContainerHighest,
-                    child: Icon(
-                      Icons.person_search_rounded,
-                      size: 80,
-                      color: scheme.onSurfaceVariant,
-                    ),
-                  )
-                : Image.network(
-                    found.artist.thumbnail,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, _, _) => ColoredBox(
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 46),
+      child: Row(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(110),
+            child: SizedBox(
+              width: 220,
+              height: 220,
+              child: found.artist.thumbnail.isEmpty
+                  ? ColoredBox(
                       color: scheme.surfaceContainerHighest,
                       child: Icon(
                         Icons.person_search_rounded,
                         size: 80,
                         color: scheme.onSurfaceVariant,
                       ),
+                    )
+                  : Image.network(
+                      found.artist.thumbnail,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) => ColoredBox(
+                        color: scheme.surfaceContainerHighest,
+                        child: Icon(
+                          Icons.person_search_rounded,
+                          size: 80,
+                          color: scheme.onSurfaceVariant,
+                        ),
+                      ),
                     ),
-                  ),
+            ),
           ),
-        ),
-        const SizedBox(width: 36),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'À DÉCOUVRIR',
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 3,
-                  color: scheme.primary,
-                ),
-              ),
-              const SizedBox(height: 10),
-              Text(
-                found.artist.name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontSize: 48,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -1.4,
-                  height: 1.05,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Parce que tu écoutes ${found.becauseOf}',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontSize: 26, color: scheme.onSurfaceVariant),
-              ),
-              const SizedBox(height: 22),
-              Row(
-                children: [
-                  TvPill(
-                    label: 'Le chercher',
-                    icon: Icons.search_rounded,
-                    onPressed: () {
-                      ref
-                          .read(searchQueryProvider.notifier)
-                          .set(found.artist.name);
-                      context.push('/tv');
-                    },
+          const SizedBox(width: 36),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'À DÉCOUVRIR',
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 3,
+                    color: scheme.primary,
                   ),
-                  const SizedBox(width: 16),
-                  TvPill(
-                    label: 'Un autre',
-                    icon: Icons.refresh_rounded,
-                    accent: false,
-                    onPressed: () => ref.invalidate(discoverArtistProvider),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  found.artist.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 48,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -1.4,
+                    height: 1.05,
                   ),
-                ],
-              ),
-            ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Parce que tu écoutes ${found.becauseOf}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 26,
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 22),
+                Row(
+                  children: [
+                    TvPill(
+                      label: 'Le chercher',
+                      icon: Icons.search_rounded,
+                      onPressed: () {
+                        ref
+                            .read(searchQueryProvider.notifier)
+                            .set(found.artist.name);
+                        // `push('/tv')` empilait une seconde coque sur la même
+                        // adresse : à l'écran, l'accueil se rechargeait et rien
+                        // d'autre. La recherche est un onglet, pas une route.
+                        ref
+                            .read(tvTabRequestProvider.notifier)
+                            .ask(TvTab.search);
+                      },
+                    ),
+                    const SizedBox(width: 16),
+                    TvPill(
+                      label: 'Un autre',
+                      icon: Icons.refresh_rounded,
+                      accent: false,
+                      onPressed: () => ref.invalidate(discoverArtistProvider),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

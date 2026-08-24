@@ -8,6 +8,31 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.53.0', [
+    'Nouveautés — la liste se renouvelle enfin. Elle venait de la page '
+        'publique de YouTube Music, qui sans compte renvoie un fourre-tout '
+        'mondial toujours identique, sans rapport avec ce qu\'affiche l\'app '
+        'YouTube Music. À la place, Gullify parcourt chaque nuit la '
+        'discographie des artistes que tu as déjà et te propose leurs sorties '
+        'récentes qui te manquent — une liste qui bouge, et sur laquelle il y '
+        'a une raison de cliquer',
+    'Google TV — l\'artiste à découvrir remonte en haut de l\'accueil, au '
+        'lieu d\'attendre tout en bas qu\'on descende jusqu\'à lui',
+    'Google TV — « Le chercher », sur l\'artiste à découvrir, ouvre bien la '
+        'recherche ; il rechargeait l\'accueil et ne faisait rien d\'autre',
+    'La page d\'un artiste affiche son nombre de titres, qui restait à zéro '
+        'pour tout le monde',
+    'Google TV — descendre dans une rangée vise sa première carte, et non '
+        'plus la deuxième. Faute de mieux, le focus suivait la géométrie : '
+        'depuis le bouton de la bannière, qui commence après la pochette, on '
+        'atterrissait une carte trop loin. Revenir dans une rangée ramène '
+        'aussi sur la carte qu\'on y avait laissée',
+    'Google TV — on peut revoir le haut d\'une page. En remontant, le '
+        'défilement s\'arrêtait net au dernier élément visable : bannière et '
+        'intitulés de rangées restaient hors champ, sans moyen d\'y revenir. '
+        'Il dégage maintenant ce qui surplombe l\'élément visé, et revient '
+        'franchement au début quand on n\'en est plus loin',
+  ]),
   ReleaseNote('3.52.0', [
     'Google TV — l\'élément visé n\'est plus rogné. Il grossit quand on le '
         'vise, mais la grille le coupait à ses bords : l\'image et le texte se '

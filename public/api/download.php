@@ -232,6 +232,40 @@ function fetchNewReleases() {
 }
 
 /**
+ * Les sorties récentes des artistes que [$user] possède déjà, trouvées hors
+ * ligne par scripts/refresh-new-releases.php.
+ *
+ * C'est la vraie source de « Nouveautés ». La page publique de YouTube Music
+ * (voir fetchNewReleases) est un fourre-tout mondial qui ne bouge presque pas
+ * et ne ressemble en rien à ce que l'app YouTube Music affiche ; elle ne sert
+ * plus que de remplissage quand cette liste-ci est courte.
+ */
+function personalNewReleases($user) {
+    if ($user === '') return [];
+    $file = AppConfig::getDataPath() . '/cache/personal_new_releases.json';
+    if (!is_readable($file)) return [];
+    $all = json_decode((string) @file_get_contents($file), true);
+    if (!is_array($all)) return [];
+
+    $mine = [];
+    foreach ($all as $entry) {
+        if (!is_array($entry) || ($entry['user'] ?? '') !== $user) continue;
+        $mine[] = [
+            'title'     => $entry['title']     ?? '',
+            'artist'    => $entry['artist']    ?? '',
+            'year'      => (string) ($entry['year'] ?? ''),
+            'thumbnail' => $entry['thumbnail'] ?? '',
+            'browseId'  => $entry['browseId']  ?? '',
+            'becauseOf' => $entry['becauseOf'] ?? '',
+        ];
+    }
+    // Le script écrit déjà du plus récent au plus ancien ; on le refait ici
+    // parce que le filtrage par utilisateur ne garantit pas l'ordre du fichier.
+    usort($mine, fn($a, $b) => (int) $b['year'] <=> (int) $a['year']);
+    return $mine;
+}
+
+/**
  * Les artistes de la bibliothèque de [$user], normalisés, en ensemble.
  */
 function libraryArtistSet($user) {
@@ -630,8 +664,26 @@ try {
             $limit = (int)($_GET['limit'] ?? 30);
             if ($limit < 1)   { $limit = 30; }
             if ($limit > 100) { $limit = 100; }
-            $user   = $_GET['user'] ?? '';
-            $albums = rankNewReleases($user, markAlbumsInLibrary($user, fetchNewReleases()));
+            $user = $_GET['user'] ?? '';
+
+            // D'abord les sorties des artistes que l'utilisateur écoute — la
+            // seule liste qui se renouvelle vraiment et sur laquelle il a
+            // envie de cliquer. Le fourre-tout mondial de YouTube complète
+            // derrière, et seulement s'il reste de la place.
+            $mine   = markAlbumsInLibrary($user, personalNewReleases($user));
+            $mine   = array_values(array_filter($mine, fn($a) => empty($a['in_library'])));
+            $seen   = [];
+            foreach ($mine as $album) $seen[$album['browseId']] = true;
+
+            $albums = $mine;
+            if (count($albums) < $limit) {
+                $global = rankNewReleases($user, markAlbumsInLibrary($user, fetchNewReleases()));
+                foreach ($global as $album) {
+                    if (isset($seen[$album['browseId'] ?? ''])) continue;
+                    $albums[] = $album;
+                }
+            }
+
             echo json_encode([
                 'success' => true,
                 'data' => ['albums' => array_slice($albums, 0, $limit)],

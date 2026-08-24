@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:gullify/api/api_client.dart';
 import 'package:gullify/api/library_repository.dart';
 import 'package:gullify/api/party_repository.dart';
 import 'package:gullify/api/radio_repository.dart';
@@ -20,6 +21,7 @@ import 'package:gullify/screens/tv/tv_connect_screens.dart';
 import 'package:gullify/screens/tv/tv_kit.dart';
 import 'package:gullify/screens/tv/tv_now_playing_screen.dart';
 import 'package:gullify/screens/tv/tv_party_page.dart';
+import 'package:gullify/screens/tv/tv_search_page.dart';
 import 'package:gullify/screens/tv/tv_shell.dart';
 import 'package:gullify/screens/tv/tv_update.dart';
 import 'package:gullify/state/app_update.dart';
@@ -261,12 +263,36 @@ Map<String, dynamic> _partyJson({
 PartyState _party(Map<String, dynamic> json) =>
     PartyState.fromJson(json, (u) => u);
 
+/// Le titre porté par la carte actuellement visée.
+String? _focusedCardTitle(WidgetTester tester) {
+  final node = FocusManager.instance.primaryFocus;
+  if (node?.context == null) return null;
+  final card = find.descendant(
+    of: find.byWidget(node!.context!.widget),
+    matching: find.byType(TvCard),
+  );
+  if (tester.widgetList<TvCard>(card).isEmpty) {
+    // Le nœud visé vit *dans* la carte : on remonte plutôt que de descendre.
+    TvCard? found;
+    node.context!.visitAncestorElements((el) {
+      if (el.widget is TvCard) {
+        found = el.widget as TvCard;
+        return false;
+      }
+      return true;
+    });
+    return found?.title;
+  }
+  return tester.widgetList<TvCard>(card).first.title;
+}
+
 Widget _wrap(
   Widget child, {
   MediaItem? item,
   PartySession? party,
   AppUpdateState? update,
   String? lyrics,
+  DiscoverArtist? discovery,
   Duration position = const Duration(seconds: 61),
   bool tv = true,
 }) => ProviderScope(
@@ -297,7 +323,7 @@ Widget _wrap(
     searchResultsProvider.overrideWith((ref) async => const SearchResults()),
     genresProvider.overrideWith((ref) async => _genres),
     playlistsProvider.overrideWith((ref) async => _playlists),
-    discoverArtistProvider.overrideWith((ref) async => null),
+    discoverArtistProvider.overrideWith((ref) async => discovery),
     ytNewReleasesProvider.overrideWith((ref) async => <YtAlbum>[]),
     blindPoolProvider.overrideWith((ref) async => _blindPool),
     gamePoolProvider.overrideWith(
@@ -562,6 +588,134 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Rien en lecture'), findsOneWidget);
       expect(tester.takeException(), isNull);
+    });
+  });
+
+  group('entrer dans une rangée', () {
+    testWidgets('depuis la bannière, on atterrit sur la première carte', (
+      tester,
+    ) async {
+      await _tvScreen(tester);
+      await tester.pumpWidget(_wrap(const TvShell()));
+      await tester.pump(const Duration(milliseconds: 400));
+
+      // La bannière commence après la pochette : la carte la plus proche
+      // géométriquement est la deuxième, et c'est là qu'on atterrissait.
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pump(const Duration(milliseconds: 400));
+
+      expect(
+        _focusedCardTitle(tester),
+        _albums.first.name,
+        reason: 'la descente doit viser la première carte de la rangée',
+      );
+    });
+
+    testWidgets('en revenant, on retrouve la carte quittée', (tester) async {
+      await _tvScreen(tester);
+      await tester.pumpWidget(_wrap(const TvShell()));
+      await tester.pump(const Duration(milliseconds: 400));
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pump(const Duration(milliseconds: 400));
+      for (var i = 0; i < 3; i++) {
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+        await tester.pump(const Duration(milliseconds: 400));
+      }
+      final quittee = _focusedCardTitle(tester);
+      expect(quittee, _albums[3].name);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+      await tester.pump(const Duration(milliseconds: 400));
+
+      expect(_focusedCardTitle(tester), quittee);
+    });
+  });
+
+  group('remonter une page', () {
+    testWidgets('rend le haut de la page, pas seulement le dernier bouton', (
+      tester,
+    ) async {
+      await _tvScreen(tester);
+      await tester.pumpWidget(_wrap(const TvShell()));
+      await tester.pump(const Duration(milliseconds: 400));
+
+      final liste = find.byType(Scrollable).first;
+      final position = tester.state<ScrollableState>(liste).position;
+
+      // Descendre jusqu'en bas de l'accueil, rangée par rangée.
+      for (var i = 0; i < 8; i++) {
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+        await tester.pump(const Duration(milliseconds: 250));
+      }
+      expect(position.pixels, greaterThan(200));
+
+      // Puis tout remonter. Sans dégagement, le défilement s'arrête au
+      // dernier élément visable et la bannière reste hors champ à jamais.
+      for (var i = 0; i < 12; i++) {
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+        await tester.pump(const Duration(milliseconds: 250));
+      }
+      expect(position.pixels, position.minScrollExtent);
+    });
+  });
+
+  group('l\'artiste à découvrir', () {
+    testWidgets('passe avant les rangées, et « Le chercher » ouvre la '
+        'recherche', (tester) async {
+      await _tvScreen(tester);
+      await tester.pumpWidget(
+        _wrap(
+          const TvShell(),
+          discovery: const DiscoverArtist(
+            artist: YtArtist(
+              name: 'Les Trois Accords',
+              browseId: 'X',
+              thumbnail: '',
+            ),
+            becauseOf: 'Rancid',
+          ),
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 300));
+
+      // Au-dessus des rangées : sans avoir à faire défiler, la découverte
+      // est déjà plus haut que « Derniers ajouts ».
+      final decouverte = tester.getTopLeft(find.text('À DÉCOUVRIR')).dy;
+      final rangee = tester.getTopLeft(find.text('Derniers ajouts')).dy;
+      expect(decouverte, lessThan(rangee));
+
+      await tester.tap(find.text('Le chercher'));
+      await tester.pump(const Duration(milliseconds: 400));
+      // La recherche est un onglet de la coque : c'est elle qui doit être à
+      // l'écran, pas un second accueil empilé par-dessus.
+      expect(find.byType(TvSearchPage), findsOneWidget);
+      expect(find.text('Derniers ajouts'), findsNothing);
+    });
+  });
+
+  group('la fiche d\'un artiste', () {
+    test('le nombre de titres vient de totalSongs, pas de la fiche', () {
+      // Le serveur met le compte à côté de l'artiste (`totalSongs`) et non
+      // dedans : sans report, l'app affichait « 0 titres » pour tout le monde.
+      final repo = LibraryRepository(
+        ApiClient(serverUrl: 'https://exemple.test/'),
+      );
+      final detail = repo.decodeArtistDetail(const {
+        'artist': {'id': 5946, 'name': '1755', 'genre': 'Acadien'},
+        'albums': [
+          {'id': 1, 'name': 'Album A'},
+          {'id': 2, 'name': 'Album B'},
+          {'id': 3, 'name': 'Album C'},
+        ],
+        'topTracks': <Map<String, dynamic>>[],
+        'totalSongs': 53,
+      }, 5946);
+      expect(detail.artist.songCount, 53);
+      expect(detail.artist.albumCount, 3);
+      expect(detail.albums, hasLength(3));
     });
   });
 

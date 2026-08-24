@@ -180,6 +180,54 @@ class TvFocusable extends StatefulWidget {
 class _TvFocusableState extends State<TvFocusable> {
   bool _focused = false;
 
+  /// De quoi voir ce qui surplombe l'élément visé quand on remonte dessus :
+  /// le titre de sa rangée, la fin de la précédente.
+  static const _revealLead = 130.0;
+
+  /// En deçà, on remonte franchement tout en haut. S'arrêter à cent pixels du
+  /// début de la page, juste sous la bannière, ne montre rien d'utile — et
+  /// c'est précisément ce qui rendait le haut de page irrécupérable.
+  static const _revealSnap = 340.0;
+
+  /// Dégage ce qui est au-dessus de l'élément qui vient d'être visé.
+  ///
+  /// La navigation directionnelle de Flutter fait défiler le strict minimum :
+  /// en remontant, elle cale le bord haut de la cible sur le bord haut de la
+  /// fenêtre, et pas un pixel de plus. Tout ce qui précède — l'intitulé de la
+  /// rangée, la bannière d'accueil — reste alors définitivement hors champ,
+  /// puisqu'aucun élément visable ne vit plus haut.
+  void _revealAbove() {
+    if (!mounted) return;
+    // La verticale seulement : dans une rangée horizontale, c'est la page qui
+    // doit bouger, pas la rangée — celle-là est déjà bien placée.
+    final scrollable = Scrollable.maybeOf(context, axis: Axis.vertical);
+    if (scrollable == null) return;
+    final position = scrollable.position;
+    if (!position.hasPixels || !position.hasContentDimensions) return;
+
+    final box = context.findRenderObject() as RenderBox?;
+    final viewport = scrollable.context.findRenderObject() as RenderBox?;
+    if (box == null ||
+        viewport == null ||
+        !box.attached ||
+        !viewport.attached) {
+      return;
+    }
+    final top = box.localToGlobal(Offset.zero, ancestor: viewport).dy;
+    if (top >= _revealLead) return; // déjà assez d'air au-dessus
+
+    var target = position.pixels - (_revealLead - top);
+    if (target < position.minScrollExtent + _revealSnap) {
+      target = position.minScrollExtent;
+    }
+    if ((target - position.pixels).abs() < 1) return;
+    position.animateTo(
+      target,
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return FocusableActionDetector(
@@ -195,6 +243,11 @@ class _TvFocusableState extends State<TvFocusable> {
         if (v == _focused) return;
         setState(() => _focused = v);
         widget.onFocusChange?.call(v);
+        // Après la trame : le défilement que Flutter déclenche lui-même n'a
+        // pas encore eu lieu, et on corrigerait une position périmée.
+        if (v) {
+          WidgetsBinding.instance.addPostFrameCallback((_) => _revealAbove());
+        }
       },
       actions: {
         // « OK » de la télécommande arrive comme une activation ; on couvre
@@ -351,15 +404,73 @@ class TvShelf extends StatefulWidget {
 class _TvShelfState extends State<TvShelf> {
   final _scroll = ScrollController();
 
+  /// Le périmètre de la rangée. Ni visable ni traversable : il n'est là que
+  /// pour savoir quand le focus entre dans la rangée et quand il en sort.
+  final _rowNode = FocusNode(
+    skipTraversal: true,
+    canRequestFocus: false,
+    debugLabel: 'TvShelf',
+  );
+
+  /// Un jalon par carte, même rôle : il donne prise sur la carte n° i sans
+  /// obliger chaque appelant à fabriquer et à transmettre un nœud de focus.
+  final _slots = <int, FocusNode>{};
+
+  int _focusedIndex = 0;
+  int _savedIndex = 0;
+  bool _inside = false;
+
+  FocusNode _slot(int i) => _slots.putIfAbsent(
+    i,
+    () => FocusNode(skipTraversal: true, canRequestFocus: false),
+  );
+
   @override
   void dispose() {
     _scroll.dispose();
+    _rowNode.dispose();
+    for (final node in _slots.values) {
+      node.dispose();
+    }
     super.dispose();
+  }
+
+  /// Entrer dans une rangée doit ramener là où on l'avait quittée — à défaut,
+  /// sur la première carte.
+  ///
+  /// Sans cela, Flutter choisit la carte géométriquement la plus proche de
+  /// celle d'où l'on vient : depuis le bouton de la bannière d'accueil, qui
+  /// commence après la pochette, la descente atterrissait sur la deuxième
+  /// carte et paraissait sauter une position toute seule.
+  void _onRowFocus(bool has) {
+    if (!has) {
+      _inside = false;
+      _savedIndex = _focusedIndex;
+      return;
+    }
+    if (_inside) return;
+    _inside = true;
+    // Après la trame : le focus n'a pas fini de se poser, et `_focusedIndex`
+    // ne dit pas encore où l'on a atterri.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _restore());
+  }
+
+  void _restore() {
+    if (!mounted || !_rowNode.hasFocus || widget.itemCount == 0) return;
+    final want = _savedIndex.clamp(0, widget.itemCount - 1);
+    if (_focusedIndex == want) return;
+    for (final node in _slot(want).traversalDescendants) {
+      if (node.canRequestFocus) {
+        node.requestFocus();
+        return;
+      }
+    }
   }
 
   /// Amène la carte [index] en tête de rangée, un peu en retrait pour qu'on
   /// devine celle d'avant.
   void _bring(int index) {
+    _focusedIndex = index;
     if (!_scroll.hasClients) return;
     const stride = 250.0 + 26.0;
     final target = (index * stride - 40 + tvFocusMargin).clamp(
@@ -384,17 +495,23 @@ class _TvShelfState extends State<TvShelf> {
           // La hauteur comprend la marge de grossissement, en haut comme en
           // bas : sinon la vignette visée se fait couper par la rangée.
           height: widget.height + tvFocusMargin * 2,
-          child: ListView.separated(
-            controller: _scroll,
-            scrollDirection: Axis.horizontal,
-            // Le focus décide du défilement : le doigt n'existe pas ici, et
-            // laisser la liste défiler seule désynchroniserait les deux.
-            physics: const NeverScrollableScrollPhysics(),
-            padding: const EdgeInsets.all(tvFocusMargin),
-            itemCount: widget.itemCount,
-            separatorBuilder: (_, _) => const SizedBox(width: 26),
-            itemBuilder: (context, i) =>
-                widget.itemBuilder(context, i, () => _bring(i)),
+          child: Focus(
+            focusNode: _rowNode,
+            onFocusChange: _onRowFocus,
+            child: ListView.separated(
+              controller: _scroll,
+              scrollDirection: Axis.horizontal,
+              // Le focus décide du défilement : le doigt n'existe pas ici, et
+              // laisser la liste défiler seule désynchroniserait les deux.
+              physics: const NeverScrollableScrollPhysics(),
+              padding: const EdgeInsets.all(tvFocusMargin),
+              itemCount: widget.itemCount,
+              separatorBuilder: (_, _) => const SizedBox(width: 26),
+              itemBuilder: (context, i) => Focus(
+                focusNode: _slot(i),
+                child: widget.itemBuilder(context, i, () => _bring(i)),
+              ),
+            ),
           ),
         ),
       ],

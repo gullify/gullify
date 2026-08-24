@@ -80,19 +80,19 @@ class AlbumEdit {
   });
 
   factory AlbumEdit.fromJson(Map<String, dynamic> json) => AlbumEdit(
-        albumId: (json['album_id'] as num?)?.toInt() ?? 0,
-        artistId: (json['artist_id'] as num?)?.toInt() ?? 0,
-        artist: json['artist'] as String? ?? '',
-        album: json['album'] as String? ?? '',
-        changed: json['changed'] as bool? ?? false,
-        moved: json['moved'] as bool? ?? false,
-        renamed: json['renamed'] as bool? ?? false,
-        merged: json['merged'] as bool? ?? false,
-        removedArtist: json['removed_artist'] as String?,
-        songs: (json['songs'] as num?)?.toInt() ?? 0,
-        tagsWritten: (json['tags_written'] as num?)?.toInt() ?? 0,
-        tagsFailed: (json['tags_failed'] as num?)?.toInt() ?? 0,
-      );
+    albumId: (json['album_id'] as num?)?.toInt() ?? 0,
+    artistId: (json['artist_id'] as num?)?.toInt() ?? 0,
+    artist: json['artist'] as String? ?? '',
+    album: json['album'] as String? ?? '',
+    changed: json['changed'] as bool? ?? false,
+    moved: json['moved'] as bool? ?? false,
+    renamed: json['renamed'] as bool? ?? false,
+    merged: json['merged'] as bool? ?? false,
+    removedArtist: json['removed_artist'] as String?,
+    songs: (json['songs'] as num?)?.toInt() ?? 0,
+    tagsWritten: (json['tags_written'] as num?)?.toInt() ?? 0,
+    tagsFailed: (json['tags_failed'] as num?)?.toInt() ?? 0,
+  );
 
   /// L'album après coup : l'album d'accueil si les deux ont fusionné.
   final int albumId;
@@ -128,8 +128,8 @@ class AlbumEdit {
     final what = merged
         ? 'Album réuni avec « $album »'
         : moved
-            ? 'Album transféré à $artist'
-            : 'Album renommé « $album »';
+        ? 'Album transféré à $artist'
+        : 'Album renommé « $album »';
     if (tagsFailed > 0) {
       return '$what — tags de $tagsFailed fichier'
           '${tagsFailed > 1 ? 's' : ''} inchangés';
@@ -160,11 +160,7 @@ class AlbumCoverCandidate {
 
 /// Bio et actualités d'un artiste (sources externes, meilleur effort).
 class ArtistExtras {
-  const ArtistExtras({
-    this.bio,
-    this.listeners = 0,
-    this.articles = const [],
-  });
+  const ArtistExtras({this.bio, this.listeners = 0, this.articles = const []});
 
   final String? bio;
   final int listeners;
@@ -267,7 +263,8 @@ class LibraryRepository {
     // serve_image.php sait aussi la trouver dans le dossier de l'artiste.
     // fallback=404 : pas d'image nulle part → l'app garde son icône.
     final id = (j['id'] as num?)?.toInt() ?? 0;
-    final url = j['imageUrl'] as String? ??
+    final url =
+        j['imageUrl'] as String? ??
         'serve_image.php?artist_id=$id&fallback=404';
     return Artist.fromJson(j).copyWith(imageUrl: _abs('$url${_imageV(id)}'));
   }
@@ -278,8 +275,8 @@ class LibraryRepository {
   /// n'a rien, et restait sur le logo Gullify. Réservé à la page d'un artiste :
   /// une liste en déclencherait des centaines.
   String artistImageUrl(int id) => _client.resourceUrl(
-        'serve_image.php?artist_id=$id&fetch=1&fallback=404${_imageV(id)}',
-      );
+    'serve_image.php?artist_id=$id&fetch=1&fallback=404${_imageV(id)}',
+  );
 
   /// Les albums dont la jaquette a changé depuis le lancement (idée #93), et
   /// quand. Même raison que pour les artistes : le serveur date bien ses URL,
@@ -298,14 +295,15 @@ class LibraryRepository {
   }
 
   Album _album(Map<String, dynamic> j) => Album.fromJson(j).copyWith(
-        artworkUrl:
-            _cover(j['artworkUrl'] as String?, (j['id'] as num?)?.toInt()),
-      );
+    artworkUrl: _cover(j['artworkUrl'] as String?, (j['id'] as num?)?.toInt()),
+  );
 
   Song _song(Map<String, dynamic> j) => Song.fromJson(j).copyWith(
-        artworkUrl:
-            _cover(j['artworkUrl'] as String?, (j['albumId'] as num?)?.toInt()),
-      );
+    artworkUrl: _cover(
+      j['artworkUrl'] as String?,
+      (j['albumId'] as num?)?.toInt(),
+    ),
+  );
 
   List<T> _list<T>(dynamic v, T Function(Map<String, dynamic>) map) =>
       (v as List<dynamic>? ?? [])
@@ -341,11 +339,12 @@ class LibraryRepository {
   }
 
   Future<List<Artist>> artists({int limit = 5000, int offset = 0}) async {
-    final data = await _client.get('library.php', query: {
-      'action': 'library',
-      'limit': limit,
-      'offset': offset,
-    }) as Map<String, dynamic>;
+    final data =
+        await _client.get(
+              'library.php',
+              query: {'action': 'library', 'limit': limit, 'offset': offset},
+            )
+            as Map<String, dynamic>;
     return _list(data['artists'], _artist);
   }
 
@@ -357,21 +356,26 @@ class LibraryRepository {
     String? genre,
     int? year,
   }) async {
-    final data = await _client.get('library.php', query: {
-      'action': 'get_all_albums',
-      'limit': limit,
-      'offset': offset,
-      'genre': ?genre,
-      'year': ?year,
-    }) as Map<String, dynamic>;
+    final data =
+        await _client.get(
+              'library.php',
+              query: {
+                'action': 'get_all_albums',
+                'limit': limit,
+                'offset': offset,
+                'genre': ?genre,
+                'year': ?year,
+              },
+            )
+            as Map<String, dynamic>;
     return _list(data['albums'], _album);
   }
 
   /// Bio (Last.fm) et actualités (Google News) d'un artiste.
   Future<ArtistExtras> artistExtras(String artistName) async {
-    final data = await _client.get('artist-news.php', query: {
-      'artist': artistName,
-    }) as Map<String, dynamic>;
+    final data =
+        await _client.get('artist-news.php', query: {'artist': artistName})
+            as Map<String, dynamic>;
     final bio = data['bio'] as Map<String, dynamic>?;
     final news = data['news'] as Map<String, dynamic>?;
     return ArtistExtras(
@@ -395,12 +399,10 @@ class LibraryRepository {
     int limit = 200,
     GameSource source = GameSource.all,
   }) async {
-    final data =
-        await _client.get('library.php', query: {
-      'action': 'random_songs',
-      'limit': limit,
-      ...source.query,
-    });
+    final data = await _client.get(
+      'library.php',
+      query: {'action': 'random_songs', 'limit': limit, ...source.query},
+    );
     return _list(data, _song);
   }
 
@@ -410,11 +412,12 @@ class LibraryRepository {
     int limit = 150,
     GameSource source = GameSource.all,
   }) async {
-    final data = await _client.get('library.php', query: {
-      'action': 'game_pool',
-      'limit': limit,
-      ...source.query,
-    }) as Map<String, dynamic>;
+    final data =
+        await _client.get(
+              'library.php',
+              query: {'action': 'game_pool', 'limit': limit, ...source.query},
+            )
+            as Map<String, dynamic>;
     return GamePool(
       tracks: [
         for (final e in data['tracks'] as List<dynamic>? ?? [])
@@ -433,10 +436,12 @@ class LibraryRepository {
   /// résultat — le lecteur retombe alors sur le croisement réglé à la main.
   Future<Map<int, TrackEdges>> songTransitions(List<int> songIds) async {
     if (songIds.isEmpty) return const {};
-    final data = await _client.get('library.php', query: {
-      'action': 'song_transitions',
-      'ids': songIds.join(','),
-    }) as Map<String, dynamic>;
+    final data =
+        await _client.get(
+              'library.php',
+              query: {'action': 'song_transitions', 'ids': songIds.join(',')},
+            )
+            as Map<String, dynamic>;
     final edges = <int, TrackEdges>{};
     for (final e in data['transitions'] as List<dynamic>? ?? []) {
       final row = e as Map<String, dynamic>;
@@ -464,10 +469,10 @@ class LibraryRepository {
 
   /// Titres récemment écoutés (distincts), du plus récent au plus ancien.
   Future<List<Song>> recentSongs({int limit = 50}) async {
-    final data = await _client.get('library.php', query: {
-      'action': 'recent_songs',
-      'limit': limit,
-    });
+    final data = await _client.get(
+      'library.php',
+      query: {'action': 'recent_songs', 'limit': limit},
+    );
     return _list(data, _song);
   }
 
@@ -477,11 +482,16 @@ class LibraryRepository {
     int limit = 60,
     GameSource source = GameSource.all,
   }) async {
-    final data = await _client.get('library.php', query: {
-      'action': 'discovery_tracks',
-      'limit': limit,
-      ...source.query,
-    }) as Map<String, dynamic>;
+    final data =
+        await _client.get(
+              'library.php',
+              query: {
+                'action': 'discovery_tracks',
+                'limit': limit,
+                ...source.query,
+              },
+            )
+            as Map<String, dynamic>;
     return [
       for (final e in data['songs'] as List<dynamic>? ?? [])
         DiscoveryTrack(
@@ -493,10 +503,10 @@ class LibraryRepository {
 
   /// Titres jamais joués (mode « Découverte »), mélangés.
   Future<List<Song>> discoverySongs({int limit = 200}) async {
-    final data = await _client.get('library.php', query: {
-      'action': 'discovery_songs',
-      'limit': limit,
-    });
+    final data = await _client.get(
+      'library.php',
+      query: {'action': 'discovery_songs', 'limit': limit},
+    );
     return _list(data, _song);
   }
 
@@ -518,31 +528,47 @@ class LibraryRepository {
   }
 
   Future<List<Album>> recentAlbums({int limit = 20}) async {
-    final data = await _client.get('library.php', query: {
-      'action': 'recent_albums',
-      'limit': limit,
-    });
+    final data = await _client.get(
+      'library.php',
+      query: {'action': 'recent_albums', 'limit': limit},
+    );
     return _list(data, _album);
   }
 
   Future<ArtistDetail> artistDetail(int id) async {
-    final data = await _client.get('library.php', query: {
-      'action': 'artist',
-      'id': id,
-    }) as Map<String, dynamic>;
+    final data =
+        await _client.get('library.php', query: {'action': 'artist', 'id': id})
+            as Map<String, dynamic>;
+    return decodeArtistDetail(data, id);
+  }
+
+  /// Décode la réponse de l'endpoint « artiste ».
+  ///
+  /// Séparé de l'appel réseau pour être vérifiable : la fiche que renvoie cet
+  /// endpoint ne porte ni compte d'albums ni compte de titres — ils vivent à
+  /// côté, dans `totalSongs` et dans la liste des albums. Sans ce report,
+  /// l'app affichait « 0 titres » pour tout le monde.
+  ArtistDetail decodeArtistDetail(Map<String, dynamic> data, int id) {
     final artist = _artist(data['artist'] as Map<String, dynamic>);
+    final albums = _list(data['albums'], _album);
     return ArtistDetail(
-      artist: artist.copyWith(imageUrl: artistImageUrl(id)),
-      albums: _list(data['albums'], _album),
+      artist: artist.copyWith(
+        imageUrl: artistImageUrl(id),
+        albumCount: albums.length,
+        songCount: (data['totalSongs'] as num?)?.toInt() ?? artist.songCount,
+      ),
+      albums: albums,
       topTracks: _list(data['topTracks'], _song),
     );
   }
 
   Future<AlbumDetail> albumDetail(int id) async {
-    final data = await _client.get('library.php', query: {
-      'action': 'album_songs',
-      'id': id,
-    }) as Map<String, dynamic>;
+    final data =
+        await _client.get(
+              'library.php',
+              query: {'action': 'album_songs', 'id': id},
+            )
+            as Map<String, dynamic>;
     final artist = data['artist'] as Map<String, dynamic>?;
     return AlbumDetail(
       album: Album(
@@ -558,18 +584,18 @@ class LibraryRepository {
   }
 
   Future<Set<int>> favoriteIds() async {
-    final data = await _client.get('library.php', query: {
-      'action': 'get_favorites',
-    }) as List<dynamic>;
+    final data =
+        await _client.get('library.php', query: {'action': 'get_favorites'})
+            as List<dynamic>;
     return {
       for (final e in data) ((e as Map<String, dynamic>)['id'] as num).toInt(),
     };
   }
 
   Future<List<Song>> allFavorites() async {
-    final data = await _client.get('library.php', query: {
-      'action': 'get_all_favorites',
-    }) as Map<String, dynamic>;
+    final data =
+        await _client.get('library.php', query: {'action': 'get_all_favorites'})
+            as Map<String, dynamic>;
     // get_all_favorites uses `artist`/`album` keys instead of the usual names.
     return [
       for (final e in data['songs'] as List<dynamic>? ?? [])
@@ -583,18 +609,20 @@ class LibraryRepository {
 
   /// Returns true if the song is now a favorite.
   Future<bool> toggleFavorite(int songId) async {
-    final data = await _client.post(
-      'library.php',
-      query: {'action': 'toggle_favorite'},
-      form: {'song_id': songId},
-    ) as Map<String, dynamic>;
+    final data =
+        await _client.post(
+              'library.php',
+              query: {'action': 'toggle_favorite'},
+              form: {'song_id': songId},
+            )
+            as Map<String, dynamic>;
     return data['status'] == 'added';
   }
 
   Future<String?> lyrics(String filePath) async {
-    final data = await _client.get('lyrics.php', query: {
-      'path': filePath,
-    }) as Map<String, dynamic>;
+    final data =
+        await _client.get('lyrics.php', query: {'path': filePath})
+            as Map<String, dynamic>;
     // syncedLyrics = LRC horodaté (défilement synchronisé); sinon texte brut.
     final synced = data['syncedLyrics'] as String?;
     if (synced != null && synced.trim().isNotEmpty) return synced;
@@ -604,9 +632,9 @@ class LibraryRepository {
 
   /// Grille d'accords guitare du titre (bouton « Accords » du lecteur).
   Future<ChordsResult> chords(String filePath) async {
-    final data = await _client.get('chords.php', query: {
-      'path': filePath,
-    }) as Map<String, dynamic>;
+    final data =
+        await _client.get('chords.php', query: {'path': filePath})
+            as Map<String, dynamic>;
     final raw = data['chords'];
     return ChordsResult(
       chords: raw is Map<String, dynamic> ? SongChords.fromJson(raw) : null,
@@ -634,10 +662,12 @@ class LibraryRepository {
   Future<SearchResults> search(String query) async {
     if (query.trim().isEmpty) return const SearchResults();
     // Le serveur lit `q` (le nom `query` était ignoré → il renvoyait tout).
-    final data = await _client.get('library.php', query: {
-      'action': 'search',
-      'q': query,
-    }) as Map<String, dynamic>;
+    final data =
+        await _client.get(
+              'library.php',
+              query: {'action': 'search', 'q': query},
+            )
+            as Map<String, dynamic>;
     return SearchResults(
       artists: _list(data['artists'], _artist),
       albums: _list(data['albums'], _album),
@@ -648,22 +678,22 @@ class LibraryRepository {
   // ─────────────── Suppression définitive (fichiers + base) ───────────────
 
   Future<void> deleteSongs(List<int> songIds) => _client.post(
-        'library.php',
-        query: {'action': 'delete_songs'},
-        body: {'song_ids': songIds},
-      );
+    'library.php',
+    query: {'action': 'delete_songs'},
+    body: {'song_ids': songIds},
+  );
 
   Future<void> deleteAlbum(int albumId) => _client.post(
-        'library.php',
-        query: {'action': 'delete_album'},
-        form: {'album_id': albumId},
-      );
+    'library.php',
+    query: {'action': 'delete_album'},
+    form: {'album_id': albumId},
+  );
 
   Future<void> deleteArtist(int artistId) => _client.post(
-        'library.php',
-        query: {'action': 'delete_artist'},
-        form: {'artist_id': artistId},
-      );
+    'library.php',
+    query: {'action': 'delete_artist'},
+    form: {'artist_id': artistId},
+  );
 
   // ─────────────── Photo d'un artiste (idée #78) ───────────────
 
@@ -673,11 +703,16 @@ class LibraryRepository {
     int artistId, {
     String? query,
   }) async {
-    final data = await _client.get('library.php', query: {
-      'action': 'artist_image_candidates',
-      'artist_id': artistId,
-      'q': ?query,
-    }) as Map<String, dynamic>;
+    final data =
+        await _client.get(
+              'library.php',
+              query: {
+                'action': 'artist_image_candidates',
+                'artist_id': artistId,
+                'q': ?query,
+              },
+            )
+            as Map<String, dynamic>;
     return [
       for (final c in data['candidates'] as List<dynamic>? ?? [])
         if (c is Map<String, dynamic>)
@@ -725,8 +760,9 @@ class LibraryRepository {
   /// qui suffit à distinguer l'avant de l'après.
   void _noteImageChange(int artistId, dynamic data) {
     final v = data is Map ? (data['version'] as num?)?.toInt() ?? 0 : 0;
-    _imageVersion[artistId] =
-        v > 0 ? v : DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    _imageVersion[artistId] = v > 0
+        ? v
+        : DateTime.now().millisecondsSinceEpoch ~/ 1000;
   }
 
   // ─────────────── Artiste et titre d'un album (idée #94) ───────────────
@@ -758,11 +794,16 @@ class LibraryRepository {
     int albumId, {
     String? query,
   }) async {
-    final data = await _client.get('library.php', query: {
-      'action': 'album_cover_candidates',
-      'album_id': albumId,
-      'q': ?query,
-    }) as Map<String, dynamic>;
+    final data =
+        await _client.get(
+              'library.php',
+              query: {
+                'action': 'album_cover_candidates',
+                'album_id': albumId,
+                'q': ?query,
+              },
+            )
+            as Map<String, dynamic>;
     return [
       for (final c in data['candidates'] as List<dynamic>? ?? [])
         if (c is Map<String, dynamic>)
@@ -809,24 +850,25 @@ class LibraryRepository {
   /// ne ressemblent pas à celles d'avant (voir [_noteImageChange]).
   void _noteCoverChange(int albumId, dynamic data) {
     final v = data is Map ? (data['version'] as num?)?.toInt() ?? 0 : 0;
-    _coverVersion[albumId] =
-        v > 0 ? v : DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    _coverVersion[albumId] = v > 0
+        ? v
+        : DateTime.now().millisecondsSinceEpoch ~/ 1000;
   }
 
   // ─────────────── Genres ───────────────
 
   /// Définit le genre d'un artiste (propagé à ses albums côté serveur).
   Future<void> setArtistGenre(int artistId, String genre) => _client.post(
-        'library.php',
-        query: {'action': 'set_artist_genre'},
-        form: {'artist_id': artistId, 'genre': genre},
-      );
+    'library.php',
+    query: {'action': 'set_artist_genre'},
+    form: {'artist_id': artistId, 'genre': genre},
+  );
 
   /// Liste des genres présents dans la bibliothèque (nom + nb d'artistes).
   Future<List<GenreCount>> genres() async {
-    final data = await _client.get('library.php', query: {
-      'action': 'get_genres',
-    }) as Map<String, dynamic>;
+    final data =
+        await _client.get('library.php', query: {'action': 'get_genres'})
+            as Map<String, dynamic>;
     return _list(
       data['genres'],
       (j) => GenreCount(
@@ -845,9 +887,9 @@ class LibraryRepository {
   /// au plus ancien. L'année vient de l'album : c'est la seule date que porte
   /// la bibliothèque.
   Future<List<YearCount>> years() async {
-    final data = await _client.get('library.php', query: {
-      'action': 'get_years',
-    }) as Map<String, dynamic>;
+    final data =
+        await _client.get('library.php', query: {'action': 'get_years'})
+            as Map<String, dynamic>;
     return _list(
       data['years'],
       (j) => YearCount(
@@ -864,11 +906,10 @@ class LibraryRepository {
 
   /// Le flux d'une année (idée #80) : ses titres, mélangés côté serveur.
   Future<List<Song>> yearSongs(int year, {int limit = 200}) async {
-    final data = await _client.get('library.php', query: {
-      'action': 'year_songs',
-      'year': year,
-      'limit': limit,
-    });
+    final data = await _client.get(
+      'library.php',
+      query: {'action': 'year_songs', 'year': year, 'limit': limit},
+    );
     return _list(data, _song);
   }
 
@@ -876,13 +917,16 @@ class LibraryRepository {
   /// contient la bibliothèque) : la liste principale, puis ceux ajoutés à la
   /// main.
   Future<GenreTaxonomy> genreTaxonomy() async {
-    final data = await _client.get('library.php', query: {
-      'action': 'get_genre_taxonomy',
-    }) as Map<String, dynamic>;
+    final data =
+        await _client.get(
+              'library.php',
+              query: {'action': 'get_genre_taxonomy'},
+            )
+            as Map<String, dynamic>;
     List<String> names(Object? raw) => [
-          for (final g in raw as List<dynamic>? ?? [])
-            if (g is String && g.isNotEmpty) g,
-        ];
+      for (final g in raw as List<dynamic>? ?? [])
+        if (g is String && g.isNotEmpty) g,
+    ];
     return GenreTaxonomy(
       genres: names(data['genres']),
       custom: names(data['custom']),
@@ -893,20 +937,22 @@ class LibraryRepository {
   /// genre déjà là (à la casse et aux accents près) : le message qu'il rend
   /// est fait pour être montré tel quel.
   Future<void> addGenre(String name) => _client.post(
-        'library.php',
-        query: {'action': 'add_genre'},
-        form: {'name': name},
-      );
+    'library.php',
+    query: {'action': 'add_genre'},
+    form: {'name': name},
+  );
 
   /// Le genre que les catalogues suggèrent pour un artiste (MusicBrainz, puis
   /// Deezer, puis Apple Music), ramené à la liste fermée. `genre` est nul
   /// quand rien de fiable n'en sort — mieux vaut aucune suggestion qu'une
   /// fausse.
   Future<GenreSuggestion> suggestArtistGenre(int artistId) async {
-    final data = await _client.get('library.php', query: {
-      'action': 'suggest_artist_genre',
-      'artist_id': artistId,
-    }) as Map<String, dynamic>;
+    final data =
+        await _client.get(
+              'library.php',
+              query: {'action': 'suggest_artist_genre', 'artist_id': artistId},
+            )
+            as Map<String, dynamic>;
     return GenreSuggestion(
       genre: (data['genre'] as String?)?.trim().isEmpty ?? true
           ? null
@@ -922,25 +968,27 @@ class LibraryRepository {
   }
 
   Future<void> renameGenre(String from, String to) => _client.post(
-        'library.php',
-        query: {'action': 'rename_genre'},
-        form: {'from': from, 'to': to},
-      );
+    'library.php',
+    query: {'action': 'rename_genre'},
+    form: {'from': from, 'to': to},
+  );
 
   Future<void> deleteGenre(String genre) => _client.post(
-        'library.php',
-        query: {'action': 'delete_genre'},
-        form: {'genre': genre},
-      );
+    'library.php',
+    query: {'action': 'delete_genre'},
+    form: {'genre': genre},
+  );
 
   /// Les artistes qui n'ont pas encore de genre, par ordre alphabétique. La
   /// liste est plafonnée ([limit]) mais le total dit combien il en reste : de
   /// quoi enchaîner le rangement d'un artiste au suivant.
   Future<UntaggedArtists> artistsWithoutGenre({int limit = 50}) async {
-    final data = await _client.get('library.php', query: {
-      'action': 'get_artists_without_genre',
-      'limit': limit,
-    }) as Map<String, dynamic>;
+    final data =
+        await _client.get(
+              'library.php',
+              query: {'action': 'get_artists_without_genre', 'limit': limit},
+            )
+            as Map<String, dynamic>;
     return UntaggedArtists(
       artists: _list(data['artists'], _artist),
       total: (data['total'] as num?)?.toInt() ?? 0,
@@ -948,10 +996,12 @@ class LibraryRepository {
   }
 
   Future<List<Artist>> artistsByGenre(String genre) async {
-    final data = await _client.get('library.php', query: {
-      'action': 'get_artists_by_genre',
-      'genre': genre,
-    }) as Map<String, dynamic>;
+    final data =
+        await _client.get(
+              'library.php',
+              query: {'action': 'get_artists_by_genre', 'genre': genre},
+            )
+            as Map<String, dynamic>;
     return _list(data['artists'], _artist);
   }
 
@@ -969,9 +1019,9 @@ class LibraryRepository {
 
   /// État du scan de la bibliothèque (en cours ? dernière mise à jour ?).
   Future<ScanStatus> scanStatus() async {
-    final data = await _client.get('scan.php', query: {
-      'action': 'scan_status',
-    }) as Map<String, dynamic>;
+    final data =
+        await _client.get('scan.php', query: {'action': 'scan_status'})
+            as Map<String, dynamic>;
     return ScanStatus(
       scanning: data['scanning'] == true,
       lastUpdate: (data['last_update'] as num?)?.toInt(),
@@ -985,9 +1035,9 @@ class LibraryRepository {
 
   /// État de la détection automatique de genres.
   Future<GenreScanStatus> genreScanStatus() async {
-    final data = await _client.get('scan.php', query: {
-      'action': 'genre_scan_status',
-    }) as Map<String, dynamic>;
+    final data =
+        await _client.get('scan.php', query: {'action': 'genre_scan_status'})
+            as Map<String, dynamic>;
     final p = data['progress'] as Map<String, dynamic>? ?? const {};
     return GenreScanStatus(
       scanning: data['scanning'] == true,
@@ -1004,9 +1054,9 @@ class LibraryRepository {
   /// Les autres utilisateurs du serveur, du plus grand catalogue au plus
   /// petit (pour explorer leurs bibliothèques).
   Future<List<ServerUser>> serverUsers() async {
-    final data = await _client.get('users.php', query: {
-      'action': 'list',
-    }) as Map<String, dynamic>;
+    final data =
+        await _client.get('users.php', query: {'action': 'list'})
+            as Map<String, dynamic>;
     return [
       for (final e in data['users'] as List<dynamic>? ?? [])
         _serverUser(e as Map<String, dynamic>),
@@ -1014,23 +1064,25 @@ class LibraryRepository {
   }
 
   ServerUser _serverUser(Map<String, dynamic> j) => ServerUser(
-        id: (j['id'] as num).toInt(),
-        username: j['username'] as String? ?? '',
-        fullName: j['fullName'] as String?,
-        artistCount: (j['artistCount'] as num?)?.toInt() ?? 0,
-        albumCount: (j['albumCount'] as num?)?.toInt() ?? 0,
-        songCount: (j['songCount'] as num?)?.toInt() ?? 0,
-        avatarUrl: _abs(j['avatarUrl'] as String?),
-      );
+    id: (j['id'] as num).toInt(),
+    username: j['username'] as String? ?? '',
+    fullName: j['fullName'] as String?,
+    artistCount: (j['artistCount'] as num?)?.toInt() ?? 0,
+    albumCount: (j['albumCount'] as num?)?.toInt() ?? 0,
+    songCount: (j['songCount'] as num?)?.toInt() ?? 0,
+    avatarUrl: _abs(j['avatarUrl'] as String?),
+  );
 
   /// La liste des artistes de la bibliothèque d'un autre utilisateur.
   /// Les détails (artiste/album) et la lecture passent ensuite par les
   /// endpoints habituels, indexés par id global.
   Future<List<Artist>> userLibrary(String username) async {
-    final data = await _client.get('users.php', query: {
-      'action': 'library',
-      'user': username,
-    }) as Map<String, dynamic>;
+    final data =
+        await _client.get(
+              'users.php',
+              query: {'action': 'library', 'user': username},
+            )
+            as Map<String, dynamic>;
     return _list(data['artists'], _artist);
   }
 }
@@ -1054,12 +1106,12 @@ class GenreSuggestion {
   /// Le nom du catalogue tel qu'on le montre. Une source inconnue se donne
   /// telle quelle plutôt que de se taire : c'est le serveur qui la nomme.
   String? get sourceLabel => switch (source) {
-        'musicbrainz' => 'MusicBrainz',
-        'deezer' => 'Deezer',
-        'itunes' => 'Apple Music',
-        null || '' => null,
-        final other => other,
-      };
+    'musicbrainz' => 'MusicBrainz',
+    'deezer' => 'Deezer',
+    'itunes' => 'Apple Music',
+    null || '' => null,
+    final other => other,
+  };
 }
 
 /// Les genres proposés au moment de ranger un artiste : [genres] les donne

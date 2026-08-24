@@ -55,6 +55,13 @@ RUN printf 'PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\n*
     > /etc/cron.d/gullify-queue \
     && chmod 0644 /etc/cron.d/gullify-queue
 
+# Nouveautés : les sorties récentes des artistes déjà en bibliothèque. Un
+# balayage complet coûte ~1 s par artiste, soit une vingtaine de minutes — d'où
+# la nuit, une fois par jour, plutôt qu'à la demande dans une requête web.
+RUN printf 'PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\n17 4 * * * www-data /usr/local/bin/php /app/scripts/refresh-new-releases.php --full >> /app/data/logs/new-releases.log 2>&1\n' \
+    > /etc/cron.d/gullify-new-releases \
+    && chmod 0644 /etc/cron.d/gullify-new-releases
+
 # Startup script: fix permissions, line endings, start cron, then apache
 RUN printf '#!/bin/bash\n\
 if [ ! -z "$PUID" ]; then\n\
