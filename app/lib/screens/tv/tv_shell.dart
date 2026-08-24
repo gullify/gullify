@@ -111,7 +111,7 @@ class _TvShellState extends ConsumerState<TvShell> {
     if (ref.read(tvUpdateBlockingProvider)) {
       ref
           .read(tvUpdateSnoozeProvider.notifier)
-          .snooze(ref.read(appUpdateProvider).available?.versionCode);
+          .snooze(ref.read(appUpdateProvider).available?.versionCode ?? -1);
       return;
     }
     // 2. Le menu fermé : « Retour » l'ouvre. C'est ce qu'on cherche neuf

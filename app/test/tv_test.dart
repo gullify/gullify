@@ -1087,6 +1087,42 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
+    // C'est là qu'on restait coincé : une installation refusée par Android
+    // laissait le panneau planté, sans « Plus tard » ni « Retour » qui
+    // tienne, et toute l'app devenait inatteignable.
+    for (final status in [
+      UpdateStatus.available,
+      UpdateStatus.readyToInstall,
+      UpdateStatus.error,
+    ]) {
+      testWidgets('« Plus tard » referme le panneau depuis ${status.name}', (
+        tester,
+      ) async {
+        await _tvScreen(tester);
+        await tester.pumpWidget(
+          _wrap(
+            const TvShell(),
+            update: AppUpdateState(
+              status: status,
+              available: info,
+              apkPath: '/tmp/x.apk',
+              message: 'Échec du téléchargement',
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(find.widgetWithText(TvPill, 'Plus tard'), findsOneWidget);
+
+        await tester.tap(find.widgetWithText(TvPill, 'Plus tard'));
+        await tester.pumpAndSettle();
+        expect(
+          find.widgetWithText(TvPill, 'Plus tard'),
+          findsNothing,
+          reason: 'le panneau doit se refermer',
+        );
+      });
+    }
+
     testWidgets('un échec se dit et se réessaie', (tester) async {
       await _tvScreen(tester);
       await tester.pumpWidget(

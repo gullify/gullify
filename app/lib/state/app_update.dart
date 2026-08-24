@@ -20,11 +20,11 @@ class UpdateInfo {
   });
 
   factory UpdateInfo.fromJson(Map<String, dynamic> json) => UpdateInfo(
-        versionCode: (json['versionCode'] as num).toInt(),
-        versionName: json['versionName'] as String,
-        downloadUrl: json['downloadUrl'] as String,
-        changelog: json['changelog'] as String?,
-      );
+    versionCode: (json['versionCode'] as num).toInt(),
+    versionName: json['versionName'] as String,
+    downloadUrl: json['downloadUrl'] as String,
+    changelog: json['changelog'] as String?,
+  );
 
   final int versionCode;
   final String versionName;
@@ -68,15 +68,14 @@ class AppUpdateState {
     String? apkPath,
     String? message,
     String? currentVersion,
-  }) =>
-      AppUpdateState(
-        status: status ?? this.status,
-        available: available ?? this.available,
-        progress: progress ?? this.progress,
-        apkPath: apkPath ?? this.apkPath,
-        message: message ?? this.message,
-        currentVersion: currentVersion ?? this.currentVersion,
-      );
+  }) => AppUpdateState(
+    status: status ?? this.status,
+    available: available ?? this.available,
+    progress: progress ?? this.progress,
+    apkPath: apkPath ?? this.apkPath,
+    message: message ?? this.message,
+    currentVersion: currentVersion ?? this.currentVersion,
+  );
 }
 
 class AppUpdateNotifier extends Notifier<AppUpdateState> {
@@ -126,14 +125,19 @@ class AppUpdateNotifier extends Notifier<AppUpdateState> {
     }
   }
 
+  /// Taille annoncée par le serveur pour le téléchargement en cours.
+  int _expectedBytes = 0;
+
   Future<void> _download(String url, String path) {
     var lastPct = -1;
+    _expectedBytes = 0;
     return _dio.download(
       url,
       path,
       deleteOnError: true,
       onReceiveProgress: (received, total) {
         if (total <= 0) return;
+        _expectedBytes = total;
         final pct = (received * 100 ~/ total);
         if (pct != lastPct) {
           lastPct = pct;
@@ -141,6 +145,41 @@ class AppUpdateNotifier extends Notifier<AppUpdateState> {
         }
       },
     );
+  }
+
+  /// Vérifie que le fichier téléchargé est bien un APK entier.
+  ///
+  /// Sans ça, un téléchargement tronqué (mémoire pleine sur la box, coupure
+  /// réseau) part quand même à l'installeur d'Android, qui répond « problème
+  /// lors de l'analyse du paquet » — un message qui ne dit ni où ni pourquoi.
+  /// Mieux vaut le dire ici, en clair, et proposer de recommencer.
+  Future<String?> _verify(String path) async {
+    try {
+      final file = File(path);
+      if (!file.existsSync()) return 'Le fichier téléchargé a disparu';
+      final size = await file.length();
+      if (_expectedBytes > 0 && size != _expectedBytes) {
+        return 'Téléchargement incomplet : '
+            '${size ~/ 1024} Ko reçus sur ${_expectedBytes ~/ 1024}. '
+            'Vérifie l\'espace libre du téléviseur, puis réessaie.';
+      }
+      if (size < 1024 * 1024) {
+        return 'Fichier trop petit (${size ~/ 1024} Ko) : le serveur n\'a pas '
+            'renvoyé l\'application.';
+      }
+      // Un APK est une archive ZIP : elle commence toujours par « PK ».
+      final head = await file.openRead(0, 4).first;
+      if (head.length < 4 ||
+          head[0] != 0x50 ||
+          head[1] != 0x4B ||
+          head[2] != 0x03 ||
+          head[3] != 0x04) {
+        return 'Le fichier reçu n\'est pas une application Android.';
+      }
+      return null;
+    } catch (e) {
+      return 'Vérification impossible : $e';
+    }
   }
 
   /// Télécharge l'APK puis ouvre l'installeur système.
@@ -155,7 +194,15 @@ class AppUpdateNotifier extends Notifier<AppUpdateState> {
         await _download(update.downloadUrl, path);
       } catch (_) {
         // Repli : le lien « latest » pointe toujours sur la dernière version.
-        await _download('https://download.gullify.app/gullify-latest.apk', path);
+        await _download(
+          'https://download.gullify.app/gullify-latest.apk',
+          path,
+        );
+      }
+      final problem = await _verify(path);
+      if (problem != null) {
+        state = state.copyWith(status: UpdateStatus.error, message: problem);
+        return;
       }
       state = state.copyWith(
         status: UpdateStatus.readyToInstall,
@@ -166,7 +213,7 @@ class AppUpdateNotifier extends Notifier<AppUpdateState> {
       // Affiche la cause réelle : indispensable pour diagnostiquer à distance.
       final detail = e is DioException
           ? '${e.type.name}${e.response != null ? ' HTTP ${e.response!.statusCode}' : ''}'
-              '${e.message != null ? ' — ${e.message}' : ''}'
+                '${e.message != null ? ' — ${e.message}' : ''}'
           : '$e';
       state = state.copyWith(
         status: UpdateStatus.error,
@@ -182,8 +229,9 @@ class AppUpdateNotifier extends Notifier<AppUpdateState> {
     final path = state.apkPath;
     if (path == null) return;
     try {
-      await const MethodChannel('gullify/installer')
-          .invokeMethod<bool>('installApk', {'path': path});
+      await const MethodChannel(
+        'gullify/installer',
+      ).invokeMethod<bool>('installApk', {'path': path});
     } catch (e) {
       state = state.copyWith(
         status: UpdateStatus.error,
@@ -193,12 +241,17 @@ class AppUpdateNotifier extends Notifier<AppUpdateState> {
   }
 
   void dismiss() {
+    // « Prêt à installer » compte aussi : quand l'installeur d'Android refuse
+    // le paquet, c'est le seul moyen de refermer la proposition au lieu de
+    // rester bloqué dessus.
     if (state.status == UpdateStatus.available ||
+        state.status == UpdateStatus.readyToInstall ||
         state.status == UpdateStatus.error) {
       state = state.copyWith(status: UpdateStatus.idle);
     }
   }
 }
 
-final appUpdateProvider =
-    NotifierProvider<AppUpdateNotifier, AppUpdateState>(AppUpdateNotifier.new);
+final appUpdateProvider = NotifierProvider<AppUpdateNotifier, AppUpdateState>(
+  AppUpdateNotifier.new,
+);

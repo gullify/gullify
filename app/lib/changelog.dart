@@ -8,6 +8,18 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.51.0', [
+    'Google TV — le panneau de mise à jour ne peut plus rester bloqué. Quand '
+        'Android refusait le paquet, « Plus tard » et « Retour » n\'avaient '
+        'plus prise et toute l\'app devenait inatteignable : le renvoi vaut '
+        'désormais pour tous les états du panneau, pas seulement pour « une '
+        'version est disponible »',
+    'Le fichier téléchargé est vérifié avant d\'être confié à Android : taille '
+        'annoncée par le serveur, et signature d\'archive. Un téléchargement '
+        'tronqué — mémoire pleine sur le téléviseur, coupure réseau — est '
+        'maintenant annoncé en clair, au lieu du « problème lors de l\'analyse '
+        'du paquet » d\'Android, qui ne dit ni où ni pourquoi',
+  ]),
   ReleaseNote('3.50.0', [
     'Google TV — la recherche ne s\'arrête plus à la bibliothèque : les albums '
         'et titres trouvés sur YouTube apparaissent dessous et se téléchargent '

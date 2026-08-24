@@ -38,14 +38,23 @@ final tvUpdateSnoozeProvider = NotifierProvider<TvUpdateSnooze, int?>(
 final tvUpdateBlockingProvider = Provider<bool>((ref) {
   final update = ref.watch(appUpdateProvider);
   final snoozed = ref.watch(tvUpdateSnoozeProvider);
-  return switch (update.status) {
-    UpdateStatus.available => update.available?.versionCode != snoozed,
+  final showable = switch (update.status) {
+    UpdateStatus.available ||
     UpdateStatus.downloading ||
     UpdateStatus.readyToInstall ||
     UpdateStatus.error => true,
     _ => false,
   };
+  // Le renvoi vaut pour TOUS les états, pas seulement pour « une version est
+  // disponible ». Sans ça, une installation qui échoue laissait le panneau
+  // planté à l'écran : « Plus tard » et « Retour » n'avaient plus prise, et
+  // l'app entière devenait inatteignable.
+  return showable && _updateKey(update) != snoozed;
 });
+
+/// De quoi identifier ce que le panneau montre, y compris quand il n'y a pas
+/// de version connue (un échec de vérification, par exemple).
+int _updateKey(AppUpdateState update) => update.available?.versionCode ?? -1;
 
 class TvUpdateOverlay extends ConsumerStatefulWidget {
   const TvUpdateOverlay({super.key});
@@ -97,7 +106,6 @@ class _TvUpdateOverlayState extends ConsumerState<TvUpdateOverlay>
   @override
   Widget build(BuildContext context) {
     final update = ref.watch(appUpdateProvider);
-    final version = update.available?.versionCode;
     if (!ref.watch(tvUpdateBlockingProvider)) return const SizedBox.shrink();
 
     return SizedBox.expand(
@@ -114,8 +122,9 @@ class _TvUpdateOverlayState extends ConsumerState<TvUpdateOverlay>
                 padding: const EdgeInsets.fromLTRB(44, 38, 44, 34),
                 child: _Panel(
                   update: update,
-                  onLater: () =>
-                      ref.read(tvUpdateSnoozeProvider.notifier).snooze(version),
+                  onLater: () => ref
+                      .read(tvUpdateSnoozeProvider.notifier)
+                      .snooze(_updateKey(update)),
                 ),
               ),
             ),
@@ -202,7 +211,15 @@ class _Panel extends ConsumerWidget {
                   autofocus: true,
                   onPressed: notifier.install,
                 ),
-                TvPill(label: 'Plus tard', accent: false, onPressed: onLater),
+                TvPill(
+                  label: 'Plus tard',
+                  accent: false,
+                  compact: true,
+                  onPressed: () {
+                    notifier.dismiss();
+                    onLater();
+                  },
+                ),
               ],
             ),
           ],
@@ -235,7 +252,7 @@ class _Panel extends ConsumerWidget {
                   onPressed: () => notifier.check(),
                 ),
                 TvPill(
-                  label: 'Fermer',
+                  label: 'Plus tard',
                   accent: false,
                   onPressed: () {
                     notifier.dismiss();
