@@ -114,12 +114,14 @@ class _TvShellState extends ConsumerState<TvShell> {
           .snooze(ref.read(appUpdateProvider).available?.versionCode);
       return;
     }
-    // 2. Le menu ouvert : on le referme en rendant la main à la page.
-    if (_railFocused) {
-      _contentScope.requestFocus();
+    // 2. Le menu fermé : « Retour » l'ouvre. C'est ce qu'on cherche neuf
+    // fois sur dix en appuyant dessus — et ça met deux appuis de plus entre
+    // un geste distrait et la fermeture de l'application.
+    if (!_railFocused) {
+      _railCurrent.requestFocus();
       return;
     }
-    // 3. Sinon, quitter — mais en deux temps.
+    // 3. Le menu déjà ouvert : là seulement, quitter — et en deux temps.
     final now = DateTime.now();
     final last = _lastBack;
     if (last != null && now.difference(last) < const Duration(seconds: 3)) {
@@ -324,6 +326,10 @@ class _TvShellState extends ConsumerState<TvShell> {
 /// Largeur utile du rail ouvert, marges déduites : c'est à cette largeur-là
 /// que le contenu est composé, quelle que soit l'ouverture du tiroir.
 const _railContent = 390.0 - 60 - 34;
+
+/// Largeur du logo, donc de la colonne d'icônes : c'est elle qui donne son
+/// axe au rail replié.
+const _railIconSlot = 56.0;
 
 /// « Appuie encore sur Retour pour quitter ».
 class _QuitHint extends StatelessWidget {
@@ -530,7 +536,7 @@ class _RailItem extends StatelessWidget {
       scale: 1.0,
       builder: (context, focused) => Container(
         height: 66,
-        padding: EdgeInsets.symmetric(horizontal: open ? 17 : 0),
+
         decoration: BoxDecoration(
           color: focused ? Colors.white.withValues(alpha: 0.12) : null,
           borderRadius: BorderRadius.circular(20),
@@ -545,22 +551,25 @@ class _RailItem extends StatelessWidget {
             alignment: Alignment.centerLeft,
             maxWidth: _railContent,
             child: Row(
-              mainAxisAlignment: open
-                  ? MainAxisAlignment.start
-                  : MainAxisAlignment.center,
               mainAxisSize: open ? MainAxisSize.max : MainAxisSize.min,
               children: [
-                Icon(
-                  icon,
-                  size: 30,
-                  color: selected
-                      ? scheme.primary
-                      : focused
-                      ? scheme.onSurface
-                      : scheme.onSurfaceVariant,
+                // Même gabarit que le logo, et même écart avant le texte :
+                // replié, le rail montre une colonne d'icônes alignée sur
+                // lui, pas décalée de quelques pixels.
+                SizedBox(
+                  width: _railIconSlot,
+                  child: Icon(
+                    icon,
+                    size: 30,
+                    color: selected
+                        ? scheme.primary
+                        : focused
+                        ? scheme.onSurface
+                        : scheme.onSurfaceVariant,
+                  ),
                 ),
                 if (open) ...[
-                  const SizedBox(width: 20),
+                  const SizedBox(width: 14),
                   Expanded(
                     child: Text(
                       label,

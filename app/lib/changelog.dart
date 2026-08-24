@@ -8,6 +8,21 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.50.0', [
+    'Google TV — la recherche ne s\'arrête plus à la bibliothèque : les albums '
+        'et titres trouvés sur YouTube apparaissent dessous et se téléchargent '
+        'sur le serveur d\'un appui, avec l\'avertissement quand il l\'a déjà. '
+        'Champ vide, ce sont les nouveautés YouTube qui s\'affichent',
+    'La bibliothèque gagne les genres et les playlists, en plus des albums et '
+        'des artistes — avec leurs écrans de détail',
+    'L\'accueil retrouve « À découvrir » : un artiste rapproché de ceux que tu '
+        'écoutes, en disant à cause de qui',
+    'Le lecteur gagne le bouton favoris, dont le libellé annonce l\'état avant '
+        'l\'appui',
+    'Le menu replié aligne ses icônes sur le logo, et « Retour » déploie '
+        'd\'abord le menu : il faut maintenant trois appuis pour quitter, ce '
+        'qui rend la sortie accidentelle très improbable',
+  ]),
   ReleaseNote('3.49.0', [
     'Google TV — « Retour » ne ferme plus l\'application du premier coup : un '
         'bandeau prévient qu\'il faut réappuyer. Passé trois secondes, '

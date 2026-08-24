@@ -26,7 +26,12 @@ import 'package:gullify/state/app_update.dart';
 import 'package:gullify/state/auth.dart';
 import 'package:gullify/models/game_track.dart';
 import 'package:gullify/screens/tv/tv_solo_game_screen.dart';
+import 'package:gullify/api/playlist_repository.dart';
+import 'package:gullify/api/yt_downloads_repository.dart';
+import 'package:gullify/state/discover.dart';
 import 'package:gullify/state/favorites.dart';
+import 'package:gullify/state/playlists.dart';
+import 'package:gullify/state/yt_downloads.dart';
 import 'package:gullify/state/games.dart';
 import 'package:gullify/state/library.dart';
 import 'package:gullify/state/party.dart';
@@ -101,6 +106,12 @@ const _stations = [
 
 class _FakePlayerActions extends Fake implements PlayerActions {}
 
+/// Favoris figés : le vrai notifier interroge le serveur.
+class _FixedFavorites extends FavoriteIds {
+  @override
+  Future<Set<int>> build() async => const {};
+}
+
 /// Les jeux ne demandent au dépôt que l'URL de lecture d'un extrait.
 class _FakeLibrary extends Fake implements LibraryRepository {
   @override
@@ -117,6 +128,16 @@ final _blindPool = [
       albumName: 'Album \$i',
       artistName: 'Artiste \$i',
     ),
+];
+
+const _genres = [
+  GenreCount('Punk', 4, albumCount: 9),
+  GenreCount('Ska', 2, albumCount: 3),
+];
+
+const _playlists = [
+  Playlist(id: 1, name: 'Défricheur', songCount: 12),
+  Playlist(id: 2, name: 'Road trip', songCount: 40),
 ];
 
 final _gameAlbums = [
@@ -271,8 +292,13 @@ Widget _wrap(
     popularSongsProvider.overrideWith((ref) async => _songs),
     artistsProvider.overrideWith((ref) async => _artists),
     allFavoritesProvider.overrideWith((ref) async => _songs),
+    favoriteIdsProvider.overrideWith(_FixedFavorites.new),
     radioStationsProvider.overrideWith((ref) async => _stations),
     searchResultsProvider.overrideWith((ref) async => const SearchResults()),
+    genresProvider.overrideWith((ref) async => _genres),
+    playlistsProvider.overrideWith((ref) async => _playlists),
+    discoverArtistProvider.overrideWith((ref) async => null),
+    ytNewReleasesProvider.overrideWith((ref) async => <YtAlbum>[]),
     blindPoolProvider.overrideWith((ref) async => _blindPool),
     gamePoolProvider.overrideWith(
       // La pochette mystère exige huit albums pochettés : le catalogue de la
@@ -442,6 +468,20 @@ void main() {
       expect(find.text('Bibliothèque'), findsOneWidget);
       expect(find.text('Réglages'), findsOneWidget);
       expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('replié, les icônes sont dans l\'axe du logo', (tester) async {
+      await _tvScreen(tester);
+      await tester.pumpWidget(_wrap(const TvShell()));
+      await tester.pumpAndSettle();
+
+      final logo = tester.getRect(find.byType(Image).first);
+      final icon = tester.getRect(find.byIcon(TvTab.home.icon));
+      expect(
+        icon.center.dx,
+        closeTo(logo.center.dx, 1),
+        reason: 'les icônes doivent tomber sous le logo, pas à côté',
+      );
     });
 
     testWidgets('choisir une destination change de page', (tester) async {
@@ -768,14 +808,22 @@ void main() {
       await tester.pumpWidget(_wrap(const TvShell()));
       await tester.pumpAndSettle();
 
+      // Premier appui : le menu se déploie.
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      expect(find.text('Bibliothèque'), findsOneWidget);
+      expect(exits, isEmpty);
+
+      // Deuxième : l'avertissement.
       await tester.binding.handlePopRoute();
       await tester.pumpAndSettle();
       expect(
         find.text('Appuie encore sur Retour pour quitter Gullify'),
         findsOneWidget,
       );
-      expect(exits, isEmpty, reason: 'le premier appui ne doit rien fermer');
+      expect(exits, isEmpty, reason: 'un geste distrait ne doit rien fermer');
 
+      // Troisième seulement : la sortie.
       await tester.binding.handlePopRoute();
       await tester.pumpAndSettle();
       expect(exits, hasLength(1));
@@ -787,6 +835,8 @@ void main() {
       await tester.pumpWidget(_wrap(const TvShell()));
       await tester.pumpAndSettle();
 
+      await tester.binding.handlePopRoute();
+      await tester.pump();
       await tester.binding.handlePopRoute();
       await tester.pump();
       // Trois secondes plus tard, l'avertissement a disparu : un appui isolé
@@ -801,21 +851,18 @@ void main() {
       expect(exits, isEmpty);
     });
 
-    testWidgets('le menu ouvert, « Retour » le referme au lieu de sortir', (
-      tester,
-    ) async {
+    testWidgets('depuis une page, « Retour » déploie le menu', (tester) async {
       await _tvScreen(tester);
       final exits = watchExit(tester);
       await tester.pumpWidget(_wrap(const TvShell()));
       await tester.pumpAndSettle();
-
-      await _press(tester, LogicalKeyboardKey.arrowLeft);
-      await tester.pumpAndSettle();
-      expect(find.text('Bibliothèque'), findsOneWidget);
+      expect(find.text('Bibliothèque'), findsNothing);
 
       await tester.binding.handlePopRoute();
       await tester.pumpAndSettle();
-      expect(find.text('Bibliothèque'), findsNothing);
+
+      // Ce qu'on cherche neuf fois sur dix en appuyant : le menu.
+      expect(find.text('Bibliothèque'), findsOneWidget);
       expect(exits, isEmpty);
       expect(
         find.text('Appuie encore sur Retour pour quitter Gullify'),
@@ -1062,6 +1109,30 @@ void main() {
     });
   });
 
+  group('la bibliothèque, au complet', () {
+    testWidgets('quatre familles, dont les genres et les playlists', (
+      tester,
+    ) async {
+      await _tvScreen(tester);
+      await tester.pumpWidget(_wrap(const TvShell(initialTab: TvTab.library)));
+      await tester.pumpAndSettle();
+
+      for (final label in ['Albums', 'Artistes', 'Genres', 'Playlists']) {
+        expect(find.widgetWithText(TvPill, label), findsOneWidget);
+      }
+
+      await tester.tap(find.widgetWithText(TvPill, 'Genres'));
+      await tester.pumpAndSettle();
+      expect(find.text('Punk'), findsOneWidget);
+
+      await tester.tap(find.widgetWithText(TvPill, 'Playlists'));
+      await tester.pumpAndSettle();
+      expect(find.text('Road trip'), findsOneWidget);
+      expect(find.text('40 titres'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  });
+
   group('les paroles sur la télé', () {
     const lrc = '''
 [00:00.00] Première ligne
@@ -1078,7 +1149,7 @@ void main() {
         title: 'Ruby Soho',
         artist: 'Rancid',
         duration: Duration(seconds: 158),
-        extras: {'filePath': 'a.mp3'},
+        extras: {'filePath': 'a.mp3', 'songId': 1},
       ),
       position: at,
       lyrics: lyrics,
@@ -1132,7 +1203,21 @@ void main() {
       expect(find.text('Pas de paroles pour ce titre'), findsOneWidget);
     });
 
-    testWidgets('une radio n\'a pas de bouton Paroles', (tester) async {
+    testWidgets('le lecteur propose les favoris, et dit l\'état', (
+      tester,
+    ) async {
+      await _tvScreen(tester);
+      await tester.pumpWidget(player());
+      await tester.pumpAndSettle();
+      // Le libellé annonce l'état AVANT l'appui : un cœur plein veut dire
+      // « déjà dans tes favoris », pas « appuie pour l'y mettre ».
+      expect(
+        find.widgetWithText(TvPill, 'Ajouter aux favoris'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('une radio n\'a ni favori ni paroles', (tester) async {
       await _tvScreen(tester);
       await tester.pumpWidget(
         _wrap(
@@ -1142,6 +1227,7 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.widgetWithText(TvPill, 'Paroles'), findsNothing);
+      expect(find.widgetWithText(TvPill, 'Ajouter aux favoris'), findsNothing);
     });
   });
 

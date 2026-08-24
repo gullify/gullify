@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../state/favorites.dart';
 import '../../state/library.dart';
 import '../../state/player.dart';
 import '../../widgets/lyrics_sheet.dart';
@@ -346,7 +347,12 @@ class _Details extends ConsumerWidget {
         const SizedBox(height: 46),
         if (!live) _Scrubber(item: item),
         const SizedBox(height: 34),
-        Row(
+        // Un Wrap plutôt qu'une Row : avec les favoris et les paroles, la
+        // rangée dépasse la colonne sur les titres à long libellé.
+        Wrap(
+          spacing: 18,
+          runSpacing: 14,
+          crossAxisAlignment: WrapCrossAlignment.center,
           children: [
             TvPill(
               label: '',
@@ -354,33 +360,29 @@ class _Details extends ConsumerWidget {
               accent: false,
               onPressed: actions.previous,
             ),
-            const SizedBox(width: 18),
             TvPill(
               label: playing ? 'Pause' : 'Lecture',
               icon: playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
               autofocus: true,
               onPressed: actions.togglePlayPause,
             ),
-            const SizedBox(width: 18),
             TvPill(
               label: '',
               icon: Icons.skip_next_rounded,
               accent: false,
               onPressed: actions.next,
             ),
-            if (hasQueue) ...[
-              const SizedBox(width: 18),
+            if (hasQueue)
               TvPill(
                 label: '',
                 icon: Icons.shuffle_rounded,
                 accent: false,
                 onPressed: actions.toggleShuffle,
               ),
-            ],
-            // Une radio n'a pas de paroles à chercher : le bouton ne sert
-            // qu'aux morceaux de la bibliothèque.
+            // Une radio n'a ni favori ni paroles à chercher : ces deux
+            // boutons ne servent qu'aux morceaux de la bibliothèque.
             if (!live) ...[
-              const SizedBox(width: 18),
+              _FavouriteButton(item: item),
               TvPill(
                 label: 'Paroles',
                 icon: Icons.lyrics_outlined,
@@ -399,6 +401,30 @@ class _Details extends ConsumerWidget {
           ],
         ),
       ],
+    );
+  }
+}
+
+/// Le cœur : ajoute ou retire le titre en cours des favoris.
+///
+/// Il montre l'état avant l'action — un cœur plein veut dire « déjà dans tes
+/// favoris », pas « appuie pour l'y mettre ».
+class _FavouriteButton extends ConsumerWidget {
+  const _FavouriteButton({required this.item});
+
+  final MediaItem item;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final songId = item.extras?['songId'] as int?;
+    if (songId == null) return const SizedBox.shrink();
+    final favourite =
+        ref.watch(favoriteIdsProvider).value?.contains(songId) ?? false;
+    return TvPill(
+      label: favourite ? 'Dans tes favoris' : 'Ajouter aux favoris',
+      icon: favourite ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+      accent: false,
+      onPressed: () => ref.read(favoriteIdsProvider.notifier).toggle(songId),
     );
   }
 }

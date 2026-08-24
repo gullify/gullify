@@ -43,6 +43,7 @@ import 'screens/shell_screen.dart';
 import 'screens/splash_screen.dart';
 import 'screens/stats_screen.dart';
 import 'screens/tv/tv_kit.dart';
+import 'screens/tv/tv_collection_screens.dart';
 import 'screens/tv/tv_connect_screens.dart';
 import 'screens/tv/tv_party_page.dart';
 import 'screens/tv/tv_solo_game_screen.dart';
@@ -287,6 +288,23 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/tv/playing',
         builder: (_, _) => const TvCanvas(child: TvNowPlayingScreen()),
+      ),
+      GoRoute(
+        path: '/tv/genre/:name',
+        builder: (_, state) => TvCanvas(
+          child: TvGenreScreen(
+            genre: Uri.decodeComponent(state.pathParameters['name']!),
+          ),
+        ),
+      ),
+      GoRoute(
+        path: '/tv/playlist/:id',
+        builder: (_, state) => TvCanvas(
+          child: TvPlaylistScreen(
+            id: int.parse(state.pathParameters['id']!),
+            name: state.uri.queryParameters['name'] ?? 'Playlist',
+          ),
+        ),
       ),
       GoRoute(
         path: '/tv/party',

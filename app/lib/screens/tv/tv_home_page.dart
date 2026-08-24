@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../models/album.dart';
 import '../../models/artist.dart';
 import '../../models/song.dart';
+import '../../state/discover.dart';
 import '../../state/favorites.dart';
 import '../../state/library.dart';
 import '../../state/player.dart';
@@ -49,6 +50,8 @@ class TvHomePage extends ConsumerWidget {
           const SizedBox(height: 46),
           _ArtistShelf(artists: artists.value!),
         ],
+        const SizedBox(height: 46),
+        const _Discovery(),
         if (albums.isLoading && artists.isLoading)
           const SizedBox(
             height: 360,
@@ -215,6 +218,114 @@ class _Hero extends ConsumerWidget {
     if (songs.isEmpty) return;
     await ref.read(playerActionsProvider).playSongs(songs);
     if (context.mounted) context.push('/tv/playing');
+  }
+}
+
+/// « À découvrir » : un artiste que YouTube rapproche de ceux qu'on écoute.
+///
+/// Le même mécanisme que sur l'accueil du téléphone — et la même honnêteté :
+/// on dit à cause de qui il est proposé, plutôt que de le sortir d'un chapeau.
+class _Discovery extends ConsumerWidget {
+  const _Discovery();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final scheme = Theme.of(context).colorScheme;
+    final discover = ref.watch(discoverArtistProvider);
+    final found = discover.value;
+    if (found == null) return const SizedBox.shrink();
+
+    return Row(
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(110),
+          child: SizedBox(
+            width: 220,
+            height: 220,
+            child: found.artist.thumbnail.isEmpty
+                ? ColoredBox(
+                    color: scheme.surfaceContainerHighest,
+                    child: Icon(
+                      Icons.person_search_rounded,
+                      size: 80,
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  )
+                : Image.network(
+                    found.artist.thumbnail,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, _, _) => ColoredBox(
+                      color: scheme.surfaceContainerHighest,
+                      child: Icon(
+                        Icons.person_search_rounded,
+                        size: 80,
+                        color: scheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+          ),
+        ),
+        const SizedBox(width: 36),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'À DÉCOUVRIR',
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 3,
+                  color: scheme.primary,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                found.artist.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 48,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -1.4,
+                  height: 1.05,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Parce que tu écoutes ${found.becauseOf}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 26, color: scheme.onSurfaceVariant),
+              ),
+              const SizedBox(height: 22),
+              Row(
+                children: [
+                  TvPill(
+                    label: 'Le chercher',
+                    icon: Icons.search_rounded,
+                    onPressed: () {
+                      ref
+                          .read(searchQueryProvider.notifier)
+                          .set(found.artist.name);
+                      context.push('/tv');
+                    },
+                  ),
+                  const SizedBox(width: 16),
+                  TvPill(
+                    label: 'Un autre',
+                    icon: Icons.refresh_rounded,
+                    accent: false,
+                    onPressed: () => ref.invalidate(discoverArtistProvider),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
   }
 }
 
