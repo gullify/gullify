@@ -4,6 +4,8 @@
 // pas le tactile qui lâche, c'est le focus. Ces tests vérifient donc surtout
 // que la croix directionnelle mène quelque part — et que les cinq écrans
 // tiennent dans un 1920 × 1080 sans rien rogner.
+import 'dart:async';
+
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -300,6 +302,12 @@ String? _focusedCardTitle(WidgetTester tester) {
 Widget _wrap(
   Widget child, {
   MediaItem? item,
+  /// Le fil des titres, quand le test en enchaîne plusieurs : un override de
+  /// flux ne se réapplique pas d'un rendu à l'autre, il faut donc émettre
+  /// dans le même flux plutôt que d'en fournir un second.
+  Stream<MediaItem?>? items,
+  /// Les paroles fichier par fichier, quand le test en a plus d'un jeu.
+  Map<String, String?>? lyricsByPath,
   PartySession? party,
   AppUpdateState? update,
   String? lyrics,
@@ -309,14 +317,20 @@ Widget _wrap(
   bool tv = true,
 }) => ProviderScope(
   overrides: [
-    lyricsProvider('a.mp3').overrideWith((ref) async => lyrics),
+    // Riverpod refuse deux fois le même provider : ou bien le jeu unique de
+    // [lyrics], ou bien la table [lyricsByPath], jamais les deux.
+    if (lyricsByPath == null)
+      lyricsProvider('a.mp3').overrideWith((ref) async => lyrics)
+    else
+      for (final e in lyricsByPath.entries)
+        lyricsProvider(e.key).overrideWith((ref) async => e.value),
     if (update != null)
       appUpdateProvider.overrideWith(() => _FixedUpdate(update)),
     tvDetectedProvider.overrideWithValue(tv),
     tvForceInitialProvider.overrideWithValue(TvForce.auto),
     playerActionsProvider.overrideWithValue(_FakePlayerActions()),
     currentMediaItemProvider.overrideWith(
-      (ref) => Stream<MediaItem?>.value(item),
+      (ref) => items ?? Stream<MediaItem?>.value(item),
     ),
     playbackStateProvider.overrideWith(
       (ref) => Stream.value(PlaybackState(playing: item != null)),
@@ -1499,6 +1513,75 @@ void main() {
       expect(other.style?.color, isNot(scheme.primary));
       // …et elle est écrite plus grand que les autres.
       expect(current.style!.fontSize!, greaterThan(other.style!.fontSize!));
+    });
+
+    // Le panneau restait sur les paroles du titre par lequel il avait été
+    // ouvert : le morceau y était figé au moment de l'appui. Sur une télé, on
+    // laisse le panneau ouvert et la file avance toute seule — c'est donc là
+    // que ça se voyait.
+    testWidgets('au titre suivant, les paroles suivent', (tester) async {
+      await _tvScreen(tester);
+      const suivant = '''
+[00:00.00] Autre premiere
+[00:05.00] Autre deuxieme
+[00:10.00] Autre troisieme
+[00:15.00] Autre quatrieme
+[00:20.00] Autre cinquieme
+''';
+      const premier = MediaItem(
+        id: '1',
+        title: 'Ruby Soho',
+        artist: 'Rancid',
+        duration: Duration(seconds: 158),
+        extras: {'filePath': 'a.mp3', 'songId': 1},
+      );
+      const second = MediaItem(
+        id: '2',
+        title: 'Time Bomb',
+        artist: 'Rancid',
+        duration: Duration(seconds: 145),
+        extras: {'filePath': 'b.mp3', 'songId': 2},
+      );
+
+      final file = StreamController<MediaItem?>.broadcast();
+      addTearDown(file.close);
+
+      await tester.pumpWidget(
+        _wrap(
+          const TvCanvas(child: TvNowPlayingScreen()),
+          item: premier,
+          items: file.stream,
+          lyricsByPath: const {'a.mp3': lrc, 'b.mp3': suivant},
+        ),
+      );
+
+      // Deux battements suffisent : le flux délivre, puis les paroles
+      // arrivent. On ne laisse pas passer pumpAndSettle, qui attendrait
+      // indéfiniment l'indicateur de chargement.
+      file.add(premier);
+      await tester.pump();
+      await tester.pump();
+
+      await tester.tap(find.widgetWithText(TvPill, 'Paroles'));
+      await tester.pump();
+      await tester.pump();
+      expect(find.text('Deuxième ligne'), findsOneWidget);
+
+      // La file avance. Le panneau, lui, reste ouvert.
+      file.add(second);
+      await tester.pump();
+      await tester.pump();
+
+      expect(
+        find.text('Autre deuxieme'),
+        findsOneWidget,
+        reason: 'les paroles du nouveau titre doivent remplacer les anciennes',
+      );
+      expect(
+        find.text('Deuxième ligne'),
+        findsNothing,
+        reason: 'les paroles du titre précédent ne doivent plus être là',
+      );
     });
 
     testWidgets('sans paroles, le panneau le dit', (tester) async {

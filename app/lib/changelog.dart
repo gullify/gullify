@@ -8,6 +8,16 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.56.0', [
+    'Google TV — les paroles suivent enfin le titre suivant. Le panneau '
+        'retenait le morceau sur lequel on l\'avait ouvert : la chanson '
+        'changeait, l\'écran derrière aussi, mais les paroles restaient '
+        'celles du début. Elles se renouvellent maintenant à chaque titre, et '
+        'repartent du haut',
+    'La feuille « Paroles » du téléphone avait le même travers, moins visible '
+        'parce qu\'on la referme vite : elle suit maintenant le titre en '
+        'cours, elle aussi',
+  ]),
   ReleaseNote('3.55.0', [
     'Google TV — « Le chercher » cherche pour de bon. Il posait la requête et '
         'ouvrait l\'onglet Recherche, mais le champ de la page partait vide : '

@@ -168,8 +168,7 @@ class NowPlayingScreen extends ConsumerWidget {
             IconButton(
               icon: const Icon(Icons.lyrics_outlined),
               tooltip: 'Paroles',
-              onPressed: () =>
-                  showLyricsSheet(context, item.extras?['filePath'] as String?),
+              onPressed: () => showLyricsSheet(context),
             ),
           ),
         if (!isRadio)

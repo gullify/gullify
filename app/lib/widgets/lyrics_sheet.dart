@@ -9,7 +9,11 @@ import '../state/player.dart';
 
 /// Feuille « Paroles » du lecteur : le texte du titre en cours, défilant au
 /// rythme de la lecture quand il est horodaté (format LRC).
-void showLyricsSheet(BuildContext context, String? filePath) {
+///
+/// Le morceau n'est pas figé à l'ouverture : la feuille le relit à chaque
+/// rendu, pour que l'enchaînement au titre suivant remonte les paroles du
+/// nouveau titre — et non celles du titre par lequel elle a été ouverte.
+void showLyricsSheet(BuildContext context) {
   showModalBottomSheet<void>(
     context: context,
     useRootNavigator: true,
@@ -17,41 +21,52 @@ void showLyricsSheet(BuildContext context, String? filePath) {
     builder: (context) => DraggableScrollableSheet(
       expand: false,
       initialChildSize: 0.7,
-      builder: (context, controller) => Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 8, 0),
-            child: Row(
-              children: [
-                Text(
-                  'Paroles',
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
+      builder: (context, controller) => Consumer(
+        builder: (context, ref, _) {
+          final filePath =
+              ref.watch(currentMediaItemProvider).value?.extras?['filePath']
+                  as String?;
+
+          return Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 8, 0),
+                child: Row(
+                  children: [
+                    Text(
+                      'Paroles',
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const Spacer(),
+                    _KaraokeButton(filePath: filePath),
+                  ],
                 ),
-                const Spacer(),
-                _KaraokeButton(filePath: filePath),
-              ],
-            ),
-          ),
-          Expanded(
-            child: filePath == null
-                ? const Center(child: Text('Paroles indisponibles'))
-                : Consumer(
-                    builder: (context, ref, _) {
-                      final lyrics = ref.watch(lyricsProvider(filePath));
-                      return lyrics.when(
-                        loading: () =>
-                            const Center(child: CircularProgressIndicator()),
-                        error: (e, _) => Center(child: Text('Erreur: $e')),
-                        data: (text) => text == null
-                            ? const Center(child: Text('Aucunes paroles trouvées'))
-                            : LyricsView(text: text, controller: controller),
-                      );
-                    },
-                  ),
-          ),
-        ],
+              ),
+              Expanded(
+                child: filePath == null
+                    ? const Center(child: Text('Paroles indisponibles'))
+                    : ref
+                          .watch(lyricsProvider(filePath))
+                          .when(
+                            loading: () => const Center(
+                              child: CircularProgressIndicator(),
+                            ),
+                            error: (e, _) => Center(child: Text('Erreur: $e')),
+                            data: (text) => text == null
+                                ? const Center(
+                                    child: Text('Aucunes paroles trouvées'),
+                                  )
+                                : LyricsView(
+                                    text: text,
+                                    controller: controller,
+                                  ),
+                          ),
+              ),
+            ],
+          );
+        },
       ),
     ),
   );
@@ -193,7 +208,7 @@ class LyricsView extends ConsumerStatefulWidget {
 class _LyricsViewState extends ConsumerState<LyricsView> {
   static final _lrcPattern = RegExp(r'\[(\d+):(\d+(?:\.\d+)?)\]\s*(.*)');
 
-  late final List<_LrcLine> _lines = _parse(widget.text);
+  late List<_LrcLine> _lines = _parse(widget.text);
   int _lastIndex = -1;
 
   /// Encombrement de chaque phrase, et haut de chaque phrase dans la liste :
@@ -203,6 +218,21 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
   List<double> _tops = const [];
   double _fitsWidth = 0;
   TextScaler _fitsScaler = TextScaler.noScaling;
+
+  @override
+  void didUpdateWidget(LyricsView old) {
+    super.didUpdateWidget(old);
+    if (old.text == widget.text) return;
+    // Titre suivant : tout est à refaire — les phrases, leur mesure, et le
+    // repère de la phrase en cours. Sans ça, un texte remplacé n'a aucun
+    // effet et le lecteur garde les paroles du titre précédent.
+    _lines = _parse(widget.text);
+    _fits = const [];
+    _tops = const [];
+    _fitsWidth = 0;
+    _fitsScaler = TextScaler.noScaling;
+    _lastIndex = -1;
+  }
 
   List<_LrcLine> _parse(String text) {
     final lines = <_LrcLine>[];

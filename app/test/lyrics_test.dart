@@ -136,5 +136,30 @@ void main() {
         reason: 'la phrase suivante ne doit pas chevaucher les deux lignes',
       );
     });
+
+    // Les phrases étaient analysées une fois pour toutes, à la construction :
+    // un texte remplacé n'avait alors aucun effet. La vue reste en place
+    // quand les paroles changent sous elle — le panneau de la télé passe au
+    // titre suivant sans être reconstruit s'il n'a pas à attendre.
+    testWidgets('un texte remplacé remplace les phrases', (tester) async {
+      await tester.pumpWidget(_host(_lrc([_court, _courtBis, _courtTer, _deuxLignes])));
+      await tester.pumpAndSettle();
+      expect(find.text(_courtBis), findsOneWidget);
+
+      const autre = 'Une autre chanson';
+      await tester.pumpWidget(_host(_lrc([autre, _court, _courtTer, _deuxLignes])));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text(autre),
+        findsOneWidget,
+        reason: 'les phrases du nouveau texte doivent être affichées',
+      );
+      expect(
+        find.text(_courtBis),
+        findsNothing,
+        reason: 'les phrases de l\'ancien texte ne doivent plus être là',
+      );
+    });
   });
 }

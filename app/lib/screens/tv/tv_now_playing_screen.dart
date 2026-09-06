@@ -25,8 +25,11 @@ class TvNowPlayingScreen extends ConsumerStatefulWidget {
 }
 
 class _TvNowPlayingScreenState extends ConsumerState<TvNowPlayingScreen> {
-  /// Chemin du morceau dont on lit les paroles (nul = panneau fermé).
-  String? _lyricsFor;
+  /// Le panneau des paroles est-il ouvert ? Le morceau, lui, n'est pas figé
+  /// ici : il est relu à chaque rendu, pour que l'enchaînement au titre
+  /// suivant remonte les paroles du nouveau titre et non celles du titre sur
+  /// lequel le panneau a été ouvert.
+  bool _lyricsOpen = false;
 
   @override
   Widget build(BuildContext context) {
@@ -94,10 +97,7 @@ class _TvNowPlayingScreenState extends ConsumerState<TvNowPlayingScreen> {
                           item: item,
                           playing: playing,
                           hasQueue: queue.length > 1,
-                          onLyrics: () => setState(
-                            () => _lyricsFor =
-                                item.extras?['filePath'] as String?,
-                          ),
+                          onLyrics: () => setState(() => _lyricsOpen = true),
                         ),
                       ),
                     ],
@@ -108,10 +108,10 @@ class _TvNowPlayingScreenState extends ConsumerState<TvNowPlayingScreen> {
               ],
             ),
           ),
-          if (_lyricsFor != null)
+          if (_lyricsOpen)
             _LyricsPanel(
-              filePath: _lyricsFor!,
-              onClose: () => setState(() => _lyricsFor = null),
+              filePath: item.extras?['filePath'] as String?,
+              onClose: () => setState(() => _lyricsOpen = false),
             ),
         ],
       ),
@@ -127,7 +127,8 @@ class _TvNowPlayingScreenState extends ConsumerState<TvNowPlayingScreen> {
 class _LyricsPanel extends ConsumerStatefulWidget {
   const _LyricsPanel({required this.filePath, required this.onClose});
 
-  final String filePath;
+  /// Le fichier du titre en cours, nul s'il n'en a pas (une radio).
+  final String? filePath;
   final VoidCallback onClose;
 
   @override
@@ -136,6 +137,16 @@ class _LyricsPanel extends ConsumerStatefulWidget {
 
 class _LyricsPanelState extends ConsumerState<_LyricsPanel> {
   final _scroll = ScrollController();
+
+  @override
+  void didUpdateWidget(_LyricsPanel old) {
+    super.didUpdateWidget(old);
+    // Titre suivant : on repart du haut. Sinon le nouveau texte s'ouvre là où
+    // le précédent avait été laissé, au milieu.
+    if (old.filePath != widget.filePath && _scroll.hasClients) {
+      _scroll.jumpTo(0);
+    }
+  }
 
   @override
   void dispose() {
@@ -152,10 +163,60 @@ class _LyricsPanelState extends ConsumerState<_LyricsPanel> {
     );
   }
 
+  /// Les paroles du titre en cours. Un titre sans fichier — une radio qui
+  /// prend la suite — n'a rien à chercher.
+  Widget _body(BuildContext context) {
+    final filePath = widget.filePath;
+    if (filePath == null) {
+      return const TvEmpty(
+        message: 'Pas de paroles pour ce titre',
+        hint: 'Une radio n\'a pas de paroles à afficher.',
+        icon: Icons.lyrics_outlined,
+      );
+    }
+
+    return ref
+        .watch(lyricsProvider(filePath))
+        .when(
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (e, _) => TvEmpty(
+            message: 'Paroles introuvables',
+            hint: '$e',
+            icon: Icons.lyrics_outlined,
+          ),
+          data: (text) => (text == null || text.trim().isEmpty)
+              ? const TvEmpty(
+                  message: 'Pas de paroles pour ce titre',
+                  hint:
+                      'Le serveur n\'en a trouvé nulle part. '
+                      'Certains titres n\'en ont tout simplement '
+                      'pas.',
+                  icon: Icons.lyrics_outlined,
+                )
+              : Center(
+                  child: SizedBox(
+                    width: 1200,
+                    // Le même défilement synchronisé que sur
+                    // téléphone : LyricsView lit le format LRC,
+                    // met la phrase en cours en surbrillance et
+                    // la ramène au centre. On ne le réécrit pas —
+                    // on l'agrandit, en jouant sur l'échelle du
+                    // texte, qui commande aussi la mesure des
+                    // lignes et donc le calage du défilement.
+                    child: MediaQuery(
+                      data: MediaQuery.of(context).copyWith(
+                        textScaler: const TextScaler.linear(3.4),
+                      ),
+                      child: LyricsView(text: text, controller: _scroll),
+                    ),
+                  ),
+                ),
+        );
+  }
+
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final lyrics = ref.watch(lyricsProvider(widget.filePath));
 
     return Positioned.fill(
       child: ColoredBox(
@@ -207,47 +268,7 @@ class _LyricsPanelState extends ConsumerState<_LyricsPanel> {
                     ],
                   ),
                   const SizedBox(height: 20),
-                  Expanded(
-                    child: lyrics.when(
-                      loading: () =>
-                          const Center(child: CircularProgressIndicator()),
-                      error: (e, _) => TvEmpty(
-                        message: 'Paroles introuvables',
-                        hint: '$e',
-                        icon: Icons.lyrics_outlined,
-                      ),
-                      data: (text) => (text == null || text.trim().isEmpty)
-                          ? const TvEmpty(
-                              message: 'Pas de paroles pour ce titre',
-                              hint:
-                                  'Le serveur n\'en a trouvé nulle part. '
-                                  'Certains titres n\'en ont tout simplement '
-                                  'pas.',
-                              icon: Icons.lyrics_outlined,
-                            )
-                          : Center(
-                              child: SizedBox(
-                                width: 1200,
-                                // Le même défilement synchronisé que sur
-                                // téléphone : LyricsView lit le format LRC,
-                                // met la phrase en cours en surbrillance et
-                                // la ramène au centre. On ne le réécrit pas —
-                                // on l'agrandit, en jouant sur l'échelle du
-                                // texte, qui commande aussi la mesure des
-                                // lignes et donc le calage du défilement.
-                                child: MediaQuery(
-                                  data: MediaQuery.of(context).copyWith(
-                                    textScaler: const TextScaler.linear(3.4),
-                                  ),
-                                  child: LyricsView(
-                                    text: text,
-                                    controller: _scroll,
-                                  ),
-                                ),
-                              ),
-                            ),
-                    ),
-                  ),
+                  Expanded(child: _body(context)),
                   const SizedBox(height: 10),
                   const TvKeyHints(
                     hints: [('↑ ↓', 'Faire défiler'), ('Retour', 'Fermer')],
