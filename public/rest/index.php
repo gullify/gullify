@@ -18,6 +18,14 @@ require_once __DIR__ . '/../../src/Storage/LocalStorage.php';
 require_once __DIR__ . '/../../src/Storage/SFTPStorage.php';
 require_once __DIR__ . '/../../src/Storage/StorageFactory.php';
 
+/**
+ * Où vit le genre : sur l'album et, à défaut, sur l'artiste. `songs.genre`
+ * existe au schéma mais le scan ne le remplit jamais — ne pas s'y fier.
+ * GENRE_MATCH attend deux paramètres (le même genre, deux fois).
+ */
+const GENRE_MATCH = "(al.genre = ? OR a.genre = ?)";
+const RESOLVED_GENRE = "COALESCE(NULLIF(al.genre, ''), NULLIF(a.genre, ''))";
+
 // ── Determine which method was called ────────────────────────────────────────
 $uri = $_SERVER['REQUEST_URI'];
 $path = parse_url($uri, PHP_URL_PATH);
@@ -136,7 +144,7 @@ switch ($method) {
 
     case 'getAlbumList':
     case 'getAlbumList2':
-        handleGetAlbumList($db, $currentUser, $format);
+        handleGetAlbumList($db, $currentUser, $format, $method === 'getAlbumList2');
         break;
 
     case 'search2':
@@ -222,6 +230,10 @@ switch ($method) {
         handleGetGenres($db, $currentUser, $format);
         break;
 
+    case 'getSongsByGenre':
+        handleGetSongsByGenre($db, $currentUser, $format);
+        break;
+
     case 'getBookmarks':
         subsonicOk(['bookmarks' => new stdClass()], $format);
         break;
@@ -239,7 +251,10 @@ switch ($method) {
         break;
 
     default:
-        subsonicOk([], $format);
+        // Un point d'entrée inconnu doit le dire. Répondre « ok » à vide le
+        // faisait passer pour valide mais dépeuplé : un client tiers y perd
+        // des heures avant de comprendre que la méthode n'existe pas.
+        subsonicError(0, 'Unsupported operation: ' . $method, $format);
         break;
 }
 
@@ -326,7 +341,7 @@ function handleGetAlbum($db, $user, $format) {
     }
 
     $first = $songs[0];
-    subsonicOk(['album' => [
+    $album = [
         '@id' => 'al-' . $id,
         '@name' => $first['album_name'],
         '@artist' => $first['artist_name'],
@@ -334,8 +349,11 @@ function handleGetAlbum($db, $user, $format) {
         '@coverArt' => 'al-' . $id,
         '@songCount' => count($songList),
         '@year' => (int)($first['year'] ?? 0),
-        'song' => $songList,
-    ]], $format);
+    ];
+    if (!empty($first['resolved_genre'])) $album['@genre'] = $first['resolved_genre'];
+    $album['song'] = $songList;
+
+    subsonicOk(['album' => $album], $format);
 }
 
 function handleGetSong($db, $user, $format) {
@@ -343,13 +361,14 @@ function handleGetSong($db, $user, $format) {
     if (!$id) { subsonicError(10, 'Missing id parameter.', $format); return; }
 
     $conn = AppConfig::getDB();
-    $stmt = $conn->prepare('
-        SELECT s.*, al.name as album_name, al.year, a.name as artist_name, a.id as artist_id
+    $stmt = $conn->prepare("
+        SELECT s.*, al.name as album_name, al.year, a.name as artist_name, a.id as artist_id,
+               " . RESOLVED_GENRE . " as resolved_genre
         FROM songs s
         JOIN albums al ON s.album_id = al.id
         JOIN artists a ON al.artist_id = a.id
         WHERE s.id = ?
-    ');
+    ");
     $stmt->execute([$id]);
     $song = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -358,10 +377,11 @@ function handleGetSong($db, $user, $format) {
     subsonicOk(['song' => buildSongChild($song)], $format);
 }
 
-function handleGetAlbumList($db, $user, $format) {
+function handleGetAlbumList($db, $user, $format, $id3 = true) {
     $type = $_GET['type'] ?? 'alphabeticalByName';
     $size = min((int)($_GET['size'] ?? 20), 500);
     $offset = (int)($_GET['offset'] ?? 0);
+    $genre = trim($_GET['genre'] ?? '');
 
     $conn = AppConfig::getDB();
 
@@ -389,10 +409,18 @@ function handleGetAlbumList($db, $user, $format) {
             $toYear = (int)($_GET['toYear'] ?? 9999);
             $orderBy = 'al.year ASC';
             break;
+        case 'byGenre':
+            if ($genre === '') {
+                subsonicError(10, 'Required parameter is missing: genre.', $format);
+                return;
+            }
+            $orderBy = 'al.name ASC';
+            break;
     }
 
     $sql = "
         SELECT al.*, a.name as artist_name, a.id as artist_id,
+               " . RESOLVED_GENRE . " as resolved_genre,
                COUNT(s.id) as song_count, SUM(s.duration) as total_duration
         FROM albums al
         JOIN artists a ON al.artist_id = a.id
@@ -407,6 +435,12 @@ function handleGetAlbumList($db, $user, $format) {
         $params[] = $toYear;
     }
 
+    if ($type === 'byGenre') {
+        $sql .= " AND " . GENRE_MATCH;
+        $params[] = $genre;
+        $params[] = $genre;
+    }
+
     $sql .= " GROUP BY al.id ORDER BY $orderBy LIMIT $size OFFSET $offset";
 
     $stmt = $conn->prepare($sql);
@@ -415,7 +449,7 @@ function handleGetAlbumList($db, $user, $format) {
 
     $albumList = [];
     foreach ($albums as $al) {
-        $albumList[] = [
+        $entry = [
             '@id' => 'al-' . $al['id'],
             '@name' => $al['name'],
             '@artist' => $al['artist_name'],
@@ -425,9 +459,12 @@ function handleGetAlbumList($db, $user, $format) {
             '@duration' => (int)($al['total_duration'] ?? 0),
             '@year' => (int)($al['year'] ?? 0),
         ];
+        if (!empty($al['resolved_genre'])) $entry['@genre'] = $al['resolved_genre'];
+        $albumList[] = $entry;
     }
 
-    subsonicOk(['albumList2' => ['album' => $albumList]], $format);
+    // getAlbumList (v1) rend « albumList », getAlbumList2 (id3) « albumList2 ».
+    subsonicOk([$id3 ? 'albumList2' : 'albumList' => ['album' => $albumList]], $format);
 }
 
 function handleSearch($db, $user, $format) {
@@ -494,7 +531,8 @@ function handleSearch($db, $user, $format) {
     if ($songCount > 0) {
         if ($isListAll) {
             $stmt = $conn->prepare("
-                SELECT s.*, al.name as album_name, al.year, a.name as artist_name, a.id as artist_id
+                SELECT s.*, al.name as album_name, al.year, a.name as artist_name, a.id as artist_id,
+                       " . RESOLVED_GENRE . " as resolved_genre
                 FROM songs s
                 JOIN albums al ON s.album_id = al.id
                 JOIN artists a ON al.artist_id = a.id
@@ -693,19 +731,29 @@ function handleCreatePlaylist($db, $user, $format) {
 }
 
 function handleGetRandomSongs($db, $user, $format) {
-    $size = min((int)($_GET['size'] ?? 10), 500);
+    $size = min(max((int)($_GET['size'] ?? 10), 0), 500);
+    $genre = trim($_GET['genre'] ?? '');
+
+    $where = '';
+    $params = [$user];
+    if ($genre !== '') {
+        $where = ' AND ' . GENRE_MATCH;
+        $params[] = $genre;
+        $params[] = $genre;
+    }
 
     $conn = AppConfig::getDB();
-    $stmt = $conn->prepare('
-        SELECT s.*, al.name as album_name, al.year, a.name as artist_name, a.id as artist_id
+    $stmt = $conn->prepare("
+        SELECT s.*, al.name as album_name, al.year, a.name as artist_name, a.id as artist_id,
+               " . RESOLVED_GENRE . " as resolved_genre
         FROM songs s
         JOIN albums al ON s.album_id = al.id
         JOIN artists a ON al.artist_id = a.id
-        WHERE a.user = ?
+        WHERE a.user = ?$where
         ORDER BY RAND()
-        LIMIT ?
-    ');
-    $stmt->execute([$user, $size]);
+        LIMIT $size
+    ");
+    $stmt->execute($params);
     $songs = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     $songList = array_map(fn($s) => buildSongChild($s), $songs);
@@ -761,6 +809,44 @@ function handleGetMusicDirectory($db, $user, $format) {
     }
 }
 
+/**
+ * Les morceaux d'un genre (getSongsByGenre).
+ *
+ * Le genre vit sur l'album et, à défaut, sur l'artiste : la colonne
+ * `songs.genre` existe au schéma mais le scan ne l'écrit jamais. On retient
+ * donc le même prédicat que partout ailleurs dans Gullify — voir
+ * GameSource::songWhere(), qui alimente la lecture aléatoire d'un genre dans
+ * l'application.
+ */
+function handleGetSongsByGenre($db, $user, $format) {
+    $genre = trim($_GET['genre'] ?? '');
+    if ($genre === '') {
+        subsonicError(10, 'Required parameter is missing: genre.', $format);
+        return;
+    }
+
+    $count = min(max((int)($_GET['count'] ?? 10), 0), 500);
+    $offset = max((int)($_GET['offset'] ?? 0), 0);
+
+    $conn = AppConfig::getDB();
+    $stmt = $conn->prepare("
+        SELECT s.*, al.name as album_name, al.year, a.name as artist_name, a.id as artist_id,
+               " . RESOLVED_GENRE . " as resolved_genre
+        FROM songs s
+        JOIN albums al ON s.album_id = al.id
+        JOIN artists a ON al.artist_id = a.id
+        WHERE a.user = ? AND " . GENRE_MATCH . "
+        ORDER BY a.name ASC, al.name ASC, s.track_number ASC, s.title ASC
+        LIMIT $count OFFSET $offset
+    ");
+    $stmt->execute([$user, $genre, $genre]);
+    $songs = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $songList = array_map(fn($s) => buildSongChild($s), $songs);
+
+    subsonicOk(['songsByGenre' => ['song' => $songList]], $format);
+}
+
 function handleGetGenres($db, $user, $format) {
     $conn = AppConfig::getDB();
     $stmt = $conn->prepare("
@@ -809,7 +895,12 @@ function buildSongChild($s) {
         'opus' => 'audio/opus',
     ];
 
-    return [
+    // Le genre résolu par la requête (album, à défaut artiste). Les appels qui
+    // ne le remontent pas n'inventent pas d'attribut vide : mieux vaut pas de
+    // genre du tout qu'un genre faux.
+    $genre = trim((string)($s['resolved_genre'] ?? ''));
+
+    $child = [
         '@id' => 's-' . $s['id'],
         '@parent' => 'al-' . $s['album_id'],
         '@isDir' => 'false',
@@ -828,6 +919,10 @@ function buildSongChild($s) {
         '@artistId' => 'ar-' . ($s['artist_id'] ?? ''),
         '@type' => 'music',
     ];
+
+    if ($genre !== '') $child['@genre'] = $genre;
+
+    return $child;
 }
 
 function subsonicOk($data, $format) {

@@ -63,6 +63,7 @@ class Database {
                 s.*,
                 al.name as album_name,
                 al.artwork,
+                COALESCE(NULLIF(al.genre, \'\'), NULLIF(a.genre, \'\')) as resolved_genre,
                 a.name as artist_name,
                 a.id as artist_id
             FROM songs s
@@ -112,6 +113,7 @@ class Database {
                 s.*,
                 al.name as album_name,
                 al.artwork,
+                COALESCE(NULLIF(al.genre, \'\'), NULLIF(a.genre, \'\')) as resolved_genre,
                 a.name as artist_name,
                 a.id as artist_id
             FROM songs s
@@ -226,6 +228,7 @@ class Database {
                 s.*,
                 al.name as album_name,
                 al.id as album_id,
+                COALESCE(NULLIF(al.genre, \'\'), NULLIF(a.genre, \'\')) as resolved_genre,
                 a.name as artist_name,
                 a.id as artist_id,
                 f.created_at as favorited_at
@@ -365,6 +368,7 @@ class Database {
                 s.*,
                 al.name as album_name,
                 al.id as album_id,
+                COALESCE(NULLIF(al.genre, \'\'), NULLIF(a.genre, \'\')) as resolved_genre,
                 ' . TRACK_ARTIST_NAME . ' as artist_name,
                 ' . TRACK_ARTIST_ID . ' as artist_id,
                 ps.id as playlist_song_id,
