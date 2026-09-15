@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'screens/admin/user_edit_screen.dart';
+import 'screens/admin/users_screen.dart';
 import 'screens/aa_diagnostic_screen.dart';
 import 'screens/playback_diagnostic_screen.dart';
 import 'screens/alarm_ring_screen.dart';
@@ -57,6 +59,7 @@ import 'screens/video_watch_screen.dart';
 import 'screens/videos_screen.dart';
 import 'screens/year_screen.dart';
 import 'screens/yt_downloads_screen.dart';
+import 'api/admin_repository.dart';
 import 'models/server_user.dart';
 import 'state/auth.dart';
 import 'state/tv.dart';
@@ -197,6 +200,23 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/settings/server-info',
         builder: (_, _) => const ServerInfoScreen(),
+      ),
+      // L'administration des comptes, réservée aux administrateurs : c'est le
+      // serveur qui tranche (403), l'app ne fait que cacher l'entrée.
+      GoRoute(
+        path: '/settings/users',
+        builder: (_, _) => const AdminUsersScreen(),
+        routes: [
+          GoRoute(
+            path: 'new',
+            builder: (_, _) => const AdminUserScreen(),
+          ),
+          GoRoute(
+            path: ':id',
+            builder: (_, state) =>
+                AdminUserScreen(user: state.extra as AdminUser?),
+          ),
+        ],
       ),
       GoRoute(
         path: '/settings/equalizer',

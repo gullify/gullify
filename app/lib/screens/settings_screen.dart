@@ -10,6 +10,7 @@ import '../audio/alarm_platform.dart';
 import '../audio/equalizer.dart';
 import '../audio/fade.dart';
 import '../audio/prefetch.dart';
+import '../state/admin.dart';
 import '../state/tv.dart';
 import '../state/alarm.dart';
 import '../state/app_theme.dart';
@@ -110,6 +111,16 @@ class SettingsScreen extends ConsumerWidget {
             trailing: const Icon(Icons.chevron_right),
             onTap: () => context.push('/settings/scan'),
           ),
+          // Réservé aux administrateurs. Le serveur refuse les autres de
+          // toute façon : ne pas montrer l'entrée évite une porte fermée.
+          if (ref.watch(isAdminProvider))
+            ListTile(
+              leading: const Icon(Icons.manage_accounts_outlined),
+              title: const Text('Utilisateurs'),
+              subtitle: const Text('Comptes, dossiers de musique, stockage'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => context.push('/settings/users'),
+            ),
           const Divider(),
           const _SectionHeader('Apparence'),
           const _ModePicker(),
