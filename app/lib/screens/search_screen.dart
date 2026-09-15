@@ -6,7 +6,6 @@ import 'package:go_router/go_router.dart';
 
 import '../api/yt_downloads_repository.dart';
 import '../models/server_user.dart';
-import '../models/song.dart';
 import '../state/library.dart';
 import '../state/player.dart';
 import '../state/preview.dart';
@@ -416,7 +415,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           for (final (i, song) in shown.indexed) {
             rows.add(SongTile(
               song: song,
-              subtitle: _songSubtitle(song),
+              albumInSubtitle: true,
               onTap: () => ref
                   .read(playerActionsProvider)
                   .playSongs(r.songs, startIndex: i),
@@ -434,14 +433,6 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         return rows;
       },
     );
-  }
-
-  String? _songSubtitle(Song song) {
-    final parts = [
-      if (song.artistName != null) song.artistName!,
-      if (song.albumName != null) song.albumName!,
-    ];
-    return parts.isEmpty ? null : parts.join(' · ');
   }
 
   /// Artiste YouTube tapé : ouvre SA discographie réelle (albums + singles via

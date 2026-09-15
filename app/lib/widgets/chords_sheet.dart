@@ -15,6 +15,11 @@ void showChordsSheet(BuildContext context, String? filePath) {
     context: context,
     useRootNavigator: true,
     isScrollControlled: true,
+    // Material 3 plafonne une feuille à 640 px : sur grand écran, la grille
+    // tenait dans une petite bande au milieu. Toute la largeur, plutôt — les
+    // diagrammes y tiennent tous d'un coup, sans défiler. Au téléphone, plus
+    // étroit que ce plafond, rien ne change.
+    constraints: const BoxConstraints(maxWidth: double.infinity),
     builder: (context) => DraggableScrollableSheet(
       expand: false,
       initialChildSize: 0.85,

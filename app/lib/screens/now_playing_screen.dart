@@ -17,7 +17,9 @@ import '../widgets/liquid_glass.dart';
 import '../widgets/lyrics_sheet.dart';
 import '../widgets/retro_chrome.dart';
 import '../widgets/retro_lcd.dart';
+import '../widgets/queue_list.dart';
 import '../widgets/share_sheet.dart';
+import 'shell_screen.dart' show SideNavigationScope;
 
 class NowPlayingScreen extends ConsumerWidget {
   const NowPlayingScreen({super.key});
@@ -31,6 +33,13 @@ class NowPlayingScreen extends ConsumerWidget {
         if (context.mounted && context.canPop()) context.pop();
       });
       return const Scaffold(body: SizedBox.shrink());
+    }
+
+    // Sur tablette et grand écran, les commandes vivent dans la barre de
+    // lecture du bas de la fenêtre : le lecteur ouvert n'a plus à les porter,
+    // il montre la pochette et, à côté, ce qui suit.
+    if (SideNavigationScope.visibleOf(context)) {
+      return _WideNowPlaying(item: item);
     }
 
     final state = ref.watch(playbackStateProvider).value;
@@ -822,90 +831,268 @@ void _showQueue(BuildContext context) {
     builder: (context) => DraggableScrollableSheet(
       expand: false,
       initialChildSize: 0.7,
-      builder: (context, controller) => Consumer(
-        builder: (context, ref, _) {
-          final queue = ref.watch(queueProvider).value ?? [];
-          final currentId = ref.watch(currentMediaItemProvider).value?.id;
-          final actions = ref.read(playerActionsProvider);
-          final scheme = Theme.of(context).colorScheme;
-          return Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 8, 0),
-                child: Row(
-                  children: [
-                    Text(
-                      "File d'attente · ${queue.length}",
-                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w600,
+      builder: (context, controller) => QueueList(scrollController: controller),
+    ),
+  );
+}
+
+/// Le lecteur ouvert sur tablette ou grand écran.
+///
+/// Au téléphone, le lecteur occupe tout l'écran et porte tout : commandes,
+/// paroles et file s'ouvrent en feuilles par-dessus. Sur un grand écran, ça
+/// faisait une page vide autour d'une pochette, la liste cachée derrière un
+/// bouton. Ici les rôles se répartissent : les commandes restent dans la
+/// barre du bas, toujours au même endroit ; le lecteur ouvert montre la
+/// pochette à gauche et, à droite, ce qui suit — la file et les paroles, en
+/// onglets.
+class _WideNowPlaying extends ConsumerStatefulWidget {
+  const _WideNowPlaying({required this.item});
+
+  final MediaItem item;
+
+  @override
+  ConsumerState<_WideNowPlaying> createState() => _WideNowPlayingState();
+}
+
+class _WideNowPlayingState extends ConsumerState<_WideNowPlaying> {
+  final _lyricsScroll = ScrollController();
+
+  @override
+  void dispose() {
+    _lyricsScroll.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final item = widget.item;
+    final scheme = Theme.of(context).colorScheme;
+    final light = scheme.brightness == Brightness.light;
+    final retro = isRetroSkin(context);
+    final liquid = isLiquidSkin(context);
+    final isRadio = item.extras?['radio'] == true;
+    final songId = item.extras?['songId'] as int?;
+    final albumId = item.extras?['albumId'] as int?;
+    final artistId = item.extras?['artistId'] as int?;
+    final artUrl = item.artUri?.toString();
+
+    final left = Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 560),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            IconButton(
+              icon: const Icon(Icons.keyboard_arrow_down, size: 32),
+              tooltip: 'Réduire le lecteur',
+              onPressed: () => context.pop(),
+            ),
+            Expanded(
+              child: Center(
+                child: AspectRatio(
+                  aspectRatio: 1,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(retro ? 0 : 28),
+                      boxShadow: retro
+                          ? null
+                          : const [
+                              BoxShadow(
+                                color: Color(0x40141932),
+                                blurRadius: 40,
+                                offset: Offset(0, 18),
+                              ),
+                            ],
+                    ),
+                    child: Artwork(
+                      url: artUrl,
+                      borderRadius: 28,
+                      icon: isRadio ? Icons.radio : Icons.music_note,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        item.title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 30,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.6,
+                          height: 1.1,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      if (item.artist != null)
+                        _DetailLink(
+                          text: item.artist!,
+                          path: artistId == null ? null : '/artist/$artistId',
+                          chevronSize: 18,
+                          style: TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w600,
+                            color: scheme.primary,
+                          ),
+                        ),
+                      if (item.album != null)
+                        _DetailLink(
+                          text: item.album!,
+                          path: albumId == null ? null : '/album/$albumId',
+                          style: TextStyle(
+                            fontSize: 14.5,
+                            color: scheme.onSurfaceVariant,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                if (songId != null) _FavoriteButton(songId: songId),
+              ],
+            ),
+            const SizedBox(height: 10),
+            // Les actions qui n'ont pas trouvé place ailleurs. Paroles et file
+            // sont dans le panneau ; lecture, saut et progression, dans la
+            // barre du bas.
+            Row(
+              children: [
+                if (!isRadio)
+                  IconButton(
+                    icon: const ChordsIcon(),
+                    tooltip: 'Accords guitare',
+                    onPressed: () => showChordsSheet(
+                      context,
+                      item.extras?['filePath'] as String?,
+                    ),
+                  ),
+                const _SleepTimerButton(),
+                if (!isRadio && songId != null)
+                  IconButton(
+                    icon: const Icon(Icons.ios_share_rounded),
+                    tooltip: 'Partager',
+                    onPressed: () => showShareSheet(
+                      context,
+                      ShareTarget.song(
+                        Song(
+                          id: songId,
+                          title: item.title,
+                          filePath: item.extras?['filePath'] as String? ?? '',
+                          albumId: albumId,
+                          albumName: item.album,
+                          artistId: artistId,
+                          artistName: item.artist,
+                          artworkUrl: artUrl,
+                        ),
                       ),
                     ),
-                    const Spacer(),
-                    TextButton.icon(
-                      onPressed: queue.length > 1
-                          ? () => actions.clearQueue()
-                          : null,
-                      icon: const Icon(Icons.clear_all, size: 18),
-                      label: const Text('Vider'),
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+
+    // Une radio n'a ni file ni paroles : pas de panneau, la pochette seule.
+    final panel = isRadio
+        ? null
+        : GlassBox(
+            radius: 24,
+            blur: false,
+            // Pas d'ombre : elle tombait sur la barre de lecture, juste en
+            // dessous, en bande grise.
+            shadow: false,
+            // Le fond coloré du verre masquait le survol et l'encre des lignes
+            // de la file : sans ce Material, aucun retour visuel à la souris.
+            child: Material(
+              type: MaterialType.transparency,
+              child: DefaultTabController(
+                length: 2,
+                child: Column(
+                  children: [
+                    const SizedBox(height: 6),
+                    TabBar(
+                      dividerColor: Colors.transparent,
+                      tabs: const [
+                        Tab(text: 'À suivre'),
+                        Tab(text: 'Paroles'),
+                      ],
+                    ),
+                    Expanded(
+                      child: TabBarView(
+                        children: [
+                          const QueueList(),
+                          CurrentLyrics(
+                            controller: _lyricsScroll,
+                            showTitle: false,
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
               ),
-              Expanded(
-                child: ReorderableListView.builder(
-                  scrollController: controller,
-                  itemCount: queue.length,
-                  onReorderItem: (from, to) => actions.moveQueueItem(from, to),
-                  itemBuilder: (context, i) {
-                    final q = queue[i];
-                    final isCurrent = q.id == currentId;
-                    return Dismissible(
-                      key: ValueKey('queue-$i-${q.id}'),
-                      direction: isCurrent
-                          ? DismissDirection.none
-                          : DismissDirection.endToStart,
-                      background: Container(
-                        color: scheme.errorContainer,
-                        alignment: Alignment.centerRight,
-                        padding: const EdgeInsets.only(right: 20),
-                        child: const Icon(Icons.close),
-                      ),
-                      onDismissed: (_) => actions.removeQueueItemAt(i),
-                      child: ListTile(
-                        leading: isCurrent
-                            ? Icon(Icons.graphic_eq, color: scheme.primary)
-                            : Text(
-                                '${i + 1}',
-                                style: TextStyle(
-                                  color: scheme.onSurfaceVariant,
-                                ),
-                              ),
-                        title: Text(
-                          q.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: isCurrent
-                              ? TextStyle(
-                                  color: scheme.primary,
-                                  fontWeight: FontWeight.w600,
-                                )
-                              : null,
-                        ),
-                        subtitle: q.artist != null ? Text(q.artist!) : null,
-                        trailing: ReorderableDragStartListener(
-                          index: i,
-                          child: Icon(Icons.drag_handle, color: scheme.outline),
-                        ),
-                        onTap: () => actions.skipToQueueItem(i),
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ],
+            ),
           );
-        },
+
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          // Même fond qu'au téléphone : la pochette floutée, sous un voile.
+          if (artUrl != null && !retro)
+            ImageFiltered(
+              imageFilter: ImageFilter.blur(sigmaX: 60, sigmaY: 60),
+              child: Artwork(url: artUrl, borderRadius: 0),
+            ),
+          if (!retro)
+            DecoratedBox(
+              decoration: BoxDecoration(
+                color: switch ((light, liquid)) {
+                  (true, false) => const Color(0xD9FFFFFF),
+                  (true, true) => const Color(0x8CFFFFFF),
+                  (false, false) => const Color(0xBF0A0C12),
+                  (false, true) => const Color(0x8C0A0C12),
+                },
+              ),
+            ),
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(24, 12, 24, 16),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  // Le panneau garde une largeur de liste lisible ; la
+                  // pochette prend le reste.
+                  final panelWidth = (constraints.maxWidth * 0.38).clamp(
+                    320.0,
+                    440.0,
+                  );
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Expanded(child: left),
+                      if (panel != null) ...[
+                        const SizedBox(width: 28),
+                        SizedBox(width: panelWidth, child: panel),
+                      ],
+                    ],
+                  );
+                },
+              ),
+            ),
+          ),
+        ],
       ),
-    ),
-  );
+    );
+  }
 }

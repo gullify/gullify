@@ -6,13 +6,17 @@ import 'package:liquid_glass_widgets/liquid_glass_widgets.dart' as lg;
 
 import 'audio/audio_handler.dart';
 import 'router.dart';
+import 'screens/shell_screen.dart';
 import 'state/alarm.dart';
 import 'state/app_theme.dart';
+import 'state/auth.dart';
 import 'state/player.dart';
 import 'state/tv.dart';
 import 'state/tv_log.dart';
 import 'theme.dart';
+import 'widgets/adaptive_layout.dart';
 import 'widgets/keyboard_guard.dart';
+import 'widgets/player_bar.dart';
 import 'widgets/liquid_glass.dart';
 import 'widgets/retro_chrome.dart';
 
@@ -100,6 +104,10 @@ class GullifyApp extends ConsumerStatefulWidget {
 
 class _GullifyAppState extends ConsumerState<GullifyApp>
     with WidgetsBindingObserver {
+  /// Voir le `builder` de [MaterialApp.router] : garde le navigateur d'une
+  /// disposition de fenêtre à l'autre.
+  final _navigatorKey = GlobalKey(debugLabel: 'navigateur');
+
   @override
   void initState() {
     super.initState();
@@ -149,6 +157,9 @@ class _GullifyAppState extends ConsumerState<GullifyApp>
         ref.read(routerProvider).push('/alarm');
       }
     });
+    final router = ref.watch(routerProvider);
+    final authenticated =
+        ref.watch(authProvider).status == AuthStatus.authenticated;
     return MaterialApp.router(
       title: 'Gullify',
       // Même structure de verre, teintée par l'accent; clair et sombre. Le
@@ -158,7 +169,7 @@ class _GullifyAppState extends ConsumerState<GullifyApp>
       theme: gullifyTheme(skin, accent, dark: tv),
       darkTheme: gullifyTheme(skin, accent, dark: true),
       themeMode: tv ? ThemeMode.dark : ref.watch(themeModeProvider),
-      routerConfig: ref.watch(routerProvider),
+      routerConfig: router,
       debugShowCheckedModeBanner: false,
       // Fond en dégradé du thème « verre » : les scaffolds y sont
       // transparents, le dégradé vit derrière tout le navigateur.
@@ -173,46 +184,103 @@ class _GullifyAppState extends ConsumerState<GullifyApp>
         // (idée #83).
         Widget chassis(Widget child) =>
             (surfaces?.retro ?? false) ? RetroChassis(child: child) : child;
-        return KeyboardInsetGuard(
-          child: DecoratedBox(
-            decoration: BoxDecoration(gradient: bg),
-            child: chassis(
-              Stack(
-                children: [
-                  // Apple Liquid Glass : le fond d'écran d'iOS (idée #99). Il
-                  // REMPLACE les deux halos discrets — c'est lui qui donne au
-                  // verre quelque chose à laisser passer, sans quoi la vitre la
-                  // plus fine ne rend qu'un gris (« je ne vois même pas la
-                  // différence »).
-                  if ((surfaces?.liquid ?? false) &&
-                      surfaces?.accentBlob != null)
-                    Positioned.fill(
-                      child: LiquidWallpaper(
-                        accent: surfaces!.accentBlob!,
-                        dark: Theme.of(context).brightness == Brightness.dark,
+
+        // La même app à toutes les tailles, qui se réorganise : le dock au
+        // téléphone ; sur tablette et grand écran, la navigation sur le côté,
+        // la lecture en bas de la fenêtre et le contenu sur toute la largeur.
+        final layout = navLayoutFor(
+          window: MediaQuery.sizeOf(context),
+          tv: tv,
+          authenticated: authenticated,
+        );
+        // La clé garde le navigateur — sa pile d'écrans, où on en était —
+        // quand la fenêtre passe d'une disposition à l'autre. Sans elle,
+        // redimensionner sous 840 px ramenait à l'accueil.
+        final navigator = KeyedSubtree(key: _navigatorKey, child: child);
+        final Widget content = layout == NavLayout.dock
+            ? navigator
+            : ListenableBuilder(
+                listenable: router.routerDelegate,
+                child: navigator,
+                builder: (context, navigator) {
+                  final path =
+                      router.routerDelegate.currentConfiguration.uri.path;
+                  return Column(
+                    children: [
+                      Expanded(
+                        child: Row(
+                          children: [
+                            if (layout == NavLayout.sidebar)
+                              HubSidebar(
+                                currentPath: path,
+                                onNavigate: router.go,
+                              )
+                            else
+                              HubRail(
+                                currentIndex: DetailDock.indexForPath(path),
+                                onSelect: (i) => router.go(DetailDock.paths[i]),
+                              ),
+                            Expanded(child: navigator!),
+                          ],
+                        ),
                       ),
-                    )
-                  // Halo d'accent diffus (design) : lueur douce en haut d'écran.
-                  else if (surfaces?.accentBlob != null)
-                    Positioned(
-                      top: -140,
-                      left: -60,
-                      child: Container(
-                        width: 420,
-                        height: 420,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          gradient: RadialGradient(
-                            colors: [
-                              surfaces!.accentBlob!.withValues(alpha: 0.16),
-                              surfaces.accentBlob!.withValues(alpha: 0.0),
-                            ],
+                      // La barre reste là quand le lecteur est ouvert : les
+                      // commandes ne changent jamais de place. Son bouton
+                      // ouvre le lecteur, ou le réduit.
+                      PlayerBar(
+                        expanded: path == '/now-playing',
+                        onToggleExpanded: () => path == '/now-playing'
+                            ? router.pop()
+                            : router.push('/now-playing'),
+                      ),
+                    ],
+                  );
+                },
+              );
+
+        return SideNavigationScope(
+          visible: layout != NavLayout.dock,
+          child: KeyboardInsetGuard(
+            child: DecoratedBox(
+              decoration: BoxDecoration(gradient: bg),
+              child: chassis(
+                Stack(
+                  children: [
+                    // Apple Liquid Glass : le fond d'écran d'iOS (idée #99). Il
+                    // REMPLACE les deux halos discrets — c'est lui qui donne au
+                    // verre quelque chose à laisser passer, sans quoi la vitre la
+                    // plus fine ne rend qu'un gris (« je ne vois même pas la
+                    // différence »).
+                    if ((surfaces?.liquid ?? false) &&
+                        surfaces?.accentBlob != null)
+                      Positioned.fill(
+                        child: LiquidWallpaper(
+                          accent: surfaces!.accentBlob!,
+                          dark: Theme.of(context).brightness == Brightness.dark,
+                        ),
+                      )
+                    // Halo d'accent diffus (design) : lueur douce en haut d'écran.
+                    else if (surfaces?.accentBlob != null)
+                      Positioned(
+                        top: -140,
+                        left: -60,
+                        child: Container(
+                          width: 420,
+                          height: 420,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            gradient: RadialGradient(
+                              colors: [
+                                surfaces!.accentBlob!.withValues(alpha: 0.16),
+                                surfaces.accentBlob!.withValues(alpha: 0.0),
+                              ],
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                  child,
-                ],
+                    content,
+                  ],
+                ),
               ),
             ),
           ),

@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../api/playlist_repository.dart';
+import '../state/playlists.dart';
 import '../state/app_update.dart';
 import '../state/background_playback.dart';
 import '../state/home_widget_sync.dart';
@@ -123,7 +125,8 @@ class _RetroScreenFrame extends StatelessWidget {
 class DetailDock extends StatelessWidget {
   const DetailDock({super.key});
 
-  static const _paths = [
+  /// Le chemin de chaque onglet, dans l'ordre du dock. Partagé avec le rail.
+  static const paths = [
     '/',
     '/library',
     '/search',
@@ -133,9 +136,19 @@ class DetailDock extends StatelessWidget {
     '/videos',
   ];
 
+  /// L'onglet auquel appartient un chemin, ou -1 pour une page de détail
+  /// (fiche album, artiste…) : le rail n'y allume alors rien, comme le dock.
+  static int indexForPath(String path) {
+    if (path == '/') return 0;
+    for (var i = 1; i < paths.length; i++) {
+      if (path == paths[i] || path.startsWith('${paths[i]}/')) return i;
+    }
+    return -1;
+  }
+
   @override
   Widget build(BuildContext context) =>
-      HubDock(currentIndex: -1, onSelect: (i) => context.go(_paths[i]));
+      HubDock(currentIndex: -1, onSelect: (i) => context.go(paths[i]));
 }
 
 /// Un onglet satellite du dock : icône (variante remplie/arrondie), teinte
@@ -233,6 +246,11 @@ class HubDock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Sur tablette et grand écran, la navigation est sur le côté et la
+    // lecture dans la barre du bas de la fenêtre (voir `main.dart`) : le dock
+    // n'a plus rien à porter.
+    if (SideNavigationScope.visibleOf(context)) return const SizedBox.shrink();
+
     final scheme = Theme.of(context).colorScheme;
 
     final pill = Padding(
@@ -262,7 +280,11 @@ class HubDock extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        const MiniPlayer(),
+        // En paysage, un téléphone réserve une marge du côté de sa caméra. La
+        // pilule la respecte (son SafeArea) ; le mini-lecteur, sans elle,
+        // débordait sous l'encoche — 50 px plus large que le menu et la page.
+        // Les côtés seulement : le bas, la pilule dessous s'en charge déjà.
+        const SafeArea(top: false, bottom: false, child: MiniPlayer()),
         // Stack sans clip : l'orbe déborde vers le haut pour ponter le
         // mini-lecteur et le dock.
         Stack(
@@ -291,11 +313,16 @@ class _HomeOrb extends StatelessWidget {
     required this.selected,
     required this.scheme,
     required this.onTap,
+    this.withTooltip = true,
   });
 
   final bool selected;
   final ColorScheme scheme;
   final VoidCallback onTap;
+
+  /// Une infobulle exige un `Overlay` au-dessus d'elle. Le rail est posé
+  /// au-dessus du navigateur, là où il n'y en a pas : il s'en passe.
+  final bool withTooltip;
 
   @override
   Widget build(BuildContext context) {
@@ -309,7 +336,7 @@ class _HomeOrb extends StatelessWidget {
         height: 54,
         active: selected,
         onPressed: onTap,
-        tooltip: 'Accueil',
+        tooltip: withTooltip ? 'Accueil' : null,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -439,6 +466,460 @@ class _Satellite extends StatelessWidget {
                 selected ? dest.iconOn : dest.iconOff,
                 size: 25,
                 color: selected ? scheme.primary : scheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Dit aux écrans si la navigation et la lecture sont passées hors de la
+/// page — sur le côté et en bas de la fenêtre. Posée par l'app au-dessus du
+/// navigateur (voir `main.dart`), elle permet au dock de s'effacer exactement
+/// quand elles apparaissent : ni les deux, ni aucun.
+class SideNavigationScope extends InheritedWidget {
+  const SideNavigationScope({
+    super.key,
+    required this.visible,
+    required super.child,
+  });
+
+  final bool visible;
+
+  static bool visibleOf(BuildContext context) =>
+      context
+          .dependOnInheritedWidgetOfExactType<SideNavigationScope>()
+          ?.visible ??
+      false;
+
+  @override
+  bool updateShouldNotify(SideNavigationScope oldWidget) =>
+      visible != oldWidget.visible;
+}
+
+/// Le dock, debout : la même navigation, posée sur le côté d'une tablette ou
+/// d'une petite fenêtre, réduite à ses icônes. Mêmes destinations, mêmes
+/// icônes, même orbe d'accueil, même habillage rétro. Sur grand écran, c'est
+/// [HubSidebar] qui prend le relais, avec la place de porter ses noms.
+///
+/// Il vit au-dessus du navigateur pour rester là d'un écran à l'autre, fiches
+/// album et artiste comprises. À cet étage, ni `Overlay` ni `Material` : pas
+/// d'infobulle ni d'encre donc — chaque destination porte plutôt son nom sous
+/// l'icône, ce qui se lit mieux qu'une infobulle à la souris.
+class HubRail extends StatelessWidget {
+  const HubRail({
+    super.key,
+    required this.currentIndex,
+    required this.onSelect,
+  });
+
+  final int currentIndex;
+  final ValueChanged<int> onSelect;
+
+  void _select(int branch) {
+    dismissKeyboard();
+    onSelect(branch);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    // Dans l'ordre des onglets, plutôt que la répartition gauche/droite du
+    // dock, qui n'existe que pour garder l'orbe au centre de la pilule.
+    final dests = [...HubDock._left, ...HubDock._right]
+      ..sort((a, b) => a.branch.compareTo(b.branch));
+
+    // Material transparent : sans lui, au-dessus du navigateur, les libellés
+    // n'héritent d'aucun style de texte et Flutter les souligne en jaune.
+    return Material(
+      type: MaterialType.transparency,
+      child: SafeArea(
+        right: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 12, 0, 12),
+          child: GlassBox(
+            radius: 28,
+            // Hors du shell : ni flou en direct (voir GlassBox — certains GPU
+            // le peignent en plein écran), ni ombre, qui n'a nulle part où
+            // tomber au bord de la fenêtre.
+            blur: false,
+            shadow: false,
+            child: SizedBox(
+              width: 88,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(vertical: 18),
+                child: Column(
+                  children: [
+                    _HomeOrb(
+                      selected: currentIndex == 0,
+                      scheme: scheme,
+                      onTap: () => _select(0),
+                      withTooltip: false,
+                    ),
+                    const SizedBox(height: 18),
+                    for (final d in dests)
+                      _RailItem(
+                        dest: d,
+                        selected: currentIndex == d.branch,
+                        scheme: scheme,
+                        onTap: () => _select(d.branch),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _RailItem extends StatelessWidget {
+  const _RailItem({
+    required this.dest,
+    required this.selected,
+    required this.scheme,
+    required this.onTap,
+  });
+
+  final _DockDest dest;
+  final bool selected;
+  final ColorScheme scheme;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    if (isRetroSkin(context)) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: RetroButton(
+          width: 60,
+          height: 34,
+          active: selected,
+          onPressed: onTap,
+          child: Text(
+            dest.retroLabel,
+            style: retroLabelStyle(
+              size: 9,
+              color: selected ? winampGreen : winampInk,
+              letterSpacing: 0.6,
+            ),
+          ),
+        ),
+      );
+    }
+
+    final color = selected ? scheme.primary : scheme.onSurfaceVariant;
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: dest.tooltip,
+      excludeSemantics: true,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 7),
+            child: Column(
+              children: [
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 220),
+                  curve: Curves.easeOutCubic,
+                  width: 52,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    color: selected
+                        ? scheme.primary.withValues(alpha: 0.16)
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(
+                      isLiquidSkin(context) ? 17 : 12,
+                    ),
+                  ),
+                  child: Icon(
+                    selected ? dest.iconOn : dest.iconOff,
+                    size: 24,
+                    color: color,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  dest.tooltip,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                    color: color,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// La barre latérale d'un grand écran : la navigation avec ses noms, et vos
+/// playlists en dessous — comme la bibliothèque qu'on garde sous la main sur
+/// un site de musique. Mêmes destinations que le dock et le rail.
+///
+/// Même contrainte que le rail : au-dessus du navigateur, ni infobulle ni
+/// encre, et le style de texte fourni par un `Material` transparent.
+class HubSidebar extends ConsumerWidget {
+  const HubSidebar({
+    super.key,
+    required this.currentPath,
+    required this.onNavigate,
+  });
+
+  /// Le chemin affiché : allume la destination, ou la playlist ouverte.
+  final String currentPath;
+  final ValueChanged<String> onNavigate;
+
+  void _go(String path) {
+    dismissKeyboard();
+    onNavigate(path);
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final scheme = Theme.of(context).colorScheme;
+    final current = DetailDock.indexForPath(currentPath);
+    final dests = [...HubDock._left, ...HubDock._right]
+      ..sort((a, b) => a.branch.compareTo(b.branch));
+    final playlists = ref.watch(playlistsProvider).value ?? const <Playlist>[];
+
+    return Material(
+      type: MaterialType.transparency,
+      child: SafeArea(
+        right: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 12, 0, 12),
+          child: GlassBox(
+            radius: 24,
+            // Hors du shell : ni flou en direct (voir GlassBox — certains GPU
+            // le peignent en plein écran), ni ombre, qui n'a nulle part où
+            // tomber au bord de la fenêtre.
+            blur: false,
+            shadow: false,
+            child: SizedBox(
+              width: 236,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _SidebarBrand(onTap: () => _go('/')),
+                  _SidebarItem(
+                    icon: Icons.home_outlined,
+                    iconOn: Icons.home_rounded,
+                    label: 'Accueil',
+                    selected: current == 0,
+                    onTap: () => _go('/'),
+                  ),
+                  for (final d in dests)
+                    _SidebarItem(
+                      icon: d.iconOff,
+                      iconOn: d.iconOn,
+                      label: d.tooltip,
+                      selected: current == d.branch,
+                      onTap: () => _go(DetailDock.paths[d.branch]),
+                    ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(22, 18, 16, 6),
+                    child: Text(
+                      'PLAYLISTS',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 1,
+                        color: scheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: playlists.isEmpty
+                        ? Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 22),
+                            child: Text(
+                              'Aucune playlist pour l\'instant',
+                              style: TextStyle(
+                                fontSize: 12.5,
+                                color: scheme.onSurfaceVariant,
+                              ),
+                            ),
+                          )
+                        : ListView(
+                            padding: EdgeInsets.zero,
+                            children: [
+                              for (final p in playlists)
+                                _SidebarItem(
+                                  icon: Icons.queue_music_rounded,
+                                  label: p.name,
+                                  detail: '${p.songCount}',
+                                  dense: true,
+                                  selected: currentPath == '/playlist/${p.id}',
+                                  onTap: () => _go(
+                                    '/playlist/${p.id}'
+                                    '?name=${Uri.encodeQueryComponent(p.name)}',
+                                  ),
+                                ),
+                            ],
+                          ),
+                  ),
+                  const Divider(height: 1),
+                  _SidebarItem(
+                    icon: Icons.settings_outlined,
+                    iconOn: Icons.settings_rounded,
+                    label: 'Paramètres',
+                    selected: currentPath.startsWith('/settings'),
+                    onTap: () => _go('/settings'),
+                  ),
+                  const SizedBox(height: 8),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// La tête de la barre : la mascotte et le nom, qui ramènent à l'accueil.
+class _SidebarBrand extends StatelessWidget {
+  const _SidebarBrand({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(18, 18, 16, 14),
+          child: Row(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: Image.asset(
+                  'assets/icon/logo.png',
+                  width: 34,
+                  height: 34,
+                ),
+              ),
+              const SizedBox(width: 10),
+              const Text(
+                'Gullify',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.5,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SidebarItem extends StatelessWidget {
+  const _SidebarItem({
+    required this.icon,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+    this.iconOn,
+    this.detail,
+    this.dense = false,
+  });
+
+  final IconData icon;
+  final IconData? iconOn;
+  final String label;
+
+  /// Un complément discret à droite (le nombre de titres d'une playlist).
+  final String? detail;
+  final bool selected;
+  final bool dense;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final retro = isRetroSkin(context);
+    final color = selected
+        ? (retro ? winampGreen : scheme.primary)
+        : (retro ? winampInk : scheme.onSurface);
+
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: label,
+      excludeSemantics: true,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 1),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              padding: EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: dense ? 7 : 10,
+              ),
+              decoration: BoxDecoration(
+                color: selected
+                    ? scheme.primary.withValues(alpha: retro ? 0.0 : 0.14)
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(
+                  retro ? 0 : (isLiquidSkin(context) ? 20 : 12),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    selected ? (iconOn ?? icon) : icon,
+                    size: dense ? 20 : 22,
+                    color: selected ? color : scheme.onSurfaceVariant,
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: dense ? 13.5 : 14.5,
+                        fontWeight: selected
+                            ? FontWeight.w700
+                            : FontWeight.w500,
+                        color: color,
+                      ),
+                    ),
+                  ),
+                  if (detail != null)
+                    Text(
+                      detail!,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: scheme.onSurfaceVariant,
+                        fontFeatures: const [FontFeature.tabularFigures()],
+                      ),
+                    ),
+                ],
               ),
             ),
           ),

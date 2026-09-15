@@ -8,6 +8,27 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.57.0', [
+    'Tablette et grand écran — l\'app se réorganise au lieu de s\'étirer. La '
+        'navigation passe sur le côté : un rail d\'icônes sur tablette, une '
+        'barre latérale avec vos playlists sur grand écran. La lecture passe '
+        'dans une barre en bas de la fenêtre, le contenu prend toute la '
+        'largeur et les titres étalent interprète et album en colonnes. Au '
+        'téléphone, rien ne change',
+    'Tablette et grand écran — le lecteur ouvert montre la pochette et, à '
+        'côté, la file d\'attente et les paroles en onglets. Les commandes '
+        'restent dans la barre du bas, toujours au même endroit',
+    'Grand écran — les fiches album et artiste montrent de nouveau la '
+        'pochette, à côté du titre : en pleine largeur, elle n\'était plus '
+        'qu\'une bande rognée. La feuille des accords prend toute la largeur',
+    'Paramètres → Utilisateurs, pour les administrateurs : créer, suspendre '
+        'ou supprimer un compte, changer un mot de passe, régler le dossier de '
+        'musique et le stockage SFTP — sans passer par le site',
+    'Téléphone couché — le mini-lecteur ne déborde plus sous l\'encoche de '
+        'la caméra : il s\'aligne sur le menu et la page',
+    'Gullify s\'ouvre aussi dans un navigateur, sur gullify.app — la même '
+        'app — et s\'installe comme une application sur Windows et iPhone',
+  ]),
   ReleaseNote('3.56.0', [
     'Google TV — les paroles suivent enfin le titre suivant. Le panneau '
         'retenait le morceau sur lequel on l\'avait ouvert : la chanson '

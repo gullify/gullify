@@ -21,55 +21,73 @@ void showLyricsSheet(BuildContext context) {
     builder: (context) => DraggableScrollableSheet(
       expand: false,
       initialChildSize: 0.7,
-      builder: (context, controller) => Consumer(
-        builder: (context, ref, _) {
-          final filePath =
-              ref.watch(currentMediaItemProvider).value?.extras?['filePath']
-                  as String?;
-
-          return Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 8, 0),
-                child: Row(
-                  children: [
-                    Text(
-                      'Paroles',
-                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const Spacer(),
-                    _KaraokeButton(filePath: filePath),
-                  ],
-                ),
-              ),
-              Expanded(
-                child: filePath == null
-                    ? const Center(child: Text('Paroles indisponibles'))
-                    : ref
-                          .watch(lyricsProvider(filePath))
-                          .when(
-                            loading: () => const Center(
-                              child: CircularProgressIndicator(),
-                            ),
-                            error: (e, _) => Center(child: Text('Erreur: $e')),
-                            data: (text) => text == null
-                                ? const Center(
-                                    child: Text('Aucunes paroles trouvées'),
-                                  )
-                                : LyricsView(
-                                    text: text,
-                                    controller: controller,
-                                  ),
-                          ),
-              ),
-            ],
-          );
-        },
-      ),
+      builder: (context, controller) => CurrentLyrics(controller: controller),
     ),
   );
+}
+
+/// Les paroles du titre en cours, et le bouton karaoké.
+///
+/// Partagées par la feuille du téléphone et le panneau du lecteur sur grand
+/// écran. Le morceau n'est pas figé à l'ouverture : il est relu à chaque
+/// rendu, pour que l'enchaînement au titre suivant remonte les paroles du
+/// nouveau titre — et non celles du titre par lequel on les a ouvertes.
+class CurrentLyrics extends ConsumerWidget {
+  const CurrentLyrics({
+    super.key,
+    required this.controller,
+    this.showTitle = true,
+  });
+
+  /// Défilement des paroles : [LyricsView] s'en sert pour ramener la phrase
+  /// en cours au centre.
+  final ScrollController controller;
+
+  /// Le titre « Paroles ». Un onglet déjà nommé ainsi s'en passe ; le bouton
+  /// karaoké, lui, reste.
+  final bool showTitle;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final filePath =
+        ref.watch(currentMediaItemProvider).value?.extras?['filePath']
+            as String?;
+
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 8, 0),
+          child: Row(
+            children: [
+              if (showTitle)
+                Text(
+                  'Paroles',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+                ),
+              const Spacer(),
+              _KaraokeButton(filePath: filePath),
+            ],
+          ),
+        ),
+        Expanded(
+          child: filePath == null
+              ? const Center(child: Text('Paroles indisponibles'))
+              : ref
+                    .watch(lyricsProvider(filePath))
+                    .when(
+                      loading: () =>
+                          const Center(child: CircularProgressIndicator()),
+                      error: (e, _) => Center(child: Text('Erreur: $e')),
+                      data: (text) => text == null
+                          ? const Center(child: Text('Aucunes paroles trouvées'))
+                          : LyricsView(text: text, controller: controller),
+                    ),
+        ),
+      ],
+    );
+  }
 }
 
 /// Bouton « micro barré » des paroles (idée #63) : bascule le lecteur sur la

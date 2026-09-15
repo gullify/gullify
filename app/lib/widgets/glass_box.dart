@@ -15,6 +15,7 @@ class GlassBox extends StatelessWidget {
     required this.child,
     this.radius = 20,
     this.blur = true,
+    this.shadow = true,
   });
 
   final Widget child;
@@ -23,6 +24,11 @@ class GlassBox extends StatelessWidget {
   /// Flou en direct (BackdropFilter). À désactiver hors du shell : sur
   /// certains GPU le filtre se peint en plein écran (bug pilote).
   final bool blur;
+
+  /// Ombre portée, décalée vers le bas. Faite pour une carte qui flotte au
+  /// milieu d'un écran ; sous une barre collée au bas de la fenêtre, elle n'a
+  /// plus où tomber et se dessinait en rectangle gris sous la barre.
+  final bool shadow;
 
   @override
   Widget build(BuildContext context) {
@@ -59,13 +65,15 @@ class GlassBox extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(radius),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x261A1E37),
-            blurRadius: 34,
-            offset: Offset(0, 14),
-          ),
-        ],
+        boxShadow: shadow
+            ? const [
+                BoxShadow(
+                  color: Color(0x261A1E37),
+                  blurRadius: 34,
+                  offset: Offset(0, 14),
+                ),
+              ]
+            : null,
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(radius),

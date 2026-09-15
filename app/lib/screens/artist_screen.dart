@@ -12,6 +12,8 @@ import '../state/library.dart';
 import '../state/player.dart';
 import '../state/yt_downloads.dart';
 import '../widgets/artwork.dart';
+import '../widgets/adaptive_layout.dart';
+import '../widgets/detail_hero.dart';
 import '../widgets/glass_kit.dart';
 import '../widgets/image_choice_dialog.dart';
 import 'shell_screen.dart';
@@ -442,7 +444,7 @@ class _ArtistPlayBarState extends ConsumerState<_ArtistPlayBar> {
       padding: const EdgeInsets.fromLTRB(20, 4, 20, 4),
       child: Row(
         children: [
-          Expanded(
+          PrimaryActionSlot(
             child: _busy
                 ? const SizedBox(
                     height: 52,
@@ -1167,8 +1169,9 @@ Future<void> _artistImageDialog(
   messenger.showSnackBar(SnackBar(content: Text(done)));
 }
 
-/// En-tête d'artiste : image plein cadre qui se fond dans le fond de l'app,
-/// nom en surimpression bas-gauche, bouton retour en verre.
+/// En-tête d'artiste : nom, genre et nombre d'albums, posés sur son image. La
+/// mise en page — plein cadre au téléphone, portrait à côté du nom sur grand
+/// écran — est celle de [DetailHero], partagée avec la fiche album.
 class _ArtistHeader extends StatelessWidget {
   const _ArtistHeader({
     required this.imageUrl,
@@ -1187,91 +1190,36 @@ class _ArtistHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final topInset = MediaQuery.paddingOf(context).top;
 
-    return SizedBox(
-      height: 440,
-      child: Stack(
-        fit: StackFit.expand,
+    return DetailHero(
+      imageUrl: imageUrl,
+      icon: Icons.person,
+      roundCover: true,
+      onMenu: onMenu,
+      info: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // L'image se DISSOUT en transparence vers le bas (ShaderMask) :
-          // le vrai dégradé de fond de l'app transparaît en continu, sans
-          // couleur intermédiaire ni couture.
-          ShaderMask(
-            shaderCallback: (rect) => const LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              stops: [0.0, 0.5, 1.0],
-              colors: [Colors.white, Colors.white, Colors.transparent],
-            ).createShader(rect),
-            blendMode: BlendMode.dstIn,
-            child: Artwork(url: imageUrl, borderRadius: 0, icon: Icons.person),
-          ),
-          // Voile sombre discret en haut pour la lisibilité du bouton retour.
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            height: topInset + 70,
-            child: const DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [Color(0x33000000), Color(0x00000000)],
-                ),
-              ),
+          Text(
+            name,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 34,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.8,
+              height: 1.02,
             ),
           ),
-          Positioned(
-            left: 14,
-            top: topInset + 8,
-            child: GlassIconButton(
-              icon: Icons.chevron_left,
-              tooltip: 'Retour',
-              onPressed: () => context.pop(),
-            ),
-          ),
-          Positioned(
-            right: 14,
-            top: topInset + 8,
-            child: GlassIconButton(
-              icon: Icons.more_vert,
-              tooltip: 'Options',
-              onPressed: onMenu,
-            ),
-          ),
-          Positioned(
-            left: 20,
-            right: 20,
-            bottom: 12,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  name,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 34,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -0.8,
-                    height: 1.02,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  [
-                    if (genre != null && genre!.isNotEmpty) genre!,
-                    '$albumCount album${albumCount > 1 ? 's' : ''}',
-                  ].join(' · '),
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: scheme.onSurfaceVariant,
-                  ),
-                ),
-              ],
+          const SizedBox(height: 2),
+          Text(
+            [
+              if (genre != null && genre!.isNotEmpty) genre!,
+              '$albumCount album${albumCount > 1 ? 's' : ''}',
+            ].join(' · '),
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: scheme.onSurfaceVariant,
             ),
           ),
         ],
