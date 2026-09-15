@@ -1,506 +1,216 @@
 <?php
-require_once __DIR__ . '/../src/AppConfig.php';
+/**
+ * gullify.app — la page d'accueil publique.
+ *
+ * Elle ne demande aucune connexion : elle dit ce qu'est Gullify, donne l'app
+ * (web ou Android) et explique comment l'installer. Tout ce qui demande un
+ * compte vit DANS l'app — y compris l'administration des utilisateurs et du
+ * stockage, portée depuis la vieille interface web (voir
+ * `app/lib/screens/admin/`). C'est ce qui permet de n'entretenir qu'une seule
+ * interface.
+ *
+ * La version de l'APK est lue dans `download/version.json`, écrit par
+ * `build-app.sh` : pas d'appel réseau au chargement de la page.
+ */
+declare(strict_types=1);
 
-// Language detection (cookie → default fr)
-$_allowedLangs = ['fr', 'en'];
-$appLang = $_COOKIE['gullify_lang'] ?? 'fr';
-if (!in_array($appLang, $_allowedLangs, true)) $appLang = 'fr';
-$_langFile = __DIR__ . '/lang/' . $appLang . '.json';
-$_langData = file_exists($_langFile) ? file_get_contents($_langFile) : '{}';
+const APK_LATEST = 'https://download.gullify.app/gullify-latest.apk';
 
-// Theme detection (cookie → default audiophile)
-$_allowedThemes = ['liquidglass', 'audiophile', 'dark', 'midnight', 'sunset', 'forest', 'aurora', 'sand', 'nord', 'lime', 'light'];
-$appTheme = $_COOKIE['gullify_theme'] ?? 'liquidglass';
-if (!in_array($appTheme, $_allowedThemes, true)) $appTheme = 'liquidglass';
-
-// Apps download metadata (Android APK link surfaced in Settings → Apps)
-$androidUrl     = AppConfig::get('apps.android.url',     'https://download.gullify.app/gullify-latest.apk');
-$androidVersion = AppConfig::get('apps.android.version', '');
-
-// Redirect to setup wizard if not configured
-if (!AppConfig::isSetupDone()) {
-    header('Location: /setup/');
-    exit;
+$manifest = @file_get_contents(__DIR__ . '/download/version.json');
+$apkVersion = null;
+if ($manifest !== false) {
+    $j = json_decode($manifest, true);
+    $apkVersion = is_array($j) ? ($j['versionName'] ?? null) : null;
 }
 
-// Require authentication
-require_once __DIR__ . '/../src/auth_required.php';
-require_once __DIR__ . '/../src/PathHelper.php';
+$apk = __DIR__ . '/download/gullify.apk';
+$apkSize = is_file($apk) ? round(filesize($apk) / 1048576) : null;
 
-$currentUsername = $_SESSION['username'];
-
-// Fetch current user's storage settings
-try {
-    $pathHelper = new PathHelper();
-    $currentMusicDir = $pathHelper->getUserPath($currentUsername);
-    $db = AppConfig::getDB();
-    $stmt = $db->prepare("SELECT id, music_directory, storage_type, sftp_host, sftp_port, sftp_user, sftp_path FROM users WHERE username = ?");
-    $stmt->execute([$currentUsername]);
-    $row = $stmt->fetch();
-    $currentUserId       = (int)($row['id'] ?? 0);
-    $currentMusicDirName = $row['music_directory'] ?? '';
-    $currentStorageType  = $row['storage_type']    ?? 'local';
-    $currentSftpHost     = $row['sftp_host']        ?? '';
-    $currentSftpPort     = (int)($row['sftp_port']  ?? 22);
-    $currentSftpUser     = $row['sftp_user']        ?? '';
-    $currentSftpPath     = $row['sftp_path']        ?? '';
-} catch (Exception $e) {
-    $currentUserId = 0;
-    $currentMusicDirName = '';
-    $currentStorageType = 'local';
-    $currentSftpHost = $currentSftpUser = $currentSftpPath = '';
-    $currentSftpPort = 22;
+/** Échappement court, la page en est pleine. */
+function e(?string $s): string {
+    return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
 }
 ?>
 <!DOCTYPE html>
-<html lang="<?= htmlspecialchars($appLang) ?>" data-theme="<?= htmlspecialchars($appTheme) ?>">
+<html lang="fr">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gullify - Musique</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Gullify — votre musique, partout</title>
+<meta name="description" content="Votre bibliothèque musicale, sur le web, sur Android, en voiture et au salon.">
+<meta name="theme-color" content="#14161C">
+<link rel="icon" href="/favicon.ico">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<style>
+  /* La palette est celle de l'app (voir app/lib/theme.dart) : même surface
+     sombre, même accent indigo, même gris de texte secondaire. La page et
+     l'app doivent se ressembler — c'est tout l'objet de la manœuvre. */
+  :root {
+    --bg: #14161C;
+    --fg: #EDEFF3;
+    --muted: #9BA0AA;
+    --accent: #4A5FE8;
+    --line: rgba(255, 255, 255, .12);
+    --card: rgba(255, 255, 255, .05);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    line-height: 1.6;
+    /* Un halo d'accent en haut, comme le fond de l'app. */
+    background-image:
+      radial-gradient(900px 500px at 50% -12%, rgba(74, 95, 232, .30), transparent 70%);
+    background-repeat: no-repeat;
+  }
+  .wrap { max-width: 940px; margin: 0 auto; padding: 0 22px; }
 
-    <!-- PWA & Meta -->
-    <meta name="theme-color" content="#1a1a1d" id="themeColor">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <link rel="icon" type="image/x-icon" href="favicon.ico">
-    <link rel="apple-touch-icon" href="apple-touch-icon.png">
-    <link rel="manifest" href="manifest.json">
+  header { text-align: center; padding: 76px 0 20px; }
+  header img { width: 92px; height: 92px; border-radius: 22px; }
+  h1 {
+    font-size: clamp(38px, 7vw, 62px); font-weight: 800;
+    letter-spacing: -1.8px; margin: 22px 0 8px;
+  }
+  .tagline { color: var(--muted); font-size: clamp(17px, 2.4vw, 21px); margin: 0; }
 
-    <!-- Fonts & Icons -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Shadows+Into+Light&display=swap" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+  .actions {
+    display: flex; flex-wrap: wrap; gap: 14px;
+    justify-content: center; margin: 34px 0 8px;
+  }
+  .btn {
+    display: inline-flex; align-items: center; gap: 10px;
+    padding: 15px 28px; border-radius: 30px;
+    text-decoration: none; font-weight: 700; font-size: 16.5px;
+    border: 1px solid transparent; transition: transform .12s ease;
+  }
+  .btn:active { transform: translateY(1px); }
+  .btn-primary {
+    background: var(--accent); color: #fff;
+    box-shadow: 0 14px 34px rgba(74, 95, 232, .38);
+  }
+  .btn-ghost {
+    background: var(--card); color: var(--fg); border-color: var(--line);
+  }
+  .btn small { font-weight: 500; opacity: .75; }
 
-    <!-- Libraries -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  section { padding: 54px 0 0; }
+  h2 {
+    font-size: 13px; font-weight: 700; letter-spacing: 1.1px;
+    text-transform: uppercase; color: var(--accent); margin: 0 0 18px;
+  }
 
-    <!-- Gullify Styles -->
-    <link rel="stylesheet" href="css/style.css?v=<?= time() ?>">
-    <link rel="stylesheet" href="player/unified-player.css?v=<?= time() ?>">
-    <link rel="stylesheet" href="context-menu.css">
-    <link rel="stylesheet" href="tag-editor.css">
-    <!-- Thème Liquid Glass (sur-style dédié, chargé après les feuilles de base) -->
-    <link rel="stylesheet" href="css/liquid-glass.css?v=<?= filemtime(__DIR__ . '/css/liquid-glass.css') ?>">
+  .grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(262px, 1fr)); }
+  .card {
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: 20px; padding: 24px 22px;
+  }
+  .card h3 { margin: 0 0 6px; font-size: 18px; font-weight: 700; }
+  .card p, .card ol { color: var(--muted); margin: 8px 0 0; font-size: 15px; }
+  .card ol { padding-left: 20px; }
+  .card ol li { margin: 5px 0; }
+  .card a { color: var(--fg); }
+  kbd {
+    background: rgba(255, 255, 255, .10); border: 1px solid var(--line);
+    border-radius: 6px; padding: 2px 7px; font-size: .88em;
+    font-family: inherit; color: var(--fg);
+  }
+
+  .features { list-style: none; padding: 0; margin: 0; }
+  .features li {
+    padding: 13px 0; border-top: 1px solid var(--line);
+    color: var(--muted); font-size: 15.5px;
+  }
+  .features li:first-child { border-top: 0; }
+  .features b { color: var(--fg); font-weight: 600; }
+
+  footer {
+    margin-top: 64px; padding: 26px 0 40px;
+    border-top: 1px solid var(--line);
+    color: var(--muted); font-size: 13.5px;
+    display: flex; flex-wrap: wrap; gap: 8px 20px; justify-content: space-between;
+  }
+  footer a { color: var(--muted); }
+</style>
 </head>
 <body>
-    <!-- Background -->
-    <div class="album-background" id="albumBackground">
-        <div class="album-background-image" id="albumBackgroundImage"></div>
-        <div class="album-background-gradient"></div>
+<div class="wrap">
+
+  <header>
+    <img src="/android-chrome-192x192.png" alt="">
+    <h1>Gullify</h1>
+    <p class="tagline">Votre musique, partout.</p>
+
+    <div class="actions">
+      <a class="btn btn-primary" href="/app/">Ouvrir l'app web</a>
+      <a class="btn btn-ghost" href="<?= APK_LATEST ?>">
+        Android
+        <?php if ($apkVersion || $apkSize): ?>
+          <small><?= e($apkVersion ? 'v' . $apkVersion : '') ?><?= $apkSize ? ' · ' . $apkSize . ' Mo' : '' ?></small>
+        <?php endif; ?>
+      </a>
     </div>
+  </header>
 
-    <div class="app-container">
-        <?php include 'components/sidebar.php'; ?>
+  <section>
+    <h2>La même app, partout</h2>
+    <ul class="features">
+      <li><b>Une seule application.</b> Le web, Android, Android&nbsp;Auto et Google&nbsp;TV partagent le même code et la même interface.</li>
+      <li><b>Votre bibliothèque.</b> Vos fichiers, sur votre serveur — rien à confier à personne.</li>
+      <li><b>Paroles et accords</b> qui défilent au rythme de la chanson, karaoké, fondu enchaîné.</li>
+      <li><b>Compatible OpenSubsonic</b> : vos autres lecteurs préférés savent s'y brancher.</li>
+    </ul>
+  </section>
 
-        <!-- Main Content -->
-        <main class="main-content">
-            <div class="content-header">
-                <div class="header-top" id="headerTop">
-                    <button class="menu-btn" id="menuBtn">☰</button>
-                    <h2 id="contentTitle" data-i18n="home.title">Accueil</h2>
-                    <div class="header-search-wrap" id="headerSearchWrap">
-                        <input type="text" class="header-search-input" id="searchInput" placeholder="Rechercher artistes, albums, chansons..." data-i18n="common.search_placeholder" data-i18n-attr="placeholder">
-                        <button class="search-icon-btn" id="searchBtn">
-                            <i class="ri-search-line" id="searchBtnIcon"></i>
-                        </button>
-                    </div>
-                    <div class="topbar-actions" id="topbarActions">
-                        <div class="nav-arrows" id="topbarNavArrows">
-                            <button class="topbar-icon-btn nav-arrow" id="topbarBackBtn" title="Précédent" aria-label="Back">
-                                <i class="ri-arrow-left-s-line"></i>
-                            </button>
-                            <button class="topbar-icon-btn nav-arrow" id="topbarForwardBtn" title="Suivant" aria-label="Forward">
-                                <i class="ri-arrow-right-s-line"></i>
-                            </button>
-                        </div>
-                        <button class="topbar-icon-btn" id="topbarEqBtn" title="Égaliseur" aria-label="Equalizer">
-                            <i class="ri-equalizer-line"></i>
-                        </button>
-                        <button class="topbar-icon-btn" id="topbarCastBtn" title="Diffuser" aria-label="Cast">
-                            <i class="ri-cast-line"></i>
-                        </button>
-                        <button class="topbar-icon-btn" id="topbarNotifBtn" title="Notifications" aria-label="Notifications">
-                            <i class="ri-notification-3-line"></i>
-                            <span class="badge-dot" id="topbarNotifDot" hidden></span>
-                        </button>
-                        <button class="topbar-icon-btn" id="topbarQueueToggle" title="File d'attente" aria-label="Toggle queue panel">
-                            <i class="ri-play-list-2-line"></i>
-                        </button>
-                        <button class="topbar-icon-btn" id="topbarSettingsBtn" title="Paramètres" aria-label="Settings">
-                            <i class="ri-settings-3-line"></i>
-                        </button>
-                    </div>
-                </div>
-            </div>
+  <section>
+    <h2>L'installer</h2>
+    <div class="grid">
 
-            <div class="content-body" id="contentBody">
-                <div class="loading">
-                    <div class="loading-spinner"></div>
-                    <p>Chargement de votre bibliothèque...</p>
-                </div>
-            </div>
-        </main>
+      <div class="card">
+        <h3>Android</h3>
+        <p>Téléchargez l'APK et autorisez l'installation depuis cette source
+           quand Android le demande. Ensuite, Gullify se met à jour tout seul.</p>
+        <p><a href="<?= APK_LATEST ?>">Télécharger l'APK</a><?php if ($apkVersion): ?>
+           — version <?= e($apkVersion) ?><?php endif; ?></p>
+      </div>
+
+      <div class="card">
+        <h3>Windows</h3>
+        <ol>
+          <li>Ouvrez <a href="/app/">l'app web</a> dans Chrome ou Edge.</li>
+          <li>Cliquez l'icône d'installation dans la barre d'adresse — ou menu
+              <kbd>⋯</kbd> → <em>Installer Gullify</em>.</li>
+          <li>Elle s'ouvre alors dans sa propre fenêtre, comme un logiciel.</li>
+        </ol>
+      </div>
+
+      <div class="card">
+        <h3>iPhone et iPad</h3>
+        <ol>
+          <li>Ouvrez <a href="/app/">l'app web</a> dans Safari.</li>
+          <li>Bouton <em>Partager</em> → <em>Sur l'écran d'accueil</em>.</li>
+          <li>Elle s'ouvre en plein écran, sans barre de navigateur.</li>
+        </ol>
+      </div>
+
+      <div class="card">
+        <h3>Google TV</h3>
+        <p>Installez une app de téléchargement sur le téléviseur, puis saisissez
+           <kbd>gullify.app/tv</kbd> à la télécommande : l'APK arrive
+           directement.</p>
+        <p><a href="/tv?page=1">Voir la marche à suivre</a></p>
+      </div>
+
     </div>
+  </section>
 
-    <?php include 'player/unified-player.php'; ?>
-    <?php include 'components/modals.php'; ?>
+  <footer>
+    <span>Gullify<?= $apkVersion ? ' — app v' . e($apkVersion) : '' ?></span>
+    <span><a href="/app/">Ouvrir l'app</a><?php if (is_dir(__DIR__ . '/legacy')): ?>
+      · <a href="/legacy/">Ancienne interface web</a><?php endif; ?></span>
+  </footer>
 
-    <!-- Menu overlay for mobile sidebar -->
-    <div class="menu-overlay" id="menuOverlay"></div>
-
-    <!-- Add / Edit radio station modal (dual-purpose) -->
-    <div id="radioAddModalOverlay" class="modal-overlay" hidden role="dialog" aria-label="Add radio station">
-        <div class="modal-card" style="max-width:520px;">
-            <button class="modal-close" onclick="closeRadioAddModal()" aria-label="Close"><i class="ri-close-line"></i></button>
-            <h3 class="modal-title"><i class="ri-radio-line" style="color:var(--accent)"></i> <span id="radioModalTitle">Ajouter une station</span></h3>
-
-            <!-- Editable preview: logo + name (favorite button moved to footer) -->
-            <div id="radioEditHeader" style="display:flex;gap:14px;align-items:center;margin-bottom:14px;" hidden>
-                <img id="radioEditLogoPreview" alt="" style="width:56px;height:56px;border-radius:8px;object-fit:cover;background:var(--bg-primary);border:1px solid var(--border);">
-                <div style="flex:1;min-width:0;">
-                    <div id="radioEditName" style="font-size:15px;font-weight:600;color:var(--text-primary);"></div>
-                    <div id="radioEditFmt" class="mono" style="font-size:10.5px;letter-spacing:0.06em;color:var(--text-tertiary);text-transform:uppercase;margin-top:3px;"></div>
-                </div>
-            </div>
-
-            <label class="field-label">Nom *</label>
-            <input type="text" id="radioAddName" class="modal-input" placeholder="Ex: CKOI 96.9">
-
-            <label class="field-label">URL (flux direct, M3U, M3U8/HLS ou PLS) *</label>
-            <input type="url" id="radioAddUrl" class="modal-input" placeholder="https://stream.example.com/... ou https://.../playlist.pls">
-            <div id="radioResolveNote" class="mono" style="font-size:10.5px;color:var(--text-tertiary);margin-top:4px;letter-spacing:0.04em;"></div>
-
-            <label class="field-label">Logo</label>
-            <input type="url" id="radioAddLogo" class="modal-input" placeholder="URL de l'image, ou utilise les boutons ci-dessous">
-            <div style="display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap;">
-                <label class="btn btn-secondary btn-sm" style="flex-shrink:0;cursor:pointer;margin:0;">
-                    <i class="ri-upload-2-line"></i> <span>Téléverser</span>
-                    <input type="file" id="radioAddLogoFile" accept="image/png,image/jpeg,image/webp" style="display:none;">
-                </label>
-                <button type="button" class="btn btn-secondary btn-sm" id="radioFetchUrlBtn" onclick="fetchLogoFromUrl()" title="Télécharger l'image depuis l'URL ci-dessus vers le serveur">
-                    <i class="ri-download-cloud-2-line"></i> Capturer URL
-                </button>
-                <span id="radioAddLogoStatus" style="font-size:11px;color:var(--text-tertiary);font-family:var(--font-mono);flex:1;min-width:0;"></span>
-            </div>
-
-            <label class="field-label">Genres (séparés par virgule)</label>
-            <input type="text" id="radioAddGenres" class="modal-input" placeholder="rock, alternatif">
-
-            <label class="field-label">Pays / Langue</label>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-                <input type="text" id="radioAddCountry"  class="modal-input" placeholder="Canada">
-                <input type="text" id="radioAddLanguage" class="modal-input" placeholder="French">
-            </div>
-
-            <!-- Format help block -->
-            <details style="margin-top:14px;background:var(--bg-primary);border:1px solid var(--border);border-radius:8px;padding:10px 12px;">
-                <summary style="cursor:pointer;font-size:12px;color:var(--text-secondary);">
-                    <i class="ri-information-line"></i> Formats supportés
-                </summary>
-                <div style="font-size:12px;color:var(--text-secondary);margin-top:8px;line-height:1.6;">
-                    <strong>Flux direct</strong> — MP3, AAC, OGG/Vorbis, OPUS, FLAC.<br>
-                    <em>Icecast et Shoutcast</em> exposent ce type d'URL : ça fonctionne tel quel.<br><br>
-                    <strong>Playlists résolues côté serveur</strong> :<br>
-                    • <code>.m3u</code> / <code>.m3u8</code> (avec <code>#EXTINF</code>) — le premier flux interne est extrait<br>
-                    • <code>.pls</code> (format INI avec <code>File1=…</code>) — la première ligne <code>File*=</code> est extraite<br><br>
-                    <strong>HLS</strong> (<code>.m3u8</code> avec <code>#EXT-X-STREAM-INF</code>) — passe tel quel.<br>
-                    Lu nativement par Safari/iOS et l'app Android via ExoPlayer. Sur Chrome web, nécessite hls.js.
-                </div>
-            </details>
-
-            <div class="modal-actions" id="radioModalActions">
-                <button class="btn btn-secondary" id="radioEditFavBtn" onclick="editFavToggle()" hidden>
-                    <i class="ri-heart-line"></i> <span>Favoris</span>
-                </button>
-                <button class="btn btn-danger" id="radioDeleteBtn" onclick="editDelete()" hidden>
-                    <i class="ri-delete-bin-line"></i> Supprimer
-                </button>
-                <button class="btn btn-secondary" onclick="closeRadioAddModal()" style="margin-left:auto;">Annuler</button>
-                <button class="btn btn-primary" id="radioSaveBtn" onclick="submitRadioSave()">
-                    <i class="ri-check-line"></i> <span id="radioSaveBtnLabel">Ajouter</span>
-                </button>
-            </div>
-            <div id="radioAddStatus" class="modal-status"></div>
-        </div>
-    </div>
-
-    <!-- Bulk import radio modal -->
-    <div id="radioBulkModalOverlay" class="modal-overlay" hidden role="dialog" aria-label="Bulk import radio">
-        <div class="modal-card" style="max-width:620px;">
-            <button class="modal-close" onclick="closeRadioBulkModal()" aria-label="Close"><i class="ri-close-line"></i></button>
-            <h3 class="modal-title"><i class="ri-upload-cloud-2-line" style="color:var(--accent)"></i> Importer des stations</h3>
-
-            <p style="font-size:13px;color:var(--text-secondary);margin:8px 0 14px;">
-                Colle une liste M3U/M3U8, un JSON, ou simplement une URL par ligne.
-                Pour les URLs seules, le nom prend le domaine. Le M3U lit le tag <code>#EXTINF</code>.
-            </p>
-
-            <textarea id="radioBulkText" class="modal-input" rows="12" placeholder="#EXTM3U
-#EXTINF:-1,Ma station
-https://stream.example.com/live
-
-OU une URL par ligne :
-https://stream2.example.com/live
-https://stream3.example.com/live"></textarea>
-
-            <div class="modal-actions">
-                <button class="btn btn-secondary" onclick="closeRadioBulkModal()">Annuler</button>
-                <button class="btn btn-primary" onclick="submitRadioBulk()">
-                    <i class="ri-upload-2-line"></i> Importer
-                </button>
-            </div>
-            <div id="radioBulkStatus" class="modal-status"></div>
-        </div>
-    </div>
-
-    <!-- Equalizer modal (audiophile) -->
-    <div id="eqModal" class="eq-modal" hidden role="dialog" aria-label="Equalizer">
-        <div class="eq-backdrop" id="eqBackdrop"></div>
-        <div class="eq-card">
-            <div class="eq-card-head">
-                <div>
-                    <h3>Égaliseur</h3>
-                    <span class="mono eq-preset-label" id="eqPresetLabel">flat</span>
-                </div>
-                <div class="eq-card-actions">
-                    <label class="eq-enable">
-                        <input type="checkbox" id="eqEnabled" checked>
-                        <span>Activé</span>
-                    </label>
-                    <button class="topbar-icon-btn" id="eqClose" aria-label="Close">
-                        <i class="ri-close-line"></i>
-                    </button>
-                </div>
-            </div>
-            <div class="eq-bands" id="eqBands"></div>
-            <div class="eq-presets" id="eqPresets"></div>
-        </div>
-    </div>
-
-    <!-- Cast popover (audiophile, desktop) -->
-    <div id="castPopover" class="cast-popover" hidden role="dialog" aria-label="Cast options">
-        <div class="cast-header">
-            <span>Diffuser sur</span>
-            <button class="cast-close" id="castClose" aria-label="Close">
-                <i class="ri-close-line"></i>
-            </button>
-        </div>
-        <div class="cast-body" id="castDevices">
-            <div class="cast-empty mono">Aucun appareil détecté</div>
-        </div>
-    </div>
-
-    <!-- Notifications popover (audiophile, desktop) -->
-    <div id="notifPopover" class="cast-popover notif-popover" hidden role="dialog" aria-label="Notifications">
-        <div class="cast-header">
-            <span>Notifications</span>
-            <button class="cast-close" id="notifClose" aria-label="Close">
-                <i class="ri-close-line"></i>
-            </button>
-        </div>
-        <div class="cast-body notif-list" id="notifList">
-            <div class="cast-empty mono">Aucune notification</div>
-        </div>
-        <div class="notif-footer" id="notifFooter" hidden>
-            <button class="notif-foot-btn" id="notifMarkAll">
-                <i class="ri-mail-open-line"></i> Tout marquer lu
-            </button>
-            <button class="notif-foot-btn" id="notifClearAll">
-                <i class="ri-delete-bin-line"></i> Effacer tout
-            </button>
-        </div>
-    </div>
-
-    <!-- Now Playing fullscreen (audiophile theme, desktop) -->
-    <div id="nowPlayingFS" class="now-playing-fs" hidden aria-modal="true" role="dialog">
-        <div id="npfsBg" class="npfs-bg"></div>
-        <button id="npfsClose" class="npfs-close icon-btn" aria-label="Close">
-            <i class="ri-close-line"></i>
-        </button>
-        <div class="npfs-left">
-            <div id="npfsArtWrap" class="npfs-art-wrap">
-                <img id="npfsArt" class="npfs-art" alt="">
-            </div>
-        </div>
-        <div class="npfs-right">
-            <div class="npfs-meta">
-                <div class="npfs-eyebrow mono">Now Playing</div>
-                <h2 id="npfsTitle" class="npfs-title">—</h2>
-                <div id="npfsArtist" class="npfs-artist"></div>
-                <div id="npfsAlbum" class="npfs-album mono"></div>
-                <div id="npfsVisualizer" class="visualizer lg"></div>
-            </div>
-
-            <div id="npfsLyrics" class="npfs-lyrics">
-                <div class="npfs-lyrics-status mono">—</div>
-            </div>
-
-            <div class="npfs-progress">
-                <div class="progress-row">
-                    <span id="npfsCurrentTime" class="progress-time mono">0:00</span>
-                    <div id="npfsProgressBar" class="progress-bar">
-                        <div id="npfsProgressFill" class="progress-fill"></div>
-                        <div class="progress-thumb"></div>
-                    </div>
-                    <span id="npfsTotalTime" class="progress-time mono">0:00</span>
-                </div>
-            </div>
-
-            <div class="npfs-controls">
-                <button id="npfsShuffle" class="player-btn" title="Shuffle"><i class="ri-shuffle-line"></i></button>
-                <button id="npfsPrev" class="player-btn" title="Previous"><i class="ri-skip-back-fill"></i></button>
-                <button id="npfsPlay" class="player-btn player-play" title="Play / Pause"><i class="ri-play-fill"></i></button>
-                <button id="npfsNext" class="player-btn" title="Next"><i class="ri-skip-forward-fill"></i></button>
-                <button id="npfsRepeat" class="player-btn" title="Repeat"><i class="ri-repeat-line"></i></button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Context menu for song right-click -->
-    <div class="context-menu" id="contextMenu">
-        <div class="context-menu-item" onclick="addSongToQueueById(window._contextMenuSongId)">
-            <i class="ri-add-line"></i> <span data-i18n="context_menu.add_to_queue">Ajouter à la file</span>
-        </div>
-        <div class="context-menu-divider"></div>
-        <div class="context-menu-item" style="position:relative;">
-            <i class="ri-play-list-add-line"></i> <span data-i18n="context_menu.add_to_playlist">Ajouter à une playlist</span>
-            <div class="context-menu-sub-menu" id="contextMenuPlaylistSubMenu"></div>
-        </div>
-        <div class="context-menu-divider"></div>
-        <div class="context-menu-item" onclick="showSongProperties(window._contextMenuSongId)">
-            <i class="ri-file-info-line"></i> <span data-i18n="context_menu.properties">Propriétés</span>
-        </div>
-    </div>
-
-    <!-- Song properties modal -->
-    <div id="songPropsOverlay" style="display:none;position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,0.6);backdrop-filter:blur(4px);align-items:center;justify-content:center;">
-        <div id="songPropsModal" style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:16px;padding:28px 32px;min-width:360px;max-width:560px;width:90%;box-shadow:0 24px 60px rgba(0,0,0,0.5);position:relative;">
-            <button onclick="closeSongProperties()" style="position:absolute;top:14px;right:16px;background:none;border:none;color:var(--text-secondary);font-size:20px;cursor:pointer;line-height:1;">&times;</button>
-            <h3 style="margin:0 0 20px;font-size:16px;color:var(--text-primary);display:flex;align-items:center;gap:8px;">
-                <i class="ri-file-info-line" style="color:var(--accent);"></i> Propriétés
-            </h3>
-            <div id="songPropsContent">Chargement…</div>
-        </div>
-    </div>
-
-    <!-- Artwork editor modal -->
-    <div id="artworkEditorOverlay" style="display:none;position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,0.65);backdrop-filter:blur(4px);align-items:center;justify-content:center;">
-        <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:16px;padding:28px 32px;width:90%;max-width:480px;box-shadow:0 24px 60px rgba(0,0,0,0.5);position:relative;">
-            <button onclick="closeArtworkEditor()" style="position:absolute;top:14px;right:16px;background:none;border:none;color:var(--text-secondary);font-size:20px;cursor:pointer;line-height:1;">&times;</button>
-            <h3 style="margin:0 0 20px;font-size:16px;color:var(--text-primary);display:flex;align-items:center;gap:8px;">
-                <i class="ri-image-edit-line" style="color:var(--accent);"></i> <span id="artworkEditorTitle">Pochette de l'album</span>
-            </h3>
-
-            <!-- Current / preview artwork -->
-            <div style="display:flex;justify-content:center;margin-bottom:14px;">
-                <img id="artworkPreviewImg" src="" alt="Pochette" style="width:200px;height:200px;object-fit:cover;border-radius:12px;border:2px solid var(--border);">
-            </div>
-
-            <!-- Auto-fetch HD (artist only) -->
-            <div id="artworkAutoFetchRow" style="display:none;margin-bottom:18px;">
-                <button id="artworkAutoFetchBtn" onclick="autoFetchArtistImage()" class="btn btn-secondary" style="width:100%;display:flex;align-items:center;justify-content:center;gap:8px;">
-                    <i class="ri-magic-line"></i>
-                    <span>Auto HD depuis Deezer</span>
-                </button>
-                <div style="font-size:11px;color:var(--text-tertiary);text-align:center;margin-top:6px;">
-                    Récupère une image 1000×1000 nette
-                </div>
-            </div>
-
-            <!-- File upload -->
-            <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:6px;">Choisir un fichier image</label>
-            <input type="file" id="artworkFileInput" accept="image/*" onchange="previewArtworkFile()" style="width:100%;margin-bottom:14px;color:var(--text-primary);">
-
-            <!-- URL input -->
-            <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:6px;">Ou coller une URL d'image</label>
-            <input type="url" id="artworkUrlInput" placeholder="https://…" oninput="previewArtworkUrl()" style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-tertiary);color:var(--text-primary);font-size:13px;box-sizing:border-box;margin-bottom:18px;">
-
-            <!-- YouTube Music search -->
-            <div style="border-top:1px solid var(--border);padding-top:16px;margin-bottom:16px;">
-                <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:8px;display:flex;align-items:center;gap:6px;">
-                    <i class="ri-youtube-line" style="color:#ff0000;"></i> Rechercher sur YouTube Music
-                </label>
-                <div style="display:flex;gap:8px;margin-bottom:10px;">
-                    <input type="text" id="artworkYtQuery" placeholder="Artiste + Album…" style="flex:1;padding:7px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-tertiary);color:var(--text-primary);font-size:13px;" onkeydown="if(event.key==='Enter') searchArtworkYt()">
-                    <button onclick="searchArtworkYt()" class="btn btn-secondary btn-sm" style="flex-shrink:0;">
-                        <i class="ri-search-line"></i> Chercher
-                    </button>
-                </div>
-                <div id="artworkYtResults" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:8px;max-height:200px;overflow-y:auto;"></div>
-            </div>
-
-            <div style="display:flex;gap:10px;justify-content:flex-end;">
-                <button onclick="closeArtworkEditor()" class="btn btn-secondary">Annuler</button>
-                <button id="artworkSaveBtn" onclick="saveArtwork()" class="btn btn-primary">
-                    <i class="ri-save-line"></i> Enregistrer
-                </button>
-            </div>
-            <div id="artworkSaveStatus" style="margin-top:10px;font-size:12px;text-align:center;"></div>
-        </div>
-    </div>
-
-    <!-- i18n: inline translations to avoid FOUC -->
-    <script>window.gullifyLang = <?= $_langData ?>;</script>
-
-    <!-- Scripts -->
-    <script>
-        // Global Constants
-        var BASE_PATH = window.location.pathname.replace('/index.php', '').replace(/\/$/, '');
-        var API_URL = BASE_PATH + '/api-mysql.php';
-        var DEFAULT_ALBUM_IMG = BASE_PATH + '/logo_gullify_bo.png';
-
-        // Gullify Player Configuration
-        window.gullifyPlayerConfig = {
-            user: <?= json_encode($currentUsername) ?>,
-            apiBaseUrl: BASE_PATH,
-            isGlobal: false,
-            container: '#unifiedPlayer'
-        };
-
-        // Transmit PHP state to JS — use json_encode so any apostrophes,
-        // backslashes or unicode in user/path strings can't break JS parsing
-        window.app = {
-            currentUser: <?= json_encode($currentUsername) ?>,
-            userId: <?= (int)$currentUserId ?>,
-            musicDir: <?= json_encode($currentMusicDirName) ?>,
-            storageType: <?= json_encode($currentStorageType) ?>,
-            sftpHost: <?= json_encode($currentSftpHost) ?>,
-            sftpPort: <?= (int)$currentSftpPort ?>,
-            sftpUser: <?= json_encode($currentSftpUser) ?>,
-            sftpPath: <?= json_encode($currentSftpPath) ?>,
-            isAdmin: <?= !empty($_SESSION['is_admin']) ? 'true' : 'false' ?>,
-            androidUrl:     <?= json_encode($androidUrl) ?>,
-            androidVersion: <?= json_encode($androidVersion) ?>,
-            currentView: 'home',
-            library: null,
-            favorites: [],
-            artistsOffset: 0,
-            artistsLimit: 10000,
-            loadingMore: false,
-            hasMoreArtists: true,
-            queue: [],
-            currentTrackIndex: -1,
-            isPlaying: false,
-            shuffle: false,
-            repeat: 'none',
-            volume: 0.8,
-            scrollHandler: null,
-            showMobilePlayer: false,
-            imageCache: {},
-            recentlyPlayed: [],
-            radioMode: false,
-            lang: localStorage.getItem('gullify_lang') || 'fr'
-        };
-    </script>
-    <script src="player/unified-player.js?v=<?= filemtime(__DIR__ . '/player/unified-player.js') ?>"></script>
-    <script src="js/app.js?v=<?= filemtime(__DIR__ . '/js/app.js') ?>"></script>
-    <script src="js/ui.js?v=<?= filemtime(__DIR__ . '/js/ui.js') ?>"></script>
-    <script src="js/gullify-audio.js?v=<?= filemtime(__DIR__ . '/js/gullify-audio.js') ?>"></script>
-    <script src="js/equalizer.js?v=<?= filemtime(__DIR__ . '/js/equalizer.js') ?>"></script>
-    <script src="js/now-playing-fs.js?v=<?= filemtime(__DIR__ . '/js/now-playing-fs.js') ?>"></script>
+</div>
 </body>
 </html>

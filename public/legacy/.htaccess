@@ -1,0 +1,7 @@
+# Archive : l'ancienne interface web (le lecteur PHP/JS remplacé par l'app
+# Flutter servie sur /app/). Gardée dans le dépôt pour mémoire, jamais servie.
+#
+# Une interface accessible est une interface à maintenir et à sécuriser :
+# celle-ci ne l'est plus. Pour la relire, c'est dans git — ou en retirant
+# cette règle, le temps d'une consultation.
+Require all denied
