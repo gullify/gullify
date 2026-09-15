@@ -885,6 +885,7 @@ class GullifyAudioHandler extends BaseAudioHandler
     required String title,
     String? artist,
     String? artwork,
+    String source = 'YouTube',
   }) async {
     _flushPlay();
     await _cancelFade();
@@ -893,7 +894,7 @@ class GullifyAudioHandler extends BaseAudioHandler
       id: url,
       title: title,
       artist: artist,
-      album: 'Pré-écoute YouTube',
+      album: 'Pré-écoute $source',
       // La durée arrive avec le flux (voir durationStream, plus haut).
       artUri: _artUri(artwork),
       extras: {kPreviewVideoId: videoId},

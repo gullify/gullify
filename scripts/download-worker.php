@@ -40,6 +40,7 @@ putenv('LC_ALL=en_CA.UTF-8');
 
 // Load app config
 require_once __DIR__ . '/../src/AppConfig.php';
+require_once __DIR__ . '/../src/Bandcamp.php';
 require_once __DIR__ . '/../src/Database.php';
 require_once __DIR__ . '/../src/PathHelper.php';
 require_once __DIR__ . '/../src/Storage/StorageInterface.php';
@@ -127,10 +128,20 @@ $escapedAlbumPath = escapeShellArgUTF8($albumPath . '/%(playlist_index)s - %(tit
 $escapedAlbum = str_replace(['\\', '"'], ['\\\\', '\\"'], $album);
 $escapedArtist = str_replace(['\\', '"'], ['\\\\', '\\"'], $artist);
 
+// Bandcamp grave dans le genre ID3 les mots-clés de vente de sa page (un
+// disque post-rock montréalais ressort en « Kannada Devotional, Rock,
+// drone… »). Le scanner recopierait cette liste telle quelle sur l'artiste et
+// l'album, dans une colonne de 100 caractères : mieux vaut partir sans genre
+// et laisser scan-genres.php (ID3 → MusicBrainz) trancher plus bas.
+$genreArgs = Bandcamp::isUrl($url)
+    ? '--parse-metadata ' . escapeshellarg(':(?P<meta_genre>)') . ' '
+    : '';
+
 // Commande yt-dlp (no sudo in Docker - runs as www-data)
 $command = 'yt-dlp -o ' . $escapedAlbumPath . ' ' .
            '-x --audio-format mp3 --audio-quality 320K ' .
            '--extractor-args "youtube:player-client=default,-tv_simply" ' .
+           $genreArgs .
            '--embed-thumbnail --embed-metadata ' .
            '--postprocessor-args "-metadata album=\"' . $escapedAlbum . '\" -metadata album_artist=\"' . $escapedArtist . '\"" ' .
            escapeShellArgUTF8($url) . ' 2>&1';

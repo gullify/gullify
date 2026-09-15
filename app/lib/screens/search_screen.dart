@@ -4,8 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../api/bandcamp_repository.dart';
 import '../api/yt_downloads_repository.dart';
 import '../models/server_user.dart';
+import '../state/bandcamp.dart';
 import '../state/library.dart';
 import '../state/player.dart';
 import '../state/preview.dart';
@@ -17,9 +19,9 @@ import '../widgets/glass_kit.dart';
 import '../widgets/song_menu.dart';
 import '../widgets/song_tile.dart';
 
-/// Onglet « Recherche » : champ en verre, résultats en deux groupes —
-/// « Ma bibliothèque » (recherche locale) et « YouTube Music » (albums et
-/// chansons seules, téléchargeables). La file d'attente reste sur
+/// Onglet « Recherche » : champ en verre, et trois sources au choix —
+/// « Bibliothèque » (recherche locale), « YouTube » et « Bandcamp » (albums,
+/// artistes et titres seuls, téléchargeables). La file d'attente reste sur
 /// /yt-downloads (bouton en en-tête).
 class SearchScreen extends ConsumerStatefulWidget {
   const SearchScreen({super.key});
@@ -29,7 +31,7 @@ class SearchScreen extends ConsumerStatefulWidget {
 }
 
 /// Où chercher.
-enum _Source { library, youtube }
+enum _Source { library, youtube, bandcamp }
 
 /// Quoi chercher (le filtre disponible dépend de la source).
 enum _Kind { all, songs, albums, artists }
@@ -43,6 +45,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   // plutôt qu'une recherche d'albums par nom. Effacé dès que la requête ou la
   // source change.
   YtArtist? _ytArtist;
+  // Idem côté Bandcamp : l'artiste tapé ouvre SA discographie (via bandId).
+  BcArtist? _bcArtist;
   late final TextEditingController _controller =
       TextEditingController(text: ref.read(searchQueryProvider));
 
@@ -56,7 +60,12 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
   void _onChanged(String value) {
     // Nouvelle frappe → on quitte la discographie d'un artiste éventuel.
-    if (_ytArtist != null) setState(() => _ytArtist = null);
+    if (_ytArtist != null || _bcArtist != null) {
+      setState(() {
+        _ytArtist = null;
+        _bcArtist = null;
+      });
+    }
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 350), () {
       if (mounted) ref.read(searchQueryProvider.notifier).set(value);
@@ -66,7 +75,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   void _clear() {
     _debounce?.cancel();
     _controller.clear();
-    setState(() => _ytArtist = null);
+    setState(() {
+      _ytArtist = null;
+      _bcArtist = null;
+    });
     ref.read(searchQueryProvider.notifier).set('');
   }
 
@@ -265,8 +277,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                     ),
                     const SizedBox(height: 12),
                     Text(
-                      'Recherchez dans votre bibliothèque\n'
-                      'et sur YouTube Music',
+                      'Recherchez dans votre bibliothèque,\n'
+                      'sur YouTube Music et sur Bandcamp',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 14,
@@ -280,34 +292,48 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               const _OtherUsersSection(),
               _NewReleasesSection(onDownload: _confirmAlbumDownload),
             ] else ...[
-              // Où chercher : bibliothèque locale ou YouTube Music.
+              // Où chercher : bibliothèque locale, YouTube Music ou
+              // Bandcamp. À trois sources, les libellés portent seuls : une
+              // icône de plus et « Bibliothèque » déborde de son segment sur
+              // un téléphone étroit.
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 6, 20, 6),
                 child: SegmentedButton<_Source>(
                   segments: const [
                     ButtonSegment(
                       value: _Source.library,
-                      icon: Icon(Icons.library_music_rounded, size: 20),
-                      label: Text('Ma bibliothèque'),
+                      label: Text('Bibliothèque'),
                     ),
                     ButtonSegment(
                       value: _Source.youtube,
-                      icon: Icon(Icons.play_circle_outline, size: 20),
                       label: Text('YouTube'),
                     ),
+                    ButtonSegment(
+                      value: _Source.bandcamp,
+                      label: Text('Bandcamp'),
+                    ),
                   ],
+                  style: SegmentedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 6),
+                    textStyle: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                   selected: {_source},
                   showSelectedIcon: false,
                   onSelectionChanged: (s) => setState(() {
                     _source = s.first;
                     _kind = _Kind.all; // réinitialise le type au changement
-                    _ytArtist = null; // quitte la discographie d'un artiste
+                    // Quitte la discographie d'un artiste éventuel.
+                    _ytArtist = null;
+                    _bcArtist = null;
                   }),
                 ),
               ),
               // Quoi chercher : puces de type (dépend de la source). Masquées
               // en mode discographie d'un artiste (le type est alors imposé).
-              if (_ytArtist == null)
+              if (_ytArtist == null && _bcArtist == null)
                 SizedBox(
                   height: 42,
                   child: ListView(
@@ -329,6 +355,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               const SizedBox(height: 4),
               if (_source == _Source.library)
                 ..._localResults()
+              else if (_source == _Source.bandcamp)
+                ...(_bcArtist != null
+                    ? _bcArtistDiscography(_bcArtist!)
+                    : _bcResults(query.trim()))
               else if (_ytArtist != null)
                 ..._ytArtistDiscography(_ytArtist!)
               else
@@ -451,8 +481,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   /// permettant de revenir à la recherche.
   List<Widget> _ytArtistDiscography(YtArtist artist) {
     final albumsAsync = ref.watch(ytArtistDiscographyProvider(artist.browseId));
-    final header = _YtArtistHeader(
-      artist: artist,
+    final header = _ArtistHeader(
+      name: artist.name,
+      thumbnail: artist.thumbnail,
       onBack: () => setState(() => _ytArtist = null),
     );
     return albumsAsync.when(
@@ -559,8 +590,17 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     if (songs.isNotEmpty) {
       if (headers) rows.add(const _SectionHeader('Titres'));
       for (final s in songs) {
-        rows.add(_YtSongRow(
-          song: s,
+        rows.add(_PreviewSongRow(
+          previewId: s.videoId,
+          title: s.title,
+          subtitle: [
+            s.artist,
+            if (s.album.isNotEmpty) s.album,
+            if (s.duration.isNotEmpty) s.duration,
+          ].join(' · '),
+          thumbnail: s.thumbnail,
+          inLibrary: s.inLibrary,
+          onToggle: () => ref.read(previewPlayerProvider.notifier).toggle(s),
           onDownload: () => _confirmSongDownload(s),
         ));
       }
@@ -608,6 +648,298 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     }
     return rows;
   }
+
+  // ─────────────── Résultats « Bandcamp » (idée #110) ───────────────
+
+  /// Album (ou titre publié seul) Bandcamp : la sortie est d'abord résolue —
+  /// la recherche n'en donne ni l'année ni le nombre de pistes, et la
+  /// discographie d'un artiste pas même le lien.
+  Future<void> _confirmBandcampDownload(BcRelease release) async {
+    final messenger = ScaffoldMessenger.of(context);
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+    BcResolved resolved;
+    try {
+      resolved = await ref.read(bandcampRepositoryProvider).resolve(
+            bandId: release.bandId,
+            itemId: release.itemId,
+            itemType: release.itemType,
+            url: release.url,
+          );
+    } catch (e) {
+      // Le dialogue vit sur le navigateur RACINE (voir _confirmAlbumDownload).
+      if (mounted) Navigator.of(context, rootNavigator: true).pop();
+      messenger.showSnackBar(
+        SnackBar(content: Text("Impossible de lire cette sortie : $e")),
+      );
+      return;
+    }
+    // Un titre seul se juge sur son titre, un album sur son nom.
+    final duplicate = await ref
+        .read(ytDownloadsRepositoryProvider)
+        .checkDuplicate(
+          artist: resolved.artist,
+          album: resolved.albumName,
+          url: resolved.url,
+          title: resolved.isTrack ? resolved.title : '',
+        );
+    if (!mounted) return;
+    Navigator.of(context, rootNavigator: true).pop();
+
+    final ok = await showDownloadConfirm(
+      context,
+      title: resolved.title,
+      subtitle: resolved.artist,
+      details: [
+        if (resolved.year.isNotEmpty) resolved.year,
+        if (!resolved.isTrack)
+          '${resolved.trackCount} piste'
+              '${resolved.trackCount > 1 ? 's' : ''}',
+        'Bandcamp',
+      ].join(' · '),
+      body: resolved.isTrack
+          ? "Le serveur télécharge ce titre puis l'ajoute à la bibliothèque."
+          : "Le serveur télécharge cet album puis l'ajoute "
+              'à la bibliothèque.',
+      duplicate: duplicate,
+    );
+    if (!ok || !mounted) return;
+
+    try {
+      await ref.read(ytDownloadsRepositoryProvider).start(
+            url: resolved.url,
+            artistName: resolved.artist,
+            albumName: resolved.albumName,
+            title: resolved.isTrack ? resolved.title : '',
+            force: duplicate != null,
+          );
+      ref.invalidate(ytQueueProvider);
+      _notifyStarted(messenger, resolved.title);
+    } catch (e) {
+      messenger.showSnackBar(
+        SnackBar(content: Text('Échec du démarrage : $e')),
+      );
+    }
+  }
+
+  /// Titre Bandcamp trouvé seul : il porte déjà son lien et son album, rien
+  /// à résoudre avant de demander confirmation.
+  Future<void> _confirmBandcampSong(BcSong song) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final album = song.album.isEmpty ? 'Singles' : song.album;
+    final duplicate = await ref
+        .read(ytDownloadsRepositoryProvider)
+        .checkDuplicate(
+          artist: song.artist,
+          album: album,
+          url: song.url,
+          title: song.title,
+        );
+    if (!mounted) return;
+
+    final ok = await showDownloadConfirm(
+      context,
+      title: song.title,
+      subtitle: song.artist,
+      details: [
+        if (song.album.isNotEmpty) song.album,
+        'Bandcamp',
+      ].join(' · '),
+      body: "Le serveur télécharge ce titre puis l'ajoute "
+          'à la bibliothèque.',
+      duplicate: duplicate,
+    );
+    if (!ok || !mounted) return;
+
+    try {
+      await ref.read(ytDownloadsRepositoryProvider).start(
+            url: song.url,
+            artistName: song.artist,
+            albumName: album,
+            title: song.title,
+            force: duplicate != null,
+          );
+      ref.invalidate(ytQueueProvider);
+      _notifyStarted(messenger, song.title);
+    } catch (e) {
+      messenger.showSnackBar(
+        SnackBar(content: Text('Échec du démarrage : $e')),
+      );
+    }
+  }
+
+  /// Artiste Bandcamp tapé : ouvre SA discographie (via son bandId).
+  void _openBcArtist(BcArtist artist) {
+    _debounce?.cancel();
+    _controller.text = artist.name;
+    setState(() {
+      _source = _Source.bandcamp;
+      _kind = _Kind.albums;
+      _bcArtist = artist;
+    });
+  }
+
+  /// Discographie de l'artiste Bandcamp choisi, avec un en-tête permettant de
+  /// revenir à la recherche.
+  List<Widget> _bcArtistDiscography(BcArtist artist) {
+    final albumsAsync = ref.watch(bcArtistDiscographyProvider(artist.bandId));
+    final header = _ArtistHeader(
+      name: artist.name,
+      thumbnail: artist.thumbnail,
+      onBack: () => setState(() => _bcArtist = null),
+    );
+    return albumsAsync.when(
+      loading: () => [header, const _LoadingRow()],
+      error: (e, _) => [header, _MessageRow('Erreur : $e')],
+      data: (albums) {
+        if (albums.isEmpty) {
+          return [
+            header,
+            const _MessageRow('Aucune sortie trouvée pour cet artiste'),
+          ];
+        }
+        return [
+          header,
+          for (final a in albums) _bcReleaseRow(a, withArtist: false),
+        ];
+      },
+    );
+  }
+
+  List<Widget> _bcResults(String query) {
+    if (query.length < 2) {
+      return const [_MessageRow('Requête trop courte')];
+    }
+    final albumsAsync = ref.watch(bcAlbumSearchProvider(query));
+    final songsAsync = ref.watch(bcSongSearchProvider(query));
+    final artistsAsync = ref.watch(bcArtistSearchProvider(query));
+    final limit = ref.watch(searchBandcampLimitProvider);
+    final headers = _kind == _Kind.all;
+
+    // Valeurs déjà connues : conservées pendant un « Charger plus ».
+    final songs = _showSongs
+        ? (songsAsync.value ?? const <BcSong>[])
+        : const <BcSong>[];
+    final albums = _showAlbums
+        ? (albumsAsync.value ?? const <BcRelease>[])
+        : const <BcRelease>[];
+    final artists = _showArtists
+        ? (artistsAsync.value ?? const <BcArtist>[])
+        : const <BcArtist>[];
+
+    final loading = (_showSongs && songsAsync.isLoading) ||
+        (_showAlbums && albumsAsync.isLoading) ||
+        (_showArtists && artistsAsync.isLoading);
+    final hasAnyData = (_showSongs && songsAsync.hasValue) ||
+        (_showAlbums && albumsAsync.hasValue) ||
+        (_showArtists && artistsAsync.hasValue);
+
+    if (!hasAnyData && loading) {
+      return const [_LoadingRow()];
+    }
+
+    final rows = <Widget>[];
+
+    if (_showArtists && artistsAsync.hasError && artists.isEmpty) {
+      rows.add(_MessageRow('Artistes : erreur — ${artistsAsync.error}'));
+    }
+    if (_showSongs && songsAsync.hasError && songs.isEmpty) {
+      rows.add(_MessageRow('Titres : erreur — ${songsAsync.error}'));
+    }
+    if (_showAlbums && albumsAsync.hasError && albums.isEmpty) {
+      rows.add(_MessageRow('Albums : erreur — ${albumsAsync.error}'));
+    }
+
+    if (artists.isNotEmpty) {
+      if (headers) rows.add(const _SectionHeader('Artistes'));
+      for (final a in artists) {
+        rows.add(_ResultRow(
+          artwork: Artwork(
+            url: a.thumbnail.isEmpty ? null : a.thumbnail,
+            size: 46,
+            borderRadius: 23,
+            icon: Icons.person,
+          ),
+          title: a.name,
+          // Deux groupes du même nom se distinguent par leur ville : Bandcamp
+          // l'affiche partout, et c'est souvent le seul indice.
+          subtitle: [
+            a.isLabel ? 'Label' : 'Artiste',
+            if (a.location.isNotEmpty) a.location,
+          ].join(' · '),
+          trailing: const Icon(Icons.chevron_right, color: Color(0xFFB6BAC1)),
+          onTap: () => _openBcArtist(a),
+        ));
+      }
+    }
+
+    if (songs.isNotEmpty) {
+      if (headers) rows.add(const _SectionHeader('Titres'));
+      for (final s in songs) {
+        rows.add(_PreviewSongRow(
+          previewId: s.previewId,
+          title: s.title,
+          subtitle: [
+            s.artist,
+            if (s.album.isNotEmpty) s.album,
+          ].join(' · '),
+          thumbnail: s.thumbnail,
+          inLibrary: s.inLibrary,
+          onToggle: () =>
+              ref.read(previewPlayerProvider.notifier).toggleBandcamp(s),
+          onDownload: () => _confirmBandcampSong(s),
+        ));
+      }
+    }
+
+    if (albums.isNotEmpty) {
+      if (headers) rows.add(const _SectionHeader('Albums'));
+      for (final a in albums) {
+        rows.add(_bcReleaseRow(a));
+      }
+    }
+
+    if (rows.isEmpty && !loading) {
+      return const [_MessageRow('Aucun résultat sur Bandcamp')];
+    }
+
+    final canLoadMore = limit < 50 &&
+        ((_showSongs && songs.length >= limit) ||
+            (_showAlbums && albums.length >= limit) ||
+            (_showArtists && artists.length >= limit));
+    if (loading) {
+      rows.add(const _LoadingRow());
+    } else if (canLoadMore) {
+      rows.add(_LoadMoreButton(
+        onPressed: () =>
+            ref.read(searchBandcampLimitProvider.notifier).more(),
+      ));
+    }
+    return rows;
+  }
+
+  /// Rangée d'une sortie Bandcamp (album ou titre publié seul).
+  Widget _bcReleaseRow(BcRelease release, {bool withArtist = true}) =>
+      _ResultRow(
+        artwork: Artwork(
+          url: release.thumbnail.isEmpty ? null : release.thumbnail,
+          size: 46,
+          borderRadius: 12,
+        ),
+        title: release.title,
+        subtitle: [
+          if (withArtist && release.artist.isNotEmpty) release.artist,
+          if (release.year.isNotEmpty) release.year,
+          release.isTrack ? 'Titre' : 'Album',
+        ].join(' · '),
+        trailing: release.inLibrary
+            ? const InLibraryBadge()
+            : const Icon(Icons.download_outlined),
+        onTap: () => _confirmBandcampDownload(release),
+      );
 }
 
 /// Champ de recherche en verre (design) : radius 18, icône search,
@@ -740,42 +1072,52 @@ class _ResultRow extends StatelessWidget {
   }
 }
 
-/// Rangée d'un titre YouTube : pré-écoute avant téléchargement. Un tap sur la
-/// rangée (ou la pochette) lance / met en pause la pré-écoute; le bouton de
-/// droite lance le téléchargement. Le titre en cours affiche une barre de
-/// progression et une pochette « lecture / pause ».
+/// Rangée d'un titre trouvé en ligne (YouTube ou Bandcamp) : pré-écoute avant
+/// téléchargement. Un tap sur la rangée (ou la pochette) lance / met en pause
+/// la pré-écoute; le bouton de droite lance le téléchargement. Le titre en
+/// cours affiche une barre de progression et une pochette « lecture / pause ».
 ///
 /// La pré-écoute part dans le lecteur principal (idée #59) : le mini-lecteur
 /// s'ouvre dessus, la notification l'annonce et l'écran éteint ne la coupe plus.
 /// Ce qui s'affiche ici n'est que l'écho de ce que joue ce lecteur.
-class _YtSongRow extends ConsumerWidget {
-  const _YtSongRow({required this.song, required this.onDownload});
+class _PreviewSongRow extends ConsumerWidget {
+  const _PreviewSongRow({
+    required this.previewId,
+    required this.title,
+    required this.subtitle,
+    required this.thumbnail,
+    required this.inLibrary,
+    required this.onToggle,
+    required this.onDownload,
+  });
 
-  final YtSong song;
+  /// Identité du titre auprès du lecteur de pré-écoute (identifiant YouTube,
+  /// ou `bc:<id>` pour Bandcamp).
+  final String previewId;
+  final String title;
+  final String subtitle;
+  final String thumbnail;
+  final bool inLibrary;
+  final VoidCallback onToggle;
   final VoidCallback onDownload;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final scheme = Theme.of(context).colorScheme;
     final preview = ref.watch(previewPlayerProvider);
-    final active = preview.isActive(song.videoId);
-    final subtitle = [
-      song.artist,
-      if (song.album.isNotEmpty) song.album,
-      if (song.duration.isNotEmpty) song.duration,
-    ].join(' · ');
+    final active = preview.isActive(previewId);
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 1),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
-        onTap: () => ref.read(previewPlayerProvider.notifier).toggle(song),
+        onTap: onToggle,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
           child: Row(
             children: [
               _PreviewArtwork(
-                url: song.thumbnail.isEmpty ? null : song.thumbnail,
+                url: thumbnail.isEmpty ? null : thumbnail,
                 active: active,
                 playing: active && preview.playing,
                 loading: active && preview.loading,
@@ -786,7 +1128,7 @@ class _YtSongRow extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      song.title,
+                      title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
@@ -811,7 +1153,7 @@ class _YtSongRow extends ConsumerWidget {
                 ),
               ),
               const SizedBox(width: 4),
-              if (song.inLibrary) const InLibraryBadge(),
+              if (inLibrary) const InLibraryBadge(),
               IconButton(
                 tooltip: 'Télécharger',
                 icon: const Icon(Icons.download_outlined),
@@ -1027,12 +1369,17 @@ class _NewReleasesSection extends ConsumerWidget {
   }
 }
 
-/// En-tête de la discographie d'un artiste YouTube : sa photo, son nom, et
+/// En-tête de la discographie d'un artiste en ligne : sa photo, son nom, et
 /// une flèche pour revenir aux résultats de recherche.
-class _YtArtistHeader extends StatelessWidget {
-  const _YtArtistHeader({required this.artist, required this.onBack});
+class _ArtistHeader extends StatelessWidget {
+  const _ArtistHeader({
+    required this.name,
+    required this.thumbnail,
+    required this.onBack,
+  });
 
-  final YtArtist artist;
+  final String name;
+  final String thumbnail;
   final VoidCallback onBack;
 
   @override
@@ -1049,7 +1396,7 @@ class _YtArtistHeader extends StatelessWidget {
           ),
           const SizedBox(width: 4),
           Artwork(
-            url: artist.thumbnail.isEmpty ? null : artist.thumbnail,
+            url: thumbnail.isEmpty ? null : thumbnail,
             size: 46,
             borderRadius: 23,
             icon: Icons.person,
@@ -1060,7 +1407,7 @@ class _YtArtistHeader extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  artist.name,
+                  name,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(

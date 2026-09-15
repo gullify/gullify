@@ -1,14 +1,17 @@
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../api/bandcamp_repository.dart';
 import '../api/yt_downloads_repository.dart';
 import '../audio/audio_handler.dart';
+import 'bandcamp.dart';
 import 'player.dart';
 import 'yt_downloads.dart';
 
-/// État de la pré-écoute d'une chanson YouTube (avant téléchargement), tel que
+/// État de la pré-écoute d'une chanson (avant téléchargement), tel que
 /// l'affiche la rangée de la recherche. Ce n'est plus qu'une lecture du lecteur
-/// principal : [videoId] est le titre YouTube qu'il joue, s'il en joue un.
+/// principal : [videoId] identifie le titre qu'il joue, s'il en joue un — un
+/// identifiant YouTube, ou `bc:<id>` pour un titre Bandcamp (idée #110).
 class PreviewState {
   const PreviewState({
     this.videoId,
@@ -104,12 +107,44 @@ class PreviewPlayer extends Notifier<PreviewState> {
   }
 
   /// Bascule la pré-écoute du [song] : lance / met en pause / reprend.
-  Future<void> toggle(YtSong song) async {
-    if (song.videoId.isEmpty) return;
+  Future<void> toggle(YtSong song) {
+    if (song.videoId.isEmpty) return Future.value();
+    return _toggle(
+      id: song.videoId,
+      url: ref.read(ytDownloadsRepositoryProvider).previewUrl(song.videoId),
+      title: song.title,
+      artist: song.artist,
+      artwork: song.thumbnail.isEmpty ? null : song.thumbnail,
+      source: 'YouTube',
+    );
+  }
+
+  /// Idem pour un titre trouvé sur Bandcamp : même lecteur, même rangée, seul
+  /// le flux proxifié par le serveur change.
+  Future<void> toggleBandcamp(BcSong song) {
+    if (song.trackId <= 0) return Future.value();
+    return _toggle(
+      id: song.previewId,
+      url: ref.read(bandcampRepositoryProvider).previewUrl(song),
+      title: song.title,
+      artist: song.artist,
+      artwork: song.thumbnail.isEmpty ? null : song.thumbnail,
+      source: 'Bandcamp',
+    );
+  }
+
+  Future<void> _toggle({
+    required String id,
+    required String url,
+    required String title,
+    required String artist,
+    required String source,
+    String? artwork,
+  }) async {
     final handler = ref.read(audioHandlerProvider);
 
     // Même titre, toujours chargé : simple pause / reprise du lecteur principal.
-    if (state.videoId == song.videoId && !state.error && _held) {
+    if (state.videoId == id && !state.error && _held) {
       if (state.playing) {
         await handler.pause();
       } else {
@@ -121,16 +156,17 @@ class PreviewPlayer extends Notifier<PreviewState> {
     _failed = null;
     try {
       await handler.playPreview(
-        videoId: song.videoId,
-        url: ref.read(ytDownloadsRepositoryProvider).previewUrl(song.videoId),
-        title: song.title,
-        artist: song.artist,
-        artwork: song.thumbnail.isEmpty ? null : song.thumbnail,
+        videoId: id,
+        url: url,
+        title: title,
+        artist: artist,
+        artwork: artwork,
+        source: source,
       );
     } catch (_) {
-      _failed = song.videoId;
+      _failed = id;
       state = state.copyWith(
-        videoId: song.videoId,
+        videoId: id,
         playing: false,
         loading: false,
         error: true,

@@ -8,8 +8,9 @@ import '../state/yt_downloads.dart';
 import '../widgets/artwork.dart';
 import '../widgets/download_confirm.dart';
 
-/// Ajout de musique depuis YouTube Music : recherche d'albums +
-/// suivi de la file de téléchargement du serveur (yt-dlp).
+/// Ajout de musique depuis YouTube Music : recherche d'albums, lien collé
+/// (YouTube ou Bandcamp) + suivi de la file de téléchargement du serveur
+/// (yt-dlp). La recherche Bandcamp, elle, vit dans l'onglet Recherche.
 class YtDownloadsScreen extends ConsumerStatefulWidget {
   const YtDownloadsScreen({super.key});
 
@@ -158,11 +159,14 @@ class _YtDownloadsScreenState extends ConsumerState<YtDownloadsScreen>
   }
 }
 
-/// Vrai si [s] ressemble à un lien YouTube / YouTube Music collé.
-bool _looksLikeYtUrl(String s) {
+/// Vrai si [s] ressemble à un lien que le serveur sait télécharger : YouTube
+/// (Music compris) ou Bandcamp (idée #110).
+bool _looksLikeDownloadUrl(String s) {
   final t = s.trim();
   return t.startsWith('http') &&
-      (t.contains('youtube.com') || t.contains('youtu.be'));
+      (t.contains('youtube.com') ||
+          t.contains('youtu.be') ||
+          t.contains('bandcamp.com'));
 }
 
 class _SearchTab extends ConsumerWidget {
@@ -179,7 +183,7 @@ class _SearchTab extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final query = ref.watch(ytSearchQueryProvider);
-    final isLink = _looksLikeYtUrl(query);
+    final isLink = _looksLikeDownloadUrl(query);
 
     return Column(
       children: [
@@ -189,7 +193,7 @@ class _SearchTab extends ConsumerWidget {
             onChanged: onChanged,
             keyboardType: TextInputType.url,
             decoration: const InputDecoration(
-              hintText: 'Artiste, album ou lien YouTube…',
+              hintText: 'Artiste, album ou lien YouTube / Bandcamp…',
               prefixIcon: Icon(Icons.search),
               border: OutlineInputBorder(),
             ),
@@ -202,7 +206,7 @@ class _SearchTab extends ConsumerWidget {
                   ? const Center(
                       child: Text(
                         'Recherchez un album sur YouTube Music,\n'
-                        'ou collez un lien YouTube',
+                        'ou collez un lien YouTube ou Bandcamp',
                         textAlign: TextAlign.center,
                       ),
                     )

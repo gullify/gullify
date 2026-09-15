@@ -8,6 +8,22 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.58.0', [
+    'Bandcamp rejoint YouTube comme source de musique. Dans la recherche, un '
+        'troisième bouton : « Bandcamp ». On y cherche des artistes, des '
+        'albums et des titres, on les écoute avant, et on les télécharge dans '
+        'la bibliothèque — même file d\'attente, même fenêtre de '
+        'confirmation, même avertissement quand on possède déjà l\'album',
+    'Taper un artiste Bandcamp ouvre sa discographie complète, la ville '
+        'd\'origine sous son nom : de quoi distinguer deux groupes qui '
+        'portent le même',
+    'Un lien Bandcamp collé dans « Ajouter de la musique » se télécharge '
+        'comme un lien YouTube. L\'artiste, l\'album et l\'année sont lus '
+        'sur la page, sans attendre',
+    'Les mots-clés de vente d\'une page Bandcamp ne deviennent plus le genre '
+        'de l\'artiste : un disque post-rock montréalais n\'atterrit plus '
+        'en « Kannada Devotional »',
+  ]),
   ReleaseNote('3.57.0', [
     'Tablette et grand écran — l\'app se réorganise au lieu de s\'étirer. La '
         'navigation passe sur le côté : un rail d\'icônes sur tablette, une '

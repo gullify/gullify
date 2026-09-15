@@ -6,6 +6,7 @@
  */
 
 require_once __DIR__ . '/../../src/AppConfig.php';
+require_once __DIR__ . '/../../src/Bandcamp.php';
 
 header('Content-Type: application/json');
 
@@ -413,6 +414,23 @@ function duplicateMessage(array $dup) {
 }
 
 function extractMetadata($url) {
+    // Bandcamp nomme lui-même ses sorties, et d'une seule requête : inutile
+    // de faire tourner yt-dlp vingt secondes pour le lui demander.
+    if (Bandcamp::isUrl($url)) {
+        $release = Bandcamp::resolveUrl($url);
+        if ($release && $release['artist'] !== '') {
+            $album = $release['album'] !== ''
+                ? $release['album']
+                : ($release['is_track'] ? 'Singles' : $release['title']);
+            return [
+                'artist' => sanitizeForPath($release['artist']),
+                'album'  => sanitizeForPath($album),
+            ];
+        }
+        // Page illisible (discographie complète, artiste seul) : yt-dlp saura
+        // peut-être encore en tirer quelque chose.
+    }
+
     $command = 'timeout 20 yt-dlp --print "%(uploader)s|%(playlist_title)s|%(title)s" --no-download ' . escapeshellarg($url) . ' 2>/dev/null | head -1';
     $result = shell_exec($command);
 
@@ -863,6 +881,100 @@ try {
                     'thumbnail' => $album['thumbnail'] ?? '',
                 ]
             ]);
+            break;
+
+        // ── Bandcamp (idée #110) ────────────────────────────────────────
+        // Même écran, même file : ce qui change est la source consultée.
+        // Les URLs rendues partent telles quelles dans `start`, yt-dlp
+        // sachant lire Bandcamp comme YouTube.
+
+        case 'search_bandcamp':
+            $query = trim($_GET['query'] ?? '');
+            if (!$query) {
+                echo json_encode(['success' => false, 'error' => 'query required']);
+                break;
+            }
+            $limit = (int)($_GET['limit'] ?? 10);
+            if ($limit < 1)  { $limit = 10; }
+            if ($limit > 50) { $limit = 50; }
+            $user = $_GET['user'] ?? '';
+            $type = $_GET['type'] ?? 'albums';
+
+            if ($type === 'artists') {
+                $payload = ['artists' => Bandcamp::searchArtists($query, $limit)];
+            } elseif ($type === 'songs') {
+                $payload = [
+                    'songs' => markSongsInLibrary($user, Bandcamp::searchSongs($query, $limit)),
+                ];
+            } else {
+                $payload = [
+                    'albums' => markAlbumsInLibrary($user, Bandcamp::searchAlbums($query, $limit)),
+                ];
+            }
+            echo json_encode(['success' => true, 'data' => $payload], JSON_UNESCAPED_UNICODE);
+            break;
+
+        case 'bandcamp_artist_albums':
+            // Discographie d'un artiste Bandcamp (albums et titres isolés).
+            $bandId = (int)($_GET['band_id'] ?? 0);
+            if ($bandId <= 0) {
+                echo json_encode(['success' => false, 'error' => 'band_id required']);
+                break;
+            }
+            $limit = (int)($_GET['limit'] ?? 50);
+            if ($limit < 1)   { $limit = 50; }
+            if ($limit > 100) { $limit = 100; }
+            echo json_encode([
+                'success' => true,
+                'data' => [
+                    'albums' => markAlbumsInLibrary(
+                        $_GET['user'] ?? '',
+                        Bandcamp::artistAlbums($bandId, $limit)
+                    ),
+                ],
+            ], JSON_UNESCAPED_UNICODE);
+            break;
+
+        case 'resolve_bandcamp':
+            // Métadonnées d'une sortie avant de la mettre en file : par ses
+            // identifiants (recherche, discographie) ou par un lien collé.
+            $url    = trim($_GET['url'] ?? $_POST['url'] ?? '');
+            $bandId = (int)($_GET['band_id'] ?? 0);
+            $itemId = (int)($_GET['item_id'] ?? 0);
+            $type   = ($_GET['item_type'] ?? 'a') === 't' ? 't' : 'a';
+
+            $release = ($bandId > 0 && $itemId > 0)
+                ? Bandcamp::resolve($bandId, $itemId, $type)
+                : ($url !== '' ? Bandcamp::resolveUrl($url) : null);
+
+            if (!$release) {
+                echo json_encode([
+                    'success' => false,
+                    'error' => 'Impossible de lire cette page Bandcamp',
+                ], JSON_UNESCAPED_UNICODE);
+                break;
+            }
+            echo json_encode(['success' => true, 'data' => $release], JSON_UNESCAPED_UNICODE);
+            break;
+
+        case 'bandcamp_preview':
+            // Pré-écoute d'un titre Bandcamp : son flux est signé et daté,
+            // on le proxifie sans jamais le rendre au téléphone (comme
+            // l'action `preview` de YouTube). Réponse binaire.
+            $bandId  = (int)($_GET['band_id'] ?? 0);
+            $trackId = (int)($_GET['track_id'] ?? 0);
+            if ($bandId <= 0 || $trackId <= 0) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'band_id and track_id required']);
+                break;
+            }
+            $direct = Bandcamp::streamUrl($bandId, $trackId);
+            if (!$direct) {
+                http_response_code(502);
+                echo json_encode(['success' => false, 'error' => 'Failed to resolve preview']);
+                break;
+            }
+            streamPreview($direct);
             break;
 
         case 'status':
