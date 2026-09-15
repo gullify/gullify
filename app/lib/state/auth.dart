@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
@@ -61,8 +62,21 @@ class AuthController extends Notifier<AuthState> {
     }
 
     if (serverUrl == null || serverUrl.isEmpty) {
-      state = const AuthState(status: AuthStatus.needsServer);
-      return;
+      // Sur le web, l'app est servie PAR le serveur : son adresse est celle
+      // de la page. Demander de la taper n'aurait aucun sens — et c'est la
+      // seule étape qui distinguerait la version web de l'APK.
+      if (kIsWeb) {
+        serverUrl = Uri.base.origin;
+        try {
+          await _storage.write(key: _kServerUrl, value: serverUrl);
+        } catch (_) {
+          // Le stockage peut être refusé (navigation privée) : l'adresse se
+          // redéduit de la page au prochain démarrage, ce n'est pas bloquant.
+        }
+      } else {
+        state = const AuthState(status: AuthStatus.needsServer);
+        return;
+      }
     }
     if (token == null || token.isEmpty) {
       state = AuthState(status: AuthStatus.needsLogin, serverUrl: serverUrl);

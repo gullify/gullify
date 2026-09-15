@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -96,7 +97,9 @@ class AppUpdateNotifier extends Notifier<AppUpdateState> {
   /// [silent] : en cas d'échec réseau (démarrage sans connexion, serveur de
   /// download injoignable), retombe sur idle sans afficher d'erreur.
   Future<void> check({bool silent = false}) async {
-    if (!Platform.isAndroid) return;
+    // Sur le web, `Platform` lève — et de toute façon une page se met à jour
+    // en se rechargeant : il n'y a pas d'APK à aller chercher.
+    if (kIsWeb || !Platform.isAndroid) return;
     final info = await PackageInfo.fromPlatform();
     final current = int.tryParse(info.buildNumber) ?? 0;
     state = state.copyWith(

@@ -38,6 +38,13 @@ RUN sed -i 's|/var/www/html|/app/public|g' /etc/apache2/sites-available/000-defa
     && printf '<Directory /app/public>\n  AllowOverride All\n  Require all granted\n</Directory>\n' \
     >> /etc/apache2/apache2.conf
 
+# mod_headers : les règles de cache de l'app web (voir public/.htaccess).
+# Activé ICI, après le COPY, et non avec rewrite plus haut : le poser là-haut
+# invaliderait le cache de toutes les couches suivantes, et chaque build
+# retéléchargerait les dépendances (yt-dlp, ytmusicapi…) en changeant leurs
+# versions au passage.
+RUN a2enmod headers
+
 # php.ini overrides
 RUN printf "upload_max_filesize=50M\npost_max_size=50M\nmemory_limit=256M\nmax_execution_time=3600\n" \
     > /usr/local/etc/php/conf.d/gullify.ini

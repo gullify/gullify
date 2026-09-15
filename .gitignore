@@ -30,3 +30,6 @@ public/download/version.json
 # Python bytecode
 __pycache__/
 *.pyc
+
+# Construction Flutter web (produite par build-web.sh)
+public/app/

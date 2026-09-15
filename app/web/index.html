@@ -1,46 +1,59 @@
 <!DOCTYPE html>
-<html>
+<html lang="fr">
 <head>
-  <!--
-    If you are serving your web app in a path other than the root, change the
-    href value below to reflect the base path you are serving from.
-
-    The path provided below has to start and end with a slash "/" in order for
-    it to work correctly.
-
-    For more details:
-    * https://developer.mozilla.org/en-US/docs/Web/HTML/Element/base
-
-    This is a placeholder for base href that will be replaced by the value of
-    the `--base-href` argument provided to `flutter build`.
-  -->
+  <!-- Remplacé par --base-href au moment de la construction. -->
   <base href="$FLUTTER_BASE_HREF">
 
   <meta charset="UTF-8">
-  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="A new Flutter project.">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="description" content="Votre musique, partout.">
 
-  <!-- iOS meta tags & icons -->
+  <!-- Installation en app : iOS lit ces balises, pas le manifeste. -->
   <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="gullify">
-  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Gullify">
+  <link rel="apple-touch-icon" sizes="192x192" href="icons/Icon-192.png">
+  <link rel="apple-touch-icon" sizes="152x152" href="icons/Icon-152.png">
 
-  <!-- Favicon -->
-  <link rel="icon" type="image/png" href="favicon.png"/>
+  <!-- La couleur de la barre système, une fois installée. -->
+  <meta name="theme-color" content="#14161C">
 
-  <title>gullify</title>
+  <!-- Windows se sert du .ico pour le raccourci, et des PNG pour l'onglet.
+       Une seule icône de 16 px donnait une bouillie agrandie dans la barre
+       des tâches. -->
+  <link rel="icon" href="favicon.ico" sizes="any">
+  <link rel="icon" type="image/png" sizes="32x32" href="icons/Icon-32.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/Icon-192.png">
+  <link rel="icon" type="image/png" sizes="512x512" href="icons/Icon-512.png">
+
+  <title>Gullify</title>
   <link rel="manifest" href="manifest.json">
+
+  <style>
+    /* Le fond de la page pendant que Flutter se charge : sans lui, un éclair
+       blanc au lancement, particulièrement visible en app installée. */
+    html, body { margin: 0; padding: 0; height: 100%; background: #14161C; }
+    #gullify-boot {
+      position: fixed; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      background: #14161C;
+      transition: opacity .3s ease;
+    }
+    #gullify-boot img { width: 96px; height: 96px; }
+    #gullify-boot.done { opacity: 0; pointer-events: none; }
+  </style>
 </head>
 <body>
-  <!--
-    You can customize the "flutter_bootstrap.js" script.
-    This is useful to provide a custom configuration to the Flutter loader
-    or to give the user feedback during the initialization process.
-
-    For more details:
-    * https://docs.flutter.dev/platform-integration/web/initialization
-  -->
+  <div id="gullify-boot"><img src="icons/Icon-192.png" alt="Gullify"></div>
+  <script>
+    // Flutter prévient quand la première image est peinte : on retire l'écran
+    // d'attente à ce moment-là, pas avant.
+    window.addEventListener('flutter-first-frame', function () {
+      var boot = document.getElementById('gullify-boot');
+      if (boot) { boot.classList.add('done'); setTimeout(function () { boot.remove(); }, 300); }
+    });
+  </script>
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

@@ -6,3 +6,25 @@
 # certains clients refusent de suivre.
 RewriteEngine On
 RewriteRule ^tv$ tv.php [L]
+
+# L'app web (/app/) : toujours demander au serveur si un fichier a changé.
+#
+# Sans directive, le navigateur DEVINE combien de temps garder un fichier —
+# environ 10 % de son âge — et une app installée resservait l'ancienne version
+# des heures après un déploiement, rafraîchissement compris. Flutter ne met
+# pas de version dans le nom de ses fichiers (main.dart.js reste main.dart.js).
+#
+# « no-cache » ne veut pas dire « ne rien garder » : le navigateur garde ses
+# copies, mais les revalide à chaque ouverture. Rien n'a changé ? Le serveur
+# répond « 304 », sans renvoyer un octet.
+#
+# Pas d'ETag ici, volontairement : quand Apache compresse, il suffixe l'ETag
+# de « -gzip », puis ne reconnaît plus ce même ETag quand le navigateur le lui
+# renvoie — chaque ouverture retéléchargeait 1,4 Mo. La revalidation passe
+# donc par la date de modification, que chaque construction renouvelle.
+<If "%{REQUEST_URI} =~ m#^/app/#">
+  FileETag None
+  <IfModule mod_headers.c>
+    Header set Cache-Control "no-cache"
+  </IfModule>
+</If>

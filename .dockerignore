@@ -11,3 +11,13 @@ node_modules/
 data/cache/*
 data/logs/*
 data/downloads/*
+
+# Artefacts de construction Flutter : l'image n'en a aucun besoin — le serveur
+# PHP sert `public/app/`, qui est la SORTIE de la construction web, pas ses
+# intermédiaires. Sans ces lignes, chaque `docker compose build` recopiait plus
+# d'un gigaoctet et gonflait le cache de build d'autant.
+app/build/
+app/.dart_tool/
+app/android/
+app/ios/
+app/test/
