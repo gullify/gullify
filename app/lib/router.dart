@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'screens/admin/user_edit_screen.dart';
 import 'screens/admin/users_screen.dart';
 import 'screens/aa_diagnostic_screen.dart';
+import 'screens/bandcamp_discover_screen.dart';
 import 'screens/playback_diagnostic_screen.dart';
 import 'screens/alarm_ring_screen.dart';
 import 'screens/alarm_screen.dart';
@@ -44,6 +45,7 @@ import 'screens/settings_screen.dart';
 import 'screens/shell_screen.dart';
 import 'screens/splash_screen.dart';
 import 'screens/stats_screen.dart';
+import 'screens/tv/tv_bandcamp.dart';
 import 'screens/tv/tv_kit.dart';
 import 'screens/tv/tv_collection_screens.dart';
 import 'screens/tv/tv_connect_screens.dart';
@@ -241,6 +243,26 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(path: '/stats', builder: (_, _) => const StatsScreen()),
       GoRoute(path: '/popular', builder: (_, _) => const PopularScreen()),
+      // « Découvrir sur Bandcamp » (idée #111) : genres → sous-genres → liste.
+      GoRoute(
+        path: '/bandcamp',
+        builder: (_, _) => const BandcampGenresScreen(),
+      ),
+      GoRoute(
+        path: '/bandcamp/:genre',
+        builder: (_, state) =>
+            BandcampGenreScreen(genre: state.pathParameters['genre']!),
+      ),
+      GoRoute(
+        path: '/bandcamp/:genre/:sub',
+        builder: (_, state) {
+          final sub = state.pathParameters['sub']!;
+          return BandcampPlaylistScreen(
+            genre: state.pathParameters['genre']!,
+            subgenre: sub == kBcWholeGenre ? '' : sub,
+          );
+        },
+      ),
       GoRoute(
         path: '/radio/edit',
         builder: (_, state) =>
@@ -323,6 +345,21 @@ final routerProvider = Provider<GoRouter>((ref) {
           child: TvPlaylistScreen(
             id: int.parse(state.pathParameters['id']!),
             name: state.uri.queryParameters['name'] ?? 'Playlist',
+          ),
+        ),
+      ),
+      GoRoute(
+        path: '/tv/bandcamp/:genre',
+        builder: (_, state) => TvCanvas(
+          child: TvBandcampGenreScreen(genre: state.pathParameters['genre']!),
+        ),
+      ),
+      GoRoute(
+        path: '/tv/bandcamp/:genre/:sub',
+        builder: (_, state) => TvCanvas(
+          child: TvBandcampSubgenreScreen(
+            genre: state.pathParameters['genre']!,
+            subgenre: state.pathParameters['sub']!,
           ),
         ),
       ),

@@ -5,6 +5,7 @@ import 'package:audio_session/audio_session.dart';
 import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
 
+import '../api/bandcamp_repository.dart';
 import '../api/library_repository.dart';
 import '../api/playlist_repository.dart';
 import '../api/radio_repository.dart';
@@ -63,6 +64,10 @@ class _KeptShuffleOrder extends DefaultShuffleOrder {
 /// titre dans ce que joue le lecteur principal.
 const kPreviewVideoId = 'previewVideoId';
 
+/// Marque, dans les extras d'une fiche, un titre venu de « Découvrir sur
+/// Bandcamp » (idée #111) : `bc:<id du titre>`.
+const kBandcampTrack = 'bandcampTrack';
+
 /// Media IDs used for the Android Auto / media browser tree.
 class BrowseIds {
   static const root = AudioService.browsableRootId;
@@ -87,6 +92,10 @@ class BrowseIds {
   static const playlists = 'PLAYLISTS';
   static const genres = 'GENRES';
   static const downloads = 'DOWNLOADS';
+
+  /// « Découvrir sur Bandcamp » (idée #111) : genres, puis sous-genres, puis
+  /// nouveautés / aléatoire / populaires.
+  static const bandcamp = 'BANDCAMP';
   /// Item « Réessayer » proposé quand une catégorie n'a pas pu se charger.
   static String retry(String parentId) => 'RETRY_$parentId';
   static String album(int id) => 'ALBUM_$id';
@@ -94,6 +103,18 @@ class BrowseIds {
   static String playlist(int id) => 'PLAYLIST_$id';
   static String genre(String name) => 'GENRE_$name';
   static String radio(String id) => 'RADIO_$id';
+
+  /// Un genre Bandcamp : de quoi le lancer tout entier, et ses sous-genres.
+  static String bcGenre(String genre) => 'BC_GENRE_$genre';
+
+  /// Un sous-genre Bandcamp : ses trois façons de l'écouter.
+  static String bcSubgenre(String genre, String subgenre) =>
+      'BC_SUB_$genre/$subgenre';
+
+  /// Une liste de lecture Bandcamp à lancer. [subgenre] vide = tout le genre.
+  /// Les noms de tag Bandcamp n'ont ni « / » ni « _ » : le découpage est sûr.
+  static String bcPlay(String genre, String subgenre, BcSlice slice) =>
+      'BC_PLAY_$genre/$subgenre/${slice.param}';
 }
 
 class GullifyAudioHandler extends BaseAudioHandler
@@ -268,6 +289,11 @@ class GullifyAudioHandler extends BaseAudioHandler
 
   /// Set after login — playlists pour Android Auto.
   PlaylistRepository? playlistRepository;
+
+  /// Set after login — « Découvrir sur Bandcamp » dans Android Auto
+  /// (idée #111).
+  BandcampRepository? bandcampRepository;
+  List<BcGenre>? _bcGenresCache;
   final _playlistSongsCache = <int, List<Song>>{};
 
   /// Derniers résultats de recherche AA (pour lecture au tap d'un résultat).
@@ -909,6 +935,43 @@ class GullifyAudioHandler extends BaseAudioHandler
     await _player.setAudioSources([AudioSource.uri(Uri.parse(url))]);
     await play();
   }
+
+  /// Joue une liste de lecture tirée d'un genre Bandcamp (idée #111), à
+  /// partir de [startIndex].
+  ///
+  /// Contrairement à une pré-écoute, c'est une vraie file : suivant,
+  /// précédent, aléatoire et fondu enchaîné s'y appliquent comme ailleurs.
+  /// Chaque titre joue par le proxy du serveur — l'URL signée de Bandcamp
+  /// expire, celle du proxy non, la file peut donc attendre des heures.
+  /// Les titres n'ont pas de `songId` : rien ici ne compte comme une écoute
+  /// de la bibliothèque, ni ne se propose à la reprise Android Auto.
+  Future<void> playBandcamp(
+    List<BcTrack> tracks, {
+    int startIndex = 0,
+    BandcampRepository? repo,
+  }) async {
+    final bandcamp = repo ?? bandcampRepository;
+    if (bandcamp == null || tracks.isEmpty) return;
+    await restoreQueue(
+      [for (final t in tracks) bandcampMediaItem(t, bandcamp.trackUrl(t))],
+      index: startIndex,
+    );
+  }
+
+  /// La fiche d'un titre Bandcamp dans la file.
+  @visibleForTesting
+  MediaItem bandcampMediaItem(BcTrack t, String url) => MediaItem(
+        id: url,
+        title: t.title,
+        artist: t.artist,
+        album: t.album.isEmpty ? 'Bandcamp' : t.album,
+        duration: t.duration > 0 ? Duration(seconds: t.duration) : null,
+        artUri: _artUri(t.thumbnail.isEmpty ? null : t.thumbnail),
+        extras: {
+          kBandcampTrack: t.previewId,
+          'bcUrl': t.url,
+        },
+      );
 
   // ── Le réveil matinal (idée #81) ───────────────────────────────────────────
 
@@ -2064,6 +2127,8 @@ class GullifyAudioHandler extends BaseAudioHandler
               playable: false),
           MediaItem(id: BrowseIds.recentPlays, title: 'Derniers joués',
               playable: false),
+          MediaItem(id: BrowseIds.bandcamp, title: 'Découvrir sur Bandcamp',
+              playable: false),
         ];
 
       // ── Onglet Bibliothèque ──
@@ -2224,6 +2289,9 @@ class GullifyAudioHandler extends BaseAudioHandler
         ];
     }
 
+    final bandcamp = await _bandcampCategory(parentMediaId);
+    if (bandcamp != null) return bandcamp;
+
     if (parentMediaId.startsWith('ALBUM_')) {
       final id = int.parse(parentMediaId.substring('ALBUM_'.length));
       final detail = await repo.albumDetail(id);
@@ -2303,6 +2371,104 @@ class GullifyAudioHandler extends BaseAudioHandler
     }
 
     return [];
+  }
+
+  /// « Découvrir sur Bandcamp » (idée #111), null si [parentMediaId] n'en
+  /// relève pas.
+  ///
+  /// Au volant, chaque cran compte : un genre propose donc tout de suite de
+  /// quoi le lancer entier, avant la liste de ses sous-genres, et un
+  /// sous-genre n'a plus que ses trois façons de s'écouter.
+  Future<List<MediaItem>?> _bandcampCategory(String parentMediaId) async {
+    final isRoot = parentMediaId == BrowseIds.bandcamp;
+    final isGenre = parentMediaId.startsWith('BC_GENRE_');
+    final isSub = parentMediaId.startsWith('BC_SUB_');
+    if (!isRoot && !isGenre && !isSub) return null;
+
+    final bandcamp = bandcampRepository;
+    if (bandcamp == null) throw StateError('bandcamp non lié');
+
+    if (isSub) {
+      final rest = parentMediaId.substring('BC_SUB_'.length);
+      final cut = rest.indexOf('/');
+      if (cut <= 0) return const [];
+      final genre = rest.substring(0, cut);
+      final sub = rest.substring(cut + 1);
+      final label = _bcSubgenreName(genre, sub);
+      return [
+        for (final slice in BcSlice.values)
+          MediaItem(
+            id: BrowseIds.bcPlay(genre, sub, slice),
+            title: '${slice.label} — $label',
+            artist: slice.hint,
+            playable: true,
+          ),
+      ];
+    }
+
+    final genres = _bcGenresCache ??= await bandcamp.genres();
+    if (isRoot) {
+      return [
+        for (final g in genres)
+          MediaItem(
+            id: BrowseIds.bcGenre(g.slug),
+            title: g.name,
+            playable: false,
+          ),
+      ];
+    }
+
+    final slug = parentMediaId.substring('BC_GENRE_'.length);
+    final genre = genres.where((g) => g.slug == slug).firstOrNull;
+    final name = genre?.name ?? slug;
+    return [
+      // Tout le genre d'un coup : les nouveautés, puis au hasard.
+      for (final slice in [BcSlice.fresh, BcSlice.random])
+        MediaItem(
+          id: BrowseIds.bcPlay(slug, '', slice),
+          title: '${slice.label} — tout $name',
+          artist: slice.hint,
+          playable: true,
+        ),
+      for (final sub in genre?.subgenres ?? const <BcGenre>[])
+        MediaItem(
+          id: BrowseIds.bcSubgenre(slug, sub.slug),
+          title: sub.name,
+          playable: false,
+        ),
+    ];
+  }
+
+  /// Le nom affiché d'un sous-genre Bandcamp (son tag, à défaut).
+  String _bcSubgenreName(String genre, String sub) {
+    final g = _bcGenresCache?.where((g) => g.slug == genre).firstOrNull;
+    return g?.subgenres.where((s) => s.slug == sub).firstOrNull?.name ?? sub;
+  }
+
+  /// Lance une liste Bandcamp depuis Android Auto (`BC_PLAY_…`).
+  Future<void> _playBandcampFromId(String mediaId) async {
+    final parts = mediaId.substring('BC_PLAY_'.length).split('/');
+    final bandcamp = bandcampRepository;
+    if (parts.length != 3 || parts[0].isEmpty || bandcamp == null) {
+      logAA('→ liste Bandcamp illisible ou non liée');
+      playbackState.add(playbackState.value.copyWith(
+        processingState: AudioProcessingState.idle,
+      ));
+      return;
+    }
+    final page = await bandcamp.discover(
+      genre: parts[0],
+      subgenre: parts[1],
+      slice: BcSlice.fromParam(parts[2]),
+    );
+    logAA('Bandcamp ${parts.join(' / ')} : ${page.tracks.length} titres');
+    if (page.tracks.isEmpty) {
+      playbackState.add(playbackState.value.copyWith(
+        processingState: AudioProcessingState.idle,
+      ));
+      return;
+    }
+    await playBandcamp(page.tracks, repo: bandcamp);
   }
 
   /// Toutes les chansons d'un artiste, dans l'ordre des albums.
@@ -2620,6 +2786,11 @@ class GullifyAudioHandler extends BaseAudioHandler
         if (s != null) {
           await playRadio(url: s.streamUrl, title: s.name, logo: s.logo);
         }
+        return;
+      }
+
+      if (mediaId.startsWith('BC_PLAY_')) {
+        await _playBandcampFromId(mediaId);
         return;
       }
 

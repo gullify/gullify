@@ -8,6 +8,21 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.59.0', [
+    'Découvrir sur Bandcamp : une nouvelle entrée sur l\'accueil. On choisit '
+        'un genre, puis un sous-genre (ou tout le genre), puis ses '
+        'nouveautés, un tirage au hasard ou ses meilleures ventes — et '
+        'Bandcamp en tire une liste de lecture qui se joue dans le lecteur, '
+        'avec suivant, précédent et aléatoire comme partout',
+    'Chaque titre de la liste désigne son album : un appui sur la flèche de '
+        'téléchargement l\'ajoute à la bibliothèque, par la même file que '
+        'la recherche',
+    'Android Auto — « Découvrir sur Bandcamp » dans l\'onglet Accueil : un '
+        'genre se lance tout de suite (nouveautés ou au hasard), ou l\'on '
+        'descend dans ses sous-genres',
+    'Google TV — un onglet « Bandcamp » dans le menu : un genre, un '
+        'sous-genre, une pilule, et la musique part',
+  ]),
   ReleaseNote('3.58.0', [
     'Bandcamp rejoint YouTube comme source de musique. Dans la recherche, un '
         'troisième bouton : « Bandcamp ». On y cherche des artistes, des '

@@ -957,6 +957,37 @@ try {
             echo json_encode(['success' => true, 'data' => $release], JSON_UNESCAPED_UNICODE);
             break;
 
+        case 'bandcamp_genres':
+            // Les genres de la page Découvrir de Bandcamp et leurs sous-genres
+            // (idée #111).
+            echo json_encode([
+                'success' => true,
+                'data' => ['genres' => Bandcamp::genres()],
+            ], JSON_UNESCAPED_UNICODE);
+            break;
+
+        case 'bandcamp_discover':
+            // Une liste de lecture tirée d'un genre Bandcamp : ses nouveautés,
+            // un tirage au hasard, ou ses meilleures ventes. Chaque titre se
+            // joue ensuite par `bandcamp_preview`.
+            $genre = trim($_GET['genre'] ?? '');
+            if ($genre === '') {
+                echo json_encode(['success' => false, 'error' => 'genre required']);
+                break;
+            }
+            $limit = (int)($_GET['limit'] ?? 40);
+            if ($limit < 1)  { $limit = 40; }
+            if ($limit > 60) { $limit = 60; }
+            $found = Bandcamp::discover(
+                $genre,
+                trim($_GET['subgenre'] ?? ''),
+                $_GET['slice'] ?? 'new',
+                $limit,
+                trim($_GET['cursor'] ?? '')
+            );
+            echo json_encode(['success' => true, 'data' => $found], JSON_UNESCAPED_UNICODE);
+            break;
+
         case 'bandcamp_preview':
             // Pré-écoute d'un titre Bandcamp : son flux est signé et daté,
             // on le proxifie sans jamais le rendre au téléphone (comme

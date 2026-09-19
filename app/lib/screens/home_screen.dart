@@ -149,6 +149,9 @@ class HomeScreen extends ConsumerWidget {
               // partir d'un artiste de la bibliothèque (masqué si rien à
               // proposer).
               const _DiscoverArtistCard(),
+              // Découvrir sur Bandcamp (idée #111) : genres → sous-genres →
+              // nouveautés / aléatoire / populaires.
+              const _BandcampDiscoverEntry(),
               // Nouveautés : titre + bouton aléatoire des nouveautés.
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 14, 20, 2),
@@ -576,6 +579,62 @@ class _DiscoverArtistCard extends ConsumerWidget {
         );
       },
       orElse: () => const SizedBox.shrink(),
+    );
+  }
+}
+
+/// L'entrée de « Découvrir sur Bandcamp » (idée #111).
+class _BandcampDiscoverEntry extends StatelessWidget {
+  const _BandcampDiscoverEntry();
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 2),
+      child: GlassBox(
+        radius: 16,
+        blur: false,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () => context.push('/bandcamp'),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            child: Row(
+              children: [
+                Icon(Icons.explore_outlined, color: scheme.primary),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Découvrir sur Bandcamp',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      Text(
+                        'Un genre, ses nouveautés ou un tirage au hasard',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: scheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(Icons.chevron_right, color: scheme.onSurfaceVariant),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

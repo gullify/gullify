@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../state/app_update.dart';
 import '../../state/tv_log.dart';
+import 'tv_bandcamp.dart';
 import 'tv_favorites_page.dart';
 import 'tv_games_page.dart';
 import 'tv_home_page.dart';
@@ -23,6 +24,7 @@ enum TvTab {
   search('Recherche', Icons.search_rounded),
   favorites('Favoris', Icons.favorite_rounded),
   radio('Radio', Icons.radio_rounded),
+  bandcamp('Bandcamp', Icons.explore_rounded),
   games('Jeux', Icons.sports_esports_rounded);
 
   const TvTab(this.label, this.icon);
@@ -249,6 +251,7 @@ class _TvShellState extends ConsumerState<TvShell> {
     TvTab.search => const TvSearchPage(),
     TvTab.favorites => const TvFavoritesPage(),
     TvTab.radio => const TvRadioPage(),
+    TvTab.bandcamp => const TvBandcampPage(),
     TvTab.games => const TvGamesPage(),
   };
 

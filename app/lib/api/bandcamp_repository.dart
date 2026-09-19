@@ -155,6 +155,133 @@ class BcResolved {
       album.isNotEmpty ? album : (isTrack ? 'Singles' : title);
 }
 
+/// Un genre de la page Découvrir de Bandcamp, avec ses sous-genres
+/// (idée #111). [slug] est le nom de tag que Bandcamp attend (« hip-hop-rap »),
+/// [name] celui qu'on affiche (« hip-hop/rap »).
+class BcGenre {
+  const BcGenre({
+    required this.name,
+    required this.slug,
+    this.subgenres = const [],
+  });
+
+  factory BcGenre.fromJson(Map<String, dynamic> json) => BcGenre(
+        name: json['name'] as String? ?? '',
+        slug: json['slug'] as String? ?? '',
+        subgenres: [
+          for (final s in (json['subgenres'] as List<dynamic>? ?? const [])
+              .cast<Map<String, dynamic>>())
+            BcGenre(
+              name: s['name'] as String? ?? '',
+              slug: s['slug'] as String? ?? '',
+            ),
+        ].where((s) => s.slug.isNotEmpty).toList(),
+      );
+
+  final String name;
+  final String slug;
+  final List<BcGenre> subgenres;
+}
+
+/// Les trois façons de parcourir un genre qu'offre Bandcamp.
+enum BcSlice {
+  fresh('new', 'Nouveautés', 'Les dernières sorties'),
+  random('rand', 'Aléatoire', 'Un tirage au hasard, différent à chaque fois'),
+  top('top', 'Populaires', 'Les meilleures ventes du moment');
+
+  const BcSlice(this.param, this.label, this.hint);
+
+  /// La valeur que le serveur (et Bandcamp) attend.
+  final String param;
+  final String label;
+  final String hint;
+
+  static BcSlice fromParam(String? p) =>
+      values.firstWhere((s) => s.param == p, orElse: () => fresh);
+}
+
+/// Un titre à écouter trouvé en parcourant un genre : le titre phare d'une
+/// sortie, celui que Bandcamp fait entendre sur sa page Découvrir. L'album
+/// qui le contient reste désigné ([itemId], [albumBandId]) pour pouvoir le
+/// télécharger en entier.
+class BcTrack {
+  const BcTrack({
+    required this.title,
+    required this.artist,
+    required this.album,
+    required this.thumbnail,
+    required this.url,
+    required this.trackId,
+    required this.bandId,
+    required this.itemId,
+    required this.albumBandId,
+    this.itemType = 'a',
+    this.duration = 0,
+    this.released = '',
+    this.location = '',
+  });
+
+  factory BcTrack.fromJson(Map<String, dynamic> json) {
+    final bandId = (json['bandId'] as num?)?.toInt() ?? 0;
+    return BcTrack(
+      title: json['title'] as String? ?? '',
+      artist: json['artist'] as String? ?? '',
+      album: json['album'] as String? ?? '',
+      thumbnail: json['thumbnail'] as String? ?? '',
+      url: json['url'] as String? ?? '',
+      trackId: (json['trackId'] as num?)?.toInt() ?? 0,
+      bandId: bandId,
+      itemId: (json['itemId'] as num?)?.toInt() ?? 0,
+      albumBandId: (json['albumBandId'] as num?)?.toInt() ?? bandId,
+      itemType: json['itemType'] as String? ?? 'a',
+      duration: (json['duration'] as num?)?.toInt() ?? 0,
+      released: json['released'] as String? ?? '',
+      location: json['location'] as String? ?? '',
+    );
+  }
+
+  final String title;
+  final String artist;
+  final String album;
+  final String thumbnail;
+  final String url;
+  final int trackId;
+  final int bandId;
+  final int itemId;
+  final int albumBandId;
+  final String itemType;
+
+  /// En secondes (0 si inconnue).
+  final int duration;
+
+  /// Date de sortie `AAAA-MM-JJ`, vide si inconnue.
+  final String released;
+  final String location;
+
+  /// Même identité que la pré-écoute d'un titre de la recherche.
+  String get previewId => 'bc:$trackId';
+
+  /// L'album qui contient ce titre, prêt pour le téléchargement.
+  BcRelease get release => BcRelease(
+        title: album.isEmpty ? title : album,
+        artist: artist,
+        year: released.length >= 4 ? released.substring(0, 4) : '',
+        thumbnail: thumbnail,
+        url: url,
+        itemId: itemId,
+        bandId: albumBandId,
+        itemType: itemType,
+      );
+}
+
+/// Une page de titres trouvés dans un genre, et de quoi demander la suivante.
+class BcDiscoverPage {
+  const BcDiscoverPage({required this.tracks, this.cursor = ''});
+
+  final List<BcTrack> tracks;
+  final String cursor;
+}
+
 /// Recherche Bandcamp (idée #110). Les téléchargements partent ensuite dans la
 /// même file que YouTube — voir [YtDownloadsRepository.start].
 class BandcampRepository {
@@ -258,11 +385,63 @@ class BandcampRepository {
     return BcResolved.fromJson(data);
   }
 
+  /// Les genres de la page Découvrir de Bandcamp, et leurs sous-genres.
+  Future<List<BcGenre>> genres() async {
+    final data = await _client.get(
+      'download.php',
+      query: {'action': 'bandcamp_genres'},
+    ) as Map<String, dynamic>;
+    final genres = data['genres'] as List<dynamic>? ?? [];
+    return genres
+        .cast<Map<String, dynamic>>()
+        .map(BcGenre.fromJson)
+        .where((g) => g.slug.isNotEmpty)
+        .toList();
+  }
+
+  /// Des titres à écouter dans [genre] — ou dans l'un de ses sous-genres
+  /// [subgenre] : ses nouveautés, un tirage au hasard ou ses meilleures
+  /// ventes, selon [slice].
+  Future<BcDiscoverPage> discover({
+    required String genre,
+    String subgenre = '',
+    BcSlice slice = BcSlice.fresh,
+    int limit = 40,
+    String cursor = '',
+  }) async {
+    final data = await _client.get(
+      'download.php',
+      query: {
+        'action': 'bandcamp_discover',
+        'genre': genre,
+        if (subgenre.isNotEmpty) 'subgenre': subgenre,
+        'slice': slice.param,
+        'limit': '$limit',
+        if (cursor.isNotEmpty) 'cursor': cursor,
+      },
+    ) as Map<String, dynamic>;
+    final tracks = data['tracks'] as List<dynamic>? ?? [];
+    return BcDiscoverPage(
+      tracks: tracks
+          .cast<Map<String, dynamic>>()
+          .map(BcTrack.fromJson)
+          .where((t) => t.trackId > 0 && t.bandId > 0)
+          .toList(),
+      cursor: data['cursor'] as String? ?? '',
+    );
+  }
+
+  /// Flux d'un titre trouvé en parcourant un genre : le même proxy que la
+  /// pré-écoute, l'URL signée de Bandcamp ne quittant jamais le serveur.
+  String trackUrl(BcTrack track) => _streamUrl(track.bandId, track.trackId);
+
   /// URL de pré-écoute d'un titre Bandcamp : le serveur proxifie son flux
   /// (signé et daté chez Bandcamp). Endpoint legacy comme celui de YouTube —
   /// la réponse est binaire, pas une envelope JSON.
-  String previewUrl(BcSong song) => _client.resourceUrl(
+  String previewUrl(BcSong song) => _streamUrl(song.bandId, song.trackId);
+
+  String _streamUrl(int bandId, int trackId) => _client.resourceUrl(
         'api/download.php?action=bandcamp_preview'
-        '&band_id=${song.bandId}&track_id=${song.trackId}',
+        '&band_id=$bandId&track_id=$trackId',
       );
 }

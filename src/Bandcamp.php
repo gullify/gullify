@@ -24,6 +24,20 @@ class Bandcamp
 {
     private const SEARCH_URL = 'https://bandcamp.com/api/bcsearch_public_api/1/autocomplete_elastic';
     private const MOBILE_API = 'https://bandcamp.com/api/mobile/24/';
+    private const DISCOVER_URL = 'https://bandcamp.com/api/discover/1/discover_web';
+    private const TAGS_URL = 'https://bandcamp.com/tags';
+
+    /** Les genres bougent rarement : une semaine de cache suffit. */
+    private const GENRES_TTL = 7 * 86400;
+
+    /**
+     * Genres de Bandcamp qui ne sont pas de la musique : on vient chercher
+     * des chansons, pas un épisode de podcast au milieu d'une file.
+     */
+    private const NOT_MUSIC = ['podcasts', 'audiobooks', 'spoken-word', 'comedy'];
+
+    /** Les trois façons de parcourir un genre qu'offre la page Découvrir. */
+    public const SLICES = ['new', 'rand', 'top'];
 
     /** Pochettes : `a<art_id>_<taille>.jpg`, 2 = 350 px (assez pour l'app). */
     private const ART_SIZE = '_2';
@@ -241,6 +255,192 @@ class Bandcamp
         $streams = is_array($track['streaming_url'] ?? null) ? $track['streaming_url'] : [];
         $url = (string) ($streams['mp3-128'] ?? reset($streams) ?: '');
         return $url !== '' && str_starts_with($url, 'http') ? $url : null;
+    }
+
+    // ── Découvrir (idée #111) ──────────────────────────────────────────────
+
+    /**
+     * Les genres de Bandcamp et leurs sous-genres, tels que les propose sa
+     * page Découvrir.
+     *
+     * Bandcamp ne les sert par aucune API, mais sa page « tags » embarque,
+     * dans son `data-blob`, la taxonomie complète (genres + sous-genres par
+     * genre) qu'utilise son propre formulaire d'inscription. On la relit une
+     * fois par semaine ; si Bandcamp ne répond pas, la dernière copie sert
+     * encore, périmée ou non.
+     *
+     * @return array<array{name:string,slug:string,subgenres:array<array{name:string,slug:string}>}>
+     */
+    public static function genres(): array
+    {
+        $cache = self::genresCacheFile();
+        $cached = is_file($cache) ? json_decode((string) @file_get_contents($cache), true) : null;
+        if (is_array($cached) && $cached && filemtime($cache) > time() - self::GENRES_TTL) {
+            return $cached;
+        }
+
+        $fresh = self::fetchGenres();
+        if ($fresh) {
+            $dir = dirname($cache);
+            if (!is_dir($dir)) @mkdir($dir, 0775, true);
+            @file_put_contents($cache, json_encode($fresh, JSON_UNESCAPED_UNICODE));
+            return $fresh;
+        }
+        return is_array($cached) ? $cached : [];
+    }
+
+    /**
+     * Des titres à écouter dans un genre (ou un sous-genre de ce genre).
+     *
+     * [$slice] : `new` les dernières sorties, `rand` un tirage au hasard,
+     * `top` les meilleures ventes du moment. Chaque sortie trouvée donne son
+     * titre phare — celui que Bandcamp fait écouter sur sa page Découvrir —
+     * et c'est lui qui entre dans la liste de lecture ; l'album reste là
+     * (`itemId`) pour qui voudrait le télécharger en entier.
+     *
+     * @return array{tracks:array<array{title:string,artist:string,album:string,thumbnail:string,url:string,trackId:int,bandId:int,itemId:int,itemType:string,duration:int,released:string,location:string}>,cursor:string}
+     */
+    public static function discover(string $genre, string $subgenre = '', string $slice = 'new', int $limit = 40, string $cursor = ''): array
+    {
+        $empty = ['tracks' => [], 'cursor' => ''];
+        $genre = self::slug($genre);
+        $subgenre = self::slug($subgenre);
+        if ($genre === '') return $empty;
+        if (!in_array($slice, self::SLICES, true)) $slice = 'new';
+
+        // Un sous-genre se cherche DANS son genre, comme sur le site : « house »
+        // seul ramènerait aussi ce qui s'étiquette house hors de l'électro.
+        $tags = $subgenre !== '' && $subgenre !== $genre ? [$genre, $subgenre] : [$genre];
+        $body = json_encode([
+            'category_id'          => 0,
+            'tag_norm_names'       => $tags,
+            'geoname_id'           => 0,
+            'slice'                => $slice,
+            'time_facet_id'        => null,
+            'cursor'               => $cursor !== '' ? $cursor : '*',
+            'size'                 => max(1, min(60, $limit)),
+            // Albums seulement : la page Découvrir mêle aussi du merch.
+            'include_result_types' => ['a'],
+        ], JSON_UNESCAPED_UNICODE);
+
+        $raw = self::fetch(self::DISCOVER_URL, ['Content-Type: application/json'], $body);
+        $data = $raw === null ? null : json_decode($raw, true);
+        if (!is_array($data) || !is_array($data['results'] ?? null)) return $empty;
+
+        $tracks = [];
+        foreach ($data['results'] as $r) {
+            if (!is_array($r)) continue;
+            $track = self::discoverTrack($r);
+            if ($track !== null) $tracks[] = $track;
+        }
+        return ['tracks' => $tracks, 'cursor' => (string) ($data['cursor'] ?? '')];
+    }
+
+    /**
+     * Une sortie de la page Découvrir, ramenée à son titre phare. Null si
+     * elle n'a rien à faire écouter (précommande, sortie sans extrait).
+     */
+    private static function discoverTrack(array $r): ?array
+    {
+        $featured = is_array($r['featured_track'] ?? null) ? $r['featured_track'] : null;
+        if ($featured === null || empty($featured['stream_url'])) return null;
+
+        $trackId = (int) ($featured['id'] ?? 0);
+        // Le flux se redemande par le groupe qui publie le titre : sur une
+        // sortie de label, ce n'est pas toujours la page qui la vend.
+        $bandId = (int) ($featured['band_id'] ?? ($r['band_id'] ?? 0));
+        $title = (string) ($featured['title'] ?? '');
+        if ($trackId <= 0 || $bandId <= 0 || $title === '') return null;
+
+        $artist = (string) ($featured['band_name'] ?? '');
+        if ($artist === '') $artist = (string) ($r['album_artist'] ?: ($r['band_name'] ?? ''));
+
+        // L'adresse de l'album sans le « ?from=discover_page » de la page.
+        $url = (string) ($r['item_url'] ?? '');
+        $url = preg_replace('/\?.*$/', '', $url) ?? $url;
+
+        $released = '';
+        if (!empty($r['release_date']) && ($ts = strtotime((string) $r['release_date']))) {
+            $released = date('Y-m-d', $ts);
+        }
+
+        return [
+            'title'     => $title,
+            'artist'    => $artist,
+            'album'     => (string) ($r['title'] ?? ''),
+            'thumbnail' => self::artwork($r['primary_image']['image_id'] ?? null, ''),
+            'url'       => $url,
+            'trackId'   => $trackId,
+            'bandId'    => $bandId,
+            'itemId'    => (int) ($r['item_id'] ?? 0),
+            'itemType'  => ($r['item_type'] ?? 'a') === 't' ? 't' : 'a',
+            // L'album garde son propre groupe pour être résolu au
+            // téléchargement (voir [resolve]).
+            'albumBandId' => (int) ($r['band_id'] ?? $bandId),
+            'duration'  => (int) round((float) ($featured['duration'] ?? 0)),
+            'released'  => $released,
+            'location'  => (string) ($r['band_location'] ?? ''),
+        ];
+    }
+
+    /**
+     * La taxonomie lue sur la page « tags » de Bandcamp, ou [] si la page n'a
+     * pas pu être lue.
+     */
+    private static function fetchGenres(): array
+    {
+        $html = self::fetch(self::TAGS_URL, ['Accept: text/html']);
+        if ($html === null) return [];
+        return self::parseGenres($html);
+    }
+
+    /**
+     * Extrait genres et sous-genres du `data-blob` d'une page Bandcamp.
+     * Public pour les tests : la forme de la page est ce qui risque de
+     * changer, c'est elle qu'on veut pouvoir vérifier hors ligne.
+     *
+     * @return array<array{name:string,slug:string,subgenres:array<array{name:string,slug:string}>}>
+     */
+    public static function parseGenres(string $html): array
+    {
+        if (!preg_match('/data-blob="([^"]*)"/', $html, $m)) return [];
+        $blob = json_decode(html_entity_decode($m[1], ENT_QUOTES, 'UTF-8'), true);
+        $params = is_array($blob['signup_params'] ?? null) ? $blob['signup_params'] : [];
+        $genres = is_array($params['genres'] ?? null) ? $params['genres'] : [];
+        $subs = is_array($params['subgenres'] ?? null) ? $params['subgenres'] : [];
+
+        $out = [];
+        foreach ($genres as $g) {
+            if (!is_array($g)) continue;
+            $slug = self::slug((string) ($g['norm_name'] ?? ($g['value'] ?? '')));
+            $name = (string) ($g['name'] ?? '');
+            if ($slug === '' || $name === '' || in_array($slug, self::NOT_MUSIC, true)) continue;
+
+            $children = [];
+            foreach (is_array($subs[$slug] ?? null) ? $subs[$slug] : [] as $sub) {
+                if (!is_array($sub)) continue;
+                $subSlug = self::slug((string) ($sub['norm_name'] ?? ($sub['value'] ?? '')));
+                $subName = (string) ($sub['name'] ?? '');
+                if ($subSlug === '' || $subName === '' || $subSlug === $slug) continue;
+                $children[] = ['name' => $subName, 'slug' => $subSlug];
+            }
+            $out[] = ['name' => $name, 'slug' => $slug, 'subgenres' => $children];
+        }
+        return $out;
+    }
+
+    /** Où garder la taxonomie entre deux lectures. */
+    private static function genresCacheFile(): string
+    {
+        $base = class_exists('AppConfig') ? AppConfig::getDataPath() . '/cache' : sys_get_temp_dir();
+        return $base . '/bandcamp-genres.json';
+    }
+
+    /** Un nom de tag Bandcamp : minuscules, lettres, chiffres et tirets. */
+    private static function slug(string $tag): string
+    {
+        $tag = strtolower(trim($tag));
+        return preg_match('/^[a-z0-9][a-z0-9-]*$/', $tag) ? $tag : '';
     }
 
     // ── Rouages ────────────────────────────────────────────────────────────

@@ -12,6 +12,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gullify/api/api_client.dart';
+import 'package:gullify/api/bandcamp_repository.dart';
 import 'package:gullify/api/library_repository.dart';
 import 'package:gullify/api/party_repository.dart';
 import 'package:gullify/api/radio_repository.dart';
@@ -19,6 +20,7 @@ import 'package:gullify/models/album.dart';
 import 'package:gullify/models/artist.dart';
 import 'package:gullify/models/song.dart';
 import 'package:gullify/screens/tv/tv_album_screen.dart';
+import 'package:gullify/screens/tv/tv_bandcamp.dart';
 import 'package:gullify/screens/tv/tv_connect_screens.dart';
 import 'package:gullify/screens/tv/tv_kit.dart';
 import 'package:gullify/screens/tv/tv_now_playing_screen.dart';
@@ -29,6 +31,7 @@ import 'package:gullify/screens/tv/tv_shell.dart';
 import 'package:gullify/screens/tv/tv_update.dart';
 import 'package:gullify/state/app_update.dart';
 import 'package:gullify/state/auth.dart';
+import 'package:gullify/state/bandcamp.dart';
 import 'package:gullify/models/game_track.dart';
 import 'package:gullify/screens/tv/tv_solo_game_screen.dart';
 import 'package:gullify/api/playlist_repository.dart';
@@ -299,6 +302,18 @@ String? _focusedCardTitle(WidgetTester tester) {
   return tester.widgetList<TvCard>(card).first.title;
 }
 
+const _bcGenres = [
+  BcGenre(
+    name: 'electronic',
+    slug: 'electronic',
+    subgenres: [
+      BcGenre(name: 'house', slug: 'house'),
+      BcGenre(name: 'drum & bass', slug: 'drum-bass'),
+    ],
+  ),
+  BcGenre(name: 'rock', slug: 'rock'),
+];
+
 Widget _wrap(
   Widget child, {
   MediaItem? item,
@@ -350,6 +365,7 @@ Widget _wrap(
     genresProvider.overrideWith((ref) async => _genres),
     playlistsProvider.overrideWith((ref) async => _playlists),
     discoverArtistProvider.overrideWith((ref) async => discovery),
+    bcGenresProvider.overrideWith((ref) async => _bcGenres),
     if (query != null)
       searchQueryProvider.overrideWith(() => _FixedQuery(query)),
     ytNewReleasesProvider.overrideWith((ref) async => <YtAlbum>[]),
@@ -575,6 +591,7 @@ void main() {
       ('recherche', TvTab.search),
       ('favoris', TvTab.favorites),
       ('radio', TvTab.radio),
+      ('bandcamp', TvTab.bandcamp),
       ('jeux', TvTab.games),
     ]) {
       testWidgets(name, (tester) async {
@@ -584,6 +601,36 @@ void main() {
         expect(tester.takeException(), isNull);
       });
     }
+
+    // Découvrir sur Bandcamp (idée #111) : un genre, puis un sous-genre.
+    testWidgets('genre Bandcamp', (tester) async {
+      await _tvScreen(tester);
+      await tester.pumpWidget(
+        _wrap(const TvBandcampGenreScreen(genre: 'electronic')),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Nouveautés'), findsOneWidget);
+      expect(find.text('Aléatoire'), findsOneWidget);
+      expect(find.text('Populaires'), findsOneWidget);
+      expect(find.text('drum & bass'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('sous-genre Bandcamp', (tester) async {
+      await _tvScreen(tester);
+      await tester.pumpWidget(
+        _wrap(
+          const TvBandcampSubgenreScreen(
+            genre: 'electronic',
+            subgenre: 'drum-bass',
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('drum & bass'), findsOneWidget);
+      expect(find.text('Populaires'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
 
     testWidgets('album', (tester) async {
       await _tvScreen(tester);

@@ -57,3 +57,31 @@ final bcArtistDiscographyProvider =
     FutureProvider.family<List<BcRelease>, int>(
   (ref, bandId) => ref.watch(bandcampRepositoryProvider).artistAlbums(bandId),
 );
+
+// ── Découvrir (idée #111) ──────────────────────────────────────────────────
+
+/// Les genres de la page Découvrir de Bandcamp et leurs sous-genres.
+final bcGenresProvider = FutureProvider<List<BcGenre>>(
+  (ref) => ref.watch(bandcampRepositoryProvider).genres(),
+);
+
+/// Un genre par son nom de tag, ou null s'il n'est pas (ou plus) proposé.
+final bcGenreProvider = FutureProvider.family<BcGenre?, String>((ref, slug) async {
+  final genres = await ref.watch(bcGenresProvider.future);
+  return genres.where((g) => g.slug == slug).firstOrNull;
+});
+
+/// Ce qu'on parcourt : un genre, éventuellement l'un de ses sous-genres
+/// (vide = tout le genre), et la façon de le parcourir.
+typedef BcDiscoverKey = ({String genre, String subgenre, BcSlice slice});
+
+/// La liste de lecture tirée d'un genre. L'invalider refait un tirage — c'est
+/// tout l'intérêt de « Aléatoire ».
+final bcDiscoverProvider =
+    FutureProvider.family<BcDiscoverPage, BcDiscoverKey>(
+  (ref, key) => ref.watch(bandcampRepositoryProvider).discover(
+        genre: key.genre,
+        subgenre: key.subgenre,
+        slice: key.slice,
+      ),
+);

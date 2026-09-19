@@ -1,12 +1,14 @@
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../api/bandcamp_repository.dart';
 import '../audio/audio_handler.dart';
 import '../audio/equalizer.dart';
 import '../audio/fade.dart';
 import '../audio/prefetch.dart';
 import '../models/song.dart';
 import 'auth.dart';
+import 'bandcamp.dart';
 import 'favorites.dart';
 import 'library.dart';
 import 'offline.dart';
@@ -79,6 +81,12 @@ final audioHandlerBinderProvider = Provider<void>((ref) {
         usable ? ref.watch(playlistRepositoryProvider) : null;
   } catch (e) {
     handler.logAA('ERREUR liaison playlists: $e');
+  }
+  try {
+    handler.bandcampRepository =
+        usable ? ref.watch(bandcampRepositoryProvider) : null;
+  } catch (e) {
+    handler.logAA('ERREUR liaison bandcamp: $e');
   }
   // Les titres téléchargés : la seule chose qui reste jouable sans réseau,
   // donc ce qu'Android Auto affiche quand la bibliothèque ne répond pas.
@@ -170,6 +178,14 @@ class PlayerActions {
     String? logo,
   }) =>
       _handler.playRadio(url: url, title: title, logo: logo);
+
+  /// Une liste de lecture tirée d'un genre Bandcamp (idée #111).
+  Future<void> playBandcamp(
+    List<BcTrack> tracks,
+    BandcampRepository repo, {
+    int startIndex = 0,
+  }) =>
+      _handler.playBandcamp(tracks, startIndex: startIndex, repo: repo);
 
   Future<void> toggleShuffle() {
     final current = _handler.playbackState.value.shuffleMode;
