@@ -113,6 +113,15 @@ flutter:
     - family: HankenGrotesk
       fonts:
         - asset: assets/fonts/HankenGrotesk.ttf
+    # Le LOGOTYPE seulement, et seulement sur le web (voir wordmark.dart) :
+    # la gamme écrit son nom dans la police du système, à quoi le moteur de
+    # rendu web n'a pas accès. Inter est la plus proche de cette famille de
+    # dessin — c'est celle que téléchargent déjà GulliTV et GulliVR. Figée au
+    # poids 800 et réduite à l'alphabet : 8,7 Ko. Licence OFL jointe.
+    - family: InterLogo
+      fonts:
+        - asset: assets/fonts/InterLogo-ExtraBold.ttf
+          weight: 800
     # Les deux polices du thème rétro Winamp (idée #85, licence OFL) :
     # Silkscreen pour les libellés gravés du châssis, VT323 pour tout ce qui
     # s'affiche derrière une vitre. Sans elles, le rétro n'était que du

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gullify/widgets/wordmark.dart';
@@ -7,6 +8,12 @@ import 'package:gullify/widgets/wordmark.dart';
 /// l'app garde HankenGrotesk ; c'est la seule exception, et elle doit tenir
 /// même quand l'appelant impose un style.
 void main() {
+  // Les essais tournent hors du web : on bascule le drapeau pour vérifier les
+  // deux chemins, celui de la police du système et celui de la police
+  // embarquée.
+  setUp(() => logotypeEmbarque = false);
+  tearDown(() => logotypeEmbarque = kIsWeb);
+
   TextStyle styleDuNom(WidgetTester tester) {
     // `Text.rich` porte le style du mot entier sur le widget, pas sur le span :
     // le span n'a que la couleur du suffixe.
@@ -54,5 +61,20 @@ void main() {
     expect(style.fontWeight, FontWeight.w800);
     expect(style.letterSpacing, -0.8);
     expect(style.fontFamily, '-apple-system');
+  });
+
+  testWidgets('sur le web, la police embarquée prend le relais', (
+    tester,
+  ) async {
+    // Le moteur de rendu web ne peut pas atteindre les polices de la machine :
+    // il prendrait la sienne, qui ne ressemble pas à celle du site affiché à
+    // côté. Inter tient la place, la pile système reste en repli.
+    logotypeEmbarque = true;
+    await poser(tester, const GulliWordmark());
+
+    final style = styleDuNom(tester);
+    expect(style.fontFamily, 'InterLogo');
+    expect(style.fontFamilyFallback, contains('Segoe UI'));
+    expect(style.fontFamily, isNot('HankenGrotesk'));
   });
 }

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb, visibleForTesting;
 import 'package:flutter/widgets.dart';
 
 import '../theme.dart' show gullifyGreen;
@@ -39,9 +40,16 @@ enum GulliProduct {
 /// garde HankenGrotesk ; seul le nom de la marque s'en écarte, pour être le
 /// même ici et sur gullify.app.
 ///
-/// Sur le web, le moteur de rendu n'a pas accès aux polices installées : il
-/// retombe sur la sienne, qui est de la même famille de dessin. Sur Android,
-/// sur iPhone et sur le téléviseur, c'est bien la police du système.
+/// Sur Android, sur iPhone et sur le téléviseur, c'est bien la police du
+/// système — le nom s'y écrit exactement comme sur gullify.app.
+///
+/// **Sur le web, c'est impossible** : le moteur de rendu dessine le texte
+/// lui-même et n'a pas accès aux polices installées sur la machine. Laissé à
+/// lui-même il prend la sienne (Roboto), qui ne ressemble pas à ce que le site
+/// affiche à côté, dans le même navigateur. On embarque donc Inter pour ce cas
+/// : c'est la police dessinée pour cette place-là (interfaces, à la manière de
+/// Segoe UI et de SF), et celle que téléchargent déjà GulliTV et GulliVR.
+/// Figée au poids 800, réduite à l'alphabet — 8,7 Ko.
 const _policeLogo = <String>[
   '-apple-system',
   'BlinkMacSystemFont',
@@ -50,6 +58,16 @@ const _policeLogo = <String>[
   'Helvetica Neue',
   'Arial',
 ];
+
+/// La police embarquée qui remplace la pile système là où elle est hors
+/// d'atteinte. Les essais la basculent pour vérifier les deux chemins.
+@visibleForTesting
+bool logotypeEmbarque = kIsWeb;
+
+/// La famille à demander, et sa suite de repli.
+({String famille, List<String> repli}) _familleDuLogotype() => logotypeEmbarque
+    ? (famille: 'InterLogo', repli: _policeLogo)
+    : (famille: _policeLogo.first, repli: _policeLogo.sublist(1));
 
 /// Le nom écrit comme un logo : « Gulli » dans la couleur du texte ambiant,
 /// le suffixe de l'entité dans la sienne.
@@ -75,6 +93,7 @@ class GulliWordmark extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final police = _familleDuLogotype();
     return Text.rich(
       TextSpan(
         children: [
@@ -88,8 +107,8 @@ class GulliWordmark extends StatelessWidget {
       // La police du logotype passe APRÈS le style reçu : un appelant règle la
       // graisse, l'approche et la couleur — jamais la famille.
       style: (style ?? const TextStyle()).copyWith(
-        fontFamily: _policeLogo.first,
-        fontFamilyFallback: _policeLogo.sublist(1),
+        fontFamily: police.famille,
+        fontFamilyFallback: police.repli,
       ),
       textAlign: textAlign,
       maxLines: maxLines,
