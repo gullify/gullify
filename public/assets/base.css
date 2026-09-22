@@ -1,8 +1,24 @@
 /* Jetons de design de gullify.app. Même structure que vr.madeli.co (la gamme
    partage un seul design) : ce fichier porte les couleurs, les rayons et la
    marque ; site.css porte la page.
-   Aucune ressource externe — pas de police téléchargée : GulliFY garde la
-   pile système, qui rend le texte avec la police de chaque appareil. */
+   Aucune ressource externe : le texte courant garde la pile système, qui le
+   rend avec la police de chaque appareil. Seul le LOGO fait exception — il
+   est écrit dans la police de l'app, servie par nous (voir --police-marque). */
+
+/* Hanken Grotesk, la police de l'app, pour que le mot « GulliFY » soit dessiné
+   pareil ici et dans l'app — sur Windows comme sur Android, où la pile système
+   donnait trois lettrages différents pour une seule marque.
+   Fichier variable (100 à 900) réduit au latin : 34 Ko, servi depuis ce
+   domaine, licence OFL jointe (assets/OFL-HankenGrotesk.txt).
+   `swap` : le nom s'affiche tout de suite dans la police système et se
+   redessine à l'arrivée du fichier — jamais de trou à la place du logo. */
+@font-face {
+  font-family: 'Hanken Grotesk';
+  src: url('/assets/hanken-grotesk.woff2') format('woff2');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
 
 :root {
   color-scheme: dark;
@@ -50,6 +66,9 @@
   --police: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
     'Helvetica Neue', Arial, sans-serif;
   --police-titre: var(--police);
+
+  /* La police du logo, et d'elle seule : celle de l'app. */
+  --police-marque: 'Hanken Grotesk', var(--police);
 }
 
 *,
@@ -79,7 +98,7 @@
   gap: .65rem;
   color: var(--texte-vif);
   text-decoration: none;
-  font-family: var(--police-titre);
+  font-family: var(--police-marque);
   font-weight: 800;
   font-size: 2.15rem;
   line-height: 1;

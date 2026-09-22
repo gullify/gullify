@@ -105,7 +105,7 @@ function e(?string $s): string {
         <div class="maq-rail">
           <p class="maq-marque">
             <img src="/assets/gulli-mark.png" alt="" decoding="async">
-            Gulli<span class="fy">FY</span>
+            <span class="nom">Gulli<span class="fy">FY</span></span>
           </p>
           <p class="maq-nav"><span class="maq-pastille"></span>Accueil</p>
           <p class="maq-nav actif"><span class="maq-pastille"></span>Bibliothèque</p>

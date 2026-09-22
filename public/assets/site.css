@@ -397,7 +397,7 @@ strong { color: var(--texte-vif); font-weight: 600; }
 /* Le nom d'un bout : sans cette enveloppe, la boîte flexible du titre faisait
    de « Gulli » et de son suffixe deux éléments séparés par l'espacement —
    « Gulli FY ». L'espacement ne vaut plus qu'entre le nom et son étiquette. */
-.gamme h3 .nom { display: inline; }
+.gamme h3 .nom { display: inline; font-family: var(--police-marque); }
 
 .gamme p { color: var(--texte-attenue); font-size: .94rem; }
 
@@ -610,7 +610,11 @@ strong { color: var(--texte-vif); font-weight: 600; }
   gap: .6rem 1.4rem;
 }
 
-.pied-marque { font-weight: 800; color: var(--texte-vif); }
+.pied-marque {
+  font-weight: 800;
+  color: var(--texte-vif);
+  font-family: var(--police-marque);
+}
 
 .pied-note {
   color: var(--texte-attenue);
@@ -655,6 +659,14 @@ strong { color: var(--texte-vif); font-weight: 600; }
   font-size: 1.15em;
   color: var(--texte-vif);
   padding: 0 .5em .8em;
+}
+
+/* Même enveloppe que dans la gamme : sans elle, l'espacement de la boîte
+   flexible s'insérait entre « Gulli » et son suffixe. Et la police de la
+   marque, puisque cette vignette représente l'app. */
+.maq-marque .nom {
+  display: inline;
+  font-family: var(--police-marque);
 }
 
 .maq-marque img { width: .95em; height: 1.35em; object-fit: contain; }
