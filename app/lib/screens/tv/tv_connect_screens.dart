@@ -6,6 +6,7 @@ import '../../state/auth.dart';
 import '../../state/tv_log.dart';
 import 'tv_kit.dart';
 import 'tv_text_entry.dart';
+import '../../widgets/brand_image.dart';
 
 /// Les deux écrans d'entrée, version téléviseur : adresse du serveur, puis
 /// identifiants. Ils reprennent exactement la logique des écrans tactiles —
@@ -219,7 +220,11 @@ class _ConnectFrame extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Image.asset('assets/icon/mascot.png', width: 78, height: 78),
+                const BrandImage(
+                  'assets/icon/mascot.png',
+                  width: 78,
+                  height: 78,
+                ),
                 const SizedBox(height: 10),
                 Text(
                   title,

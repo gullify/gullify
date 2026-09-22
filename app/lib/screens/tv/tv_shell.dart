@@ -17,6 +17,7 @@ import 'tv_radio_page.dart';
 import 'tv_search_page.dart';
 import 'tv_update.dart';
 import '../../widgets/wordmark.dart';
+import '../../widgets/brand_image.dart';
 
 /// Les destinations du rail, dans l'ordre où on les rencontre en montant.
 enum TvTab {
@@ -508,12 +509,7 @@ class _Logo extends StatelessWidget {
             children: [
               // Le vrai logo, pas une pastille à initiale : c'est lui qu'on
               // reconnaît sur la rangée d'applications du téléviseur.
-              Image.asset(
-                'assets/icon/logo.png',
-                width: 56,
-                height: 56,
-                filterQuality: FilterQuality.medium,
-              ),
+              const BrandImage('assets/icon/logo.png', width: 56, height: 56),
               if (open) ...[
                 const SizedBox(width: 14),
                 const Expanded(

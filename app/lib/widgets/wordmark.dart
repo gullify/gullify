@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 
 import '../theme.dart' show gullifyGreen;
+import 'brand_image.dart';
 
 /// La gamme Gulli : un même nom, une couleur par entité.
 ///
@@ -114,13 +115,13 @@ class GulliLogo extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Image.asset(
+        // L'image fait 302 px de haut pour une soixantaine à l'écran :
+        // `BrandImage` la fait décoder à sa taille d'affichage, sans quoi la
+        // réduction casse les branches des lunettes (surtout sur le web).
+        BrandImage(
           'assets/icon/mark.png',
           width: hauteur * _rapport,
           height: hauteur,
-          // L'image fait 302 px de haut pour une soixantaine à l'écran : sans
-          // filtre, la réduction crénellerait les branches des lunettes.
-          filterQuality: FilterQuality.medium,
         ),
         SizedBox(width: fontSize * _ecart),
         Flexible(

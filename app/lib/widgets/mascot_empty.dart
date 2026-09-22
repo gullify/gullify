@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'brand_image.dart';
 
 /// État vide signature : la mascotte Gullify en médaillon + un message.
 /// Remplace les « Aucun résultat » nus.
@@ -49,16 +50,10 @@ class MascotEmpty extends StatelessWidget {
               Text(
                 hint!,
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 13,
-                  color: scheme.onSurfaceVariant,
-                ),
+                style: TextStyle(fontSize: 13, color: scheme.onSurfaceVariant),
               ),
             ],
-            if (action != null) ...[
-              const SizedBox(height: 18),
-              action!,
-            ],
+            if (action != null) ...[const SizedBox(height: 18), action!],
           ],
         ),
       ),
@@ -138,7 +133,11 @@ class MascotMedallion extends StatelessWidget {
                   height: art,
                   child: ColorFiltered(
                     colorFilter: duotoneFilter(ink, paper),
-                    child: Image.asset('assets/icon/mascot.png'),
+                    child: BrandImage(
+                      'assets/icon/mascot.png',
+                      width: art,
+                      height: art,
+                    ),
                   ),
                 ),
               ],
@@ -168,6 +167,10 @@ ColorFilter duotoneFilter(Color ink, Color paper) {
     ...row(ink.r, paper.r),
     ...row(ink.g, paper.g),
     ...row(ink.b, paper.b),
-    0, 0, 0, 1, 0,
+    0,
+    0,
+    0,
+    1,
+    0,
   ]);
 }
