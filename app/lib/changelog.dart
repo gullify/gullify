@@ -8,6 +8,17 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.60.0', [
+    'L\'app s\'appelle désormais GulliFY — sous l\'icône, au téléviseur, dans '
+        'Android Auto et sur le web. Dans le logo, « Gulli » ne bouge pas : '
+        'seul le suffixe porte la couleur de son entité, en prévision de '
+        'GulliTV (lecteur IPTV) et GulliVR (casque)',
+    'Le vert de l\'icône, celui du fond de son carré, colore le « FY » du '
+        'logo. Il rejoint aussi les couleurs d\'apparence sous « Vert '
+        'GulliFY », et devient celle par défaut — Paramètres → Apparence pour '
+        'reprendre l\'indigo ou une autre',
+    'La bannière du téléviseur reprend le nouveau nom',
+  ]),
   ReleaseNote('3.59.0', [
     'Découvrir sur Bandcamp : une nouvelle entrée sur l\'accueil. On choisit '
         'un genre, puis un sous-genre (ou tout le genre), puis ses '
