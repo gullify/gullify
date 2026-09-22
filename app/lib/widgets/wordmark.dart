@@ -30,6 +30,27 @@ enum GulliProduct {
   String get name => 'Gulli$suffix';
 }
 
+/// La pile de polices du LOGOTYPE — la même que les sites de la gamme
+/// (`--police-logo` dans leur base.css) : celle de l'appareil, pas celle de
+/// l'app.
+///
+/// C'est une décision de gamme : GulliFY, GulliTV et GulliVR écrivent leur nom
+/// dans la police du système, très grasse et resserrée. Le reste de l'app
+/// garde HankenGrotesk ; seul le nom de la marque s'en écarte, pour être le
+/// même ici et sur gullify.app.
+///
+/// Sur le web, le moteur de rendu n'a pas accès aux polices installées : il
+/// retombe sur la sienne, qui est de la même famille de dessin. Sur Android,
+/// sur iPhone et sur le téléviseur, c'est bien la police du système.
+const _policeLogo = <String>[
+  '-apple-system',
+  'BlinkMacSystemFont',
+  'Segoe UI',
+  'Roboto',
+  'Helvetica Neue',
+  'Arial',
+];
+
 /// Le nom écrit comme un logo : « Gulli » dans la couleur du texte ambiant,
 /// le suffixe de l'entité dans la sienne.
 ///
@@ -64,7 +85,12 @@ class GulliWordmark extends StatelessWidget {
           ),
         ],
       ),
-      style: style,
+      // La police du logotype passe APRÈS le style reçu : un appelant règle la
+      // graisse, l'approche et la couleur — jamais la famille.
+      style: (style ?? const TextStyle()).copyWith(
+        fontFamily: _policeLogo.first,
+        fontFamilyFallback: _policeLogo.sublist(1),
+      ),
       textAlign: textAlign,
       maxLines: maxLines,
       overflow: maxLines == null ? null : TextOverflow.ellipsis,
