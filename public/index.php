@@ -2,29 +2,36 @@
 /**
  * gullify.app — la page d'accueil publique de GulliFY.
  *
+ * Même design que vr.madeli.co : la gamme partage un seul site, seules la
+ * couleur d'accent et la teneur changent. Les styles vivent dans
+ * assets/base.css (les jetons et la marque) et assets/site.css (la page) ;
+ * rien en ligne, rien d'externe.
+ *
  * Elle ne demande aucune connexion : elle dit ce qu'est GulliFY, donne l'app
  * (web ou Android) et explique comment l'installer. Tout ce qui demande un
  * compte vit DANS l'app — y compris l'administration des utilisateurs et du
- * stockage, portée depuis la vieille interface web (voir
- * `app/lib/screens/admin/`). C'est ce qui permet de n'entretenir qu'une seule
- * interface.
+ * stockage. C'est ce qui permet de n'entretenir qu'une seule interface.
  *
- * La version de l'APK est lue dans `download/version.json`, écrit par
- * `build-app.sh` : pas d'appel réseau au chargement de la page.
+ * La version de l'APK est lue dans download/version.json, écrit par
+ * build-app.sh : pas d'appel réseau au chargement de la page.
  */
 declare(strict_types=1);
 
 const APK_LATEST = 'https://download.gullify.app/gullify-latest.apk';
 
-$manifest = @file_get_contents(__DIR__ . '/download/version.json');
-$apkVersion = null;
-if ($manifest !== false) {
-    $j = json_decode($manifest, true);
-    $apkVersion = is_array($j) ? ($j['versionName'] ?? null) : null;
+$manifeste = @file_get_contents(__DIR__ . '/download/version.json');
+$version = null;
+$notes = null;
+if ($manifeste !== false) {
+    $j = json_decode($manifeste, true);
+    if (is_array($j)) {
+        $version = $j['versionName'] ?? null;
+        $notes = $j['changelog'] ?? null;
+    }
 }
 
 $apk = __DIR__ . '/download/gullify.apk';
-$apkSize = is_file($apk) ? round(filesize($apk) / 1048576) : null;
+$poids = is_file($apk) ? round(filesize($apk) / 1048576) : null;
 
 /** Échappement court, la page en est pleine. */
 function e(?string $s): string {
@@ -36,186 +43,283 @@ function e(?string $s): string {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>GulliFY — votre musique, partout</title>
-<meta name="description" content="Votre bibliothèque musicale, sur le web, sur Android, en voiture et au salon.">
-<meta name="theme-color" content="#14161C">
+<title>GulliFY — votre musique, sur tous vos écrans</title>
+<meta name="description" content="Le lecteur de votre bibliothèque musicale : navigateur, Android, Android Auto et Google TV. Vos fichiers, sur votre serveur.">
+<meta name="theme-color" content="#07080e">
 <link rel="icon" href="/favicon.ico">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
-<style>
-  /* La palette est celle de l'app (voir app/lib/theme.dart) : même surface
-     sombre, même accent indigo, même gris de texte secondaire. La page et
-     l'app doivent se ressembler — c'est tout l'objet de la manœuvre. */
-  :root {
-    /* Le vert de la marque : celui du fond de l'icône. Il colore le « FY » du
-       logo — chaque entité de la gamme a le sien (GulliTV en rouge, GulliVR
-       en mauve). */
-    --fy: #2C6774;
-    --bg: #14161C;
-    --fg: #EDEFF3;
-    --muted: #9BA0AA;
-    --accent: #4A5FE8;
-    --line: rgba(255, 255, 255, .12);
-    --card: rgba(255, 255, 255, .05);
-  }
-  * { box-sizing: border-box; }
-  body {
-    margin: 0;
-    background: var(--bg);
-    color: var(--fg);
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    line-height: 1.6;
-    /* Un halo d'accent en haut, comme le fond de l'app. */
-    background-image:
-      radial-gradient(900px 500px at 50% -12%, rgba(74, 95, 232, .30), transparent 70%);
-    background-repeat: no-repeat;
-  }
-  .wrap { max-width: 940px; margin: 0 auto; padding: 0 22px; }
-
-  header { text-align: center; padding: 76px 0 20px; }
-  header img { width: 92px; height: 92px; border-radius: 22px; }
-  .fy { color: var(--fy); }
-  h1 {
-    font-size: clamp(38px, 7vw, 62px); font-weight: 800;
-    letter-spacing: -1.8px; margin: 22px 0 8px;
-  }
-  .tagline { color: var(--muted); font-size: clamp(17px, 2.4vw, 21px); margin: 0; }
-
-  .actions {
-    display: flex; flex-wrap: wrap; gap: 14px;
-    justify-content: center; margin: 34px 0 8px;
-  }
-  .btn {
-    display: inline-flex; align-items: center; gap: 10px;
-    padding: 15px 28px; border-radius: 30px;
-    text-decoration: none; font-weight: 700; font-size: 16.5px;
-    border: 1px solid transparent; transition: transform .12s ease;
-  }
-  .btn:active { transform: translateY(1px); }
-  .btn-primary {
-    background: var(--accent); color: #fff;
-    box-shadow: 0 14px 34px rgba(74, 95, 232, .38);
-  }
-  .btn-ghost {
-    background: var(--card); color: var(--fg); border-color: var(--line);
-  }
-  .btn small { font-weight: 500; opacity: .75; }
-
-  section { padding: 54px 0 0; }
-  h2 {
-    font-size: 13px; font-weight: 700; letter-spacing: 1.1px;
-    text-transform: uppercase; color: var(--accent); margin: 0 0 18px;
-  }
-
-  .grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(262px, 1fr)); }
-  .card {
-    background: var(--card); border: 1px solid var(--line);
-    border-radius: 20px; padding: 24px 22px;
-  }
-  .card h3 { margin: 0 0 6px; font-size: 18px; font-weight: 700; }
-  .card p, .card ol { color: var(--muted); margin: 8px 0 0; font-size: 15px; }
-  .card ol { padding-left: 20px; }
-  .card ol li { margin: 5px 0; }
-  .card a { color: var(--fg); }
-  kbd {
-    background: rgba(255, 255, 255, .10); border: 1px solid var(--line);
-    border-radius: 6px; padding: 2px 7px; font-size: .88em;
-    font-family: inherit; color: var(--fg);
-  }
-
-  .features { list-style: none; padding: 0; margin: 0; }
-  .features li {
-    padding: 13px 0; border-top: 1px solid var(--line);
-    color: var(--muted); font-size: 15.5px;
-  }
-  .features li:first-child { border-top: 0; }
-  .features b { color: var(--fg); font-weight: 600; }
-
-  footer {
-    margin-top: 64px; padding: 26px 0 40px;
-    border-top: 1px solid var(--line);
-    color: var(--muted); font-size: 13.5px;
-    display: flex; flex-wrap: wrap; gap: 8px 20px; justify-content: space-between;
-  }
-  footer a { color: var(--muted); }
-</style>
+<link rel="stylesheet" href="/assets/base.css">
+<link rel="stylesheet" href="/assets/site.css">
+<script src="/assets/site.js" defer></script>
 </head>
 <body>
-<div class="wrap">
 
-  <header>
-    <img src="/android-chrome-192x192.png" alt="">
-    <h1>Gulli<span class="fy">FY</span></h1>
-    <p class="tagline">Votre musique, partout.</p>
+<a class="saut" href="#contenu">Aller au contenu</a>
 
-    <div class="actions">
-      <a class="btn btn-primary" href="/app/">Ouvrir l'app web</a>
-      <a class="btn btn-ghost" href="<?= APK_LATEST ?>">
-        Android
-        <?php if ($apkVersion || $apkSize): ?>
-          <small><?= e($apkVersion ? 'v' . $apkVersion : '') ?><?= $apkSize ? ' · ' . $apkSize . ' Mo' : '' ?></small>
-        <?php endif; ?>
-      </a>
+<header class="barre">
+  <a class="marque" href="/">
+    <img class="marque-signe" src="/assets/gulli-mark.png" width="43" height="60" alt="" decoding="async">
+    <span class="marque-mot">Gulli<span class="fy">FY</span></span>
+  </a>
+  <nav class="barre-nav" aria-label="Liens du site">
+    <a href="#atouts">L'app</a>
+    <a href="#gamme">La gamme</a>
+    <a href="#installation">Installation</a>
+    <a href="#nouveautes">Nouveautés</a>
+    <a class="lien-app" href="/app/">Ouvrir l'app</a>
+  </nav>
+</header>
+
+<main id="contenu">
+
+  <section class="heros">
+    <div class="heros-texte">
+      <p class="surtitre"><span class="point"></span>Lecteur audio · votre serveur</p>
+      <h1>Gulli<span class="fy">FY</span></h1>
+      <p class="promesse">Votre musique, sur tous vos écrans. Vos fichiers, sur
+        votre serveur — rien à confier à personne.</p>
+      <div class="actions">
+        <a class="bouton principal" href="/app/">Ouvrir l'app web</a>
+        <a class="bouton secondaire" href="<?= APK_LATEST ?>">
+          Télécharger pour Android
+          <span class="bouton-version"><?= $version ? 'v' . e($version) : '' ?></span>
+        </a>
+      </div>
+      <ul class="specs">
+        <li>Navigateur</li>
+        <li>Android</li>
+        <li>Android Auto</li>
+        <li>Google TV</li>
+        <li>Windows &amp; iPhone</li>
+        <li>OpenSubsonic</li>
+      </ul>
     </div>
-  </header>
 
-  <section>
-    <h2>La même app, partout</h2>
-    <ul class="features">
-      <li><b>Une seule application.</b> Le web, Android, Android&nbsp;Auto et Google&nbsp;TV partagent le même code et la même interface.</li>
-      <li><b>Votre bibliothèque.</b> Vos fichiers, sur votre serveur — rien à confier à personne.</li>
-      <li><b>Paroles et accords</b> qui défilent au rythme de la chanson, karaoké, fondu enchaîné.</li>
-      <li><b>Compatible OpenSubsonic</b> : vos autres lecteurs préférés savent s'y brancher.</li>
-    </ul>
+    <!-- L'app, dessinée en CSS : pas de capture à refaire à chaque version. -->
+    <div class="maquette" aria-hidden="true">
+      <div class="maq-corps">
+        <div class="maq-rail">
+          <p class="maq-marque">
+            <img src="/assets/gulli-mark.png" alt="" decoding="async">
+            Gulli<span class="fy">FY</span>
+          </p>
+          <p class="maq-nav"><span class="maq-pastille"></span>Accueil</p>
+          <p class="maq-nav actif"><span class="maq-pastille"></span>Bibliothèque</p>
+          <p class="maq-nav"><span class="maq-pastille"></span>Recherche</p>
+          <p class="maq-nav"><span class="maq-pastille"></span>Radio</p>
+          <p class="maq-nav"><span class="maq-pastille"></span>Favoris</p>
+          <p class="maq-titre">Playlists</p>
+          <p class="maq-nav"><span class="maq-pastille"></span>Route de nuit</p>
+          <p class="maq-nav"><span class="maq-pastille"></span>Matins calmes</p>
+        </div>
+        <div class="maq-liste">
+          <p class="maq-entete">Albums <span>2 714 · 23 558 titres</span></p>
+          <ul class="maq-titres">
+            <li class="maq-piste en-cours">
+              <span class="maq-pochette"></span>
+              <b>Reel à Aristide</b><i>Bertrand Déraspe</i>
+              <span class="maq-duree">3:12</span>
+            </li>
+            <li class="maq-piste">
+              <span class="maq-pochette"></span>
+              <b>Chanson à Antoine</b><i>Bertrand Déraspe</i>
+              <span class="maq-duree">2:48</span>
+            </li>
+            <li class="maq-piste">
+              <span class="maq-pochette"></span>
+              <b>45 Tours</b><i>Jonathan Painchaud</i>
+              <span class="maq-duree">4:05</span>
+            </li>
+            <li class="maq-piste">
+              <span class="maq-pochette"></span>
+              <b>Contre vent et marées</b><i>Bertrand Déraspe</i>
+              <span class="maq-duree">3:37</span>
+            </li>
+          </ul>
+        </div>
+      </div>
+      <div class="maq-lecteur">
+        <span class="maq-pochette"></span>
+        <span class="maq-infos">
+          <b class="maq-nom">Reel à Aristide</b>
+          <span class="maq-artiste">Bertrand Déraspe</span>
+        </span>
+        <span class="maq-commandes">
+          <span class="maq-bouton"></span>
+          <span class="maq-bouton jouer"></span>
+          <span class="maq-bouton"></span>
+        </span>
+        <span class="maq-barre-temps"></span>
+      </div>
+    </div>
   </section>
 
-  <section>
-    <h2>L'installer</h2>
-    <div class="grid">
+  <section id="atouts" class="section">
+    <h2 class="titre-section reveal">Une seule app, sur tous vos écrans</h2>
+    <p class="intro-section reveal">Le navigateur, le téléphone, la voiture et
+      le salon partagent le même code et la même interface. Ce que vous
+      apprenez quelque part sert partout.</p>
 
-      <div class="card">
-        <h3>Android</h3>
-        <p>Téléchargez l'APK et autorisez l'installation depuis cette source
-           quand Android le demande. Ensuite, GulliFY se met à jour tout seul.</p>
-        <p><a href="<?= APK_LATEST ?>">Télécharger l'APK</a><?php if ($apkVersion): ?>
-           — version <?= e($apkVersion) ?><?php endif; ?></p>
-      </div>
+    <div class="grille-atouts">
+      <article class="atout reveal">
+        <span class="atout-signe" aria-hidden="true">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+        </span>
+        <h3>Votre bibliothèque</h3>
+        <p>Vos fichiers, sur votre serveur. Pochettes, genres et années rangés
+          comme vous l'entendez — rien ne part ailleurs.</p>
+      </article>
 
-      <div class="card">
-        <h3>Windows</h3>
-        <ol>
-          <li>Ouvrez <a href="/app/">l'app web</a> dans Chrome ou Edge.</li>
-          <li>Cliquez l'icône d'installation dans la barre d'adresse — ou menu
-              <kbd>⋯</kbd> → <em>Installer GulliFY</em>.</li>
-          <li>Elle s'ouvre alors dans sa propre fenêtre, comme un logiciel.</li>
-        </ol>
-      </div>
+      <article class="atout reveal">
+        <span class="atout-signe" aria-hidden="true">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 11h10M4 16h13M4 21h7"/></svg>
+        </span>
+        <h3>Paroles et accords</h3>
+        <p>Les paroles défilent au rythme de la chanson, la grille d'accords se
+          transpose et défile toute seule pendant que vous jouez.</p>
+      </article>
 
-      <div class="card">
-        <h3>iPhone et iPad</h3>
-        <ol>
-          <li>Ouvrez <a href="/app/">l'app web</a> dans Safari.</li>
-          <li>Bouton <em>Partager</em> → <em>Sur l'écran d'accueil</em>.</li>
-          <li>Elle s'ouvre en plein écran, sans barre de navigateur.</li>
-        </ol>
-      </div>
+      <article class="atout reveal">
+        <span class="atout-signe" aria-hidden="true">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5 17h14M6.5 17l1.2-5.2A2 2 0 0 1 9.6 10h4.8a2 2 0 0 1 1.9 1.8L17.5 17"/><circle cx="7.5" cy="19" r="1.5"/><circle cx="16.5" cy="19" r="1.5"/></svg>
+        </span>
+        <h3>Android Auto</h3>
+        <p>Toute la bibliothèque au tableau de bord, en gros boutons — et la
+          lecture aléatoire d'un genre d'un seul geste.</p>
+      </article>
 
-      <div class="card">
+      <article class="atout reveal">
+        <span class="atout-signe" aria-hidden="true">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5" width="19" height="12.5" rx="2"/><path d="M8.5 21h7"/></svg>
+        </span>
         <h3>Google TV</h3>
-        <p>Installez une app de téléchargement sur le téléviseur, puis saisissez
-           <kbd>gullify.app/tv</kbd> à la télécommande : l'APK arrive
-           directement.</p>
-        <p><a href="/tv?page=1">Voir la marche à suivre</a></p>
-      </div>
+        <p>Une interface pensée pour la télécommande et pour être lue à trois
+          mètres : pochettes en grand, paroles plein écran, jeux à plusieurs.</p>
+      </article>
 
+      <article class="atout reveal">
+        <span class="atout-signe" aria-hidden="true">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg>
+        </span>
+        <h3>Compatible OpenSubsonic</h3>
+        <p>Vos autres lecteurs préférés se branchent sur le même serveur :
+          genres, playlists, favoris et recherche y sont exposés.</p>
+      </article>
+
+      <article class="atout reveal">
+        <span class="atout-signe" aria-hidden="true">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M7 11h4M9 9v4M15.5 11h.01M18 13h.01"/><rect x="2.5" y="6.5" width="19" height="11" rx="4"/></svg>
+        </span>
+        <h3>Des jeux, à plusieurs</h3>
+        <p>Blind test, frise des années, pochette mystère — chacun son
+          téléphone, la télé fait l'arbitre.</p>
+      </article>
     </div>
   </section>
 
-  <footer>
-    <span>Gulli<span class="fy">FY</span><?= $apkVersion ? ' — app v' . e($apkVersion) : '' ?></span>
-    <span><a href="/app/">Ouvrir l'app</a><?php if (is_dir(__DIR__ . '/legacy')): ?>
-      · <a href="/legacy/">Ancienne interface web</a><?php endif; ?></span>
-  </footer>
+  <section id="gamme" class="section">
+    <div class="bande-cadre">
+      <div class="bande-texte">
+        <h2 class="titre-section">Une gamme, un même nom</h2>
+        <p class="intro-section">Gulli ne bouge pas : chaque lecteur a sa
+          couleur et son écran de prédilection. Même façon de faire, même
+          façon de s'installer.</p>
+      </div>
+      <ul class="gamme">
+        <li>
+          <span class="gamme-signe fy">FY</span>
+          <div>
+            <h3>Gulli<span class="fy">FY</span></h3>
+            <p>Votre musique. Navigateur, Android, Android Auto et Google TV.
+              Vous y êtes.</p>
+          </div>
+        </li>
+        <li>
+          <span class="gamme-signe tv">TV</span>
+          <div>
+            <h3>Gulli<span class="tv">TV</span> <span class="bientot">Bientôt</span></h3>
+            <p>La télévision : vos chaînes IPTV, leur programme en cours, vos
+              favoris.</p>
+          </div>
+        </li>
+        <li>
+          <span class="gamme-signe vr">VR</span>
+          <div>
+            <h3>Gulli<span class="vr">VR</span></h3>
+            <p>Le casque : vidéo immersive, IPTV et vos sites, sur Meta Quest.
+              <a href="https://vr.madeli.co">vr.madeli.co</a></p>
+          </div>
+        </li>
+      </ul>
+    </div>
+  </section>
 
-</div>
+  <section id="installation" class="section">
+    <h2 class="titre-section reveal">L'installer, en une minute</h2>
+    <p class="intro-section reveal">Rien à publier sur un magasin
+      d'applications : GulliFY s'installe depuis cette page, et se met à jour
+      tout seul ensuite.</p>
+
+    <ol class="etapes">
+      <li class="reveal">
+        <span class="etape-num">1</span>
+        <h3>Android</h3>
+        <p>Téléchargez l'APK<?= $poids ? ' (' . $poids . ' Mo)' : '' ?> et
+          autorisez l'installation depuis cette source quand Android le
+          demande.</p>
+        <p><a href="<?= APK_LATEST ?>">Télécharger l'APK</a><?= $version ? ' — version ' . e($version) : '' ?></p>
+      </li>
+      <li class="reveal">
+        <span class="etape-num">2</span>
+        <h3>Windows</h3>
+        <p>Ouvrez <a href="/app/">l'app web</a> dans Chrome ou Edge, puis
+          l'icône d'installation dans la barre d'adresse — ou menu
+          <kbd>⋯</kbd> → <em>Installer GulliFY</em>.</p>
+        <p>Elle s'ouvre alors dans sa propre fenêtre, comme un logiciel.</p>
+      </li>
+      <li class="reveal">
+        <span class="etape-num">3</span>
+        <h3>iPhone et iPad</h3>
+        <p>Ouvrez <a href="/app/">l'app web</a> dans Safari, puis
+          <em>Partager</em> → <em>Sur l'écran d'accueil</em>.</p>
+        <p>Elle s'ouvre en plein écran, sans barre de navigateur.</p>
+      </li>
+    </ol>
+
+    <p class="apres">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="5" width="19" height="12.5" rx="2"/><path d="M8.5 21h7"/></svg>
+      <span><strong>Sur un téléviseur :</strong> installez une app de
+        téléchargement, puis saisissez <kbd>gullify.app/tv</kbd> à la
+        télécommande — l'APK arrive directement.
+        <a href="/tv?page=1">Voir la marche à suivre</a></span>
+    </p>
+  </section>
+
+  <section id="nouveautes" class="section">
+    <h2 class="titre-section reveal">Nouveautés</h2>
+    <div class="carte-version reveal">
+      <?php if ($version): ?>
+        <p class="version-etiquette">Version <?= e($version) ?></p>
+      <?php endif; ?>
+      <p class="version-notes"><?= $notes
+        ? e($notes)
+        : 'L\'app se met à jour toute seule : les nouveautés arrivent sans rien faire.' ?></p>
+    </div>
+  </section>
+
+</main>
+
+<footer class="pied">
+  <div class="pied-cadre">
+    <span class="pied-marque">Gulli<span class="fy">FY</span></span>
+    <span class="pied-note">Votre musique, sur votre serveur<?= $version ? ' — app v' . e($version) : '' ?>.</span>
+    <span class="pied-liens">
+      <a href="/app/">Ouvrir l'app</a> ·
+      <a href="/tv?page=1">Google TV</a> ·
+      <a href="https://vr.madeli.co">GulliVR</a>
+    </span>
+  </div>
+</footer>
+
 </body>
 </html>

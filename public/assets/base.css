@@ -1,0 +1,107 @@
+/* Jetons de design de gullify.app. Même structure que vr.madeli.co (la gamme
+   partage un seul design) : ce fichier porte les couleurs, les rayons et la
+   marque ; site.css porte la page.
+   Aucune ressource externe — pas de police téléchargée : GulliFY garde la
+   pile système, qui rend le texte avec la police de chaque appareil. */
+
+:root {
+  color-scheme: dark;
+
+  /* Fonds — du plus profond (la salle) au plus clair (les champs) */
+  --fond: #07080e;
+  --fond-2: #0a0c15;
+  --fond-carte: #121622;
+  --fond-carte-haut: #161b2a;
+  --fond-champ: #1a2030;
+
+  /* Traits */
+  --bordure: #262c3d;
+  --bordure-vive: #39415c;
+
+  /* Textes */
+  --texte: #c3cbdd;
+  --texte-vif: #f2f5fc;
+  --texte-attenue: #99a1b7;
+
+  /* Le vert de la marque et sa famille.
+     --fy est EXACTEMENT le fond de l'icône : c'est lui qui écrit « FY », et il
+     ne change pas. Les deux autres en descendent (même teinte, 191°) et
+     servent à ce qui doit rester lisible en petit sur du presque noir :
+     liens, surtitres, traits. */
+  --fy: #2C6774;
+  --accent: #3A93AC;
+  --accent-clair: #6FC6DB;
+  --accent-2: #3FA98C;
+  --sur-accent: #04121a;
+
+  --danger: #ff8080;
+  --succes: #5ad79b;
+
+  /* Rayons et ombres */
+  --rayon-s: 10px;
+  --rayon: 14px;
+  --rayon-l: 20px;
+  --rayon-xl: 28px;
+  --ombre: 0 18px 44px rgba(0, 0, 0, .5);
+  --ombre-douce: 0 8px 24px rgba(0, 0, 0, .35);
+  --lueur-accent: 0 10px 30px rgba(58, 147, 172, .28);
+
+  /* Typographie — la pile système, celle de la page d'accueil de GulliFY. */
+  --police: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+    'Helvetica Neue', Arial, sans-serif;
+  --police-titre: var(--police);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+::selection {
+  background: rgba(58, 147, 172, .35);
+  color: var(--texte-vif);
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent-clair);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* --- La marque : le signe + « GulliFY » ---------------------------------
+   « Gulli » garde la couleur du texte, seul le suffixe porte celle de son
+   entité — GulliTV en rouge, GulliVR en mauve. Le signe fait 1,74 fois la
+   taille du nom : le rapport de la gamme, le même que dans l'app. */
+.marque {
+  display: inline-flex;
+  align-items: center;
+  gap: .65rem;
+  color: var(--texte-vif);
+  text-decoration: none;
+  font-family: var(--police-titre);
+  font-weight: 800;
+  font-size: 2.15rem;
+  line-height: 1;
+  letter-spacing: -.03em;
+  white-space: nowrap;
+}
+
+.marque-signe {
+  flex: none;
+  width: 43px;
+  height: 60px;
+  object-fit: contain;
+  /* L'oie est plus haute que large (212 × 302) : la hauteur commande, et une
+     ombre douce la détache du fond. */
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, .45));
+}
+
+.fy {
+  color: var(--fy);
+}
+
+@media (max-width: 560px) {
+  .marque { font-size: 1.65rem; gap: .5rem; }
+  .marque-signe { width: 33px; height: 46px; }
+}
