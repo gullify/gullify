@@ -37,7 +37,7 @@ void main() {
     await poser(
       tester,
       const BrandImage('assets/icon/mascot.png', width: 96, height: 96),
-      ratio: 2,
+      ratio: 1.5,
     );
 
     final provider = imageDe(tester);
@@ -49,20 +49,22 @@ void main() {
     );
     expect(
       (provider as ResizeImage).height,
-      192,
-      reason: '96 px logiques sur un écran à 2 pixels par point',
+      288,
+      reason:
+          '96 px logiques, 1,5 pixel par point, deux fois pour le '
+          'suréchantillonnage : 288, borné aux 324 de la source',
     );
   });
 
   testWidgets(
     'sur un écran très dense, on ne décode pas plus gros que la source',
     (tester) async {
-      // 96 × 4 = 384, au-delà des 324 px de mascot.png : demander 384 au décodeur
-      // ne créerait pas de détail, cela ne ferait qu'agrandir du flou.
+      // 96 × 2 × 2 = 384, au-delà des 324 px de mascot.png : demander 384 au
+      // décodeur ne créerait pas de détail, cela ne ferait qu'agrandir du flou.
       await poser(
         tester,
         const BrandImage('assets/icon/mascot.png', width: 96, height: 96),
-        ratio: 4,
+        ratio: 2,
       );
 
       expect(imageDe(tester), isA<AssetImage>());
@@ -74,8 +76,9 @@ void main() {
 
     final provider = imageDe(tester);
     expect(provider, isA<ResizeImage>());
-    // 38 × 1,74 = 66,12 pixels logiques de haut, soit 132 pixels réels.
-    expect((provider as ResizeImage).height, 132);
+    // 38 × 1,74 = 66,12 pixels logiques de haut, soit 132 pixels réels, et
+    // 264 en suréchantillonné — sous les 302 de mark.png.
+    expect((provider as ResizeImage).height, 264);
   });
 
   testWidgets('hors du web, le rendu ne change pas', (tester) async {

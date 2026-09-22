@@ -20,12 +20,22 @@ const Map<String, Size> _naturelles = {
 /// Une image de marque — le goéland, le signe, le logo — décodée à la taille
 /// où elle sera vue quand la plateforme le demande.
 ///
-/// **Le défaut.** Sur le web, réduire l'image au moment du dessin la crénelle :
-/// les branches des lunettes et les fils du casque se cassent en marches
-/// d'escalier. `FilterQuality` n'y change rien — mesuré sur une compilation
-/// web réelle, la mascotte à 96 px donnait un laplacien de 0,053 sans filtre
-/// et 0,055 en `medium`, soit le même crénelage ; décodée à 96 px elle tombe à
-/// 0,043 et les traits fins redeviennent continus.
+/// **Le défaut.** Sur le web, à un pixel par point, réduire l'image au moment
+/// du dessin la crénelle : les branches des lunettes et les fils du casque se
+/// cassent en marches d'escalier. `FilterQuality` n'y change rien — mesuré sur
+/// une compilation web réelle, la mascotte à 96 px donnait un laplacien de
+/// 0,053 sans filtre et 0,055 en `medium`, soit le même crénelage.
+///
+/// **Le piège.** Décoder à la taille EXACTE de l'affichage supprime bien le
+/// crénelage, mais ramollit le dessin dès que l'écran est dense : à 1,25 et
+/// 1,5 pixel par point — les mises à l'échelle de Windows — la huppe devient
+/// une tache et les lunettes perdent leur pont. Le rééchantillonneur du
+/// décodeur est plus grossier que celui du moteur de rendu.
+///
+/// **La règle retenue.** Décoder à DEUX fois la taille d'affichage : le moteur
+/// reçoit de quoi travailler et sa réduction de 2 pour 1 (celle qu'il fait
+/// bien) rend net à toutes les densités. Au-delà de la source, on ne demande
+/// rien et l'image suit son chemin habituel.
 ///
 /// **Pourquoi seulement le web.** Sur le moteur natif (Android, et les images
 /// de référence des essais), la réduction au dessin passe par les mipmaps et
@@ -56,10 +66,17 @@ class BrandImage extends StatelessWidget {
   @visibleForTesting
   static bool decodeALaTaille = kIsWeb;
 
+  /// Combien de fois la taille d'affichage on demande au décodeur. Un seul
+  /// (taille exacte) ramollit le dessin sur les écrans denses ; deux laisse au
+  /// moteur la réduction qu'il réussit.
+  static const _sureffet = 2;
+
   @override
   Widget build(BuildContext context) {
     final naturelle = _naturelles[asset];
-    final voulue = (height * MediaQuery.devicePixelRatioOf(context)).round();
+    // Deux fois la taille réelle à l'écran : de quoi suréchantillonner.
+    final voulue = (height * MediaQuery.devicePixelRatioOf(context) * _sureffet)
+        .round();
 
     // Rien à gagner hors du web, si l'on ne connaît pas la source, ou si
     // l'affichage demande déjà plus de pixels qu'elle n'en a.
