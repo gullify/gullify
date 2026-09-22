@@ -317,7 +317,7 @@ class LibraryRepository {
   /// main dans les extras de sa file). En mode [karaoke], le serveur sert la
   /// version voix atténuée s'il l'a déjà rendue, et l'original sinon.
   String streamUrlForPath(String filePath, {bool karaoke = false}) =>
-      _client.resourceUrl(
+      _client.mediaUrl(
         'stream.php?path=${Uri.encodeQueryComponent(filePath)}'
         '${karaoke ? '&karaoke=1' : ''}',
       );

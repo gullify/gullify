@@ -111,6 +111,22 @@ class ApiClient {
     throw ApiException(code, message, statusCode: r.statusCode);
   }
 
+  /// Adresse d'un média servi à la racine, signée du jeton de session.
+  ///
+  /// Le son est lu par une balise `<audio>` (sur le web) ou par le lecteur du
+  /// système : ni l'un ni l'autre ne peut poser un en-tête `Authorization`.
+  /// Le jeton voyage donc dans l'adresse, comme le font Subsonic et Jellyfin
+  /// pour la même raison. Sans jeton (avant la connexion), l'adresse part
+  /// telle quelle et le serveur répondra 401.
+  String mediaUrl(String relative) {
+    final jeton = _token;
+    if (jeton == null || jeton.isEmpty) return resourceUrl(relative);
+    final separateur = relative.contains('?') ? '&' : '?';
+    return resourceUrl(
+      '$relative${separateur}token=${Uri.encodeQueryComponent(jeton)}',
+    );
+  }
+
   /// Absolute URL for a resource served by the legacy endpoints
   /// (images, streams) which live at the server root, not under /api/v2.
   String resourceUrl(String relative) => '${serverUrl()}/$relative';

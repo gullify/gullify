@@ -17,7 +17,7 @@ final partyRepositoryProvider = Provider<PartyRepository>(
 final partyStreamUrlProvider = Provider<String Function(String)>((ref) {
   final client = ref.watch(apiClientProvider);
   return (path) =>
-      client.resourceUrl('stream.php?path=${Uri.encodeQueryComponent(path)}');
+      client.mediaUrl('stream.php?path=${Uri.encodeQueryComponent(path)}');
 });
 
 /// Ce que l'app sait de la partie en cours côté hôte.
