@@ -70,3 +70,66 @@ class GulliWordmark extends StatelessWidget {
     );
   }
 }
+
+/// Le logo complet : le signe et le nom, dans les proportions de la gamme.
+///
+/// Elles viennent du site de GulliVR : le signe fait **1,74 fois** la taille
+/// du texte, et s'en écarte de 0,3 — le même rapport sur téléphone que sur
+/// ordinateur, chez eux comme ici.
+///
+/// L'en-tête de l'accueil montrait un signe deux fois trop petit (0,83) pour
+/// deux raisons cumulées : un cadre de 46 px, et une image (`mascot.png`) dont
+/// 44 % n'est que de la marge transparente — l'oie n'y rendait que 31 px. Le
+/// signe employé ici est détouré : sa taille est celle qu'on voit.
+class GulliLogo extends StatelessWidget {
+  const GulliLogo({
+    super.key,
+    this.product = GulliProduct.fy,
+    required this.fontSize,
+    this.style,
+  });
+
+  final GulliProduct product;
+
+  /// La taille du nom. Le signe et l'écart s'en déduisent.
+  final double fontSize;
+
+  /// Le style du nom, hors taille (graisse, approche, couleur).
+  final TextStyle? style;
+
+  /// Hauteur du signe, en multiples de la taille du texte.
+  static const _signe = 1.74;
+
+  /// Écart entre le signe et le nom, en multiples de la taille du texte.
+  static const _ecart = 0.3;
+
+  /// Largeur du signe rapportée à sa hauteur (`mark.png` : 212 × 302). Donnée
+  /// ici pour que la place du signe soit connue avant même que l'image soit
+  /// chargée — sans quoi le nom sauterait au premier affichage.
+  static const _rapport = 0.702;
+
+  @override
+  Widget build(BuildContext context) {
+    final hauteur = fontSize * _signe;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Image.asset(
+          'assets/icon/mark.png',
+          width: hauteur * _rapport,
+          height: hauteur,
+          // L'image fait 302 px de haut pour une soixantaine à l'écran : sans
+          // filtre, la réduction crénellerait les branches des lunettes.
+          filterQuality: FilterQuality.medium,
+        ),
+        SizedBox(width: fontSize * _ecart),
+        Flexible(
+          child: GulliWordmark(
+            product: product,
+            style: (style ?? const TextStyle()).copyWith(fontSize: fontSize),
+          ),
+        ),
+      ],
+    );
+  }
+}

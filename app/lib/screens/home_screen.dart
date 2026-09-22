@@ -58,29 +58,13 @@ class HomeScreen extends ConsumerWidget {
                     // rappelait un nom d'utilisateur que l'on connaît déjà,
                     // autant donner la place à la marque (idées #92, #95).
                     Expanded(
-                      child: Row(
-                        children: [
-                          Image.asset(
-                            'assets/icon/mascot.png',
-                            width: 46,
-                            height: 46,
-                            // L'image fait 320 px pour 46 à l'écran : sans
-                            // filtre, la réduction crénellerait les branches
-                            // des lunettes.
-                            filterQuality: FilterQuality.medium,
-                          ),
-                          const SizedBox(width: 9),
-                          const Flexible(
-                            child: GulliWordmark(
-                              style: TextStyle(
-                                fontSize: 38,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: -0.8,
-                                height: 1.02,
-                              ),
-                            ),
-                          ),
-                        ],
+                      child: const GulliLogo(
+                        fontSize: 38,
+                        style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.8,
+                          height: 1.02,
+                        ),
                       ),
                     ),
                     GlassIconButton(

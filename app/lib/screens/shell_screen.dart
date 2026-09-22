@@ -807,25 +807,11 @@ class _SidebarBrand extends StatelessWidget {
         onTap: onTap,
         child: Padding(
           padding: const EdgeInsets.fromLTRB(18, 18, 16, 14),
-          child: Row(
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(10),
-                child: Image.asset(
-                  'assets/icon/logo.png',
-                  width: 34,
-                  height: 34,
-                ),
-              ),
-              const SizedBox(width: 10),
-              const GulliWordmark(
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.5,
-                ),
-              ),
-            ],
+          // Les mêmes proportions qu'à l'accueil : le signe fait 1,74 fois
+          // la taille du nom. Ici il était à 1,58 — un rien trop petit.
+          child: const GulliLogo(
+            fontSize: 20,
+            style: TextStyle(fontWeight: FontWeight.w800, letterSpacing: -0.5),
           ),
         ),
       ),

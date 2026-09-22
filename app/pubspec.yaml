@@ -103,6 +103,8 @@ flutter:
 
   assets:
     - assets/icon/logo.png
+    # Le signe seul, détouré : c'est lui qui accompagne le nom dans le logo.
+    - assets/icon/mark.png
     - assets/icon/mascot.png
     # Sonnerie du réveil (idée #81) : embarquée, pour sonner sans réseau.
     - assets/audio/buzz.wav
