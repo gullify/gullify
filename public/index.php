@@ -75,7 +75,10 @@ function e(?string $s): string {
   <section class="heros">
     <div class="heros-texte">
       <p class="surtitre"><span class="point"></span>Lecteur audio · votre serveur</p>
-      <h1>Gulli<span class="fy">FY</span></h1>
+      <h1 class="marque">
+        <img class="marque-signe" src="/assets/gulli-mark.png" width="76" height="108" alt="" decoding="async">
+        <span class="marque-mot">Gulli<span class="fy">FY</span></span>
+      </h1>
       <p class="promesse">Votre musique, sur tous vos écrans. Vos fichiers, sur
         votre serveur — rien à confier à personne.</p>
       <div class="actions">
@@ -229,7 +232,7 @@ function e(?string $s): string {
         <li>
           <span class="gamme-signe fy">FY</span>
           <div>
-            <h3>Gulli<span class="fy">FY</span></h3>
+            <h3><span class="nom">Gulli<span class="fy">FY</span></span></h3>
             <p>Votre musique. Navigateur, Android, Android Auto et Google TV.
               Vous y êtes.</p>
           </div>
@@ -237,7 +240,8 @@ function e(?string $s): string {
         <li>
           <span class="gamme-signe tv">TV</span>
           <div>
-            <h3>Gulli<span class="tv">TV</span> <span class="bientot">Bientôt</span></h3>
+            <h3><span class="nom">Gulli<span class="tv">TV</span></span>
+              <span class="bientot">Bientôt</span></h3>
             <p>La télévision : vos chaînes IPTV, leur programme en cours, vos
               favoris.</p>
           </div>
@@ -245,7 +249,7 @@ function e(?string $s): string {
         <li>
           <span class="gamme-signe vr">VR</span>
           <div>
-            <h3>Gulli<span class="vr">VR</span></h3>
+            <h3><span class="nom">Gulli<span class="vr">VR</span></span></h3>
             <p>Le casque : vidéo immersive, IPTV et vos sites, sur Meta Quest.
               <a href="https://vr.madeli.co">vr.madeli.co</a></p>
           </div>
@@ -308,6 +312,10 @@ function e(?string $s): string {
   </section>
 
 </main>
+
+<a class="haut" href="#contenu" aria-label="Revenir en haut de la page">
+  <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false"><path d="M12 19V6m0 0-6 6m6-6 6 6" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>
+</a>
 
 <footer class="pied">
   <div class="pied-cadre">

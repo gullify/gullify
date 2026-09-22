@@ -21,3 +21,31 @@
 
   blocs.forEach(function (b) { observateur.observe(b); });
 })();
+
+// La flèche de retour en haut : elle ne se montre qu'une fois la page
+// descendue de plus d'un écran. Le défilement est confié au navigateur (le
+// lien pointe vers le début du contenu, et `scroll-behavior` l'adoucit).
+(function () {
+  var fleche = document.querySelector('.haut');
+  if (!fleche) return;
+
+  var visible = false;
+  var enAttente = false;
+
+  function mesure() {
+    enAttente = false;
+    var doit = window.scrollY > window.innerHeight * 0.8;
+    if (doit === visible) return;
+    visible = doit;
+    fleche.classList.toggle('vue', doit);
+  }
+
+  window.addEventListener('scroll', function () {
+    // Une mesure par image au plus : un défilement en émet des dizaines.
+    if (enAttente) return;
+    enAttente = true;
+    window.requestAnimationFrame(mesure);
+  }, { passive: true });
+
+  mesure();
+})();
