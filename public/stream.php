@@ -79,9 +79,12 @@ if ($relativePath === '') {
 // `realpath` plus bas ne vaut que pour le stockage local : sur une instance
 // en SFTP, le chemin était concaténé tel quel et « ../ » sortait du dossier
 // de musique.
+// Les deux séparateurs ramenés à « / » : une seule expression à lire, et pas
+// de classe de caractères où un antislash doit être échappé deux fois.
+$cheminNormalise = str_replace('\\', '/', $relativePath);
 if (str_contains($relativePath, "\0")
-    || preg_match('#(?:^|[\\/])\.\.(?:[\\/]|$)#', $relativePath)
-    || preg_match('#^[/\\]#', $relativePath)
+    || preg_match('#(?:^|/)\.\.(?:/|$)#', $cheminNormalise)
+    || str_starts_with($cheminNormalise, '/')
     || preg_match('#^[A-Za-z]:#', $relativePath)) {
     header('HTTP/1.0 403 Forbidden');
     exit('Chemin refusé');
