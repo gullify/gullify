@@ -270,10 +270,12 @@ GET /api/radio.php?user=alice&genre=Rock&limit=20
 ### Streaming — `GET /stream.php`
 
 ```http
-GET /stream.php?path=Artist/Album/01%20-%20Track.mp3
+GET /stream.php?path=Artist/Album/01%20-%20Track.mp3&token=SESSION_TOKEN
 Range: bytes=0-100000
 ```
 
+- Requires a session: `Authorization: Bearer <token>`, `?token=` (for `<audio>`
+  elements, which cannot set headers) or the `gullify_session` cookie
 - Returns HTTP 206 with `Content-Range` for seeking
 - Supports: MP3, FLAC, M4A, OGG, WAV, AAC, WMA, OPUS, AIFF
 
@@ -353,8 +355,28 @@ That's it. The app will sync your library, playlists, favorites, and genres auto
 
 ### Supported endpoints
 
-`ping` · `getLicense` · `getMusicFolders` · `getArtists` · `getArtist` · `getAlbum` · `getSong` · `getAlbumList2` · `getIndexes` · `getMusicDirectory` · `search3` · `stream` · `getCoverArt` · `getGenres` · `getRandomSongs` · `getStarred2` · `star` · `unstar` · `scrobble` · `getPlaylists` · `getPlaylist` · `createPlaylist` · `getUser` · `getBookmarks` · `getScanStatus` · `getOpenSubsonicExtensions`
+`ping` · `getLicense` · `getMusicFolders` · `getIndexes` · `getMusicDirectory` · `getArtists` · `getArtist` · `getAlbum` · `getSong` · `getAlbumList` · `getAlbumList2` · `getGenres` · `getSongsByGenre` · `getRandomSongs` · `search2` · `search3` · `stream` · `getCoverArt` · `getStarred` · `getStarred2` · `star` · `unstar` · `scrobble` · `getPlaylists` · `getPlaylist` · `createPlaylist` · `getUser` · `getBookmarks` · `getScanStatus` · `getInternetRadioStations` · `getPodcasts` · `getOpenSubsonicExtensions`
 
 ## License
 
-MIT
+Gullify is free software, released under the **GNU Affero General Public
+License, version 3 or later** ([AGPL-3.0-or-later](LICENSE)).
+
+    Copyright (C) 2026 Maxime — gullify.app
+
+    This program is free software: you can redistribute it and/or modify it
+    under the terms of the GNU Affero General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or (at your
+    option) any later version.
+
+    This program is distributed in the hope that it will be useful, but
+    WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero
+    General Public License for more details.
+
+    You should have received a copy of the GNU Affero General Public License
+    along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+In short: you may run it, study it, modify it and share it. If you distribute a
+modified version — **or run one as a network service** — you must offer its
+source under the same licence.
