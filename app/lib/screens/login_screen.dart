@@ -62,10 +62,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const BrandImage(
-                  'assets/icon/mascot.png',
-                  width: 96,
-                  height: 96,
+                const Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('A defaut', style: TextStyle(fontSize: 28)),
+                    Text('B DejaVu Serif',
+                        style: TextStyle(
+                            fontSize: 28, fontFamily: 'DejaVu Serif')),
+                    Text('C Liberation Serif',
+                        style: TextStyle(
+                            fontSize: 28, fontFamily: 'Liberation Serif')),
+                    Text('D Segoe UI',
+                        style: TextStyle(fontSize: 28, fontFamily: 'Segoe UI')),
+                  ],
                 ),
                 const SizedBox(height: 12),
                 Text(

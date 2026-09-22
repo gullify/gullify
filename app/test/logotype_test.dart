@@ -73,7 +73,7 @@ void main() {
     await poser(tester, const GulliWordmark());
 
     final style = styleDuNom(tester);
-    expect(style.fontFamily, 'InterLogo');
+    expect(style.fontFamily, 'LogoSans');
     expect(style.fontFamilyFallback, contains('Segoe UI'));
     expect(style.fontFamily, isNot('HankenGrotesk'));
   });

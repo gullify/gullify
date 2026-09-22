@@ -46,10 +46,13 @@ enum GulliProduct {
 /// **Sur le web, c'est impossible** : le moteur de rendu dessine le texte
 /// lui-même et n'a pas accès aux polices installées sur la machine. Laissé à
 /// lui-même il prend la sienne (Roboto), qui ne ressemble pas à ce que le site
-/// affiche à côté, dans le même navigateur. On embarque donc Inter pour ce cas
-/// : c'est la police dessinée pour cette place-là (interfaces, à la manière de
-/// Segoe UI et de SF), et celle que téléchargent déjà GulliTV et GulliVR.
-/// Figée au poids 800, réduite à l'alphabet — 8,7 Ko.
+/// affiche à côté, dans le même navigateur.
+///
+/// Sur Windows, cette pile donne **Segoe UI Bold** — police Microsoft, qu'on
+/// n'a pas le droit de redistribuer. On embarque donc la plus proche qui soit
+/// libre : Open Sans, de la même famille humaniste et à la même graisse (700,
+/// et non 800 : à 800 le mot sortait plus noir et plus serré que le site posé
+/// à côté). Figée et réduite à l'alphabet — 12 Ko.
 const _policeLogo = <String>[
   '-apple-system',
   'BlinkMacSystemFont',
@@ -66,7 +69,7 @@ bool logotypeEmbarque = kIsWeb;
 
 /// La famille à demander, et sa suite de repli.
 ({String famille, List<String> repli}) _familleDuLogotype() => logotypeEmbarque
-    ? (famille: 'InterLogo', repli: _policeLogo)
+    ? (famille: 'LogoSans', repli: _policeLogo)
     : (famille: _policeLogo.first, repli: _policeLogo.sublist(1));
 
 /// Le nom écrit comme un logo : « Gulli » dans la couleur du texte ambiant,
@@ -109,6 +112,10 @@ class GulliWordmark extends StatelessWidget {
       style: (style ?? const TextStyle()).copyWith(
         fontFamily: police.famille,
         fontFamilyFallback: police.repli,
+        // La graisse suit la police embarquée : sur Windows, la pile système ne
+        // donne pas de 800 non plus, elle retombe sur le gras (700). Demander
+        // 800 à une fonte qui n'en a pas épaissit le dessin artificiellement.
+        fontWeight: logotypeEmbarque ? FontWeight.w700 : style?.fontWeight,
       ),
       textAlign: textAlign,
       maxLines: maxLines,
