@@ -15,6 +15,8 @@ const Map<String, Size> _naturelles = {
   'assets/icon/mascot.png': Size(324, 324),
   'assets/icon/mark.png': Size(212, 302),
   'assets/icon/logo.png': Size(324, 324),
+  'assets/icon/wordmark_nom.png': Size(1232, 303),
+  'assets/icon/wordmark_fy.png': Size(1232, 303),
 };
 
 /// Une image de marque — le goéland, le signe, le logo — décodée à la taille

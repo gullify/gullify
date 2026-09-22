@@ -31,6 +31,34 @@ enum GulliProduct {
   String get name => 'Gulli$suffix';
 }
 
+/// Le mot « GulliFY », dessiné.
+///
+/// **Pourquoi une image et pas du texte.** Le logotype de la gamme s'écrit dans
+/// la police du système : sur Windows, cela donne Segoe UI Black — une police
+/// Microsoft, présente sur la machine de qui regarde, mais qu'on n'a pas le
+/// droit de redistribuer, et que le moteur de rendu web ne peut de toute façon
+/// pas atteindre (il dessine le texte lui-même, sans accès aux polices
+/// installées : vérifié, lui demander « Segoe UI », « DejaVu Serif » ou rien du
+/// tout donne trois fois le même rendu). Toutes les polices libres essayées à
+/// la place — Inter, Open Sans, Public Sans, Roboto — donnaient un autre
+/// dessin, visiblement plus maigre.
+///
+/// Le mot a donc été capturé une fois, dans le navigateur où le site s'affiche,
+/// à l'approche et à la graisse du logotype, puis découpé en deux calques
+/// blancs sur fond transparent : le nom et le suffixe. L'app les teinte — le
+/// nom selon le thème, le suffixe selon l'entité — ce qui redonne les trois
+/// couleurs de la gamme sans trois images.
+///
+/// Ce sont des images de lettres, pas un fichier de police : rien n'est
+/// redistribué de ce qui ne peut pas l'être.
+const _motNom = 'assets/icon/wordmark_nom.png';
+const _motSuffixe = {GulliProduct.fy: 'assets/icon/wordmark_fy.png'};
+
+/// Les deux calques mesurent 1232 × 303 pour une taille de police de 400 :
+/// c'est ce rapport qui relie `fontSize` aux pixels à l'écran.
+const _motHauteur = 303 / 400;
+const _motLargeur = 1232 / 400;
+
 /// La pile de polices du LOGOTYPE — la même que les sites de la gamme
 /// (`--police-logo` dans leur base.css) : celle de l'appareil, pas celle de
 /// l'app.
@@ -105,8 +133,41 @@ class GulliWordmark extends StatelessWidget {
     final police = _familleDuLogotype();
     // L'approche se compte en em : il faut donc la taille réellement appliquée,
     // celle du style reçu ou, à défaut, celle du texte ambiant.
-    final taille =
-        style?.fontSize ?? DefaultTextStyle.of(context).style.fontSize ?? 14.0;
+    final ambiant = DefaultTextStyle.of(context).style;
+    final taille = style?.fontSize ?? ambiant.fontSize ?? 14.0;
+
+    final suffixe = _motSuffixe[product];
+    if (suffixe != null) {
+      final couleurNom =
+          style?.color ?? ambiant.color ?? const Color(0xFF000000);
+      final hauteur = taille * _motHauteur;
+      final largeur = taille * _motLargeur;
+      // Les deux calques ont la même boîte : superposés, ils se replacent au
+      // pixel près, sans rien à calculer entre le nom et son suffixe.
+      Widget calque(String actif, Color couleur) => ColorFiltered(
+        colorFilter: ColorFilter.mode(couleur, BlendMode.srcIn),
+        child: BrandImage(actif, width: largeur, height: hauteur),
+      );
+      return Semantics(
+        label: product.name,
+        image: true,
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: AlignmentDirectional.centerStart,
+          child: SizedBox(
+            width: largeur,
+            height: hauteur,
+            child: Stack(
+              children: [
+                calque(_motNom, couleurNom),
+                calque(suffixe, product.color),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     return Text.rich(
       TextSpan(
         children: [

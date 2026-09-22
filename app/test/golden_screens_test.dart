@@ -3,6 +3,7 @@
 // onglets (Accueil, Bibliothèque, Radio, Recherche) et le mini-lecteur.
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gullify/api/library_repository.dart';
@@ -38,23 +39,69 @@ import 'package:gullify/widgets/mini_player.dart';
 import 'package:gullify/widgets/retro_chrome.dart';
 
 const _songs = [
-  Song(id: 1, title: 'Première chanson', filePath: 'a.mp3', duration: 215,
-      artistName: 'Artiste Test', albumName: 'Album Test', trackNumber: 1),
-  Song(id: 2, title: 'Deuxième chanson', filePath: 'b.mp3', duration: 187,
-      artistName: 'Artiste Test', albumName: 'Album Test', trackNumber: 2),
-  Song(id: 3, title: 'Troisième chanson au titre vraiment long pour tester',
-      filePath: 'c.mp3', duration: 240,
-      artistName: 'Artiste Test', albumName: 'Album Test', trackNumber: 3),
-  Song(id: 4, title: 'Quatrième chanson', filePath: 'd.mp3', duration: 198,
-      artistName: 'Autre Artiste', albumName: 'Autre album', trackNumber: 1),
-  Song(id: 5, title: 'Cinquième chanson', filePath: 'e.mp3', duration: 232,
-      artistName: 'Autre Artiste', albumName: 'Autre album', trackNumber: 2),
-  Song(id: 6, title: 'Sixième chanson', filePath: 'f.mp3', duration: 176,
-      artistName: 'Naïa', albumName: 'Halo', trackNumber: 1),
+  Song(
+    id: 1,
+    title: 'Première chanson',
+    filePath: 'a.mp3',
+    duration: 215,
+    artistName: 'Artiste Test',
+    albumName: 'Album Test',
+    trackNumber: 1,
+  ),
+  Song(
+    id: 2,
+    title: 'Deuxième chanson',
+    filePath: 'b.mp3',
+    duration: 187,
+    artistName: 'Artiste Test',
+    albumName: 'Album Test',
+    trackNumber: 2,
+  ),
+  Song(
+    id: 3,
+    title: 'Troisième chanson au titre vraiment long pour tester',
+    filePath: 'c.mp3',
+    duration: 240,
+    artistName: 'Artiste Test',
+    albumName: 'Album Test',
+    trackNumber: 3,
+  ),
+  Song(
+    id: 4,
+    title: 'Quatrième chanson',
+    filePath: 'd.mp3',
+    duration: 198,
+    artistName: 'Autre Artiste',
+    albumName: 'Autre album',
+    trackNumber: 1,
+  ),
+  Song(
+    id: 5,
+    title: 'Cinquième chanson',
+    filePath: 'e.mp3',
+    duration: 232,
+    artistName: 'Autre Artiste',
+    albumName: 'Autre album',
+    trackNumber: 2,
+  ),
+  Song(
+    id: 6,
+    title: 'Sixième chanson',
+    filePath: 'f.mp3',
+    duration: 176,
+    artistName: 'Naïa',
+    albumName: 'Halo',
+    trackNumber: 1,
+  ),
 ];
 
-const _album = Album(id: 1, name: 'Album Test', year: 2024,
-    artistId: 1, artistName: 'Artiste Test');
+const _album = Album(
+  id: 1,
+  name: 'Album Test',
+  year: 2024,
+  artistId: 1,
+  artistName: 'Artiste Test',
+);
 
 const _albums = [
   _album,
@@ -96,71 +143,109 @@ const _playlists = [
 ];
 
 const _stations = [
-  RadioStation(id: 'a', name: 'FIP', streamUrl: 'https://s/fip',
-      country: 'France', genres: ['Éclectique', 'Jazz'], favorite: true),
-  RadioStation(id: 'b', name: 'Radio Nova', streamUrl: 'https://s/nova',
-      country: 'France', genres: ['Groove']),
-  RadioStation(id: 'c', name: 'KEXP', streamUrl: 'https://s/kexp',
-      country: 'États-Unis', genres: ['Indie', 'Rock']),
+  RadioStation(
+    id: 'a',
+    name: 'FIP',
+    streamUrl: 'https://s/fip',
+    country: 'France',
+    genres: ['Éclectique', 'Jazz'],
+    favorite: true,
+  ),
+  RadioStation(
+    id: 'b',
+    name: 'Radio Nova',
+    streamUrl: 'https://s/nova',
+    country: 'France',
+    genres: ['Groove'],
+  ),
+  RadioStation(
+    id: 'c',
+    name: 'KEXP',
+    streamUrl: 'https://s/kexp',
+    country: 'États-Unis',
+    genres: ['Indie', 'Rock'],
+  ),
 ];
 
 const _ytAlbums = [
-  YtAlbum(title: 'Nevermind', artist: 'Nirvana', year: '1991',
-      thumbnail: '', browseId: 'b1'),
-  YtAlbum(title: 'In Utero', artist: 'Nirvana', year: '1993',
-      thumbnail: '', browseId: 'b2'),
+  YtAlbum(
+    title: 'Nevermind',
+    artist: 'Nirvana',
+    year: '1991',
+    thumbnail: '',
+    browseId: 'b1',
+  ),
+  YtAlbum(
+    title: 'In Utero',
+    artist: 'Nirvana',
+    year: '1993',
+    thumbnail: '',
+    browseId: 'b2',
+  ),
 ];
 
 const _ytSongs = [
-  YtSong(title: 'Smells Like Teen Spirit', artist: 'Nirvana',
-      album: 'Nevermind', duration: '5:01', thumbnail: '', videoId: 'v1'),
-  YtSong(title: 'Come As You Are', artist: 'Nirvana',
-      album: 'Nevermind', duration: '3:38', thumbnail: '', videoId: 'v2'),
+  YtSong(
+    title: 'Smells Like Teen Spirit',
+    artist: 'Nirvana',
+    album: 'Nevermind',
+    duration: '5:01',
+    thumbnail: '',
+    videoId: 'v1',
+  ),
+  YtSong(
+    title: 'Come As You Are',
+    artist: 'Nirvana',
+    album: 'Nevermind',
+    duration: '3:38',
+    thumbnail: '',
+    videoId: 'v2',
+  ),
 ];
 
 ListeningStats _stats() => ListeningStats(
-      general: const StatsGeneral(
-        totalPlays: 128,
-        totalListenTimeFormatted: '9 h',
-        uniqueSongsPlayed: 64,
-        completionRate: 82,
-        totalSkips: 4,
-        avgDurationFormatted: '3 min',
-      ),
-      topSongs: const [],
-      topArtists: const [],
-      topAlbums: const [],
-      dailyPlays: const StatsChart(labels: [], data: []),
-      hourly: const StatsChart(labels: [], data: []),
-      weekday: const StatsChart(labels: [], data: []),
-      genres: const [],
-      recentPlays: [
-        RecentPlay(
-          title: 'Première chanson',
-          artistName: 'Artiste Test',
-          albumId: 1,
-          artworkUrl: '',
-          playedAt: DateTime.now().subtract(const Duration(minutes: 5)),
-          completed: true,
-        ),
-        RecentPlay(
-          title: 'Quatrième chanson',
-          artistName: 'Autre Artiste',
-          albumId: 2,
-          artworkUrl: '',
-          playedAt: DateTime.now().subtract(const Duration(hours: 3)),
-          completed: true,
-        ),
-        RecentPlay(
-          title: 'Sixième chanson',
-          artistName: 'Naïa',
-          albumId: 5,
-          artworkUrl: '',
-          playedAt: DateTime.now().subtract(const Duration(days: 2)),
-          completed: false,
-        ),
-      ],
-    );
+  general: const StatsGeneral(
+    totalPlays: 128,
+    totalListenTimeFormatted: '9 h',
+    uniqueSongsPlayed: 64,
+    completionRate: 82,
+    totalSkips: 4,
+    avgDurationFormatted: '3 min',
+  ),
+  topSongs: const [],
+  topArtists: const [],
+  topAlbums: const [],
+  dailyPlays: const StatsChart(labels: [], data: []),
+  hourly: const StatsChart(labels: [], data: []),
+  weekday: const StatsChart(labels: [], data: []),
+  genres: const [],
+  recentPlays: [
+    RecentPlay(
+      title: 'Première chanson',
+      artistName: 'Artiste Test',
+      albumId: 1,
+      artworkUrl: '',
+      playedAt: DateTime.now().subtract(const Duration(minutes: 5)),
+      completed: true,
+    ),
+    RecentPlay(
+      title: 'Quatrième chanson',
+      artistName: 'Autre Artiste',
+      albumId: 2,
+      artworkUrl: '',
+      playedAt: DateTime.now().subtract(const Duration(hours: 3)),
+      completed: true,
+    ),
+    RecentPlay(
+      title: 'Sixième chanson',
+      artistName: 'Naïa',
+      albumId: 5,
+      artworkUrl: '',
+      playedAt: DateTime.now().subtract(const Duration(days: 2)),
+      completed: false,
+    ),
+  ],
+);
 
 /// Les goldens ne déclenchent aucune action de lecture : un Fake suffit
 /// (le vrai PlayerActions exigerait le handler audio et ses plugins).
@@ -196,12 +281,15 @@ Widget _wrap(
     // (collision avec dart:core), le type est donc déduit du paramètre.
     overrides: [
       playerActionsProvider.overrideWithValue(_FakePlayerActions()),
-      currentMediaItemProvider
-          .overrideWith((ref) => Stream<MediaItem?>.value(item)),
+      currentMediaItemProvider.overrideWith(
+        (ref) => Stream<MediaItem?>.value(item),
+      ),
       playbackStateProvider.overrideWith(
-          (ref) => Stream.value(PlaybackState(playing: item != null))),
+        (ref) => Stream.value(PlaybackState(playing: item != null)),
+      ),
       positionProvider.overrideWith(
-          (ref) => Stream.value(const Duration(seconds: 72))),
+        (ref) => Stream.value(const Duration(seconds: 72)),
+      ),
       recentAlbumsProvider.overrideWith((ref) async => _albums),
       playlistsProvider.overrideWith((ref) async => _playlists),
       popularSongsProvider.overrideWith((ref) async => _songs),
@@ -212,36 +300,48 @@ Widget _wrap(
       artistsByGenreProvider('Rock').overrideWith((ref) async => _artists),
       allFavoritesProvider.overrideWith((ref) async => _songs),
       statsProvider.overrideWith((ref) async => _stats()),
-      notificationsProvider.overrideWith((ref) async =>
-          const NotificationsPage(items: [], unread: 2)),
+      notificationsProvider.overrideWith(
+        (ref) async => const NotificationsPage(items: [], unread: 2),
+      ),
       radioStationsProvider.overrideWith((ref) async => _stations),
       yearsProvider.overrideWith((ref) async => _years),
       albumsByYearProvider(2024).overrideWith((ref) async => _albums),
       suggestionsProvider.overrideWith(
-          (ref) async => const Suggestions(genre: 'Indie', albums: _albums)),
+        (ref) async => const Suggestions(genre: 'Indie', albums: _albums),
+      ),
       if (searchQuery != null) ...[
         searchQueryProvider.overrideWith(() => _FixedQuery(searchQuery)),
-        searchResultsProvider.overrideWith((ref) async => SearchResults(
-              artists: [_artists.first],
-              albums: [_album],
-              songs: _songs.take(2).toList(),
-            )),
-        ytAlbumSearchProvider(searchQuery)
-            .overrideWith((ref) async => _ytAlbums),
-        ytSongSearchProvider(searchQuery)
-            .overrideWith((ref) async => _ytSongs),
+        searchResultsProvider.overrideWith(
+          (ref) async => SearchResults(
+            artists: [_artists.first],
+            albums: [_album],
+            songs: _songs.take(2).toList(),
+          ),
+        ),
+        ytAlbumSearchProvider(
+          searchQuery,
+        ).overrideWith((ref) async => _ytAlbums),
+        ytSongSearchProvider(searchQuery).overrideWith((ref) async => _ytSongs),
       ] else
-        searchResultsProvider
-            .overrideWith((ref) async => const SearchResults()),
+        searchResultsProvider.overrideWith(
+          (ref) async => const SearchResults(),
+        ),
       albumDetailProvider(1).overrideWith(
-          (ref) async => const AlbumDetail(album: _album, songs: _songs)),
-      artistDetailProvider(1).overrideWith((ref) async => const ArtistDetail(
-            artist: Artist(id: 1, name: 'Artiste Test', albumCount: 2),
-            albums: [_album, Album(id: 2, name: 'Autre album', year: 2020)],
-            topTracks: _songs,
-          )),
-      artistExtrasProvider('Artiste Test')
-          .overrideWith((ref) async => const ArtistExtras()),
+        (ref) async => const AlbumDetail(album: _album, songs: _songs),
+      ),
+      artistDetailProvider(1).overrideWith(
+        (ref) async => const ArtistDetail(
+          artist: Artist(id: 1, name: 'Artiste Test', albumCount: 2),
+          albums: [
+            _album,
+            Album(id: 2, name: 'Autre album', year: 2020),
+          ],
+          topTracks: _songs,
+        ),
+      ),
+      artistExtrasProvider(
+        'Artiste Test',
+      ).overrideWith((ref) async => const ArtistExtras()),
       ytArtistAlbumsProvider('Artiste Test').overrideWith((ref) async => []),
     ],
     child: MaterialApp(
@@ -252,7 +352,9 @@ Widget _wrap(
           final bg = surfaces?.background;
           return DecoratedBox(
             decoration: BoxDecoration(
-              gradient: bg ?? const LinearGradient(colors: [Colors.white, Colors.white]),
+              gradient:
+                  bg ??
+                  const LinearGradient(colors: [Colors.white, Colors.white]),
             ),
             // Comme main.dart : sous le rétro, la tôle brossée passe entre le
             // fond et les écrans (idée #83) ; sous l'Apple Liquid Glass, c'est
@@ -310,6 +412,29 @@ Widget _shellWrap(
 }
 
 void main() {
+  // Les images de l'app sont lues sur disque, donc de façon asynchrone : dans
+  // un essai, la première image à être demandée n'est pas encore là quand la
+  // photo est prise, et le logo manquerait sur les références. On les charge
+  // une fois pour toutes avant la série.
+  setUpAll(() async {
+    TestWidgetsFlutterBinding.ensureInitialized();
+    for (final chemin in const [
+      'assets/icon/wordmark_nom.png',
+      'assets/icon/wordmark_fy.png',
+      'assets/icon/mark.png',
+      'assets/icon/mascot.png',
+    ]) {
+      final octets = await rootBundle.load(chemin);
+      final image = await decodeImageFromList(octets.buffer.asUint8List());
+      // Poser l'image décodée dans le cache sous la clé qu'Image.asset emploie.
+      PaintingBinding.instance.imageCache.putIfAbsent(
+        AssetBundleImageKey(bundle: rootBundle, name: chemin, scale: 1.0),
+        () =>
+            OneFrameImageStreamCompleter(Future.value(ImageInfo(image: image))),
+      );
+    }
+  });
+
   Future<void> pumpScreen(WidgetTester tester, Widget widget) async {
     tester.view.physicalSize = const Size(412, 892);
     tester.view.devicePixelRatio = 1;
@@ -387,8 +512,9 @@ void main() {
   // Le thème Apple Liquid Glass (idée #98) : même écran, même mise en page —
   // seule la matière change. Le golden garde trace de ce que doivent donner
   // la vitre plus fine, le fond réfracté et les angles en superellipse.
-  testWidgets('home screen renders in the Apple Liquid Glass skin',
-      (tester) async {
+  testWidgets('home screen renders in the Apple Liquid Glass skin', (
+    tester,
+  ) async {
     await pumpScreen(
       tester,
       _shellWrap(
@@ -411,8 +537,9 @@ void main() {
   // …et le même en sombre (idée #99). Le fond d'écran coloré et la vitre
   // amaigrie se jouent surtout là : sur du noir, un verre trop dense
   // redevient un simple panneau gris.
-  testWidgets('home screen renders in the Apple Liquid Glass skin (sombre)',
-      (tester) async {
+  testWidgets('home screen renders in the Apple Liquid Glass skin (sombre)', (
+    tester,
+  ) async {
     await pumpScreen(
       tester,
       _shellWrap(

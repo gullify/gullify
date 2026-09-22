@@ -13,27 +13,35 @@ import 'package:gullify/widgets/wordmark.dart';
 
 void main() {
   group('le logo', () {
-    testWidgets('« Gulli » dans la couleur du texte, « FY » dans le vert', (
-      tester,
-    ) async {
-      await tester.pumpWidget(
-        const MaterialApp(
-          home: Scaffold(
-            body: GulliWordmark(style: TextStyle(color: Color(0xFF111111))),
+    testWidgets(
+      '« Gulli » dans la couleur du texte, le suffixe dans la sienne',
+      (tester) async {
+        // GulliFY est dessiné (voir logotype_test) ; le nom écrit reste pour les
+        // entités qui n'ont pas encore leur image, et la règle de couleur y est
+        // la même : « Gulli » suit le texte, le suffixe porte l'entité.
+        await tester.pumpWidget(
+          const MaterialApp(
+            home: Scaffold(
+              body: GulliWordmark(
+                product: GulliProduct.tv,
+                style: TextStyle(color: Color(0xFF111111)),
+              ),
+            ),
           ),
-        ),
-      );
+        );
 
-      final rendu = tester.widget<Text>(find.byType(Text));
-      final morceaux = (rendu.textSpan! as TextSpan).children!.cast<TextSpan>();
-      expect(morceaux.map((s) => s.text).join(), 'GulliFY');
-      expect(
-        morceaux.first.style?.color,
-        isNull,
-        reason: '« Gulli » suit la couleur ambiante',
-      );
-      expect(morceaux.last.style?.color, gullifyGreen);
-    });
+        final rendu = tester.widget<Text>(find.byType(Text));
+        final morceaux = (rendu.textSpan! as TextSpan).children!
+            .cast<TextSpan>();
+        expect(morceaux.map((s) => s.text).join(), 'GulliTV');
+        expect(
+          morceaux.first.style?.color,
+          isNull,
+          reason: '« Gulli » suit la couleur ambiante',
+        );
+        expect(morceaux.last.style?.color, GulliProduct.tv.color);
+      },
+    );
 
     test('une couleur par entité de la gamme', () {
       expect(GulliProduct.fy.name, 'GulliFY');
@@ -76,7 +84,9 @@ void main() {
         File('ios/Runner/Info.plist').readAsStringSync(),
         contains('<key>CFBundleDisplayName</key>\n\t<string>GulliFY</string>'),
       );
-      final manifeste = jsonDecode(File('web/manifest.json').readAsStringSync());
+      final manifeste = jsonDecode(
+        File('web/manifest.json').readAsStringSync(),
+      );
       expect(manifeste['name'], 'GulliFY');
       expect(manifeste['short_name'], 'GulliFY');
       expect(
