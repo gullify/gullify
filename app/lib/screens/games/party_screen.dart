@@ -361,7 +361,7 @@ class _Lobby extends ConsumerWidget {
   final PartyState party;
 
   Future<void> _sms(BuildContext context, String url) async {
-    final game = gameById(party.game)?.name ?? 'Gullify';
+    final game = gameById(party.game)?.name ?? 'GulliFY';
     final body = Uri.encodeComponent(
       'On joue au $game sur Gullify ! Rejoins-moi : $url',
     );

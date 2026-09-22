@@ -45,7 +45,7 @@
     <uses-feature android:name="android.hardware.microphone" android:required="false"/>
 
     <application
-        android:label="Gullify"
+        android:label="GulliFY"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:banner="@drawable/tv_banner"

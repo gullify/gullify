@@ -1,6 +1,6 @@
 <?php
 /**
- * Gullify app download page.
+ * GulliFY app download page.
  * Serves the Android APK built by build-app.sh (public/download/gullify.apk).
  */
 $apk = __DIR__ . '/gullify.apk';
@@ -23,7 +23,7 @@ if (isset($_GET['apk'])) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gullify — Application mobile</title>
+    <title>GulliFY — Application mobile</title>
     <style>
         body {
             font-family: system-ui, sans-serif;
@@ -54,14 +54,16 @@ if (isset($_GET['apk'])) {
             font-weight: 600;
         }
         .muted { font-size: .85rem; color: #777; margin-top: 24px; }
+        /* Le « FY » du logo, dans le vert de la marque. */
+        .fy { color: #2C6774; }
     </style>
 </head>
 <body>
     <div class="card">
-        <img src="../android-chrome-192x192.png" alt="Gullify">
-        <h1>Gullify pour Android</h1>
+        <img src="../android-chrome-192x192.png" alt="GulliFY">
+        <h1>Gulli<span class="fy">FY</span> pour Android</h1>
         <?php if ($hasApk): ?>
-            <p>Installez l'application mobile Gullify sur votre appareil Android
+            <p>Installez l'application mobile GulliFY sur votre appareil Android
                (autorisez l'installation de sources inconnues si demandé).</p>
             <a class="btn" href="?apk=1">Télécharger l'APK
                 (<?= round(filesize($apk) / 1048576) ?> Mo)</a>

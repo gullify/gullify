@@ -16,6 +16,7 @@ import 'tv_library_page.dart';
 import 'tv_radio_page.dart';
 import 'tv_search_page.dart';
 import 'tv_update.dart';
+import '../../widgets/wordmark.dart';
 
 /// Les destinations du rail, dans l'ordre où on les rencontre en montant.
 enum TvTab {
@@ -475,8 +476,7 @@ class _Rail extends StatelessWidget {
           ),
           if (open) ...[
             const SizedBox(height: 14),
-            Text(
-              'Gullify',
+            GulliWordmark(
               style: TextStyle(
                 fontSize: tvMinText,
                 color: scheme.onSurfaceVariant.withValues(alpha: 0.5),
@@ -517,10 +517,7 @@ class _Logo extends StatelessWidget {
               if (open) ...[
                 const SizedBox(width: 14),
                 const Expanded(
-                  child: Text(
-                    'Gullify',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                  child: GulliWordmark(
                     style: TextStyle(
                       fontSize: 30,
                       fontWeight: FontWeight.w800,

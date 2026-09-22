@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../api/api_client.dart';
 import '../state/auth.dart';
+import '../widgets/wordmark.dart';
 
 class ServerScreen extends ConsumerStatefulWidget {
   const ServerScreen({super.key});
@@ -54,8 +55,7 @@ class _ServerScreenState extends ConsumerState<ServerScreen> {
               children: [
                 Image.asset('assets/icon/mascot.png', width: 96, height: 96),
                 const SizedBox(height: 12),
-                Text(
-                  'Gullify',
+                GulliWordmark(
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                         fontWeight: FontWeight.w700,

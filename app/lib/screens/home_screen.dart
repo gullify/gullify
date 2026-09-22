@@ -18,6 +18,7 @@ import '../widgets/glass_kit.dart';
 import '../widgets/song_menu.dart';
 import '../widgets/song_tile.dart';
 import 'stats_screen.dart' show relativeTime;
+import '../widgets/wordmark.dart';
 
 /// Onglet « Accueil » : logo, boutons de verre, « Nouveautés »
 /// (albums récents + lecture aléatoire), « Les plus populaires » (top 5)
@@ -70,10 +71,7 @@ class HomeScreen extends ConsumerWidget {
                           ),
                           const SizedBox(width: 9),
                           const Flexible(
-                            child: Text(
-                              'Gullify',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+                            child: GulliWordmark(
                               style: TextStyle(
                                 fontSize: 38,
                                 fontWeight: FontWeight.w800,

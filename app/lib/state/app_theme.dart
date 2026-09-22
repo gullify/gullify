@@ -38,7 +38,8 @@ class SkinNotifier extends Notifier<GullifySkin> {
   }
 }
 
-/// Couleur d'accent choisie (structure de verre inchangée). Défaut : indigo.
+/// Couleur d'accent choisie (structure de verre inchangée). Défaut : le vert
+/// de la marque, celui du fond de l'icône et du « FY » du logo.
 final accentColorProvider =
     NotifierProvider<AccentNotifier, GullifyAccent>(AccentNotifier.new);
 
@@ -46,7 +47,7 @@ class AccentNotifier extends Notifier<GullifyAccent> {
   @override
   GullifyAccent build() {
     _restore();
-    return GullifyAccent.indigo;
+    return GullifyAccent.vert;
   }
 
   Future<void> _restore() async {
@@ -55,7 +56,7 @@ class AccentNotifier extends Notifier<GullifyAccent> {
       if (raw == null) return;
       state = GullifyAccent.values.firstWhere(
         (a) => a.name == raw,
-        orElse: () => GullifyAccent.indigo,
+        orElse: () => GullifyAccent.vert,
       );
     } catch (_) {}
   }

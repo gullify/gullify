@@ -145,6 +145,9 @@ class AuthController extends Notifier<AuthState> {
   Future<void> setServer(String url) async {
     final client = ApiClient(serverUrl: url);
     final data = await client.get('ping.php');
+    // « Gullify » sans majuscules de gamme : c'est la valeur que renvoie
+    // ping.php, la poignée de main entre l'app et le serveur. Elle ne suit PAS
+    // le nom affiché — la changer d'un seul côté empêcherait toute connexion.
     if (data is! Map || data['server'] != 'Gullify') {
       throw ApiException('not_gullify', 'This server does not look like a Gullify server');
     }

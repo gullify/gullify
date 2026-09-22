@@ -17,6 +17,7 @@ import '../widgets/mini_player.dart';
 import '../widgets/retro_chrome.dart';
 import '../widgets/retro_lcd.dart';
 import '../widgets/update_dialog.dart';
+import '../widgets/wordmark.dart';
 
 /// Tab shell: content + mini player + bottom navigation.
 class ShellScreen extends ConsumerStatefulWidget {
@@ -105,7 +106,7 @@ class _RetroScreenFrame extends StatelessWidget {
         RetroScreenBar(
           screen: index >= 0 && index < _names.length
               ? _names[index]
-              : 'Gullify',
+              : 'GulliFY',
         ),
         Expanded(
           child: MediaQuery.removePadding(
@@ -817,8 +818,7 @@ class _SidebarBrand extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 10),
-              const Text(
-                'Gullify',
+              const GulliWordmark(
                 style: TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.w800,

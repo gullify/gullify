@@ -1,8 +1,8 @@
 <?php
 /**
- * gullify.app — la page d'accueil publique.
+ * gullify.app — la page d'accueil publique de GulliFY.
  *
- * Elle ne demande aucune connexion : elle dit ce qu'est Gullify, donne l'app
+ * Elle ne demande aucune connexion : elle dit ce qu'est GulliFY, donne l'app
  * (web ou Android) et explique comment l'installer. Tout ce qui demande un
  * compte vit DANS l'app — y compris l'administration des utilisateurs et du
  * stockage, portée depuis la vieille interface web (voir
@@ -36,7 +36,7 @@ function e(?string $s): string {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Gullify — votre musique, partout</title>
+<title>GulliFY — votre musique, partout</title>
 <meta name="description" content="Votre bibliothèque musicale, sur le web, sur Android, en voiture et au salon.">
 <meta name="theme-color" content="#14161C">
 <link rel="icon" href="/favicon.ico">
@@ -46,6 +46,10 @@ function e(?string $s): string {
      sombre, même accent indigo, même gris de texte secondaire. La page et
      l'app doivent se ressembler — c'est tout l'objet de la manœuvre. */
   :root {
+    /* Le vert de la marque : celui du fond de l'icône. Il colore le « FY » du
+       logo — chaque entité de la gamme a le sien (GulliTV en rouge, GulliVR
+       en mauve). */
+    --fy: #2C6774;
     --bg: #14161C;
     --fg: #EDEFF3;
     --muted: #9BA0AA;
@@ -69,6 +73,7 @@ function e(?string $s): string {
 
   header { text-align: center; padding: 76px 0 20px; }
   header img { width: 92px; height: 92px; border-radius: 22px; }
+  .fy { color: var(--fy); }
   h1 {
     font-size: clamp(38px, 7vw, 62px); font-weight: 800;
     letter-spacing: -1.8px; margin: 22px 0 8px;
@@ -139,7 +144,7 @@ function e(?string $s): string {
 
   <header>
     <img src="/android-chrome-192x192.png" alt="">
-    <h1>Gullify</h1>
+    <h1>Gulli<span class="fy">FY</span></h1>
     <p class="tagline">Votre musique, partout.</p>
 
     <div class="actions">
@@ -170,7 +175,7 @@ function e(?string $s): string {
       <div class="card">
         <h3>Android</h3>
         <p>Téléchargez l'APK et autorisez l'installation depuis cette source
-           quand Android le demande. Ensuite, Gullify se met à jour tout seul.</p>
+           quand Android le demande. Ensuite, GulliFY se met à jour tout seul.</p>
         <p><a href="<?= APK_LATEST ?>">Télécharger l'APK</a><?php if ($apkVersion): ?>
            — version <?= e($apkVersion) ?><?php endif; ?></p>
       </div>
@@ -180,7 +185,7 @@ function e(?string $s): string {
         <ol>
           <li>Ouvrez <a href="/app/">l'app web</a> dans Chrome ou Edge.</li>
           <li>Cliquez l'icône d'installation dans la barre d'adresse — ou menu
-              <kbd>⋯</kbd> → <em>Installer Gullify</em>.</li>
+              <kbd>⋯</kbd> → <em>Installer GulliFY</em>.</li>
           <li>Elle s'ouvre alors dans sa propre fenêtre, comme un logiciel.</li>
         </ol>
       </div>
@@ -206,7 +211,7 @@ function e(?string $s): string {
   </section>
 
   <footer>
-    <span>Gullify<?= $apkVersion ? ' — app v' . e($apkVersion) : '' ?></span>
+    <span>Gulli<span class="fy">FY</span><?= $apkVersion ? ' — app v' . e($apkVersion) : '' ?></span>
     <span><a href="/app/">Ouvrir l'app</a><?php if (is_dir(__DIR__ . '/legacy')): ?>
       · <a href="/legacy/">Ancienne interface web</a><?php endif; ?></span>
   </footer>

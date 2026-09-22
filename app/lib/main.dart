@@ -161,7 +161,7 @@ class _GullifyAppState extends ConsumerState<GullifyApp>
     final authenticated =
         ref.watch(authProvider).status == AuthStatus.authenticated;
     return MaterialApp.router(
-      title: 'Gullify',
+      title: 'GulliFY',
       // Même structure de verre, teintée par l'accent; clair et sombre. Le
       // rétro Winamp (idée #82), lui, n'a qu'une seule tête : les deux
       // entrées valent alors le même thème, et le mode clair/sombre n'a plus

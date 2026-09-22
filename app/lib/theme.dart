@@ -7,7 +7,13 @@ import 'widgets/retro_chrome.dart';
 /// d'accent choisie et la base claire/sombre — la personnalité vient de la
 /// structure, pas de la couleur.
 
-/// Accent indigo par défaut (celui du design de référence).
+/// Le vert de la marque : celui du fond de l'icône, déclaré dans
+/// `pubspec.yaml` (adaptive_icon_background) et dans `colors.xml` d'Android.
+/// C'est lui qui colore le « FY » du logo (voir widgets/wordmark.dart), et
+/// c'est l'accent par défaut de l'app.
+const gullifyGreen = Color(0xFF2C6774);
+
+/// Accent indigo du design de référence.
 const glassAccent = Color(0xFF4A5FE8);
 
 /// Ambre de marque (placeholder de pochette, icône de secours).
@@ -16,6 +22,7 @@ const gullifyAmber = Color(0xFFE3A94F);
 /// Couleurs d'accent proposées. La structure reste identique quelle que
 /// soit la teinte choisie.
 enum GullifyAccent {
+  vert(gullifyGreen, 'Vert GulliFY'),
   indigo(Color(0xFF4A5FE8), 'Indigo'),
   ambre(Color(0xFFE0913A), 'Ambre'),
   emeraude(Color(0xFF10B981), 'Émeraude'),

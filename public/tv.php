@@ -1,6 +1,6 @@
 <?php
 /**
- * gullify.app/tv — l'APK, pour installer Gullify sur un téléviseur.
+ * gullify.app/tv — l'APK, pour installer GulliFY sur un téléviseur.
  *
  * Une adresse courte parce qu'on la saisit à la télécommande, lettre par
  * lettre, dans une app de téléchargement (Downloader et consorts). Elle
@@ -38,7 +38,7 @@ if ($manifest !== false) {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Gullify pour Google TV</title>
+<title>GulliFY pour Google TV</title>
 <link rel="icon" href="/favicon.ico">
 <style>
   body {
@@ -64,11 +64,13 @@ if ($manifest !== false) {
     box-shadow: 0 12px 30px rgba(74,95,232,.4);
   }
   ol { text-align: left; color: #9BA0AA; line-height: 1.7; margin-top: 22px; }
+  /* Le « FY » du logo, dans le vert de la marque (fond de l'icône). */
+  .fy { color: #2C6774; }
 </style>
 </head>
 <body>
 <div class="card">
-  <h1>Gullify pour Google&nbsp;TV</h1>
+  <h1>Gulli<span class="fy">FY</span> pour Google&nbsp;TV</h1>
   <p><?= $version ? 'Version ' . htmlspecialchars($version, ENT_QUOTES) : 'Dernière version' ?></p>
   <a class="dl" href="<?= LATEST ?>">Télécharger l'APK</a>
   <ol>
@@ -76,7 +78,7 @@ if ($manifest !== false) {
     <li>Saisis <code>gullify.app/tv</code> — l'APK arrive directement.</li>
     <li>Autorise l'installation depuis cette source quand Android le demande.</li>
   </ol>
-  <p>Ensuite, plus besoin de revenir ici : Gullify vérifie ses mises à jour tout seul et les installe depuis la télé.</p>
+  <p>Ensuite, plus besoin de revenir ici : GulliFY vérifie ses mises à jour tout seul et les installe depuis la télé.</p>
 </div>
 </body>
 </html>

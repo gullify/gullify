@@ -24,6 +24,7 @@ import '../widgets/liquid_glass.dart';
 import '../widgets/retro_chrome.dart';
 import '../widgets/retro_lcd.dart';
 import '../widgets/update_dialog.dart';
+import '../widgets/wordmark.dart';
 
 const appVersion = '3.59.0';
 
@@ -164,7 +165,7 @@ class SettingsScreen extends ConsumerWidget {
           const _SectionHeader('À propos'),
           ListTile(
             leading: const Icon(Icons.info_outline),
-            title: const Text('Gullify'),
+            title: const GulliWordmark(),
             subtitle: const Text('Version $appVersion'),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => context.push('/settings/changelog'),

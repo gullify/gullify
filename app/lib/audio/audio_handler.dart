@@ -993,7 +993,7 @@ class GullifyAudioHandler extends BaseAudioHandler
     final item = MediaItem(
       id: alarmToneAsset,
       title: 'Réveil',
-      artist: 'Gullify',
+      artist: 'GulliFY',
       extras: const {'alarm': true},
     );
     queue.add([item]);

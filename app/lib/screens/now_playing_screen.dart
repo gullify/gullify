@@ -235,7 +235,7 @@ class NowPlayingScreen extends ConsumerWidget {
         extendBodyBehindAppBar: true,
         appBar: retro
             ? RetroTitleBar(
-                title: isRadio ? 'Radio' : item.album ?? 'Gullify',
+                title: isRadio ? 'Radio' : item.album ?? 'GulliFY',
                 onTitleTap: albumId == null
                     ? null
                     : () => _openDetail(context, '/album/$albumId'),
