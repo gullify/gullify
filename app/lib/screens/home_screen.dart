@@ -60,11 +60,7 @@ class HomeScreen extends ConsumerWidget {
                     Expanded(
                       child: const GulliLogo(
                         fontSize: 38,
-                        style: TextStyle(
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: -0.8,
-                          height: 1.02,
-                        ),
+                        style: TextStyle(height: 1.02),
                       ),
                     ),
                     GlassIconButton(
@@ -98,8 +94,10 @@ class HomeScreen extends ConsumerWidget {
                       context.go('/search');
                     },
                     child: Padding(
-                      padding:
-                          const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 13,
+                      ),
                       child: Row(
                         children: [
                           Icon(Icons.search, color: scheme.onSurfaceVariant),
@@ -148,9 +146,7 @@ class HomeScreen extends ConsumerWidget {
                         ),
                       ),
                     ),
-                    _ShuffleRecentButton(
-                      albums: recent.value ?? const [],
-                    ),
+                    _ShuffleRecentButton(albums: recent.value ?? const []),
                   ],
                 ),
               ),
@@ -166,8 +162,7 @@ class HomeScreen extends ConsumerWidget {
                           scrollDirection: Axis.horizontal,
                           padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
                           itemCount: albums.length,
-                          separatorBuilder: (_, _) =>
-                              const SizedBox(width: 13),
+                          separatorBuilder: (_, _) => const SizedBox(width: 13),
                           itemBuilder: (context, i) =>
                               AlbumCard(album: albums[i]),
                         ),
@@ -335,9 +330,7 @@ class _RecentPlayRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 1),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
-        onTap: p.albumId > 0
-            ? () => context.push('/album/${p.albumId}')
-            : null,
+        onTap: p.albumId > 0 ? () => context.push('/album/${p.albumId}') : null,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
           child: Row(
@@ -506,8 +499,11 @@ class _DiscoverArtistCard extends ConsumerWidget {
                         children: [
                           Row(
                             children: [
-                              Icon(Icons.auto_awesome,
-                                  size: 13, color: scheme.primary),
+                              Icon(
+                                Icons.auto_awesome,
+                                size: 13,
+                                color: scheme.primary,
+                              ),
                               const SizedBox(width: 5),
                               Text(
                                 'À découvrir',
@@ -640,14 +636,19 @@ class _QuickPlayRowState extends ConsumerState<_QuickPlayRow> {
     try {
       // Lu au tap (pas dans build) pour ne pas forcer l'ApiClient en test.
       final repo = ref.read(libraryRepositoryProvider);
-      final songs =
-          await (discovery ? repo.discoverySongs() : repo.randomSongs());
+      final songs = await (discovery
+          ? repo.discoverySongs()
+          : repo.randomSongs());
       if (songs.isEmpty) {
-        messenger.showSnackBar(SnackBar(
-          content: Text(discovery
-              ? 'Aucun titre jamais joué — tout a déjà été écouté !'
-              : 'Bibliothèque vide'),
-        ));
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text(
+              discovery
+                  ? 'Aucun titre jamais joué — tout a déjà été écouté !'
+                  : 'Bibliothèque vide',
+            ),
+          ),
+        );
         return;
       }
       await ref.read(playerActionsProvider).playSongs(songs..shuffle());
@@ -655,7 +656,9 @@ class _QuickPlayRowState extends ConsumerState<_QuickPlayRow> {
       messenger.showSnackBar(SnackBar(content: Text('Échec : $e')));
     } finally {
       if (mounted) {
-        setState(() => discovery ? _busyDiscovery = false : _busyRandom = false);
+        setState(
+          () => discovery ? _busyDiscovery = false : _busyRandom = false,
+        );
       }
     }
   }
@@ -724,7 +727,9 @@ class _QuickButton extends StatelessWidget {
               Text(
                 label,
                 style: const TextStyle(
-                    fontSize: 14, fontWeight: FontWeight.w700),
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ],
           ),

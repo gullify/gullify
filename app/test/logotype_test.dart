@@ -43,24 +43,35 @@ void main() {
     expect(style.fontFamilyFallback, contains('Roboto'));
   });
 
-  testWidgets('un style d\'appelant règle la graisse, pas la famille', (
+  testWidgets('la graisse et l\'approche du logotype ne se négocient pas', (
     tester,
   ) async {
+    // Les valeurs viennent de la feuille de style des trois sites : -0,03 em
+    // et 800. Un appelant règle la taille et la couleur ; s'il tente le reste,
+    // le logotype ne le suit pas — sans quoi le même logo n'aurait pas deux
+    // fois la même allure dans l'app.
     await poser(
       tester,
       const GulliWordmark(
         style: TextStyle(
           fontFamily: 'HankenGrotesk',
-          fontWeight: FontWeight.w800,
-          letterSpacing: -0.8,
+          fontSize: 40,
+          fontWeight: FontWeight.w400,
+          letterSpacing: 2,
+          color: Color(0xFF123456),
         ),
       ),
     );
 
     final style = styleDuNom(tester);
     expect(style.fontWeight, FontWeight.w800);
-    expect(style.letterSpacing, -0.8);
+    expect(style.letterSpacing, closeTo(40 * -0.03, 0.0001));
     expect(style.fontFamily, '-apple-system');
+    expect(
+      style.color,
+      const Color(0xFF123456),
+      reason: 'la couleur reste à l\'appelant',
+    );
   });
 
   testWidgets('sur le web, la police embarquée prend le relais', (

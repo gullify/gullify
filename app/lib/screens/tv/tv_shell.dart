@@ -513,13 +513,7 @@ class _Logo extends StatelessWidget {
               if (open) ...[
                 const SizedBox(width: 14),
                 const Expanded(
-                  child: GulliWordmark(
-                    style: TextStyle(
-                      fontSize: 30,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: -0.6,
-                    ),
-                  ),
+                  child: GulliWordmark(style: TextStyle(fontSize: 30)),
                 ),
               ],
             ],

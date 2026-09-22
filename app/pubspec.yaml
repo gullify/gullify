@@ -115,14 +115,14 @@ flutter:
         - asset: assets/fonts/HankenGrotesk.ttf
     # Le LOGOTYPE seulement, et seulement sur le web (voir wordmark.dart) : la
     # gamme écrit son nom dans la police du système, à laquelle le moteur de
-    # rendu web n'a pas accès. Sur Windows, cette pile donne Segoe UI Bold —
+    # rendu web n'a pas accès. Sur Windows, cette pile donne du Segoe UI —
     # que Microsoft ne laisse pas redistribuer. Open Sans est la plus proche
-    # qui soit libre (même famille humaniste, même graisse 700), figée et
-    # réduite à l'alphabet : 12 Ko, licence OFL jointe.
+    # qui soit libre (même famille humaniste), figée à la graisse du logotype
+    # (800) et réduite à l'alphabet : licence OFL jointe.
     - family: LogoSans
       fonts:
         - asset: assets/fonts/LogoSans-Bold.ttf
-          weight: 700
+          weight: 800
     # Les deux polices du thème rétro Winamp (idée #85, licence OFL) :
     # Silkscreen pour les libellés gravés du châssis, VT323 pour tout ce qui
     # s'affiche derrière une vitre. Sans elles, le rétro n'était que du

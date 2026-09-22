@@ -50,9 +50,8 @@ enum GulliProduct {
 ///
 /// Sur Windows, cette pile donne **Segoe UI Bold** — police Microsoft, qu'on
 /// n'a pas le droit de redistribuer. On embarque donc la plus proche qui soit
-/// libre : Open Sans, de la même famille humaniste et à la même graisse (700,
-/// et non 800 : à 800 le mot sortait plus noir et plus serré que le site posé
-/// à côté). Figée et réduite à l'alphabet — 12 Ko.
+/// libre : Open Sans, de la même famille humaniste, figée à la graisse du
+/// logotype et réduite à l'alphabet — 12 Ko.
 const _policeLogo = <String>[
   '-apple-system',
   'BlinkMacSystemFont',
@@ -71,6 +70,13 @@ bool logotypeEmbarque = kIsWeb;
 ({String famille, List<String> repli}) _familleDuLogotype() => logotypeEmbarque
     ? (famille: 'LogoSans', repli: _policeLogo)
     : (famille: _policeLogo.first, repli: _policeLogo.sublist(1));
+
+/// Les deux réglages du logotype, repris de la feuille de style des trois
+/// sites (`.marque`) : approche **-0,03 em** et graisse **800**. Ils sont
+/// imposés ici plutôt que laissés à chaque appelant — c'est ce qui fait qu'un
+/// logo reste le même logo d'un écran à l'autre.
+const _approcheLogo = -0.03;
+const _graisseLogo = FontWeight.w800;
 
 /// Le nom écrit comme un logo : « Gulli » dans la couleur du texte ambiant,
 /// le suffixe de l'entité dans la sienne.
@@ -97,6 +103,10 @@ class GulliWordmark extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final police = _familleDuLogotype();
+    // L'approche se compte en em : il faut donc la taille réellement appliquée,
+    // celle du style reçu ou, à défaut, celle du texte ambiant.
+    final taille =
+        style?.fontSize ?? DefaultTextStyle.of(context).style.fontSize ?? 14.0;
     return Text.rich(
       TextSpan(
         children: [
@@ -112,10 +122,10 @@ class GulliWordmark extends StatelessWidget {
       style: (style ?? const TextStyle()).copyWith(
         fontFamily: police.famille,
         fontFamilyFallback: police.repli,
-        // La graisse suit la police embarquée : sur Windows, la pile système ne
-        // donne pas de 800 non plus, elle retombe sur le gras (700). Demander
-        // 800 à une fonte qui n'en a pas épaissit le dessin artificiellement.
-        fontWeight: logotypeEmbarque ? FontWeight.w700 : style?.fontWeight,
+        // Graisse et approche du logotype : l'appelant règle la taille et la
+        // couleur, le reste appartient à la marque.
+        fontWeight: _graisseLogo,
+        letterSpacing: taille * _approcheLogo,
       ),
       textAlign: textAlign,
       maxLines: maxLines,

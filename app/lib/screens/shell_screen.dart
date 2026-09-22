@@ -459,8 +459,8 @@ class _Satellite extends StatelessWidget {
                   isRetroSkin(context)
                       ? 0
                       : isLiquidSkin(context)
-                          ? 20
-                          : 14,
+                      ? 20
+                      : 14,
                 ),
               ),
               child: Icon(
@@ -809,10 +809,7 @@ class _SidebarBrand extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(18, 18, 16, 14),
           // Les mêmes proportions qu'à l'accueil : le signe fait 1,74 fois
           // la taille du nom. Ici il était à 1,58 — un rien trop petit.
-          child: const GulliLogo(
-            fontSize: 20,
-            style: TextStyle(fontWeight: FontWeight.w800, letterSpacing: -0.5),
-          ),
+          child: const GulliLogo(fontSize: 20),
         ),
       ),
     );
