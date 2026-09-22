@@ -65,6 +65,7 @@ function e(?string $s): string {
     <a href="#atouts">L'app</a>
     <a href="#gamme">La gamme</a>
     <a href="#installation">Installation</a>
+    <a href="#serveur">Le serveur</a>
     <a href="#nouveautes">Nouveautés</a>
     <a class="lien-app" href="/app/">Ouvrir l'app</a>
   </nav>
@@ -299,6 +300,56 @@ function e(?string $s): string {
     </p>
   </section>
 
+  <section id="serveur" class="section">
+    <h2 class="titre-section reveal">Le serveur aussi est à vous</h2>
+    <p class="intro-section reveal">L'app n'est que la façade. Derrière, un
+      serveur que vous installez chez vous, sur un vieil ordinateur ou un petit
+      VPS : la musique ne quitte pas votre disque, et le code est ouvert — vous
+      pouvez le lire, le modifier, le faire tourner sans nous.</p>
+
+    <div class="serveur">
+      <ul class="serveur-faits">
+        <li class="reveal">
+          <h3>PHP et MySQL, en trois conteneurs</h3>
+          <p>Docker Compose monte l'app, la base et Caddy — qui va chercher
+            tout seul le certificat de votre domaine.</p>
+        </li>
+        <li class="reveal">
+          <h3>Vos dossiers, tels quels</h3>
+          <p>Un disque local ou un accès SFTP. Le scan lit les tags, récupère
+            les pochettes et range albums, genres et années.</p>
+        </li>
+        <li class="reveal">
+          <h3>Plusieurs comptes</h3>
+          <p>Chacun sa bibliothèque, ses favoris et ses statistiques.
+            L'administration se fait dans l'app, pas dans un fichier.</p>
+        </li>
+        <li class="reveal">
+          <h3>Une API OpenSubsonic</h3>
+          <p>Symfonium, DSub, Ultrasonic et les autres se branchent sur le même
+            serveur, en plus des apps GulliFY.</p>
+        </li>
+      </ul>
+
+      <div class="serveur-console reveal">
+        <p class="console-titre">Quatre lignes</p>
+<pre><code>git clone https://github.com/gullify/gullify.git
+cd gullify
+cp .env.example .env<span class="commentaire">   # domaine, mots de passe</span>
+docker compose up -d</code></pre>
+        <p class="console-note">Ouvrez ensuite votre domaine : l'assistant
+          crée le premier compte et lance le premier scan.</p>
+        <p class="serveur-liens">
+          <a class="bouton secondaire" href="https://github.com/gullify/gullify">
+            <svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.4 7.4 0 0 1 2-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
+            Le code sur GitHub</a>
+          <span class="licence">Logiciel libre —
+            <a href="https://www.gnu.org/licenses/agpl-3.0.html">AGPL&#8209;3.0</a></span>
+        </p>
+      </div>
+    </div>
+  </section>
+
   <section id="nouveautes" class="section">
     <h2 class="titre-section reveal">Nouveautés</h2>
     <div class="carte-version reveal">
@@ -324,7 +375,8 @@ function e(?string $s): string {
     <span class="pied-liens">
       <a href="/app/">Ouvrir l'app</a> ·
       <a href="/tv?page=1">Google TV</a> ·
-      <a href="https://vr.madeli.co">GulliVR</a>
+      <a href="https://vr.madeli.co">GulliVR</a> ·
+      <a href="https://github.com/gullify/gullify">Le code (AGPL-3.0)</a>
     </span>
   </div>
 </footer>

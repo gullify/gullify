@@ -469,6 +469,99 @@ strong { color: var(--texte-vif); font-weight: 600; }
 
 .apres svg { color: var(--accent-clair); flex: none; margin-top: .15rem; }
 
+/* --- Le serveur --------------------------------------------------------- */
+
+.serveur {
+  margin-top: 2.5rem;
+  display: grid;
+  gap: 1.2rem;
+  align-items: start;
+}
+
+@media (min-width: 900px) {
+  .serveur { grid-template-columns: 1fr 1fr; }
+}
+
+.serveur-faits {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 1rem;
+}
+
+.serveur-faits li {
+  background: linear-gradient(180deg, var(--fond-carte-haut), var(--fond-carte));
+  border: 1px solid var(--bordure);
+  border-radius: var(--rayon-l);
+  padding: 1.1rem 1.25rem;
+}
+
+.serveur-faits h3 {
+  font-size: 1.02rem;
+  font-weight: 700;
+  color: var(--texte-vif);
+  margin-bottom: .35rem;
+}
+
+.serveur-faits p { color: var(--texte-attenue); font-size: .94rem; }
+
+.serveur-console {
+  background: linear-gradient(180deg, var(--fond-carte-haut), var(--fond-carte));
+  border: 1px solid var(--bordure);
+  border-radius: var(--rayon-l);
+  padding: clamp(1.2rem, 3vw, 1.75rem);
+  box-shadow: var(--ombre-douce);
+}
+
+.console-titre {
+  font-size: .78rem;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--accent-clair);
+  margin-bottom: .8rem;
+}
+
+.serveur-console pre {
+  margin: 0;
+  padding: 1rem 1.1rem;
+  background: #05060b;
+  border: 1px solid var(--bordure);
+  border-radius: var(--rayon);
+  overflow-x: auto;
+  font-size: .86rem;
+  line-height: 1.75;
+  color: var(--texte);
+  /* La pile monospace du système : rien à télécharger, comme le reste. */
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.serveur-console .commentaire { color: var(--texte-attenue); }
+
+.console-note {
+  margin-top: .9rem;
+  color: var(--texte-attenue);
+  font-size: .92rem;
+}
+
+.serveur-liens {
+  margin-top: 1.2rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .75rem 1rem;
+}
+
+.serveur-liens .bouton { gap: .5rem; }
+
+.serveur-liens .licence {
+  color: var(--texte-attenue);
+  font-size: .9rem;
+}
+
+.serveur-liens .licence a { color: var(--accent-clair); }
+
 /* --- Nouveautés --------------------------------------------------------- */
 
 .carte-version {
