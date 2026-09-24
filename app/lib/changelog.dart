@@ -8,6 +8,15 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.64.0', [
+    'Podcasts : une bascule « Francophone seulement » au-dessus des listes. '
+        'Cochée, la recherche et le palmarès ne proposent plus que des séries '
+        'dont le flux se déclare en français — les abonnements et les '
+        'épisodes en cours, eux, ne bougent pas',
+    'Le palmarès francophone puise des deux côtés de l\'Atlantique, d\'ici '
+        'd\'abord : le classement d\'Apple au Canada retient peu de séries '
+        'en français, celui de France n\'en classe presque que',
+  ]),
   ReleaseNote('3.63.0', [
     'Les podcasts arrivent dans Gullify — une nouvelle entrée sur l\'accueil. '
         'On y cherche une série par son nom, on parcourt le palmarès d\'une '

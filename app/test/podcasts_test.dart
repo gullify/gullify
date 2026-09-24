@@ -81,10 +81,14 @@ class _FakePodcasts extends Fake implements PodcastsRepository {
   _FakePodcasts({
     this.subscribed = const [_show],
     this.episodesOf = _episodes,
+    this.frenchEmpty = false,
   });
 
   List<PodcastShow> subscribed;
   final List<PodcastEpisode> episodesOf;
+
+  /// Rien de francophone à proposer : le cas d'un palmarès tout en anglais.
+  final bool frenchEmpty;
   final List<String> asked = [];
   final List<Map<String, dynamic>> saved = [];
 
@@ -101,14 +105,24 @@ class _FakePodcasts extends Fake implements PodcastsRepository {
   }
 
   @override
-  Future<List<PodcastShow>> search(String query, {int limit = 25}) async {
-    asked.add('search:$query');
+  Future<List<PodcastShow>> search(
+    String query, {
+    int limit = 25,
+    bool frenchOnly = false,
+  }) async {
+    asked.add(frenchOnly ? 'search:$query:fr' : 'search:$query');
+    if (frenchOnly && frenchEmpty) return const [];
     return [_show.copyWith(subscribed: false)];
   }
 
   @override
-  Future<List<PodcastShow>> discover(int genreId, {int limit = 30}) async {
-    asked.add('discover:$genreId');
+  Future<List<PodcastShow>> discover(
+    int genreId, {
+    int limit = 30,
+    bool frenchOnly = false,
+  }) async {
+    asked.add(frenchOnly ? 'discover:$genreId:fr' : 'discover:$genreId');
+    if (frenchOnly && frenchEmpty) return const [];
     return [_show.copyWith(subscribed: false)];
   }
 
@@ -202,6 +216,33 @@ void main() {
         'genre': 1310,
         'limit': 30,
       });
+    });
+
+    test('« francophone seulement » voyage jusqu\'au serveur', () async {
+      final client = _FakeClient(const []);
+      final repo = PodcastsRepository(client);
+
+      await repo.search('histoire', frenchOnly: true);
+      await repo.discover(1310, frenchOnly: true);
+
+      expect(client.calls.first, {
+        'path': 'podcasts.php',
+        'action': 'search',
+        'q': 'histoire',
+        'limit': 25,
+        'french': '1',
+      });
+      expect(client.calls.last, {
+        'path': 'podcasts.php',
+        'action': 'discover',
+        'genre': 1310,
+        'limit': 30,
+        'french': '1',
+      });
+      // Sans le filtre, rien de plus dans la requête : c'est le palmarès
+      // d'Apple tel quel.
+      await repo.discover(1310);
+      expect(client.calls.last.containsKey('french'), isFalse);
     });
 
     test('les épisodes arrivent avec la série et l\'avancement', () async {
@@ -458,6 +499,7 @@ void main() {
       Widget screen, {
       _FakePodcasts? repo,
       Size size = const Size(360, 780),
+      bool french = false,
     }) async {
       tester.view.physicalSize = size;
       tester.view.devicePixelRatio = 1;
@@ -466,6 +508,10 @@ void main() {
         ProviderScope(
           overrides: [
             podcastsRepositoryProvider.overrideWithValue(repo ?? _FakePodcasts()),
+            // La bascule est posée d'entrée : son écriture sur le disque ne
+            // regarde pas les écrans.
+            if (french)
+              podcastFrenchOnlyProvider.overrideWith(_FrenchOnlyOn.new),
           ],
           child: MaterialApp(home: screen),
         ),
@@ -497,6 +543,43 @@ void main() {
       );
 
       expect(find.textContaining('Aucun abonnement'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('la bascule francophone filtre recherche et palmarès',
+        (tester) async {
+      final repo = _FakePodcasts();
+      await pump(tester, const PodcastsScreen(), repo: repo, french: true);
+
+      expect(find.text('Francophone seulement'), findsOneWidget);
+      expect(repo.asked, contains('discover:1488:fr'));
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('cocher la bascule redemande le palmarès filtré',
+        (tester) async {
+      final repo = _FakePodcasts();
+      await pump(tester, const PodcastsScreen(), repo: repo);
+      expect(repo.asked, contains('discover:1488'));
+
+      await tester.tap(find.text('Francophone seulement'));
+      await tester.pumpAndSettle();
+
+      expect(repo.asked, contains('discover:1488:fr'));
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('un palmarès sans francophone le dit plutôt que de crier à la '
+        'panne', (tester) async {
+      await pump(
+        tester,
+        const PodcastsScreen(),
+        repo: _FakePodcasts(frenchEmpty: true),
+        french: true,
+      );
+
+      expect(find.text('Rien de francophone ici'), findsOneWidget);
+      expect(find.textContaining('L\'annuaire des podcasts'), findsNothing);
       expect(tester.takeException(), isNull);
     });
 
@@ -541,6 +624,12 @@ void main() {
       expect(formatEpisodeDuration(0), '');
     });
   });
+}
+
+/// « Francophone seulement » déjà coché, sans passer par le disque.
+class _FrenchOnlyOn extends PodcastFrenchOnly {
+  @override
+  bool build() => true;
 }
 
 /// Le même épisode, à une autre position d'écoute.

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import '../api/podcasts_repository.dart';
 import '../audio/audio_handler.dart';
@@ -11,6 +12,41 @@ import 'player.dart';
 final podcastsRepositoryProvider = Provider<PodcastsRepository>(
   (ref) => PodcastsRepository(ref.watch(apiClientProvider)),
 );
+
+const _storage = FlutterSecureStorage();
+const _kFrenchOnly = 'podcasts_french_only';
+
+/// « Francophone seulement » (idée #113) : ne se faire proposer que des séries
+/// dont le flux se déclare en français — la recherche comme le palmarès.
+///
+/// Ne touche ni aux abonnements ni aux épisodes : on filtre ce qu'on propose,
+/// pas ce que l'utilisateur a déjà choisi d'écouter.
+class PodcastFrenchOnly extends Notifier<bool> {
+  @override
+  bool build() {
+    _restore();
+    return false;
+  }
+
+  Future<void> _restore() async {
+    try {
+      if (await _storage.read(key: _kFrenchOnly) == '1') state = true;
+    } catch (_) {}
+  }
+
+  Future<void> set(bool on) async {
+    state = on;
+    try {
+      await _storage.write(key: _kFrenchOnly, value: on ? '1' : '0');
+    } catch (_) {
+      // Une préférence qu'on n'arrive pas à écrire tiendra la session : ce
+      // n'est pas une raison pour casser l'écran.
+    }
+  }
+}
+
+final podcastFrenchOnlyProvider =
+    NotifierProvider<PodcastFrenchOnly, bool>(PodcastFrenchOnly.new);
 
 /// Les catégories du palmarès (idée #112).
 final podcastGenresProvider = FutureProvider<List<PodcastGenre>>(
@@ -26,12 +62,18 @@ final podcastSubscriptionsProvider = FutureProvider<List<PodcastShow>>(
 final podcastSearchProvider = FutureProvider.family<List<PodcastShow>, String>(
   (ref, query) => query.trim().isEmpty
       ? Future.value(const <PodcastShow>[])
-      : ref.watch(podcastsRepositoryProvider).search(query.trim()),
+      : ref.watch(podcastsRepositoryProvider).search(
+          query.trim(),
+          frenchOnly: ref.watch(podcastFrenchOnlyProvider),
+        ),
 );
 
 /// Le palmarès d'une catégorie — la liste « à découvrir ».
 final podcastDiscoverProvider = FutureProvider.family<List<PodcastShow>, int>(
-  (ref, genreId) => ref.watch(podcastsRepositoryProvider).discover(genreId),
+  (ref, genreId) => ref.watch(podcastsRepositoryProvider).discover(
+        genreId,
+        frenchOnly: ref.watch(podcastFrenchOnlyProvider),
+      ),
 );
 
 /// La catégorie affichée dans « À découvrir ». Les crimes réels en tête, comme

@@ -177,19 +177,39 @@ class PodcastsRepository {
     return _list(data, PodcastGenre.fromJson);
   }
 
-  Future<List<PodcastShow>> search(String query, {int limit = 25}) async {
+  /// [frenchOnly] : ne garder que les séries dont le flux se déclare
+  /// francophone (idée #113) — le tri se fait au serveur, lui seul lit les flux.
+  Future<List<PodcastShow>> search(
+    String query, {
+    int limit = 25,
+    bool frenchOnly = false,
+  }) async {
     final data = await _client.get(
       _endpoint,
-      query: {'action': 'search', 'q': query, 'limit': limit},
+      query: {
+        'action': 'search',
+        'q': query,
+        'limit': limit,
+        if (frenchOnly) 'french': '1',
+      },
     );
     return _list(data, PodcastShow.fromJson);
   }
 
   /// Le palmarès d'une catégorie — la liste « à découvrir ».
-  Future<List<PodcastShow>> discover(int genreId, {int limit = 30}) async {
+  Future<List<PodcastShow>> discover(
+    int genreId, {
+    int limit = 30,
+    bool frenchOnly = false,
+  }) async {
     final data = await _client.get(
       _endpoint,
-      query: {'action': 'discover', 'genre': genreId, 'limit': limit},
+      query: {
+        'action': 'discover',
+        'genre': genreId,
+        'limit': limit,
+        if (frenchOnly) 'french': '1',
+      },
     );
     return _list(data, PodcastShow.fromJson);
   }

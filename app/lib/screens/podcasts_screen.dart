@@ -82,6 +82,7 @@ class _PodcastsScreenState extends ConsumerState<PodcastsScreen> {
               onChanged: _onTyped,
               onClear: _controller.text.isEmpty ? null : _clear,
             ),
+            const _FrenchOnlyChip(),
             if (searching)
               _SearchResults(query: _query)
             else ...[
@@ -156,6 +157,30 @@ class _SearchField extends StatelessWidget {
   }
 }
 
+/// « Francophone seulement » (idée #113) : la bascule vit au-dessus des deux
+/// listes qu'elle filtre — la recherche et le palmarès.
+class _FrenchOnlyChip extends ConsumerWidget {
+  const _FrenchOnlyChip();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final on = ref.watch(podcastFrenchOnlyProvider);
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 2, 16, 2),
+        child: FilterChip(
+          avatar: const Icon(Icons.translate, size: 18),
+          label: const Text('Francophone seulement'),
+          selected: on,
+          onSelected: (value) =>
+              ref.read(podcastFrenchOnlyProvider.notifier).set(value),
+        ),
+      ),
+    );
+  }
+}
+
 /// Ce que l'annuaire d'Apple rend pour la requête.
 class _SearchResults extends ConsumerWidget {
   const _SearchResults({required this.query});
@@ -174,11 +199,16 @@ class _SearchResults extends ConsumerWidget {
         onRetry: () => ref.invalidate(podcastSearchProvider(query)),
       ),
       data: (shows) => shows.isEmpty
-          ? const Padding(
-              padding: EdgeInsets.all(24),
+          ? Padding(
+              padding: const EdgeInsets.all(24),
               child: MascotEmpty(
                 message: 'Aucun podcast trouvé',
-                hint: 'Essaie le nom de la série, ou celui de qui l\'anime.',
+                hint: ref.watch(podcastFrenchOnlyProvider)
+                    // Le filtre écarte beaucoup : le dire vaut mieux que de
+                    // laisser croire que l'annuaire ne connaît rien.
+                    ? 'Rien de francophone pour cette recherche — essaie un '
+                        'autre nom, ou décoche « Francophone seulement ».'
+                    : 'Essaie le nom de la série, ou celui de qui l\'anime.',
               ),
             )
           : Column(
@@ -299,9 +329,21 @@ class _DiscoverList extends ConsumerWidget {
         onRetry: () => ref.invalidate(podcastDiscoverProvider(genreId)),
       ),
       data: (list) => list.isEmpty
-          ? _Unreachable(
-              onRetry: () => ref.invalidate(podcastDiscoverProvider(genreId)),
-            )
+          ? (ref.watch(podcastFrenchOnlyProvider)
+              // Un palmarès sans francophone n'est pas un palmarès en panne.
+              ? const Padding(
+                  padding: EdgeInsets.all(20),
+                  child: MascotEmpty(
+                    message: 'Rien de francophone ici',
+                    hint: 'Cette catégorie ne classe aucune série en '
+                        'français — essayes-en une autre, ou décoche '
+                        '« Francophone seulement ».',
+                  ),
+                )
+              : _Unreachable(
+                  onRetry: () =>
+                      ref.invalidate(podcastDiscoverProvider(genreId)),
+                ))
           : Column(
               children: [
                 for (var i = 0; i < list.length; i++)

@@ -26,7 +26,7 @@ import '../widgets/retro_lcd.dart';
 import '../widgets/update_dialog.dart';
 import '../widgets/wordmark.dart';
 
-const appVersion = '3.63.0';
+const appVersion = '3.64.0';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});

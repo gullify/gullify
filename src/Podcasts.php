@@ -25,6 +25,11 @@
  *
  * Comme Bandcamp, toutes les méthodes rendent des structures vides plutôt que
  * de lever : un annuaire muet ne doit pas casser l'écran.
+ *
+ * « Francophone seulement » (idée #113) traverse la recherche et les palmarès.
+ * L'annuaire d'Apple ne dit pas la langue d'un podcast : seule la balise
+ * `<language>` du flux la déclare. Elle est donc lue dans l'en-tête des flux
+ * candidats — en parallèle, coupée aux premiers kilo-octets et gardée un mois.
  */
 
 require_once __DIR__ . '/AppConfig.php';
@@ -34,11 +39,30 @@ class Podcasts
     /** Boutique Apple interrogée (pochettes, palmarès et recherche). */
     private const STORE = 'ca';
 
+    /**
+     * Les boutiques dont on tire un palmarès francophone (idée #113), d'ici
+     * d'abord : celle du Canada classe peu de francophones mais ce sont les
+     * nôtres, celle de France n'en classe presque que.
+     */
+    private const FRENCH_STORES = ['ca', 'fr'];
+
     private const SEARCH_URL = 'https://itunes.apple.com/search';
     private const LOOKUP_URL = 'https://itunes.apple.com/lookup';
 
     /** Les palmarès bougent au jour le jour : six heures de cache suffisent. */
     private const CHART_TTL = 6 * 3600;
+
+    /** Un podcast ne change pas de langue : sa balise se garde un mois. */
+    private const LANG_TTL = 30 * 86400;
+
+    /** Un flux muet n'est peut-être qu'en panne : on retentera demain. */
+    private const LANG_UNKNOWN_TTL = 86400;
+
+    /** La langue se déclare en tête du canal, bien avant le premier épisode. */
+    private const LANG_HEAD_BYTES = 32768;
+
+    /** Autant d'en-têtes de flux lus d'un coup — pas de quoi noyer le réseau. */
+    private const LANG_PARALLEL = 16;
 
     /** Un flux peut publier plusieurs fois par jour, rarement plus souvent. */
     private const FEED_TTL = 1800;
@@ -92,19 +116,23 @@ class Podcasts
     }
 
     /**
-     * Les podcasts trouvés pour [$query].
+     * Les podcasts trouvés pour [$query]. Avec [$frenchOnly], l'annuaire est
+     * interrogé plus large et seuls les flux francophones sont rendus.
      *
      * @return array<array<string,mixed>>
      */
-    public static function search(string $query, int $limit = 25): array
+    public static function search(string $query, int $limit = 25, bool $frenchOnly = false): array
     {
         $query = trim($query);
         if ($query === '') return [];
+        $limit = max(1, min(50, $limit));
         $url = self::SEARCH_URL . '?' . http_build_query([
             'media'   => 'podcast',
             'entity'  => 'podcast',
             'term'    => $query,
-            'limit'   => max(1, min(50, $limit)),
+            // Filtrer sur la langue écarte des résultats : en demander plus
+            // pour en garder autant.
+            'limit'   => $frenchOnly ? 50 : $limit,
             'country' => strtoupper(self::STORE),
         ]);
         $data = self::getJson($url, 'recherche');
@@ -113,51 +141,80 @@ class Podcasts
             $show = self::showFromLookup(is_array($r) ? $r : []);
             if ($show !== null) $shows[] = $show;
         }
-        return $shows;
+        return $frenchOnly
+            ? self::keepFrench($shows, $limit)
+            : array_slice($shows, 0, $limit);
     }
 
     /**
      * Le palmarès d'une catégorie. Le palmarès ne donne ni adresse de flux ni
      * grande pochette : un seul `lookup` groupé les complète.
      *
+     * Avec [$frenchOnly], le palmarès est celui des francophones : ne garder
+     * que le français écarte la plus grande part d'un classement d'ici, il
+     * faut donc puiser plus large et des deux côtés de l'Atlantique.
+     *
      * @return array<array<string,mixed>>
      */
-    public static function top(int $genreId, int $limit = 30): array
+    public static function top(int $genreId, int $limit = 30, bool $frenchOnly = false): array
     {
         if (!self::isGenre($genreId)) return [];
         $limit = max(1, min(50, $limit));
 
-        $cache = self::cacheFile('charts', "$genreId-$limit");
+        $cache = self::cacheFile('charts', ($frenchOnly ? 'fr-' : '') . "$genreId-$limit");
         $cached = self::readCache($cache, self::CHART_TTL);
         if ($cached !== null) return $cached;
 
-        $url = sprintf(
-            'https://itunes.apple.com/%s/rss/toppodcasts/limit=%d/genre=%d/json',
-            self::STORE,
-            $limit,
-            $genreId
-        );
-        $data = self::getJson($url, 'palmarès');
-        $entries = $data['feed']['entry'] ?? null;
-        // Un palmarès d'un seul podcast n'est pas une liste de listes.
-        if (is_array($entries) && isset($entries['id'])) $entries = [$entries];
-        if (!is_array($entries)) {
+        $ids = [];
+        foreach ($frenchOnly ? self::FRENCH_STORES : [self::STORE] as $store) {
+            // Les identifiants se suivent dans l'ordre du classement, et une
+            // série classée dans les deux boutiques garde son meilleur rang.
+            foreach (self::chartIds($store, $genreId, $frenchOnly ? $limit * 2 : $limit) as $id) {
+                $ids[$id] ??= true;
+            }
+        }
+        if ($ids === []) {
             // Rendre le dernier palmarès connu plutôt que rien : Apple répond
             // parfois à côté, et une page vide serait pire que six heures de
             // retard.
             return self::readCache($cache, PHP_INT_MAX) ?? [];
         }
 
+        $shows = self::lookup(array_keys($ids));
+        $shows = $frenchOnly
+            ? self::keepFrench($shows, $limit)
+            : array_slice($shows, 0, $limit);
+        if ($shows === []) return self::readCache($cache, PHP_INT_MAX) ?? [];
+
+        self::writeCache($cache, $shows);
+        return $shows;
+    }
+
+    /**
+     * Les identifiants d'un palmarès Apple, dans l'ordre du classement.
+     *
+     * @return array<int>
+     */
+    private static function chartIds(string $store, int $genreId, int $limit): array
+    {
+        $url = sprintf(
+            'https://itunes.apple.com/%s/rss/toppodcasts/limit=%d/genre=%d/json',
+            $store,
+            max(1, min(100, $limit)),
+            $genreId
+        );
+        $data = self::getJson($url, 'palmarès');
+        $entries = $data['feed']['entry'] ?? null;
+        // Un palmarès d'un seul podcast n'est pas une liste de listes.
+        if (is_array($entries) && isset($entries['id'])) $entries = [$entries];
+        if (!is_array($entries)) return [];
+
         $ids = [];
         foreach ($entries as $e) {
             $id = (int) ($e['id']['attributes']['im:id'] ?? 0);
             if ($id > 0) $ids[] = $id;
         }
-        $shows = self::lookup($ids);
-        if ($shows === []) return self::readCache($cache, PHP_INT_MAX) ?? [];
-
-        self::writeCache($cache, $shows);
-        return $shows;
+        return $ids;
     }
 
     /**
@@ -211,6 +268,172 @@ class Podcasts
             'episodeCount' => (int) ($r['trackCount'] ?? 0),
             'description'  => '',
         ];
+    }
+
+    // ── Francophone seulement (idée #113) ──────────────────────────────────
+
+    /**
+     * Les séries francophones parmi [$shows], dans l'ordre, au plus [$limit].
+     *
+     * Les en-têtes se lisent par paquets et on s'arrête dès qu'on en a assez :
+     * ouvrir les cent flux d'un palmarès pour n'en garder que trente serait
+     * payer très cher la fin de la liste.
+     *
+     * @param array<array<string,mixed>> $shows
+     * @return array<array<string,mixed>>
+     */
+    private static function keepFrench(array $shows, int $limit): array
+    {
+        $kept = [];
+        foreach (array_chunk($shows, self::LANG_PARALLEL) as $batch) {
+            $langs = self::languages(array_column($batch, 'feedUrl'));
+            foreach ($batch as $show) {
+                $code = $langs[(string) $show['feedUrl']] ?? '';
+                if (!self::isFrench($code)) continue;
+                $kept[] = $show;
+                if (count($kept) >= $limit) return $kept;
+            }
+        }
+        return $kept;
+    }
+
+    /**
+     * La langue de chaque flux : adresse → code (« fr », « fr-ca », « en-us »),
+     * chaîne vide quand le flux ne la déclare pas ou n'a pas répondu.
+     *
+     * @param array<string> $feedUrls
+     * @return array<string,string>
+     */
+    private static function languages(array $feedUrls): array
+    {
+        $known = [];
+        $todo = [];
+        foreach (array_unique($feedUrls) as $url) {
+            $url = (string) $url;
+            if (!self::isHttpUrl($url)) {
+                $known[$url] = '';
+                continue;
+            }
+            $cached = self::cachedLanguage($url);
+            if ($cached === null) {
+                $todo[] = $url;
+            } else {
+                $known[$url] = $cached;
+            }
+        }
+
+        foreach (self::fetchHeads($todo) as $url => $head) {
+            $code = self::declaredLanguage($head);
+            // Une langue inconnue s'écrit aussi : sans cela, chaque palmarès
+            // rouvrirait les mêmes flux muets.
+            self::writeCache(self::cacheFile('lang', self::key($url)), ['code' => $code]);
+            $known[$url] = $code;
+        }
+        foreach ($todo as $url) $known[$url] ??= '';
+        return $known;
+    }
+
+    /** La langue en cache pour ce flux, ou null s'il faut aller la lire. */
+    private static function cachedLanguage(string $feedUrl): ?string
+    {
+        $path = self::cacheFile('lang', self::key($feedUrl));
+        $cached = self::readCache($path, self::LANG_TTL);
+        if ($cached === null) return null;
+        $code = is_string($cached['code'] ?? null) ? $cached['code'] : '';
+        // Rien de déclaré ? C'était peut-être un flux en panne : on retente au
+        // bout d'un jour, pas d'un mois.
+        if ($code === '' && self::readCache($path, self::LANG_UNKNOWN_TTL) === null) {
+            return null;
+        }
+        return $code;
+    }
+
+    /**
+     * Le début du XML de plusieurs flux, lus en parallèle : adresse → en-tête
+     * (chaîne vide si le flux n'a pas répondu).
+     *
+     * Le corps est coupé net aux premiers kilo-octets — c'est la langue qu'on
+     * vient chercher, pas les épisodes. Comme pour [fetch], l'adresse
+     * d'arrivée d'une redirection est revérifiée.
+     *
+     * @param array<string> $urls
+     * @return array<string,string>
+     */
+    private static function fetchHeads(array $urls): array
+    {
+        $out = [];
+        foreach (array_chunk($urls, self::LANG_PARALLEL) as $batch) {
+            $multi = curl_multi_init();
+            $handles = [];
+            $bodies = [];
+            foreach ($batch as $i => $url) {
+                $bodies[$i] = '';
+                $ch = curl_init($url);
+                curl_setopt_array($ch, [
+                    CURLOPT_TIMEOUT         => 10,
+                    CURLOPT_CONNECTTIMEOUT  => 6,
+                    CURLOPT_FOLLOWLOCATION  => true,
+                    CURLOPT_MAXREDIRS       => 5,
+                    CURLOPT_PROTOCOLS       => CURLPROTO_HTTP | CURLPROTO_HTTPS,
+                    CURLOPT_REDIR_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS,
+                    CURLOPT_ACCEPT_ENCODING => '',
+                    CURLOPT_USERAGENT       => 'Gullify/1.0 (+https://gullify.app)',
+                    // Rendre moins d'octets que reçu dit à curl d'abandonner :
+                    // c'est ainsi qu'on lâche un flux dès qu'on en sait assez.
+                    CURLOPT_WRITEFUNCTION   => function ($handle, $chunk) use (&$bodies, $i) {
+                        $bodies[$i] .= $chunk;
+                        return strlen($bodies[$i]) >= self::LANG_HEAD_BYTES ? -1 : strlen($chunk);
+                    },
+                ]);
+                curl_multi_add_handle($multi, $ch);
+                $handles[$i] = $ch;
+            }
+
+            do {
+                $status = curl_multi_exec($multi, $running);
+                if ($running) curl_multi_select($multi, 0.5);
+            } while ($running && $status === CURLM_OK);
+
+            foreach ($handles as $i => $ch) {
+                $url    = $batch[$i];
+                $code   = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                $final  = (string) curl_getinfo($ch, CURLINFO_EFFECTIVE_URL);
+                $body   = $bodies[$i];
+                if ($final !== '' && $final !== $url && !self::isHttpUrl($final)) {
+                    error_log("Podcasts: redirection refusée vers $final");
+                    $body = '';
+                }
+                $out[$url] = ($code >= 200 && $code < 300) ? $body : '';
+                curl_multi_remove_handle($multi, $ch);
+                curl_close($ch);
+            }
+            curl_multi_close($multi);
+        }
+        return $out;
+    }
+
+    /**
+     * La langue que déclare un flux (« fr », « fr-ca », « en-us »), ou chaîne
+     * vide. Public pour les tests, comme [parse].
+     *
+     * Seul l'en-tête du canal compte : un épisode peut déclarer la sienne, ce
+     * n'est pas celle de la série.
+     */
+    public static function declaredLanguage(string $xml): string
+    {
+        $item = stripos($xml, '<item');
+        $head = $item === false ? $xml : substr($xml, 0, $item);
+        $pattern = '~<(?:[A-Za-z0-9]+:)?language[^>]*>\s*(?:<!\[CDATA\[)?\s*'
+            . '([A-Za-z]{2,3}(?:[-_][A-Za-z0-9]{2,8})?)~i';
+        if (!preg_match($pattern, $head, $m)) return '';
+        return strtolower(str_replace('_', '-', $m[1]));
+    }
+
+    /** Vrai si [$code] est du français (« fr », « fr-CA », « fr_FR »…). */
+    public static function isFrench(string $code): bool
+    {
+        $code = strtolower(str_replace('_', '-', trim($code)));
+        return $code === 'fr' || str_starts_with($code, 'fr-');
     }
 
     // ── Les abonnements ────────────────────────────────────────────────────

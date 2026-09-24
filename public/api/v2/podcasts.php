@@ -14,6 +14,9 @@
  * Une « série » : {feedUrl,title,author,image,description,genre,itunesId,
  *                  episodeCount,subscribed}.
  *
+ * `&french=1` sur la recherche et le palmarès : ne rendre que les séries dont
+ * le flux se déclare francophone (idée #113).
+ *
  * Le son des épisodes n'est PAS relayé par le serveur : un fichier de podcast
  * est public et stable (contrairement aux URL signées de YouTube ou Bandcamp),
  * l'app le lit donc en direct — une écoute de moins à faire transiter par ici.
@@ -27,6 +30,9 @@ $ctx    = v2_auth();
 $user   = (string) $ctx['user']['username'];
 $action = $_GET['action'] ?? $_POST['action'] ?? 'subscriptions';
 $body   = v2_body();
+
+/** Ne proposer que du francophone ? La bascule vient de l'app (idée #113). */
+$french = ($_GET['french'] ?? '') === '1';
 
 /** L'adresse d'un flux telle que la donne le client, refusée si douteuse. */
 function pod_feed(string $raw): string
@@ -60,7 +66,7 @@ try {
             $q = trim((string) ($_GET['q'] ?? ''));
             $limit = (int) ($_GET['limit'] ?? 25);
             if ($q === '') v2_ok([]);
-            v2_ok(pod_mark(Podcasts::search($q, $limit), $user));
+            v2_ok(pod_mark(Podcasts::search($q, $limit, $french), $user));
         }
 
         case 'discover': {
@@ -69,7 +75,7 @@ try {
                 v2_fail('invalid_request', 'Catégorie inconnue');
             }
             $limit = (int) ($_GET['limit'] ?? 30);
-            v2_ok(pod_mark(Podcasts::top($genre, $limit), $user));
+            v2_ok(pod_mark(Podcasts::top($genre, $limit, $french), $user));
         }
 
         case 'subscriptions':
