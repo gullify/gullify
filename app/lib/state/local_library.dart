@@ -279,6 +279,28 @@ class LocalLibrary {
     ];
   }
 
+  /// Les albums dont le nom ou l'interprète contient [query].
+  List<LocalAlbum> searchAlbums(String query) {
+    final q = _fold(query);
+    if (q.isEmpty) return const [];
+    return [
+      for (final a in albums)
+        if (_fold(a.album.name).contains(q) ||
+            _fold(a.album.artistName ?? '').contains(q))
+          a,
+    ];
+  }
+
+  /// Les artistes dont le nom contient [query].
+  List<LocalArtist> searchArtists(String query) {
+    final q = _fold(query);
+    if (q.isEmpty) return const [];
+    return [
+      for (final a in artists)
+        if (_fold(a.artist.name).contains(q)) a,
+    ];
+  }
+
   static int _compareTracks(LocalTrack a, LocalTrack b) {
     final artist = _byName(a.rangedUnder, b.rangedUnder);
     if (artist != 0) return artist;

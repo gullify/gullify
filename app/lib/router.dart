@@ -93,6 +93,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       // rien de ce qu'elle contient ne marcherait sans serveur.
       GoRoute(path: '/local', builder: (_, _) => const LocalLibraryScreen()),
       GoRoute(
+        path: '/local/search',
+        builder: (_, _) => const LocalSearchScreen(),
+      ),
+      GoRoute(
         path: '/local/album/:id',
         builder: (_, state) =>
             LocalAlbumScreen(albumId: int.parse(state.pathParameters['id']!)),
@@ -420,14 +424,17 @@ final routerProvider = Provider<GoRouter>((ref) {
           return loc == '/login' ? null : '/login';
         case AuthStatus.local:
           // Le dossier local et ce qui ne demande rien au serveur : le
-          // lecteur, et les réglages de lecture. Tout le reste de l'app
-          // s'appuie sur une session.
+          // lecteur, les réglages de lecture, les titres déjà descendus sur le
+          // téléphone (idée #115) et le journal Android Auto. Tout le reste de
+          // l'app s'appuie sur une session.
           const reachable = {
             '/now-playing',
             '/settings/equalizer',
             '/settings/fade',
             '/settings/buffer',
             '/settings/changelog',
+            '/settings/downloads',
+            '/settings/aa-diagnostic',
           };
           if (loc.startsWith('/local') || reachable.contains(loc)) return null;
           return '/local';

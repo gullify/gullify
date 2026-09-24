@@ -8,6 +8,26 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.66.0', [
+    'Le dossier local marche enfin dans la voiture (idée #115) : Android Auto '
+        'cherchait sans fin un serveur qui n\'existe pas, et n\'affichait le '
+        'dossier que si la musique avait été lancée depuis le téléphone. '
+        'L\'app sait maintenant, dès son démarrage et sans écran, qu\'il n\'y '
+        'a pas de serveur à attendre',
+    'Le dossier se parcourt dans la voiture comme une bibliothèque : '
+        'artistes, albums et titres, chaque album avec ses pistes, et la '
+        'lecture aléatoire du dossier à la racine',
+    'La recherche est revenue : la loupe de l\'écran du dossier cherche dans '
+        'tout le dossier à la fois — titres, albums et artistes —, et « joue '
+        'X » au volant cherche lui aussi dans le dossier, accents compris',
+    'Les titres téléchargés depuis un serveur restent écoutables en mode '
+        'local, dans l\'app comme dans la voiture : ils se jouent depuis leur '
+        'fichier, aucun réseau n\'est nécessaire. Le journal Android Auto est '
+        'lui aussi accessible depuis le menu du dossier',
+    'Chercher sur Bandcamp et télécharger de la musique restent, eux, des '
+        'fonctions du serveur : c\'est lui qui va chercher les morceaux et '
+        'les range',
+  ]),
   ReleaseNote('3.65.0', [
     'Gullify s\'utilise sans serveur (idée #114) : sous le champ d\'adresse, '
         '« Ouvrir un dossier du téléphone » range la musique déjà sur '

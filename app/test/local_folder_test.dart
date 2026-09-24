@@ -14,6 +14,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gullify/audio/audio_handler.dart';
+import 'package:gullify/audio/local_mode.dart';
 import 'package:gullify/audio/local_tags.dart';
 import 'package:gullify/models/song.dart';
 import 'package:gullify/screens/local_library_screen.dart';
@@ -226,6 +227,55 @@ class _ReadyLibrary extends LocalLibraryController {
 
   @override
   Future<LocalLibrary?> build() async => library;
+}
+
+/// Un lecteur en mode « dossier local », sans attendre ni coffre ni dossier.
+GullifyAudioHandler _localHandler() {
+  final handler = GullifyAudioHandler();
+  addTearDown(handler.player.dispose);
+  handler.localLibraryWait = Duration.zero;
+  return handler;
+}
+
+/// Ce que le binder pose sur le lecteur : le dossier rangé en albums et en
+/// artistes, exactement comme en marche réelle.
+void _bind(GullifyAudioHandler handler, List<Song> songs) {
+  // Les albums/artistes se déduisent des titres donnés, sans repasser par le
+  // disque : un album par (interprète, album).
+  final albums = <String, List<Song>>{};
+  for (final s in songs) {
+    (albums['${s.artistName ?? ''}\u0000${s.albumName ?? ''}'] ??= []).add(s);
+  }
+  var albumId = 0;
+  final browsable = [
+    for (final e in albums.entries)
+      LocalBrowseAlbum(
+        id: ++albumId,
+        name: e.value.first.albumName ?? kUnknownAlbum,
+        artist: e.value.first.artistName,
+        songs: e.value,
+      ),
+  ];
+  final byArtist = <String, List<LocalBrowseAlbum>>{};
+  for (final a in browsable) {
+    (byArtist[a.artist ?? kUnknownArtist] ??= []).add(a);
+  }
+  var artistId = 0;
+  handler.setLocalLibrary(
+    mode: true,
+    songs: songs,
+    paths: {for (final s in songs) s.id: s.filePath},
+    albums: browsable,
+    artists: [
+      for (final e in byArtist.entries)
+        LocalBrowseArtist(
+          id: ++artistId,
+          name: e.key,
+          albums: e.value,
+          songs: [for (final a in e.value) ...a.songs],
+        ),
+    ],
+  );
 }
 
 LocalTrack _track(
@@ -713,39 +763,127 @@ void main() {
 
   group('lecture', () {
     test('un titre du dossier se joue depuis son fichier', () async {
-      final handler = GullifyAudioHandler();
-      addTearDown(handler.player.dispose);
+      final handler = _localHandler();
       final song = Song(
         id: -1,
         title: 'Local',
         filePath: '/carte/musique/a.mp3',
         duration: 200,
       );
-      handler.localSongs = [song];
-      handler.localPaths = {-1: song.filePath};
+      _bind(handler, [song]);
 
       // Ce que le lecteur jouerait : le fichier, sans serveur ni flux.
-      expect(handler.downloads, [song]);
-      final items = await handler.getChildren(BrowseIds.downloads);
+      expect(handler.localPaths[-1], '/carte/musique/a.mp3');
+      final items = await handler.getChildren(BrowseIds.localSongs);
       expect(items.any((i) => i.title == 'Local'), isTrue);
     });
 
-    test('sans serveur, Android Auto ne propose que le dossier', () async {
-      final handler = GullifyAudioHandler();
-      addTearDown(handler.player.dispose);
-      handler.localSongs = [
-        const Song(id: -1, title: 'Local', filePath: '/carte/a.mp3'),
-      ];
-      handler.localPaths = {-1: '/carte/a.mp3'};
+    test('sans serveur, Android Auto parcourt le dossier', () async {
+      final handler = _localHandler();
+      _bind(handler, [
+        const Song(id: -1, title: 'Local', filePath: '/carte/a.mp3',
+            albumName: 'Album', artistName: 'Artiste'),
+      ]);
 
       final root = await handler.getChildren(BrowseIds.root);
-      expect(root, hasLength(1));
-      expect(root.single.title, 'Dossier local');
+      expect(root.map((i) => i.title),
+          ['Lecture aléatoire', 'Artistes', 'Albums', 'Titres']);
 
-      // Et rien à « réessayer » : il n'y a pas de serveur attendu.
-      final items = await handler.getChildren(BrowseIds.albums);
+      // Les albums et les artistes s'ouvrent, comme avec un serveur.
+      final albums = await handler.getChildren(BrowseIds.localAlbums);
+      expect(albums.any((i) => i.title == 'Album'), isTrue);
+      final tracks = await handler.getChildren(BrowseIds.localAlbum(1));
+      expect(tracks.first.title, "Lire l'album");
+      expect(tracks.any((i) => i.title == 'Local'), isTrue);
+      final artists = await handler.getChildren(BrowseIds.localArtists);
+      expect(artists.any((i) => i.title == 'Artiste'), isTrue);
+    });
+
+    test('une catégorie du serveur demandée en mode local ne fait pas '
+        'attendre', () async {
+      final handler = _localHandler();
+      _bind(handler, [
+        const Song(id: -1, title: 'Local', filePath: '/carte/a.mp3'),
+      ]);
+
+      // C'était là le « ça cherche toujours » de la voiture (idée #115) :
+      // l'onglet du serveur attendait une session qui n'arrivait jamais.
+      final items = await handler
+          .getChildren(BrowseIds.albums)
+          .timeout(const Duration(seconds: 2));
       expect(items.any((i) => i.title == 'Réessayer'), isFalse);
-      expect(items.any((i) => i.title == 'Lire le dossier local'), isTrue);
+      expect(items.map((i) => i.title), contains('Titres'));
+    });
+
+    test('le marqueur en clair fait connaître le mode avant le coffre',
+        () async {
+      // Android Auto demande la racine avant que la session ne soit
+      // restaurée : sans le marqueur, le lecteur répondait le menu d'un
+      // serveur qui n'existe pas (idée #115).
+      final dir = await Directory.systemTemp.createTemp('gullify_mode');
+      addTearDown(() => dir.deleteSync(recursive: true));
+      LocalModeFlag.dirForTest = dir;
+      addTearDown(() => LocalModeFlag.dirForTest = null);
+      await LocalModeFlag.write('/carte/musique');
+
+      final handler = GullifyAudioHandler();
+      addTearDown(handler.player.dispose);
+      handler.localLibraryWait = Duration.zero;
+
+      final root = await handler.getChildren(BrowseIds.root);
+      expect(handler.localMode, isTrue);
+      // Le dossier n'est pas encore relu : on le dit, plutôt que de proposer
+      // un menu de serveur que rien ne viendra remplir.
+      expect(root.single.title, 'Dossier local vide');
+
+      await LocalModeFlag.write(null);
+      expect(await LocalModeFlag.read(), isNull);
+    });
+
+    test('la recherche cherche dans le dossier, sans accents', () async {
+      final handler = _localHandler();
+      _bind(handler, [
+        const Song(id: -1, title: 'Où va le monde', filePath: '/a.mp3',
+            artistName: 'Étienne'),
+        const Song(id: -2, title: 'Autre chose', filePath: '/b.mp3',
+            artistName: 'Quelqu\'un'),
+      ]);
+
+      final items = await handler.search('etienne');
+      expect(items, hasLength(1));
+      expect(items.single.title, 'Où va le monde');
+      expect(items.single.id, 'LOCAL_SEARCH_TRACK_0');
+    });
+
+    test('les téléchargements restent là en mode local', () async {
+      final handler = _localHandler();
+      _bind(handler, [
+        const Song(id: -1, title: 'Local', filePath: '/carte/a.mp3'),
+      ]);
+      const downloaded =
+          Song(id: 12, title: 'Descendu', filePath: 'srv/b.mp3');
+      handler.offlineSongs = [downloaded];
+      handler.offlinePaths = {12: '/telechargements/b.mp3'};
+
+      final root = await handler.getChildren(BrowseIds.root);
+      expect(root.map((i) => i.title), contains('Téléchargements'));
+      final items = await handler.getChildren(BrowseIds.downloads);
+      expect(items.any((i) => i.title == 'Descendu'), isTrue);
+    });
+
+    test('un titre local se décrit sans serveur', () async {
+      final handler = _localHandler();
+      _bind(handler, [
+        const Song(id: -1, title: 'Local', filePath: '/carte/a.mp3',
+            albumName: 'Album', artistName: 'Artiste', duration: 200),
+      ]);
+
+      // Android Auto demande la fiche avant de jouer : une fiche nulle, et la
+      // sélection échoue.
+      final item = await handler.getMediaItem('LOCAL_ALL_TRACK_0');
+      expect(item?.title, 'Local');
+      expect(item?.id, 'LOCAL_ALL_TRACK_0');
+      expect(await handler.getMediaItem('LOCAL_ALBUM_1_TRACK_0'), isNotNull);
     });
 
     test('en mode serveur, la racine ne change pas', () async {
@@ -832,6 +970,46 @@ void main() {
       await tester.tap(find.byIcon(Icons.play_arrow).first);
       await tester.pumpAndSettle();
       expect(actions.played.single.songs.map((s) => s.title), ['Une', 'Deux']);
+    });
+
+    testWidgets('la recherche trouve titre, album et artiste du dossier',
+        (tester) async {
+      tester.view.physicalSize = const Size(412, 892);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+
+      final library = LocalLibrary.from(
+        folder: '/musique',
+        scannedAt: DateTime(2026),
+        tracks: [
+          _track('Où va le monde', artist: 'Étienne', album: 'Le grand album'),
+          _track('Ailleurs', artist: 'Quelqu\'un', album: 'Autre chose'),
+        ],
+      );
+      final actions = _FakeActions();
+
+      await tester.pumpWidget(ProviderScope(
+        overrides: [
+          localLibraryProvider.overrideWith(() => _ReadyLibrary(library)),
+          playerActionsProvider.overrideWithValue(actions),
+        ],
+        child: _app(const LocalSearchScreen()),
+      ));
+      await tester.pumpAndSettle();
+
+      // Sans accents ni casse : « etienne » doit trouver Étienne.
+      await tester.enterText(find.byType(TextField), 'etienne');
+      await tester.pumpAndSettle();
+
+      expect(find.text('Artistes'), findsOneWidget);
+      expect(find.text('Étienne'), findsWidgets);
+      expect(find.text('Où va le monde'), findsOneWidget);
+      expect(find.text('Ailleurs'), findsNothing);
+
+      // Et le titre trouvé se joue, comme partout ailleurs dans l'app.
+      await tester.tap(find.text('Où va le monde'));
+      await tester.pumpAndSettle();
+      expect(actions.played.single.songs.single.title, 'Où va le monde');
     });
 
     testWidgets('le parcours en cours se montre plutôt que la bibliothèque',

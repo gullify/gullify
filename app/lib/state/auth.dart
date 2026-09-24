@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import '../api/api_client.dart';
+import '../audio/local_mode.dart';
 import '../models/user.dart';
 
 const _storage = FlutterSecureStorage();
@@ -78,9 +79,19 @@ class AuthController extends Notifier<AuthState> {
       localFolder = await _storage.read(key: _kLocalFolder)
           .timeout(const Duration(seconds: 10));
     } catch (_) {
-      state = const AuthState(status: AuthStatus.needsServer);
+      // Coffre muet (appareil au réveil, stockage refusé) : le marqueur en
+      // clair du mode local, lui, répond toujours — sans quoi une voiture
+      // démarrée sur un coffre endormi redemanderait un serveur alors qu'un
+      // dossier de musique l'attend (idée #115).
+      final folder = await LocalModeFlag.read();
+      state = folder == null
+          ? const AuthState(status: AuthStatus.needsServer)
+          : AuthState(status: AuthStatus.local, localFolder: folder);
       return;
     }
+    // Le coffre a parlé, mais le marqueur en clair peut être le seul à porter
+    // le dossier (écriture refusée côté coffre).
+    localFolder ??= await LocalModeFlag.read();
 
     if (serverUrl == null || serverUrl.isEmpty) {
       // Sur le web, l'app est servie PAR le serveur : son adresse est celle
@@ -182,6 +193,7 @@ class AuthController extends Notifier<AuthState> {
     // Les deux modes sont exclusifs : entrer un serveur ferme le dossier
     // local (idée #114), sans quoi le prochain démarrage hésiterait entre les
     // deux.
+    await LocalModeFlag.write(null);
     try {
       await _storage.delete(key: _kLocalFolder);
     } catch (_) {}
@@ -192,6 +204,9 @@ class AuthController extends Notifier<AuthState> {
   /// est celle du téléphone. Le chemin est retenu pour les prochains
   /// démarrages.
   Future<void> useLocalFolder(String path) async {
+    // Le marqueur en clair d'abord : c'est lui que le lecteur lit au démarrage
+    // d'Android Auto, avant le coffre (idée #115).
+    await LocalModeFlag.write(path);
     try {
       await _storage.write(key: _kLocalFolder, value: path);
     } catch (_) {
@@ -204,6 +219,7 @@ class AuthController extends Notifier<AuthState> {
 
   /// Quitte le mode local et redemande un serveur.
   Future<void> leaveLocalFolder() async {
+    await LocalModeFlag.write(null);
     try {
       await _storage.delete(key: _kLocalFolder);
     } catch (_) {}

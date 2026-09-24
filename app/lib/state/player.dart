@@ -89,28 +89,46 @@ final audioHandlerBinderProvider = Provider<void>((ref) {
   } catch (e) {
     handler.logAA('ERREUR liaison bandcamp: $e');
   }
-  // Mode « dossier local » (idée #114) : les titres du dossier et leurs
-  // fichiers. C'est ce qui remplace la bibliothèque du serveur — dans l'app
-  // comme dans la voiture.
+  // Mode « dossier local » (idée #114) : le dossier tel qu'il se parcourt —
+  // ses titres, ses albums, ses artistes. C'est ce qui remplace la
+  // bibliothèque du serveur, dans l'app comme dans la voiture (idée #115).
   final localMode = auth.status == AuthStatus.local;
   try {
-    final local = localMode
-        ? (ref.watch(localLibraryProvider).value?.songs ?? const <Song>[])
-        : const <Song>[];
-    handler.localSongs = local;
-    handler.localPaths = {for (final s in local) s.id: s.filePath};
+    final library = localMode ? ref.watch(localLibraryProvider).value : null;
+    final songs = library?.songs ?? const <Song>[];
+    LocalBrowseAlbum browsable(LocalAlbum a) => LocalBrowseAlbum(
+          id: a.album.id,
+          name: a.album.name,
+          artist: a.album.artistName,
+          artworkPath: a.album.artworkUrl,
+          songs: a.songs,
+        );
+    handler.setLocalLibrary(
+      mode: localMode,
+      songs: songs,
+      paths: {for (final s in songs) s.id: s.filePath},
+      albums: [for (final a in library?.albums ?? const <LocalAlbum>[])
+          browsable(a),],
+      artists: [
+        for (final ar in library?.artists ?? const <LocalArtist>[])
+          LocalBrowseArtist(
+            id: ar.artist.id,
+            name: ar.artist.name,
+            artworkPath: ar.artist.imageUrl,
+            albums: [for (final a in ar.albums) browsable(a)],
+            songs: ar.songs,
+          ),
+      ],
+    );
   } catch (e) {
     handler.logAA('ERREUR liaison dossier local: $e');
   }
   // Les titres téléchargés : la seule chose qui reste jouable sans réseau,
-  // donc ce qu'Android Auto affiche quand la bibliothèque ne répond pas. En
-  // mode local, ils sortent du décor : le dossier choisi est toute la
-  // bibliothèque, mêler les deux ne ferait qu'embrouiller.
+  // donc ce qu'Android Auto affiche quand la bibliothèque ne répond pas. Ils
+  // restent là en mode local (idée #115) : un titre descendu du serveur se
+  // joue depuis son fichier, personne n'a besoin d'un réseau pour l'entendre.
   try {
-    final downloads = (localMode
-            ? const <OfflineSong>{}
-            : (ref.watch(offlineProvider).value ?? {}).values)
-        .toList()
+    final downloads = (ref.watch(offlineProvider).value ?? {}).values.toList()
       ..sort((a, b) {
         final artist =
             (a.song.artistName ?? '').compareTo(b.song.artistName ?? '');

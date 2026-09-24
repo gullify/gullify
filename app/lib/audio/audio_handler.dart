@@ -15,6 +15,7 @@ import '../models/game_source.dart';
 import '../models/song.dart';
 import 'equalizer.dart';
 import 'fade.dart';
+import 'local_mode.dart';
 import 'prefetch.dart';
 import 'resume_store.dart';
 import 'tuned_player.dart';
@@ -78,6 +79,48 @@ const kPodcastEpisode = 'podcastEpisode';
 const kPodcastFeed = 'podcastFeed';
 
 /// Media IDs used for the Android Auto / media browser tree.
+/// Un album du dossier local, tel qu'Android Auto le parcourt (idée #115).
+///
+/// Le lecteur ne connaît pas la bibliothèque locale — elle vit dans `state/`,
+/// avec le reste de l'app. Le binder lui en pose une copie plate : de quoi
+/// dresser des listes et jouer, rien de plus.
+@immutable
+class LocalBrowseAlbum {
+  const LocalBrowseAlbum({
+    required this.id,
+    required this.name,
+    required this.songs,
+    this.artist,
+    this.artworkPath,
+  });
+
+  final int id;
+  final String name;
+  final String? artist;
+
+  /// La pochette extraite du fichier, sur le disque du téléphone.
+  final String? artworkPath;
+  final List<Song> songs;
+}
+
+/// Un artiste du dossier local, ses albums et tous ses titres.
+@immutable
+class LocalBrowseArtist {
+  const LocalBrowseArtist({
+    required this.id,
+    required this.name,
+    required this.albums,
+    required this.songs,
+    this.artworkPath,
+  });
+
+  final int id;
+  final String name;
+  final String? artworkPath;
+  final List<LocalBrowseAlbum> albums;
+  final List<Song> songs;
+}
+
 class BrowseIds {
   static const root = AudioService.browsableRootId;
 
@@ -102,6 +145,13 @@ class BrowseIds {
   static const genres = 'GENRES';
   static const downloads = 'DOWNLOADS';
 
+  /// Le dossier local (idées #114, #115) : ses artistes, ses albums, ses
+  /// titres. Des identifiants À PART de ceux du serveur — les deux mondes ont
+  /// chacun leurs numéros d'album, et rien ne doit pouvoir se confondre.
+  static const localArtists = 'LOCAL_ARTISTS';
+  static const localAlbums = 'LOCAL_ALBUMS';
+  static const localSongs = 'LOCAL_SONGS';
+
   /// « Découvrir sur Bandcamp » (idée #111) : genres, puis sous-genres, puis
   /// nouveautés / aléatoire / populaires.
   static const bandcamp = 'BANDCAMP';
@@ -112,6 +162,9 @@ class BrowseIds {
   static String playlist(int id) => 'PLAYLIST_$id';
   static String genre(String name) => 'GENRE_$name';
   static String radio(String id) => 'RADIO_$id';
+
+  static String localAlbum(int id) => 'LOCAL_ALBUM_$id';
+  static String localArtist(int id) => 'LOCAL_ARTIST_$id';
 
   /// Un genre Bandcamp : de quoi le lancer tout entier, et ses sous-genres.
   static String bcGenre(String genre) => 'BC_GENRE_$genre';
@@ -134,6 +187,10 @@ class GullifyAudioHandler extends BaseAudioHandler
     // LE signal d'un arrêt « écran éteint » causé par le système, pas par la
     // lecture elle-même.
     logPlayback('— démarrage de l\'app —');
+    // Mode « dossier local » ou serveur ? La question se pose dès maintenant :
+    // Android Auto peut demander la racine avant que le coffre n'ait rendu
+    // quoi que ce soit (idée #115).
+    unawaited(_resolveLocalMode());
     // Un titre qui vient de descendre dans le tampon d'avance (idée #90) est
     // aussitôt repris dans la file : c'est le fichier qui jouera, pas le flux.
     buffer.onCached = (_) => unawaited(_adoptBuffered());
@@ -451,6 +508,90 @@ class GullifyAudioHandler extends BaseAudioHandler
   /// qu'Android Auto propose en mode local.
   List<Song> localSongs = const [];
 
+  /// Les albums du dossier local, et les artistes qui les portent : de quoi
+  /// parcourir le dossier dans la voiture comme on parcourt la bibliothèque
+  /// du serveur (idée #115). Posés par le binder, qui les tient de la
+  /// bibliothèque locale — le lecteur, lui, n'en connaît que ces listes.
+  List<LocalBrowseAlbum> localAlbums = const [];
+  List<LocalBrowseArtist> localArtists = const [];
+
+  /// Le mode « dossier local » est-il en cours ? Vrai AVANT même que le
+  /// dossier n'ait été relu : c'est cette réponse-là qu'Android Auto attend
+  /// pour ne pas partir chercher un serveur qui n'existe pas.
+  bool localMode = false;
+
+  /// Complété dès qu'on sait à quel mode on a affaire — par le marqueur en
+  /// clair (voir [LocalModeFlag]) ou par le binder, le premier des deux.
+  final _modeResolved = Completer<void>();
+
+  /// Combien de temps la navigation attend de savoir dans quel mode elle est.
+  /// C'est une lecture de fichier : elle prend quelques millisecondes.
+  @visibleForTesting
+  Duration modeResolveTimeout = const Duration(seconds: 3);
+
+  /// Et combien de temps elle attend ensuite que le dossier soit relu (index
+  /// JSON de la bibliothèque locale, posé par le binder).
+  @visibleForTesting
+  Duration localLibraryWait = const Duration(seconds: 6);
+
+  /// Le marqueur en clair, lu dès le démarrage du lecteur : sans interface
+  /// (Android Auto, téléphone verrouillé), c'est la seule chose qui dise tout
+  /// de suite qu'il n'y a pas de serveur à attendre (idée #115).
+  Future<void> _resolveLocalMode() async {
+    final folder = await LocalModeFlag.read();
+    if (folder != null && !localMode) {
+      localMode = true;
+      logAA('mode « dossier local » (marqueur : $folder)');
+      _notifyChildrenChanged(BrowseIds.root);
+    }
+    if (!_modeResolved.isCompleted) _modeResolved.complete();
+  }
+
+  /// Attend de savoir dans quel mode on est, puis — en mode local — que le
+  /// dossier ait été relu. Sans cette attente, la première question d'Android
+  /// Auto arrive avant les réponses et la voiture reste sur un menu de
+  /// serveur qu'elle ne pourra jamais charger.
+  Future<void> _awaitLocalMode() async {
+    if (!_modeResolved.isCompleted) {
+      try {
+        await _modeResolved.future.timeout(modeResolveTimeout);
+      } on TimeoutException {
+        logAA('mode toujours inconnu après attente');
+      }
+    }
+    if (!localMode || localSongs.isNotEmpty) return;
+    const step = Duration(milliseconds: 250);
+    final steps = localLibraryWait.inMilliseconds ~/ step.inMilliseconds;
+    for (var i = 0; i < steps && localSongs.isEmpty; i++) {
+      await Future<void>.delayed(step);
+    }
+    if (localSongs.isEmpty) logAA('dossier local toujours vide après attente');
+  }
+
+  /// Le dossier local tel que le binder le connaît. Android Auto est prévenu
+  /// dès que la réponse change : la racine qu'il a déjà affichée ne se
+  /// redemande pas toute seule.
+  void setLocalLibrary({
+    required bool mode,
+    List<Song> songs = const [],
+    Map<int, String> paths = const {},
+    List<LocalBrowseAlbum> albums = const [],
+    List<LocalBrowseArtist> artists = const [],
+  }) {
+    final changed = mode != localMode || songs.length != localSongs.length;
+    localMode = mode;
+    localSongs = songs;
+    localPaths = paths;
+    localAlbums = albums;
+    localArtists = artists;
+    if (!_modeResolved.isCompleted) _modeResolved.complete();
+    if (changed) {
+      logAA('dossier local : ${songs.length} titres '
+          '(mode ${mode ? "local" : "serveur"})');
+      _notifyChildrenChanged(BrowseIds.root);
+    }
+  }
+
   /// Le fichier d'un titre s'il en a un sur le téléphone : dossier local
   /// d'abord (mode sans serveur), puis téléchargements.
   String? _fileFor(int songId) => localPaths[songId] ?? offlinePaths[songId];
@@ -469,13 +610,12 @@ class GullifyAudioHandler extends BaseAudioHandler
   /// l'affichage et à la lecture : les index `DOWNLOADS_TRACK_i` doivent
   /// désigner la même liste des deux côtés.
   ///
-  /// En mode « dossier local » (idée #114), ce sont les titres du dossier :
-  /// c'est tout ce qu'il y a à jouer, et cela rend le mode navigable dans la
-  /// voiture comme le sont les téléchargements.
-  List<Song> get downloads => [
-        for (final s in localSongs) if (localPaths.containsKey(s.id)) s,
-        for (final s in offlineSongs) if (offlinePaths.containsKey(s.id)) s,
-      ];
+  /// Ils restent là en mode « dossier local » (idée #115) : un titre descendu
+  /// du serveur se joue depuis son fichier, personne n'a besoin d'un réseau
+  /// pour l'entendre. Le dossier local, lui, se parcourt à part — mêler les
+  /// deux listes ferait deux fois le même titre sous deux noms.
+  List<Song> get downloads =>
+      [for (final s in offlineSongs) if (offlinePaths.containsKey(s.id)) s];
 
   /// Ids des favoris, tenus à jour par audioHandlerBinderProvider. Sert à
   /// afficher le cœur plein ou vide dans la notification / Android Auto.
@@ -1932,6 +2072,16 @@ class GullifyAudioHandler extends BaseAudioHandler
       return items;
     }
 
+    // Mode « dossier local » ou serveur ? Tant que la question n'est pas
+    // tranchée, répondre serait répondre à côté : la voiture garde le menu
+    // qu'on lui donne (idée #115).
+    await _awaitLocalMode();
+    final local = _localCategory(parentMediaId);
+    if (local != null) {
+      logAA('→ ${local.length} items (dossier local)');
+      return local;
+    }
+
     // Les écrans qui ne demandent rien au serveur (racine, onglets, titres
     // téléchargés) répondent tout de suite, même sans session : c'est ce qui
     // reste navigable dans la voiture quand il n'y a pas de réseau.
@@ -2041,7 +2191,19 @@ class GullifyAudioHandler extends BaseAudioHandler
         processingState: AudioProcessingState.loading,
         playing: false,
       ));
-      if (await _awaitRepository() == null) {
+      // En mode local, ce qui manque n'est pas une session mais le dossier :
+      // l'attendre, plutôt que d'attendre un serveur qui ne viendra pas
+      // (idée #115).
+      await _awaitLocalMode();
+      if (localMode) {
+        if (_fileFor(point.song.id) == null) {
+          logAA('reprise : ce titre n\'est pas dans le dossier');
+          playbackState.add(playbackState.value.copyWith(
+            processingState: AudioProcessingState.idle,
+          ));
+          return;
+        }
+      } else if (await _awaitRepository() == null) {
         logAA('reprise : pas de session');
         playbackState.add(playbackState.value.copyWith(
           processingState: AudioProcessingState.idle,
@@ -2063,17 +2225,6 @@ class GullifyAudioHandler extends BaseAudioHandler
     switch (parentMediaId) {
       // Miroir de l'app mobile : Accueil, Bibliothèque, Radios, Favoris.
       case BrowseIds.root:
-        // Mode « dossier local » (idée #114) : il n'y a pas de serveur, donc
-        // ni accueil, ni radios, ni favoris — seulement le dossier.
-        if (localSongs.isNotEmpty) {
-          return const [
-            MediaItem(
-              id: BrowseIds.downloads,
-              title: 'Dossier local',
-              playable: false,
-            ),
-          ];
-        }
         return const [
           MediaItem(id: BrowseIds.home, title: 'Accueil', playable: false),
           MediaItem(id: BrowseIds.library, title: 'Bibliothèque',
@@ -2089,28 +2240,236 @@ class GullifyAudioHandler extends BaseAudioHandler
     return null;
   }
 
+  // ── Le dossier local dans la voiture (idées #114, #115) ──────────────────
+
+  /// L'arbre Android Auto du mode « dossier local ». Le dossier s'y parcourt
+  /// comme la bibliothèque d'un serveur — artistes, albums, titres —, et les
+  /// téléchargements gardent leur place : ils se jouent eux aussi sans réseau.
+  ///
+  /// Rien ici ne descend au serveur ni n'attend de session : en mode local, il
+  /// n'y en a pas, et c'est justement l'attente qui faisait chercher la
+  /// voiture sans fin (idée #115). `null` quand on n'est pas dans ce mode.
+  List<MediaItem>? _localCategory(String parentMediaId) {
+    if (!localMode) return null;
+    // Les téléchargements se servent pareil dans les deux modes.
+    if (parentMediaId.startsWith(BrowseIds.downloads)) {
+      return _staticCategory(parentMediaId) ?? const [];
+    }
+
+    switch (parentMediaId) {
+      case BrowseIds.root:
+        return _localRoot();
+
+      case BrowseIds.localArtists:
+        if (localArtists.isEmpty) return _localRoot();
+        return [
+          ..._playAllItems('LOCAL_ALL', playLabel: 'Tout lire'),
+          for (final a in localArtists)
+            MediaItem(
+              id: BrowseIds.localArtist(a.id),
+              title: a.name,
+              artUri: _artUri(a.artworkPath),
+              playable: false,
+            ),
+        ];
+
+      case BrowseIds.localAlbums:
+        if (localAlbums.isEmpty) return _localRoot();
+        return [
+          ..._playAllItems('LOCAL_ALL', playLabel: 'Tout lire'),
+          for (final a in localAlbums)
+            MediaItem(
+              id: BrowseIds.localAlbum(a.id),
+              title: a.name,
+              artist: a.artist,
+              artUri: _artUri(a.artworkPath),
+              playable: false,
+            ),
+        ];
+
+      case BrowseIds.localSongs:
+        if (localSongs.isEmpty) return _localRoot();
+        return [
+          ..._playAllItems('LOCAL_ALL', playLabel: 'Tout lire'),
+          ..._trackItems('LOCAL_ALL', localSongs),
+        ];
+    }
+
+    final album = _localAlbumOf(parentMediaId);
+    if (album != null) {
+      return [
+        ..._playAllItems(
+          BrowseIds.localAlbum(album.id),
+          playLabel: "Lire l'album",
+        ),
+        ..._trackItems(BrowseIds.localAlbum(album.id), album.songs),
+      ];
+    }
+
+    final artist = _localArtistOf(parentMediaId);
+    if (artist != null) {
+      return [
+        ..._playAllItems(BrowseIds.localArtist(artist.id)),
+        for (final a in artist.albums)
+          MediaItem(
+            id: BrowseIds.localAlbum(a.id),
+            title: a.name,
+            artist: a.artist,
+            artUri: _artUri(a.artworkPath),
+            playable: false,
+          ),
+      ];
+    }
+
+    // Un identifiant du serveur demandé en mode local (menu resté affiché
+    // d'un mode à l'autre) : plutôt qu'une attente sans objet, ce qu'il y a
+    // vraiment à écouter.
+    logAA('« $parentMediaId » n\'existe pas sans serveur → racine locale');
+    return _localRoot();
+  }
+
+  /// La racine du mode local. Elle ne repart JAMAIS vide : une liste vide,
+  /// Android Auto la garde telle quelle.
+  List<MediaItem> _localRoot() => [
+        if (localSongs.isNotEmpty) ...[
+          const MediaItem(
+            id: 'LOCAL_ALL_SHUFFLE',
+            title: 'Lecture aléatoire',
+            playable: true,
+          ),
+          const MediaItem(
+            id: BrowseIds.localArtists,
+            title: 'Artistes',
+            playable: false,
+          ),
+          const MediaItem(
+            id: BrowseIds.localAlbums,
+            title: 'Albums',
+            playable: false,
+          ),
+          const MediaItem(
+            id: BrowseIds.localSongs,
+            title: 'Titres',
+            playable: false,
+          ),
+        ],
+        if (downloads.isNotEmpty)
+          const MediaItem(
+            id: BrowseIds.downloads,
+            title: 'Téléchargements',
+            playable: false,
+          ),
+        if (localSongs.isEmpty && downloads.isEmpty)
+          const MediaItem(
+            id: 'LOCAL_EMPTY',
+            title: 'Dossier local vide',
+            artist: 'Ouvre Gullify sur le téléphone pour parcourir le dossier',
+            playable: false,
+          ),
+      ];
+
+  LocalBrowseAlbum? _localAlbumOf(String mediaId) {
+    final m = RegExp(r'^LOCAL_ALBUM_(\d+)$').firstMatch(mediaId);
+    if (m == null) return null;
+    final id = int.parse(m.group(1)!);
+    return localAlbums.where((a) => a.id == id).firstOrNull;
+  }
+
+  LocalBrowseArtist? _localArtistOf(String mediaId) {
+    final m = RegExp(r'^LOCAL_ARTIST_(\d+)$').firstMatch(mediaId);
+    if (m == null) return null;
+    final id = int.parse(m.group(1)!);
+    return localArtists.where((a) => a.id == id).firstOrNull;
+  }
+
+  /// Les titres du dossier qui répondent à [query] : le titre, l'album ou
+  /// l'interprète, sans casse ni accents — « etienne » doit trouver Étienne,
+  /// surtout dicté au volant.
+  List<Song> searchLocal(String query) {
+    final q = _foldSearch(query);
+    if (q.isEmpty) return const [];
+    bool hit(String? s) => s != null && _foldSearch(s).contains(q);
+    return [
+      for (final s in localSongs)
+        if (hit(s.title) || hit(s.artistName) || hit(s.albumName)) s,
+    ];
+  }
+
+  static String _foldSearch(String s) {
+    const from = 'àáâãäåèéêëìíîïòóôõöùúûüçñÿ';
+    const to = 'aaaaaaeeeeiiiiooooouuuucny';
+    final out = StringBuffer();
+    for (final c in s.toLowerCase().codeUnits) {
+      final i = from.codeUnits.indexOf(c);
+      out.writeCharCode(i >= 0 ? to.codeUnitAt(i) : c);
+    }
+    return out.toString().trim();
+  }
+
+  /// Joue un identifiant du dossier local. `false` s'il n'en relevait pas :
+  /// c'est alors au serveur de répondre.
+  Future<bool> _playLocal(String mediaId) async {
+    // La lecture aléatoire posée par la racine de reprise quand on n'a encore
+    // rien écouté : en mode local, elle mélange le dossier.
+    final id = (localMode && mediaId == 'ALL_SHUFFLE')
+        ? 'LOCAL_ALL_SHUFFLE'
+        : mediaId;
+    if (!id.startsWith('LOCAL_')) return false;
+
+    final m = RegExp(
+      r'^LOCAL_(?:ALL|ALBUM_(\d+)|ARTIST_(\d+)|SEARCH)'
+      r'_(PLAY|SHUFFLE|TRACK_(\d+))$',
+    ).firstMatch(id);
+    if (m == null) {
+      logAA('→ identifiant local non jouable');
+      return true;
+    }
+
+    final List<Song> songs;
+    if (m.group(1) != null) {
+      songs = _localAlbumOf('LOCAL_ALBUM_${m.group(1)}')?.songs ?? const [];
+    } else if (m.group(2) != null) {
+      songs = _localArtistOf('LOCAL_ARTIST_${m.group(2)}')?.songs ?? const [];
+    } else if (id.startsWith('LOCAL_SEARCH')) {
+      songs = _localSearchCache;
+    } else {
+      songs = localSongs;
+    }
+    if (songs.isEmpty) {
+      logAA('→ aucun titre local à jouer');
+      return true;
+    }
+
+    final action = m.group(3)!;
+    if (action == 'SHUFFLE') {
+      await playSongs(songs.toList()..shuffle());
+    } else if (m.group(4) != null) {
+      final index = int.parse(m.group(4)!).clamp(0, songs.length - 1);
+      await playSongs(songs, startIndex: index);
+    } else {
+      await playSongs(songs);
+    }
+    return true;
+  }
+
+  /// Les derniers résultats de recherche locale, pour que le titre touché
+  /// lance la liste entière.
+  List<Song> _localSearchCache = const [];
+
   /// Ce qu'on affiche quand une catégorie n'a pas pu se charger : de quoi
   /// réessayer à la main, et les titres téléchargés — comme YouTube Music, qui
   /// ne montre plus que le local hors ligne et se recomplète tout seul ensuite.
   List<MediaItem> _offlineFallback(String parentMediaId) {
     final local = downloads;
     return [
-      // En mode « dossier local » (idée #114), il n'y a rien à réessayer :
-      // aucun serveur n'est attendu, le dossier EST la bibliothèque.
-      if (localSongs.isEmpty)
-        MediaItem(
-          id: BrowseIds.retry(parentMediaId),
-          title: 'Réessayer',
-          artist: 'Hors réseau — nouvelle tentative automatique en cours',
-          playable: false,
-        ),
+      MediaItem(
+        id: BrowseIds.retry(parentMediaId),
+        title: 'Réessayer',
+        artist: 'Hors réseau — nouvelle tentative automatique en cours',
+        playable: false,
+      ),
       if (local.isNotEmpty) ...[
-        ..._playAllItems(
-          'DOWNLOADS',
-          playLabel: localSongs.isEmpty
-              ? 'Lire les téléchargements'
-              : 'Lire le dossier local',
-        ),
+        ..._playAllItems('DOWNLOADS', playLabel: 'Lire les téléchargements'),
         ..._trackItems('DOWNLOADS', local),
       ],
     ];
@@ -2250,9 +2609,9 @@ class GullifyAudioHandler extends BaseAudioHandler
           // Seule entrée qui ne demande rien au réseau : elle n'a de sens que
           // s'il y a des titres téléchargés sur le téléphone.
           if (downloads.isNotEmpty)
-            MediaItem(
+            const MediaItem(
               id: BrowseIds.downloads,
-              title: localSongs.isEmpty ? 'Téléchargements' : 'Dossier local',
+              title: 'Téléchargements',
               playable: false,
             ),
         ];
@@ -2624,6 +2983,21 @@ class GullifyAudioHandler extends BaseAudioHandler
     if (mediaId == BrowseIds.resume) {
       return (await _resumeRoot()).where((i) => i.id == mediaId).firstOrNull;
     }
+    // Un titre du dossier local non plus (idée #115).
+    final localTrack =
+        RegExp(r'^LOCAL_(?:ALL|ALBUM_(\d+)|SEARCH)_TRACK_(\d+)$')
+            .firstMatch(mediaId);
+    if (localTrack != null) {
+      final songs = localTrack.group(1) != null
+          ? _localAlbumOf('LOCAL_ALBUM_${localTrack.group(1)}')?.songs ??
+              const <Song>[]
+          : mediaId.startsWith('LOCAL_SEARCH')
+              ? _localSearchCache
+              : localSongs;
+      final index = int.parse(localTrack.group(2)!);
+      if (index < 0 || index >= songs.length) return null;
+      return _toMediaItem(songs[index]).copyWith(id: mediaId);
+    }
     // Un téléchargement se décrit sans rien demander au serveur.
     final local = RegExp(r'^DOWNLOADS_TRACK_(\d+)$').firstMatch(mediaId);
     if (local != null) {
@@ -2670,6 +3044,22 @@ class GullifyAudioHandler extends BaseAudioHandler
   ]) async {
     logAA('recherche vocale : « $query »');
     if (query.trim().isEmpty) return;
+    await _awaitLocalMode();
+    // Mode « dossier local » : la recherche se fait dans le dossier, tout de
+    // suite (idée #115). Rien à demander à un serveur qui n'est pas là.
+    if (localMode) {
+      final found = searchLocal(query);
+      logAA('→ ${found.length} titres du dossier local');
+      if (found.isEmpty) {
+        playbackState.add(playbackState.value.copyWith(
+          processingState: AudioProcessingState.idle,
+        ));
+        return;
+      }
+      _localSearchCache = found;
+      await playSongs(found);
+      return;
+    }
     final repo = await _awaitRepository(
       timeout: downloads.isEmpty ? null : const Duration(seconds: 6),
     );
@@ -2788,6 +3178,13 @@ class GullifyAudioHandler extends BaseAudioHandler
   ]) async {
     logAA('search AA : « $query »');
     if (query.trim().isEmpty) return [];
+    await _awaitLocalMode();
+    if (localMode) {
+      final found = searchLocal(query);
+      _localSearchCache = found;
+      logAA('→ ${found.length} résultats (dossier local)');
+      return _trackItems('LOCAL_SEARCH', found);
+    }
     final repo = await _awaitRepository(
       timeout: downloads.isEmpty ? null : const Duration(seconds: 6),
     );
@@ -2865,6 +3262,13 @@ class GullifyAudioHandler extends BaseAudioHandler
     if (mediaId == BrowseIds.resume) {
       await _playResume();
       return;
+    }
+
+    // Le dossier local se joue sans session ni réseau : on ne fait attendre
+    // personne derrière un serveur qui n'existe pas (idée #115).
+    if (localMode || mediaId.startsWith('LOCAL_')) {
+      await _awaitLocalMode();
+      if (await _playLocal(mediaId)) return;
     }
 
     final repo = await _awaitRepository();

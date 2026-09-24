@@ -170,6 +170,16 @@ class _Header extends ConsumerWidget {
               ],
             ),
           ),
+          // La recherche, comme avec un serveur (idée #115) : au doigt, elle
+          // cherche dans tout le dossier — titres, albums et artistes
+          // ensemble — là où le filtre d'une vue ne voit que la sienne.
+          GlassIconButton(
+            icon: Icons.search,
+            tooltip: 'Rechercher dans le dossier',
+            size: 42,
+            onPressed: () => context.push('/local/search'),
+          ),
+          const SizedBox(width: 8),
           GlassIconButton(
             icon: Icons.more_horiz,
             tooltip: 'Options du dossier',
@@ -226,6 +236,27 @@ class _Header extends ConsumerWidget {
               onTap: () {
                 Navigator.of(sheet).pop();
                 context.push('/settings/equalizer');
+              },
+            ),
+            // Les titres descendus d'un serveur se jouent depuis leur fichier :
+            // ils restent écoutables ici, et dans la voiture (idée #115).
+            ListTile(
+              leading: const Icon(Icons.download_done),
+              title: const Text('Téléchargements'),
+              subtitle: const Text(
+                'Les titres déjà descendus sur le téléphone',
+              ),
+              onTap: () {
+                Navigator.of(sheet).pop();
+                context.push('/settings/downloads');
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.directions_car_outlined),
+              title: const Text('Journal Android Auto'),
+              onTap: () {
+                Navigator.of(sheet).pop();
+                context.push('/settings/aa-diagnostic');
               },
             ),
           ],
@@ -653,6 +684,142 @@ class _LocalArtistRow extends StatelessWidget {
       onTap: () => context.push('/local/artist/${a.id}'),
     );
   }
+}
+
+// ─────────────────────── Recherche dans le dossier ───────────────────────
+
+/// La recherche du mode local (idée #115) : un seul champ pour tout le
+/// dossier — titres, albums et artistes à la fois —, là où le filtre d'une vue
+/// ne voit que la sienne. Sans serveur, il n'y a ni YouTube ni Bandcamp
+/// derrière : ce qui se cherche ici est ce qui est déjà sur le téléphone.
+class LocalSearchScreen extends ConsumerStatefulWidget {
+  const LocalSearchScreen({super.key});
+
+  @override
+  ConsumerState<LocalSearchScreen> createState() => _LocalSearchScreenState();
+}
+
+class _LocalSearchScreenState extends ConsumerState<LocalSearchScreen> {
+  String _query = '';
+
+  @override
+  Widget build(BuildContext context) {
+    final library = ref.watch(localLibraryProvider).value;
+    final currentSongId =
+        ref.watch(currentMediaItemProvider).value?.extras?['songId'] as int?;
+    final songs = library?.search(_query) ?? const <Song>[];
+    final albums = library?.searchAlbums(_query) ?? const <LocalAlbum>[];
+    final artists = library?.searchArtists(_query) ?? const <LocalArtist>[];
+    final nothing = songs.isEmpty && albums.isEmpty && artists.isEmpty;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: TextField(
+          autofocus: true,
+          textInputAction: TextInputAction.search,
+          onChanged: (v) => setState(() => _query = v),
+          decoration: const InputDecoration(
+            hintText: 'Chercher dans le dossier…',
+            prefixIcon: Icon(Icons.search),
+            isDense: true,
+          ),
+        ),
+      ),
+      bottomNavigationBar: const SafeArea(top: false, child: MiniPlayer()),
+      body: _query.trim().isEmpty
+          ? const _SearchHint()
+          : nothing
+              ? const MascotEmpty(
+                  message: 'Rien trouvé',
+                  hint: 'Aucun titre, album ou artiste de ce dossier ne porte '
+                      'ce nom. Chercher sur Bandcamp ou télécharger de la '
+                      'musique, en revanche, demande un serveur : c\'est lui '
+                      'qui va la chercher et la range.',
+                )
+              : ListView(
+                  padding: const EdgeInsets.only(bottom: 24),
+                  // Défiler referme le clavier : les résultats prennent alors
+                  // tout l'écran.
+                  keyboardDismissBehavior:
+                      ScrollViewKeyboardDismissBehavior.onDrag,
+                  children: [
+                    if (artists.isNotEmpty) ...[
+                      const _SearchSection(title: 'Artistes'),
+                      for (final a in artists) _LocalArtistRow(artist: a),
+                    ],
+                    if (albums.isNotEmpty) ...[
+                      const _SearchSection(title: 'Albums'),
+                      for (final a in albums)
+                        ListTile(
+                          leading: Artwork(
+                            url: a.album.artworkUrl,
+                            size: 48,
+                            borderRadius: 8,
+                          ),
+                          title: Text(
+                            a.album.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style:
+                                const TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                          subtitle: Text(
+                            a.album.artistName ?? kUnknownArtist,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          onTap: () =>
+                              context.push('/local/album/${a.album.id}'),
+                        ),
+                    ],
+                    if (songs.isNotEmpty) ...[
+                      const _SearchSection(title: 'Titres'),
+                      for (final s in songs)
+                        SongTile(
+                          song: s,
+                          isPlaying: s.id == currentSongId,
+                          albumInSubtitle: true,
+                          // La file, c'est ce qu'on voit : les résultats.
+                          onTap: () => _playFrom(ref, songs, s),
+                          onLongPress: () =>
+                              showLocalSongMenu(context, ref, s),
+                        ),
+                    ],
+                  ],
+                ),
+    );
+  }
+}
+
+class _SearchHint extends StatelessWidget {
+  const _SearchHint();
+
+  @override
+  Widget build(BuildContext context) => Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Text(
+            'Cherche un titre, un album ou un artiste du dossier.',
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+        ),
+      );
+}
+
+class _SearchSection extends StatelessWidget {
+  const _SearchSection({required this.title});
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.fromLTRB(20, 18, 20, 6),
+        child: Text(
+          title,
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+        ),
+      );
 }
 
 // ────────────────────────── Un album du dossier ──────────────────────────
