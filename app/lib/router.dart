@@ -34,6 +34,9 @@ import 'screens/login_screen.dart';
 import 'screens/notifications_screen.dart';
 import 'screens/now_playing_screen.dart';
 import 'screens/playlist_screen.dart';
+import 'screens/podcast_show_screen.dart';
+import 'screens/podcasts_screen.dart';
+import 'api/podcasts_repository.dart';
 import 'screens/popular_screen.dart';
 import 'screens/radio_edit_screen.dart';
 import 'screens/radio_screen.dart';
@@ -262,6 +265,16 @@ final routerProvider = Provider<GoRouter>((ref) {
             subgenre: sub == kBcWholeGenre ? '' : sub,
           );
         },
+      ),
+      // Podcasts (idée #112) : la liste, puis une série et ses épisodes.
+      GoRoute(path: '/podcasts', builder: (_, _) => const PodcastsScreen()),
+      // Le flux passe en query : une adresse contient des « / ».
+      GoRoute(
+        path: '/podcasts/show',
+        builder: (_, state) => PodcastShowScreen(
+          feedUrl: state.uri.queryParameters['feed'] ?? '',
+          known: state.extra as PodcastShow?,
+        ),
       ),
       GoRoute(
         path: '/radio/edit',

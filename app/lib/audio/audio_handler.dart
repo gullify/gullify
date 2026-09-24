@@ -8,6 +8,7 @@ import 'package:just_audio/just_audio.dart';
 import '../api/bandcamp_repository.dart';
 import '../api/library_repository.dart';
 import '../api/playlist_repository.dart';
+import '../api/podcasts_repository.dart';
 import '../api/radio_repository.dart';
 import '../api/yt_downloads_repository.dart';
 import '../models/game_source.dart';
@@ -67,6 +68,14 @@ const kPreviewVideoId = 'previewVideoId';
 /// Marque, dans les extras d'une fiche, un titre venu de « Découvrir sur
 /// Bandcamp » (idée #111) : `bc:<id du titre>`.
 const kBandcampTrack = 'bandcampTrack';
+
+/// Marque, dans les extras d'une fiche, un épisode de podcast (idée #112) :
+/// son `guid` dans le flux. C'est à ça que la liste des épisodes reconnaît
+/// celui qui joue, et que l'app sait quoi retenir comme position d'écoute.
+const kPodcastEpisode = 'podcastEpisode';
+
+/// L'adresse du flux dont vient l'épisode qui joue (idée #112).
+const kPodcastFeed = 'podcastFeed';
 
 /// Media IDs used for the Android Auto / media browser tree.
 class BrowseIds {
@@ -972,6 +981,59 @@ class GullifyAudioHandler extends BaseAudioHandler
           'bcUrl': t.url,
         },
       );
+
+  /// Joue les épisodes d'un podcast (idée #112), à partir de [startIndex].
+  ///
+  /// La file, c'est la liste des épisodes telle qu'on la voit : « suivant »
+  /// descend donc vers les épisodes plus anciens, comme la liste. L'épisode
+  /// de départ reprend où on l'avait laissé — c'est tout l'intérêt d'un
+  /// podcast, et le serveur retient cette position d'un appareil à l'autre.
+  Future<void> playPodcast(
+    List<PodcastEpisode> episodes, {
+    required String feedUrl,
+    required String showTitle,
+    String showImage = '',
+    int startIndex = 0,
+  }) async {
+    if (episodes.isEmpty) return;
+    final at = startIndex.clamp(0, episodes.length - 1);
+    await restoreQueue(
+      [
+        for (final e in episodes)
+          podcastMediaItem(
+            e,
+            feedUrl: feedUrl,
+            showTitle: showTitle,
+            showImage: showImage,
+          ),
+      ],
+      index: at,
+      position: episodes[at].startAt,
+    );
+  }
+
+  /// La fiche d'un épisode de podcast dans la file.
+  @visibleForTesting
+  MediaItem podcastMediaItem(
+    PodcastEpisode e, {
+    required String feedUrl,
+    required String showTitle,
+    String showImage = '',
+  }) {
+    final art = e.image.isNotEmpty ? e.image : showImage;
+    return MediaItem(
+      id: e.audioUrl,
+      title: e.title,
+      artist: showTitle,
+      album: 'Podcast',
+      duration: e.duration > 0 ? Duration(seconds: e.duration) : null,
+      artUri: _artUri(art.isEmpty ? null : art),
+      extras: {
+        kPodcastEpisode: e.guid,
+        kPodcastFeed: feedUrl,
+      },
+    );
+  }
 
   // ── Le réveil matinal (idée #81) ───────────────────────────────────────────
 

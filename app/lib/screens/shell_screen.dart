@@ -10,6 +10,7 @@ import '../state/app_update.dart';
 import '../state/background_playback.dart';
 import '../state/home_widget_sync.dart';
 import '../state/player.dart';
+import '../state/podcasts.dart';
 import '../widgets/glass_box.dart';
 import '../widgets/keyboard_guard.dart';
 import '../widgets/liquid_glass.dart';
@@ -51,6 +52,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     ref.watch(audioHandlerBinderProvider);
     // Widget d'écran d'accueil synchronisé avec la lecture.
     ref.watch(homeWidgetSyncProvider);
+    // Position d'écoute des podcasts retenue, écran ouvert ou non (idée #112).
+    ref.watch(podcastProgressSyncProvider);
 
     ref.listen(appUpdateProvider, (prev, next) {
       if (prev?.status != UpdateStatus.available &&

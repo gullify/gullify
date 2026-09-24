@@ -8,6 +8,21 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.63.0', [
+    'Les podcasts arrivent dans Gullify — une nouvelle entrée sur l\'accueil. '
+        'On y cherche une série par son nom, on parcourt le palmarès d\'une '
+        'vingtaine de catégories (crimes réels, actualités, humour, '
+        'musique…), et on s\'abonne d\'un appui : les abonnements s\'alignent '
+        'en tête de l\'écran',
+    'Une série s\'ouvre comme un artiste : sa pochette, sa présentation, et '
+        'tous ses épisodes avec leur date et leur durée. Lancer un épisode '
+        'pose la liste entière dans le lecteur — suivant, précédent, '
+        'notification et écran verrouillé comme pour une chanson',
+    'Chaque épisode se reprend là où on l\'a laissé, même en écoutant autre '
+        'chose entre-temps : la position est retenue sur le serveur, donc '
+        'd\'un appareil à l\'autre. La liste annonce ce qu\'il reste à '
+        'écouter, et marque « Écouté » ce qui est terminé',
+  ]),
   ReleaseNote('3.60.0', [
     'L\'app s\'appelle désormais GulliFY — sous l\'icône, au téléviseur, dans '
         'Android Auto et sur le web. Dans le logo, « Gulli » ne bouge pas : '

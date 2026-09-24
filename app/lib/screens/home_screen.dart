@@ -132,6 +132,8 @@ class HomeScreen extends ConsumerWidget {
               // Découvrir sur Bandcamp (idée #111) : genres → sous-genres →
               // nouveautés / aléatoire / populaires.
               const _BandcampDiscoverEntry(),
+              // Podcasts (idée #112) : recherche, abonnements et palmarès.
+              const _PodcastsEntry(),
               // Nouveautés : titre + bouton aléatoire des nouveautés.
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 14, 20, 2),
@@ -566,6 +568,42 @@ class _BandcampDiscoverEntry extends StatelessWidget {
   const _BandcampDiscoverEntry();
 
   @override
+  Widget build(BuildContext context) => const _LinkEntry(
+        icon: Icons.explore_outlined,
+        title: 'Découvrir sur Bandcamp',
+        hint: 'Un genre, ses nouveautés ou un tirage au hasard',
+        path: '/bandcamp',
+      );
+}
+
+/// L'entrée des podcasts (idée #112).
+class _PodcastsEntry extends StatelessWidget {
+  const _PodcastsEntry();
+
+  @override
+  Widget build(BuildContext context) => const _LinkEntry(
+        icon: Icons.podcasts_outlined,
+        title: 'Podcasts',
+        hint: 'Chercher, s\'abonner, écouter ses épisodes',
+        path: '/podcasts',
+      );
+}
+
+/// Une rangée de verre qui mène ailleurs : icône accent, titre, sous-titre.
+class _LinkEntry extends StatelessWidget {
+  const _LinkEntry({
+    required this.icon,
+    required this.title,
+    required this.hint,
+    required this.path,
+  });
+
+  final IconData icon;
+  final String title;
+  final String hint;
+  final String path;
+
+  @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return Padding(
@@ -575,28 +613,28 @@ class _BandcampDiscoverEntry extends StatelessWidget {
         blur: false,
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
-          onTap: () => context.push('/bandcamp'),
+          onTap: () => context.push(path),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             child: Row(
               children: [
-                Icon(Icons.explore_outlined, color: scheme.primary),
+                Icon(icon, color: scheme.primary),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
-                        'Découvrir sur Bandcamp',
+                      Text(
+                        title,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontSize: 14.5,
                           fontWeight: FontWeight.w700,
                         ),
                       ),
                       Text(
-                        'Un genre, ses nouveautés ou un tirage au hasard',
+                        hint,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
