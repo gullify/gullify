@@ -80,12 +80,11 @@ const _episodes = [
 class _FakePodcasts extends Fake implements PodcastsRepository {
   _FakePodcasts({
     this.subscribed = const [_show],
-    this.episodesOf = _episodes,
     this.frenchEmpty = false,
   });
 
   List<PodcastShow> subscribed;
-  final List<PodcastEpisode> episodesOf;
+  final List<PodcastEpisode> episodesOf = _episodes;
 
   /// Rien de francophone à proposer : le cas d'un palmarès tout en anglais.
   final bool frenchEmpty;

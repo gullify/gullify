@@ -47,6 +47,10 @@ class NowPlayingScreen extends ConsumerWidget {
     final scheme = Theme.of(context).colorScheme;
     final isRadio = item.extras?['radio'] == true;
     final songId = item.extras?['songId'] as int?;
+    // Un titre du dossier local (idée #114) porte un identifiant NÉGATIF : il
+    // ne vient d'aucun serveur, et paroles, accords, partage et favoris n'ont
+    // alors rien à interroger.
+    final server = (songId ?? 1) > 0;
     final albumId = item.extras?['albumId'] as int?;
     final artistId = item.extras?['artistId'] as int?;
 
@@ -171,7 +175,7 @@ class NowPlayingScreen extends ConsumerWidget {
     final actionsRow = Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
-        if (!isRadio)
+        if (!isRadio && server)
           _actionPlate(
             retro,
             IconButton(
@@ -180,7 +184,7 @@ class NowPlayingScreen extends ConsumerWidget {
               onPressed: () => showLyricsSheet(context),
             ),
           ),
-        if (!isRadio)
+        if (!isRadio && server)
           _actionPlate(
             retro,
             IconButton(
@@ -191,7 +195,7 @@ class NowPlayingScreen extends ConsumerWidget {
             ),
           ),
         _actionPlate(retro, const _SleepTimerButton()),
-        if (!isRadio && songId != null)
+        if (!isRadio && songId != null && server)
           _actionPlate(
             retro,
             IconButton(
@@ -603,6 +607,9 @@ class _FavoriteButton extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Les favoris sont tenus par le serveur : un titre du dossier local
+    // (identifiant négatif, idée #114) n'a nulle part où se poser.
+    if (songId < 0) return const SizedBox.shrink();
     final isFavorite =
         ref.watch(favoriteIdsProvider).value?.contains(songId) ?? false;
     return IconButton(
@@ -872,6 +879,9 @@ class _WideNowPlayingState extends ConsumerState<_WideNowPlaying> {
     final liquid = isLiquidSkin(context);
     final isRadio = item.extras?['radio'] == true;
     final songId = item.extras?['songId'] as int?;
+    // Voir la mise en page téléphone : un identifiant négatif est un titre du
+    // dossier local, sans serveur derrière lui.
+    final server = (songId ?? 1) > 0;
     final albumId = item.extras?['albumId'] as int?;
     final artistId = item.extras?['artistId'] as int?;
     final artUrl = item.artUri?.toString();
@@ -965,7 +975,7 @@ class _WideNowPlayingState extends ConsumerState<_WideNowPlaying> {
             // barre du bas.
             Row(
               children: [
-                if (!isRadio)
+                if (!isRadio && server)
                   IconButton(
                     icon: const ChordsIcon(),
                     tooltip: 'Accords guitare',
@@ -975,7 +985,7 @@ class _WideNowPlayingState extends ConsumerState<_WideNowPlaying> {
                     ),
                   ),
                 const _SleepTimerButton(),
-                if (!isRadio && songId != null)
+                if (!isRadio && songId != null && server)
                   IconButton(
                     icon: const Icon(Icons.ios_share_rounded),
                     tooltip: 'Partager',

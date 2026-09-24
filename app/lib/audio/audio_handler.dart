@@ -441,6 +441,20 @@ class GullifyAudioHandler extends BaseAudioHandler
   /// audioHandlerBinderProvider). Preferred over streaming when present.
   Map<int, String> offlinePaths = const {};
 
+  /// Mode « dossier local » (idée #114) : songId → fichier du téléphone, pour
+  /// les titres d'un dossier plutôt que d'un serveur. Tenu à jour par
+  /// audioHandlerBinderProvider, vide en mode serveur. Ces titres portent des
+  /// identifiants négatifs : aucune confusion possible avec un téléchargement.
+  Map<int, String> localPaths = const {};
+
+  /// Les titres du dossier local, dans l'ordre d'affichage. Ce sont eux
+  /// qu'Android Auto propose en mode local.
+  List<Song> localSongs = const [];
+
+  /// Le fichier d'un titre s'il en a un sur le téléphone : dossier local
+  /// d'abord (mode sans serveur), puis téléchargements.
+  String? _fileFor(int songId) => localPaths[songId] ?? offlinePaths[songId];
+
   /// Les titres téléchargés, dans l'ordre d'affichage (tenus à jour par
   /// audioHandlerBinderProvider). Sans réseau, c'est tout ce qu'Android Auto
   /// peut encore proposer.
@@ -454,8 +468,14 @@ class GullifyAudioHandler extends BaseAudioHandler
   /// Les téléchargements réellement jouables (fichier connu). Sert à la fois à
   /// l'affichage et à la lecture : les index `DOWNLOADS_TRACK_i` doivent
   /// désigner la même liste des deux côtés.
-  List<Song> get downloads =>
-      [for (final s in offlineSongs) if (offlinePaths.containsKey(s.id)) s];
+  ///
+  /// En mode « dossier local » (idée #114), ce sont les titres du dossier :
+  /// c'est tout ce qu'il y a à jouer, et cela rend le mode navigable dans la
+  /// voiture comme le sont les téléchargements.
+  List<Song> get downloads => [
+        for (final s in localSongs) if (localPaths.containsKey(s.id)) s,
+        for (final s in offlineSongs) if (offlinePaths.containsKey(s.id)) s,
+      ];
 
   /// Ids des favoris, tenus à jour par audioHandlerBinderProvider. Sert à
   /// afficher le cœur plein ou vide dans la notification / Android Auto.
@@ -557,6 +577,9 @@ class GullifyAudioHandler extends BaseAudioHandler
   static const int _sysArtSize = 512;
   Uri? _artUri(String? url) {
     if (url == null || url.isEmpty) return null;
+    // Mode local (idée #114) : la pochette est un fichier extrait du morceau,
+    // pas une adresse. La notification et Android Auto veulent un `file://`.
+    if (url.startsWith('/')) return Uri.file(url);
     final uri = Uri.tryParse(url);
     if (uri == null) return null;
     if (!uri.path.endsWith('serve_image.php')) return uri;
@@ -582,7 +605,7 @@ class GullifyAudioHandler extends BaseAudioHandler
   /// Le basculement explicite, lui, emmène toute la file en karaoké — voir
   /// setKaraoke().
   String _sourceUri(Song s) {
-    final local = offlinePaths[s.id];
+    final local = _fileFor(s.id);
     if (local != null) return Uri.file(local).toString();
     if (_karaoke) {
       final karaokeUrl = repository?.streamUrlForPath(s.filePath, karaoke: true);
@@ -607,9 +630,8 @@ class GullifyAudioHandler extends BaseAudioHandler
     final songId = item.extras?['songId'] as int?;
     // Le fichier du titre : celui du téléchargement, sinon celui du tampon
     // d'avance (idée #90) s'il est descendu et toujours là.
-    final local = songId == null
-        ? null
-        : offlinePaths[songId] ?? buffer.pathFor(songId);
+    final local =
+        songId == null ? null : _fileFor(songId) ?? buffer.pathFor(songId);
     final url = karaoke
         ? repo.streamUrlForPath(path, karaoke: true)
         : (local != null
@@ -753,7 +775,7 @@ class GullifyAudioHandler extends BaseAudioHandler
       final songId = q[i].extras?['songId'] as int?;
       final path = q[i].extras?['filePath'] as String?;
       if (songId == null || path == null) continue;
-      if (offlinePaths.containsKey(songId)) continue;
+      if (_fileFor(songId) != null) continue;
       wanted.add(BufferRequest(
         songId: songId,
         url: repo.streamUrlForPath(path),
@@ -796,7 +818,7 @@ class GullifyAudioHandler extends BaseAudioHandler
     try {
       for (var i = current + 1; i < q.length; i++) {
         final songId = q[i].extras?['songId'] as int?;
-        if (songId == null || offlinePaths.containsKey(songId)) continue;
+        if (songId == null || _fileFor(songId) != null) continue;
         final path = buffer.pathFor(songId);
         if (path == null) continue;
         final url = Uri.file(path).toString();
@@ -2014,7 +2036,7 @@ class GullifyAudioHandler extends BaseAudioHandler
     }
     // Un titre téléchargé se joue sans réseau ni session ; les autres ont
     // besoin du dépôt, qui met quelques secondes à revenir au démarrage.
-    if (!offlinePaths.containsKey(point.song.id)) {
+    if (_fileFor(point.song.id) == null) {
       playbackState.add(playbackState.value.copyWith(
         processingState: AudioProcessingState.loading,
         playing: false,
@@ -2041,6 +2063,17 @@ class GullifyAudioHandler extends BaseAudioHandler
     switch (parentMediaId) {
       // Miroir de l'app mobile : Accueil, Bibliothèque, Radios, Favoris.
       case BrowseIds.root:
+        // Mode « dossier local » (idée #114) : il n'y a pas de serveur, donc
+        // ni accueil, ni radios, ni favoris — seulement le dossier.
+        if (localSongs.isNotEmpty) {
+          return const [
+            MediaItem(
+              id: BrowseIds.downloads,
+              title: 'Dossier local',
+              playable: false,
+            ),
+          ];
+        }
         return const [
           MediaItem(id: BrowseIds.home, title: 'Accueil', playable: false),
           MediaItem(id: BrowseIds.library, title: 'Bibliothèque',
@@ -2062,14 +2095,22 @@ class GullifyAudioHandler extends BaseAudioHandler
   List<MediaItem> _offlineFallback(String parentMediaId) {
     final local = downloads;
     return [
-      MediaItem(
-        id: BrowseIds.retry(parentMediaId),
-        title: 'Réessayer',
-        artist: 'Hors réseau — nouvelle tentative automatique en cours',
-        playable: false,
-      ),
+      // En mode « dossier local » (idée #114), il n'y a rien à réessayer :
+      // aucun serveur n'est attendu, le dossier EST la bibliothèque.
+      if (localSongs.isEmpty)
+        MediaItem(
+          id: BrowseIds.retry(parentMediaId),
+          title: 'Réessayer',
+          artist: 'Hors réseau — nouvelle tentative automatique en cours',
+          playable: false,
+        ),
       if (local.isNotEmpty) ...[
-        ..._playAllItems('DOWNLOADS', playLabel: 'Lire les téléchargements'),
+        ..._playAllItems(
+          'DOWNLOADS',
+          playLabel: localSongs.isEmpty
+              ? 'Lire les téléchargements'
+              : 'Lire le dossier local',
+        ),
         ..._trackItems('DOWNLOADS', local),
       ],
     ];
@@ -2209,8 +2250,11 @@ class GullifyAudioHandler extends BaseAudioHandler
           // Seule entrée qui ne demande rien au réseau : elle n'a de sens que
           // s'il y a des titres téléchargés sur le téléphone.
           if (downloads.isNotEmpty)
-            const MediaItem(id: BrowseIds.downloads, title: 'Téléchargements',
-                playable: false),
+            MediaItem(
+              id: BrowseIds.downloads,
+              title: localSongs.isEmpty ? 'Téléchargements' : 'Dossier local',
+              playable: false,
+            ),
         ];
 
       // Jouable sans réseau ni session : aucune requête ici.

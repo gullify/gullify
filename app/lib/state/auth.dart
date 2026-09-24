@@ -9,7 +9,19 @@ const _storage = FlutterSecureStorage();
 const _kServerUrl = 'gullify_server_url';
 const _kToken = 'gullify_token';
 
-enum AuthStatus { unknown, needsServer, needsLogin, authenticated }
+/// Le dossier choisi en mode local (idée #114). Rangé à côté de l'adresse du
+/// serveur : c'est l'autre façon de répondre à « où est la musique ? ».
+const _kLocalFolder = 'gullify_local_folder';
+
+enum AuthStatus {
+  unknown,
+  needsServer,
+  needsLogin,
+  authenticated,
+
+  /// Pas de serveur : l'app tourne sur un dossier du téléphone (idée #114).
+  local,
+}
 
 class AuthState {
   const AuthState({
@@ -17,6 +29,7 @@ class AuthState {
     this.serverUrl,
     this.token,
     this.user,
+    this.localFolder,
   });
 
   final AuthStatus status;
@@ -24,17 +37,22 @@ class AuthState {
   final String? token;
   final User? user;
 
+  /// Le dossier de musique, en mode local seulement.
+  final String? localFolder;
+
   AuthState copyWith({
     AuthStatus? status,
     String? serverUrl,
     String? token,
     User? user,
+    String? localFolder,
   }) =>
       AuthState(
         status: status ?? this.status,
         serverUrl: serverUrl ?? this.serverUrl,
         token: token ?? this.token,
         user: user ?? this.user,
+        localFolder: localFolder ?? this.localFolder,
       );
 }
 
@@ -51,10 +69,13 @@ class AuthController extends Notifier<AuthState> {
   Future<void> _restore() async {
     String? serverUrl;
     String? token;
+    String? localFolder;
     try {
       serverUrl = await _storage.read(key: _kServerUrl)
           .timeout(const Duration(seconds: 10));
       token = await _storage.read(key: _kToken)
+          .timeout(const Duration(seconds: 10));
+      localFolder = await _storage.read(key: _kLocalFolder)
           .timeout(const Duration(seconds: 10));
     } catch (_) {
       state = const AuthState(status: AuthStatus.needsServer);
@@ -73,6 +94,11 @@ class AuthController extends Notifier<AuthState> {
           // Le stockage peut être refusé (navigation privée) : l'adresse se
           // redéduit de la page au prochain démarrage, ce n'est pas bloquant.
         }
+      } else if (localFolder != null && localFolder.isNotEmpty) {
+        // Aucun serveur, mais un dossier de musique retenu (idée #114) :
+        // l'app repart là-dessus, sans rien demander.
+        state = AuthState(status: AuthStatus.local, localFolder: localFolder);
+        return;
       } else {
         state = const AuthState(status: AuthStatus.needsServer);
         return;
@@ -153,7 +179,35 @@ class AuthController extends Notifier<AuthState> {
     }
     final normalized = client.serverUrl();
     await _storage.write(key: _kServerUrl, value: normalized);
+    // Les deux modes sont exclusifs : entrer un serveur ferme le dossier
+    // local (idée #114), sans quoi le prochain démarrage hésiterait entre les
+    // deux.
+    try {
+      await _storage.delete(key: _kLocalFolder);
+    } catch (_) {}
     state = AuthState(status: AuthStatus.needsLogin, serverUrl: normalized);
+  }
+
+  /// Passe en mode « dossier local » (idée #114) : pas de serveur, la musique
+  /// est celle du téléphone. Le chemin est retenu pour les prochains
+  /// démarrages.
+  Future<void> useLocalFolder(String path) async {
+    try {
+      await _storage.write(key: _kLocalFolder, value: path);
+    } catch (_) {
+      // Coffre refusé (navigation privée, appareil verrouillé) : le mode vaut
+      // pour cette session, il faudra rechoisir le dossier au prochain
+      // démarrage.
+    }
+    state = AuthState(status: AuthStatus.local, localFolder: path);
+  }
+
+  /// Quitte le mode local et redemande un serveur.
+  Future<void> leaveLocalFolder() async {
+    try {
+      await _storage.delete(key: _kLocalFolder);
+    } catch (_) {}
+    state = const AuthState(status: AuthStatus.needsServer);
   }
 
   Future<void> login(String username, String password) async {

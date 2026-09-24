@@ -11,6 +11,7 @@ import 'auth.dart';
 import 'bandcamp.dart';
 import 'favorites.dart';
 import 'library.dart';
+import 'local_library.dart';
 import 'offline.dart';
 import 'playlists.dart';
 import 'radio.dart';
@@ -88,10 +89,28 @@ final audioHandlerBinderProvider = Provider<void>((ref) {
   } catch (e) {
     handler.logAA('ERREUR liaison bandcamp: $e');
   }
-  // Les titres téléchargés : la seule chose qui reste jouable sans réseau,
-  // donc ce qu'Android Auto affiche quand la bibliothèque ne répond pas.
+  // Mode « dossier local » (idée #114) : les titres du dossier et leurs
+  // fichiers. C'est ce qui remplace la bibliothèque du serveur — dans l'app
+  // comme dans la voiture.
+  final localMode = auth.status == AuthStatus.local;
   try {
-    final downloads = (ref.watch(offlineProvider).value ?? {}).values.toList()
+    final local = localMode
+        ? (ref.watch(localLibraryProvider).value?.songs ?? const <Song>[])
+        : const <Song>[];
+    handler.localSongs = local;
+    handler.localPaths = {for (final s in local) s.id: s.filePath};
+  } catch (e) {
+    handler.logAA('ERREUR liaison dossier local: $e');
+  }
+  // Les titres téléchargés : la seule chose qui reste jouable sans réseau,
+  // donc ce qu'Android Auto affiche quand la bibliothèque ne répond pas. En
+  // mode local, ils sortent du décor : le dossier choisi est toute la
+  // bibliothèque, mêler les deux ne ferait qu'embrouiller.
+  try {
+    final downloads = (localMode
+            ? const <OfflineSong>{}
+            : (ref.watch(offlineProvider).value ?? {}).values)
+        .toList()
       ..sort((a, b) {
         final artist =
             (a.song.artistName ?? '').compareTo(b.song.artistName ?? '');

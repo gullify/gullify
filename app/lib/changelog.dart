@@ -8,6 +8,27 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.65.0', [
+    'Gullify s\'utilise sans serveur (idée #114) : sous le champ d\'adresse, '
+        '« Ouvrir un dossier du téléphone » range la musique déjà sur '
+        'l\'appareil — artistes, albums, titres — et la joue comme le reste, '
+        'file d\'attente, notification, écran verrouillé et Android Auto '
+        'compris',
+    'Les étiquettes sont lues dans les fichiers eux-mêmes : titre, '
+        'interprète, interprète de l\'album, album, numéro de piste, année, '
+        'durée et pochette, en MP3, FLAC, M4A, OGG, Opus et WAV. Un fichier '
+        'sans étiquette retombe sur son nom et ses dossiers — '
+        '« Artiste/Album/03 - Titre.mp3 »',
+    'Le dossier n\'est parcouru qu\'une fois, avec son avancement à '
+        'l\'écran : il est ensuite retrouvé tel quel au démarrage. '
+        '« Reparcourir le dossier » après avoir ajouté de la musique, '
+        '« Changer de dossier » pour en prendre un autre, et le retour à un '
+        'serveur à tout moment',
+    'Ce mode ne prétend pas tout faire : favoris, playlists, radios, jeux, '
+        'paroles, partage et statistiques vivent sur le serveur et '
+        'n\'apparaissent pas. L\'égaliseur et les fondus, eux, restent '
+        'réglables',
+  ]),
   ReleaseNote('3.64.0', [
     'Podcasts : une bascule « Francophone seulement » au-dessus des listes. '
         'Cochée, la recherche et le palmarès ne proposent plus que des séries '

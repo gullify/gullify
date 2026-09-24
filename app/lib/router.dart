@@ -30,6 +30,7 @@ import 'screens/home_screen.dart';
 import 'screens/ideas_screen.dart';
 import 'screens/library_scan_screen.dart';
 import 'screens/library_screen.dart';
+import 'screens/local_library_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/notifications_screen.dart';
 import 'screens/now_playing_screen.dart';
@@ -86,6 +87,20 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (_, _) => ref.read(tvModeProvider)
             ? const TvCanvas(child: TvServerScreen())
             : const ServerScreen(),
+      ),
+      // Mode « dossier local » (idée #114) : l'app sans serveur, sur un
+      // dossier du téléphone. Une poignée d'écrans à part, hors de la coque —
+      // rien de ce qu'elle contient ne marcherait sans serveur.
+      GoRoute(path: '/local', builder: (_, _) => const LocalLibraryScreen()),
+      GoRoute(
+        path: '/local/album/:id',
+        builder: (_, state) =>
+            LocalAlbumScreen(albumId: int.parse(state.pathParameters['id']!)),
+      ),
+      GoRoute(
+        path: '/local/artist/:id',
+        builder: (_, state) =>
+            LocalArtistScreen(artistId: int.parse(state.pathParameters['id']!)),
       ),
       GoRoute(
         path: '/login',
@@ -403,6 +418,19 @@ final routerProvider = Provider<GoRouter>((ref) {
           return loc == '/server' ? null : '/server';
         case AuthStatus.needsLogin:
           return loc == '/login' ? null : '/login';
+        case AuthStatus.local:
+          // Le dossier local et ce qui ne demande rien au serveur : le
+          // lecteur, et les réglages de lecture. Tout le reste de l'app
+          // s'appuie sur une session.
+          const reachable = {
+            '/now-playing',
+            '/settings/equalizer',
+            '/settings/fade',
+            '/settings/buffer',
+            '/settings/changelog',
+          };
+          if (loc.startsWith('/local') || reachable.contains(loc)) return null;
+          return '/local';
         case AuthStatus.authenticated:
           // Sur un téléviseur, l'accueil n'est pas la coque tactile : elle n'a
           // ni focus ni zone sûre, et son dock se manœuvre au doigt.

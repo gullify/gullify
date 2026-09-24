@@ -101,6 +101,22 @@ class ResumeStore {
     return dir == null ? null : File('${dir.path}/last_played.json');
   }
 
+  /// Oublie ce qu'on écoutait. Appelé quand on change de source de musique
+  /// (serveur ↔ dossier local, idée #114) : les titres d'un mode n'ont aucun
+  /// fichier ni aucun flux dans l'autre, et la vignette de reprise d'Android
+  /// Auto ne doit pas proposer ce qui ne peut plus se jouer.
+  Future<void> forget() async {
+    _cache = null;
+    _read = true;
+    try {
+      final f = await _file();
+      if (f != null && f.existsSync()) await f.delete();
+    } catch (_) {
+      // Fichier verrouillé ou déjà parti : le cache vidé suffit pour la
+      // session en cours.
+    }
+  }
+
   /// Ce qu'on écoutait, ou `null` si on n'a encore jamais rien joué.
   Future<ResumePoint?> load() async {
     if (_read) return _cache;

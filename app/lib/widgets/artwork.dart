@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
@@ -55,20 +57,35 @@ class Artwork extends StatelessWidget {
     final dpr = MediaQuery.maybeDevicePixelRatioOf(context) ?? 1.0;
     final decode = size == null ? null : (size! * dpr).round();
 
+    // Mode « dossier local » (idée #114) : la pochette a été extraite du
+    // fichier audio et vit sur le disque de l'app — un chemin, pas une adresse.
+    // Rien à mettre en cache réseau, mais le même plafond de décodage.
+    final local = url != null && url!.startsWith('/');
+
     return ClipRRect(
       borderRadius: BorderRadius.circular(retro ? 0 : borderRadius),
       child: url == null
           ? SizedBox(width: size, height: size, child: placeholder)
-          : CachedNetworkImage(
-              imageUrl: url!,
-              width: size,
-              height: size,
-              memCacheWidth: decode,
-              memCacheHeight: decode,
-              fit: BoxFit.cover,
-              placeholder: (_, _) => placeholder,
-              errorWidget: (_, _, _) => placeholder,
-            ),
+          : local
+              ? Image.file(
+                  File(url!),
+                  width: size,
+                  height: size,
+                  cacheWidth: decode,
+                  cacheHeight: decode,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, _, _) => placeholder,
+                )
+              : CachedNetworkImage(
+                  imageUrl: url!,
+                  width: size,
+                  height: size,
+                  memCacheWidth: decode,
+                  memCacheHeight: decode,
+                  fit: BoxFit.cover,
+                  placeholder: (_, _) => placeholder,
+                  errorWidget: (_, _, _) => placeholder,
+                ),
     );
   }
 }

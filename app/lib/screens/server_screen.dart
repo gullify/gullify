@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../api/api_client.dart';
 import '../state/auth.dart';
+import '../state/offline.dart' show offlineSupported;
+import 'local_library_screen.dart';
 import '../widgets/wordmark.dart';
 import '../widgets/brand_image.dart';
 
@@ -107,6 +109,44 @@ class _ServerScreenState extends ConsumerState<ServerScreen> {
                         : const Text('Continuer'),
                   ),
                 ),
+                // Pas de serveur sous la main (idée #114) : la musique du
+                // téléphone suffit à écouter. Absent du web, où l'app est
+                // servie PAR un serveur et n'a pas de disque à parcourir.
+                if (offlineSupported) ...[
+                  const SizedBox(height: 20),
+                  Row(
+                    children: [
+                      const Expanded(child: Divider()),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        child: Text(
+                          'ou',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ),
+                      const Expanded(child: Divider()),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      icon: const Icon(Icons.folder_open),
+                      label: const Text('Ouvrir un dossier du téléphone'),
+                      onPressed: _busy
+                          ? null
+                          : () => pickLocalFolder(context, ref),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Écoute la musique déjà sur l\'appareil, sans compte ni '
+                    'réseau. Favoris, playlists et radios demandent un '
+                    'serveur.',
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ],
               ],
             ),
           ),
