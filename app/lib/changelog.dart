@@ -8,6 +8,21 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.69.0', [
+    'Téléchargements — quand un album échoue, la file dit enfin POURQUOI '
+        '(idée #119). « Échec du téléchargement (code: 1) » servait aussi '
+        'bien pour un disque retiré de YouTube que pour un contrôle '
+        'anti-robot, alors que seul le second vaut la peine d\'être '
+        'réessayé tout de suite',
+    'Le serveur souffle maintenant entre deux titres au lieu d\'attaquer '
+        'l\'album d\'une traite : c\'est cette rafale de douze extractions '
+        'qui faisait répondre à YouTube « prouvez que vous n\'êtes pas un '
+        'robot », et l\'album entier repartait à vide',
+    'Un redémarrage du serveur met désormais yt-dlp à jour, ce qu\'on '
+        'croyait déjà acquis : il était figé dans l\'image docker, et seule '
+        'une reconstruction complète le rafraîchissait. YouTube le casse '
+        'régulièrement, le correctif arrive par une nouvelle version',
+  ]),
   ReleaseNote('3.68.0', [
     'Accueil — les quatre façons de sortir de sa bibliothèque ne sont plus '
         'semées dans la page : l\'artiste voisin, les nouveautés de YouTube '

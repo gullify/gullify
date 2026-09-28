@@ -69,31 +69,13 @@ RUN printf 'PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\n1
     > /etc/cron.d/gullify-new-releases \
     && chmod 0644 /etc/cron.d/gullify-new-releases
 
-# Startup script: fix permissions, line endings, start cron, then apache
-RUN printf '#!/bin/bash\n\
-if [ ! -z "$PUID" ]; then\n\
-  echo "Setting www-data UID to $PUID..."\n\
-  usermod -u $PUID www-data\n\
-fi\n\
-if [ ! -z "$PGID" ]; then\n\
-  echo "Setting www-data GID to $PGID..."\n\
-  groupmod -g $PGID www-data\n\
-fi\n\
-echo "Fixing script permissions and line endings..."\n\
-dos2unix /app/scripts/*.php /app/scripts/*.sh 2>/dev/null\n\
-chmod 755 /app/scripts/*.sh /app/scripts/*.php\n\
-echo "Ensuring ownership of data and music folders..."\n\
-if [ ! -f /app/.env ]; then\n\
-  echo "No .env found, copying from .env.example..."\n\
-  cp /app/.env.example /app/.env\n\
-fi\n\
-chown www-data:www-data /app/.env\n\
-chown -R www-data:www-data /app/data /music\n\
-echo "Starting services..."\n\
-cron\n\
-exec apache2-foreground\n' > /app/start.sh \
-    && chmod +x /app/start.sh
+# Startup script: fix permissions, line endings, update yt-dlp, start cron,
+# then apache. Le script vit dans start.sh à la racine (copié par le COPY
+# ci-dessus) et non dans scripts/ : start.sh lance `dos2unix /app/scripts/*.sh`
+# et réécrirait le fichier que bash est en train de lire.
+RUN dos2unix /app/start.sh && chmod +x /app/start.sh
 
 EXPOSE 80
-HEALTHCHECK --interval=30s CMD curl -sf http://localhost/ || exit 1
+# start-period : le démarrage met yt-dlp à jour avant de lancer apache.
+HEALTHCHECK --interval=30s --start-period=240s CMD curl -sf http://localhost/ || exit 1
 CMD ["/app/start.sh"]

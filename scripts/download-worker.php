@@ -42,6 +42,7 @@ putenv('LC_ALL=en_CA.UTF-8');
 require_once __DIR__ . '/../src/AppConfig.php';
 require_once __DIR__ . '/../src/Bandcamp.php';
 require_once __DIR__ . '/../src/Database.php';
+require_once __DIR__ . '/../src/DownloadDiagnosis.php';
 require_once __DIR__ . '/../src/PathHelper.php';
 require_once __DIR__ . '/../src/Storage/StorageInterface.php';
 require_once __DIR__ . '/../src/Storage/LocalStorage.php';
@@ -137,10 +138,19 @@ $genreArgs = Bandcamp::isUrl($url)
     ? '--parse-metadata ' . escapeshellarg(':(?P<meta_genre>)') . ' '
     : '';
 
+// Un album, c'est douze extractions coup sur coup depuis une IP de centre de
+// données : YouTube y répond par « Sign in to confirm you're not a bot » et
+// yt-dlp sort en code 1 sans un seul fichier. Souffler entre les requêtes
+// suffit à passer sous le radar, et les tentatives d'extracteur rattrapent les
+// refus isolés. Ce n'est pas une garantie : le message d'échec plus bas dit
+// alors ce qui s'est vraiment passé.
+$politeArgs = '--sleep-requests 1.5 --extractor-retries 5 ';
+
 // Commande yt-dlp (no sudo in Docker - runs as www-data)
 $command = 'yt-dlp -o ' . $escapedAlbumPath . ' ' .
            '-x --audio-format mp3 --audio-quality 320K ' .
            '--extractor-args "youtube:player-client=default,-tv_simply" ' .
+           $politeArgs .
            $genreArgs .
            '--embed-thumbnail --embed-metadata ' .
            '--postprocessor-args "-metadata album=\"' . $escapedAlbum . '\" -metadata album_artist=\"' . $escapedArtist . '\"" ' .
@@ -258,7 +268,8 @@ if (is_resource($process)) {
             : 'Terminé avec ' . count($downloadedFiles) . ' fichiers (certaines pistes ont échoué)';
         updateStatus($statusFile, $downloadId, $artist, $album, $user, $artistId, $url, 'completed', 100, $finalMsg);
     } else {
-        updateStatus($statusFile, $downloadId, $artist, $album, $user, $artistId, $url, 'error', 0, "Échec du téléchargement (code: $exitCode)");
+        $reason = DownloadDiagnosis::describe($logFile, $exitCode);
+        updateStatus($statusFile, $downloadId, $artist, $album, $user, $artistId, $url, 'error', 0, $reason);
     }
 } else {
     updateStatus($statusFile, $downloadId, $artist, $album, $user, $artistId, $url, 'error', 0, 'Impossible de lancer yt-dlp');

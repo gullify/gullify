@@ -367,7 +367,13 @@ class _DownloadTile extends ConsumerWidget {
       subtitle: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(d.message, maxLines: 1, overflow: TextOverflow.ellipsis),
+          // Deux lignes en échec : le serveur y dit ce qui a bloqué (contrôle
+          // anti-robot, titres retirés…), et une seule tronquait la raison.
+          Text(
+            d.message,
+            maxLines: d.isError ? 2 : 1,
+            overflow: TextOverflow.ellipsis,
+          ),
           if (d.isActive) ...[
             const SizedBox(height: 4),
             LinearProgressIndicator(
