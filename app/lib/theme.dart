@@ -19,6 +19,13 @@ const glassAccent = Color(0xFF4A5FE8);
 /// Ambre de marque (placeholder de pochette, icône de secours).
 const gullifyAmber = Color(0xFFE3A94F);
 
+/// Les couleurs des maisons où l'app va chercher de la musique : le bleu de
+/// Bandcamp et le rouge de YouTube Music. Ce sont LEURS marques, pas la
+/// nôtre — elles ne suivent donc pas l'accent choisi, c'est justement à elles
+/// qu'on reconnaît ces deux entrées d'un coup d'œil (idée #118).
+const bandcampBlue = Color(0xFF1DA0C3);
+const youtubeMusicRed = Color(0xFFFF0000);
+
 /// Couleurs d'accent proposées. La structure reste identique quelle que
 /// soit la teinte choisie.
 enum GullifyAccent {

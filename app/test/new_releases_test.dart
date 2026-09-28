@@ -11,6 +11,11 @@
 // les sorties des artistes qu'on écoute, qui y étaient mélangées, ont leur
 // propre section dessous. Ce qui s'y trouvait ne ressemblait pas aux
 // nouveautés de YouTube Music, et c'était juste.
+//
+// Idée #118 : le bloc « Découvrir » de l'accueil ouvre cet onglet sur les
+// nouveautés — il vide donc la requête partagée. Le champ doit la suivre,
+// sinon il garderait le texte de la visite d'avant et l'écran montrerait des
+// résultats au lieu des nouveautés.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -309,5 +314,76 @@ void main() {
 
     expect(find.text('Nouveautés'), findsOneWidget);
     expect(find.text('Sorties de tes artistes'), findsNothing);
+  });
+
+  // ─────────────────────────── idée #118 ───────────────────────────────────
+
+  testWidgets('la requête vidée d\'ailleurs vide aussi le champ',
+      (tester) async {
+    final container = ProviderContainer(
+      overrides: [
+        ytDownloadsRepositoryProvider.overrideWithValue(_FakeRepo(_albums(2))),
+        searchResultsProvider.overrideWith((ref) async => const SearchResults()),
+        serverUsersProvider.overrideWith((ref) async => const <ServerUser>[]),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    tester.view.physicalSize = const Size(412, 892);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(home: SearchScreen()),
+      ),
+    );
+    await tester.pump();
+
+    await tester.enterText(find.byType(TextField), 'vieille recherche');
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pump();
+    expect(find.text('Nouveautés'), findsNothing);
+
+    // Ce que fait le bloc « Découvrir » de l'accueil.
+    container.read(searchQueryProvider.notifier).set('');
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('vieille recherche'), findsNothing);
+    expect(find.text('Nouveautés'), findsOneWidget);
+  });
+
+  testWidgets('une requête posée d\'ailleurs s\'écrit dans le champ',
+      (tester) async {
+    final container = ProviderContainer(
+      overrides: [
+        ytDownloadsRepositoryProvider.overrideWithValue(_FakeRepo(_albums(2))),
+        searchResultsProvider.overrideWith((ref) async => const SearchResults()),
+        serverUsersProvider.overrideWith((ref) async => const <ServerUser>[]),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    tester.view.physicalSize = const Size(412, 892);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(home: SearchScreen()),
+      ),
+    );
+    await tester.pump();
+
+    // L'artiste voisin de l'accueil : son nom part chercher dans l'onglet.
+    container.read(searchQueryProvider.notifier).set('Voisine');
+    await tester.pump();
+    await tester.pump();
+
+    expect(
+      tester.widget<TextField>(find.byType(TextField)).controller!.text,
+      'Voisine',
+    );
   });
 }

@@ -8,6 +8,21 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.68.0', [
+    'Accueil — les quatre façons de sortir de sa bibliothèque ne sont plus '
+        'semées dans la page : l\'artiste voisin, les nouveautés de YouTube '
+        'Music, Bandcamp et les podcasts tiennent maintenant dans un seul '
+        'bloc « Découvrir », teinté de la couleur d\'accent (idée #118)',
+    'Chaque porte a sa pastille, et les deux maisons du dehors gardent LEUR '
+        'couleur — le rouge de YouTube Music, le bleu de Bandcamp : on les '
+        'reconnaît sans avoir à lire',
+    'Un filet d\'accent qui s\'éteint sur les bords sépare les rangées, '
+        'plutôt qu\'une barre d\'un mur à l\'autre. Sous le rétro Winamp, '
+        'le lavis s\'efface : un châssis de 1999 ne se teinte pas',
+    'Nouvelle porte au passage : « Nouveautés YouTube Music » mène droit à '
+        'la liste, en vidant la recherche — le champ ne garde plus le texte '
+        'de la visite d\'avant quand l\'accueil l\'ouvre',
+  ]),
   ReleaseNote('3.67.0', [
     'Recherche — « Nouveautés » montre enfin les nouveautés de YouTube Music '
         '(idée #116). La section servait d\'abord les sorties des artistes '

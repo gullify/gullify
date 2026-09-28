@@ -11,10 +11,12 @@ import '../state/library.dart';
 import '../state/notifications.dart';
 import '../state/player.dart';
 import '../state/stats.dart';
+import '../theme.dart';
 import '../widgets/album_card.dart';
 import '../widgets/artwork.dart';
 import '../widgets/glass_box.dart';
 import '../widgets/glass_kit.dart';
+import '../widgets/retro_lcd.dart';
 import '../widgets/song_menu.dart';
 import '../widgets/song_tile.dart';
 import 'stats_screen.dart' show relativeTime;
@@ -125,15 +127,9 @@ class HomeScreen extends ConsumerWidget {
                 padding: EdgeInsets.fromLTRB(16, 8, 16, 2),
                 child: _QuickPlayRow(),
               ),
-              // À découvrir : un artiste inconnu suggéré par YouTube Music à
-              // partir d'un artiste de la bibliothèque (masqué si rien à
-              // proposer).
-              const _DiscoverArtistCard(),
-              // Découvrir sur Bandcamp (idée #111) : genres → sous-genres →
-              // nouveautés / aléatoire / populaires.
-              const _BandcampDiscoverEntry(),
-              // Podcasts (idée #112) : recherche, abonnements et palmarès.
-              const _PodcastsEntry(),
+              // Découvrir (idée #118) : les quatre façons de sortir de sa
+              // bibliothèque, réunies sous une seule carte d'accent.
+              const _DiscoverBlock(),
               // Nouveautés : titre + bouton aléatoire des nouveautés.
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 14, 20, 2),
@@ -446,209 +442,307 @@ class _ShowMoreTile extends StatelessWidget {
   }
 }
 
-/// Carte « À découvrir » : un artiste que l'utilisateur ne possède pas,
-/// suggéré par YouTube Music à partir d'un artiste de sa bibliothèque. Un tap
-/// lance une recherche sur ce nom (pour l'explorer / le télécharger) ; le
-/// bouton relance un tirage. Masquée tant qu'il n'y a rien à proposer.
-class _DiscoverArtistCard extends ConsumerWidget {
-  const _DiscoverArtistCard();
+/// Le bloc « Découvrir » (idée #118) : les quatre portes qui mènent hors de
+/// la bibliothèque — un artiste voisin, les nouveautés de YouTube Music, un
+/// genre sur Bandcamp, les podcasts — réunies sous une seule carte au lieu
+/// d'être semées dans la page.
+///
+/// La carte porte la couleur d'accent ; les deux services extérieurs gardent,
+/// eux, LEUR couleur (bleu Bandcamp, rouge YouTube Music) : c'est à elle
+/// qu'on les reconnaît sans lire. Sous le rétro Winamp, le lavis d'accent
+/// s'efface — un châssis de 1999 ne se teinte pas.
+class _DiscoverBlock extends ConsumerWidget {
+  const _DiscoverBlock();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final discover = ref.watch(discoverArtistProvider);
-    return discover.maybeWhen(
-      data: (d) {
-        if (d == null) return const SizedBox.shrink();
-        final scheme = Theme.of(context).colorScheme;
-        return Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 2),
-          child: GlassBox(
-            radius: 20,
-            child: InkWell(
-              borderRadius: BorderRadius.circular(20),
-              onTap: () {
-                ref.read(searchQueryProvider.notifier).set(d.artist.name);
-                context.go('/search');
-              },
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Row(
-                  children: [
-                    DecoratedBox(
-                      decoration: const BoxDecoration(
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: Color(0x33000000),
-                            blurRadius: 14,
-                            offset: Offset(0, 6),
-                          ),
-                        ],
-                      ),
-                      child: Artwork(
-                        url: d.artist.thumbnail.isEmpty
-                            ? null
-                            : d.artist.thumbnail,
-                        size: 60,
-                        borderRadius: 30,
-                        icon: Icons.person,
-                      ),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Icon(
-                                Icons.auto_awesome,
-                                size: 13,
-                                color: scheme.primary,
-                              ),
-                              const SizedBox(width: 5),
-                              Text(
-                                'À découvrir',
-                                style: TextStyle(
-                                  fontSize: 11.5,
-                                  fontWeight: FontWeight.w700,
-                                  letterSpacing: 0.2,
-                                  color: scheme.primary,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 3),
-                          Text(
-                            d.artist.name,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: -0.3,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            'Parce que vous avez ${d.becauseOf} dans votre '
-                            'bibliothèque',
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 12,
-                              height: 1.15,
-                              color: scheme.onSurfaceVariant,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    GlassIconButton(
-                      icon: Icons.refresh,
-                      tooltip: 'Une autre suggestion',
-                      size: 38,
-                      onPressed: () => ref.invalidate(discoverArtistProvider),
-                    ),
-                  ],
+    final scheme = Theme.of(context).colorScheme;
+    // Rien pendant le chargement comme en cas d'erreur : la rangée de
+    // l'artiste voisin apparaît quand il y a vraiment quelqu'un à proposer.
+    final discover = ref.watch(discoverArtistProvider).value;
+    final retro = isRetroSkin(context);
+
+    final contents = Column(
+      // Largeur imposée aux rangées : sans cela les séparateurs, qui n'ont
+      // pas d'enfant, se replieraient sur zéro.
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(14, 13, 14, 2),
+          child: Row(
+            children: [
+              Icon(Icons.explore_outlined, size: 16, color: scheme.primary),
+              const SizedBox(width: 6),
+              Text(
+                'Découvrir',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.4,
+                  color: scheme.primary,
                 ),
               ),
-            ),
+            ],
           ),
-        );
-      },
-      orElse: () => const SizedBox.shrink(),
+        ),
+        if (discover != null) ...[
+          _DiscoverArtistRow(discover: discover),
+          const _DiscoverSeparator(),
+        ],
+        _DiscoverRow(
+          icon: Icons.play_circle_fill,
+          color: youtubeMusicRed,
+          title: 'Nouveautés YouTube Music',
+          hint: 'Les albums qui sortent, tes artistes en premier',
+          onTap: () {
+            // L'onglet Recherche montre les nouveautés quand rien n'est
+            // demandé : on vide donc la requête avant d'y aller.
+            ref.read(searchQueryProvider.notifier).set('');
+            context.go('/search');
+          },
+        ),
+        const _DiscoverSeparator(),
+        _DiscoverRow(
+          icon: Icons.album_outlined,
+          color: bandcampBlue,
+          title: 'Découvrir sur Bandcamp',
+          hint: 'Un genre, ses nouveautés ou un tirage au hasard',
+          onTap: () => context.push('/bandcamp'),
+        ),
+        const _DiscoverSeparator(),
+        _DiscoverRow(
+          icon: Icons.podcasts_outlined,
+          color: scheme.primary,
+          title: 'Podcasts',
+          hint: 'Chercher, s\'abonner, écouter ses épisodes',
+          onTap: () => context.push('/podcasts'),
+        ),
+        const SizedBox(height: 4),
+      ],
+    );
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 2),
+      child: GlassBox(
+        radius: 20,
+        blur: false,
+        child: retro
+            ? contents
+            : DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      scheme.primary.withValues(alpha: 0.20),
+                      scheme.primary.withValues(alpha: 0.05),
+                    ],
+                  ),
+                ),
+                child: contents,
+              ),
+      ),
     );
   }
 }
 
-/// L'entrée de « Découvrir sur Bandcamp » (idée #111).
-class _BandcampDiscoverEntry extends StatelessWidget {
-  const _BandcampDiscoverEntry();
-
-  @override
-  Widget build(BuildContext context) => const _LinkEntry(
-        icon: Icons.explore_outlined,
-        title: 'Découvrir sur Bandcamp',
-        hint: 'Un genre, ses nouveautés ou un tirage au hasard',
-        path: '/bandcamp',
-      );
-}
-
-/// L'entrée des podcasts (idée #112).
-class _PodcastsEntry extends StatelessWidget {
-  const _PodcastsEntry();
-
-  @override
-  Widget build(BuildContext context) => const _LinkEntry(
-        icon: Icons.podcasts_outlined,
-        title: 'Podcasts',
-        hint: 'Chercher, s\'abonner, écouter ses épisodes',
-        path: '/podcasts',
-      );
-}
-
-/// Une rangée de verre qui mène ailleurs : icône accent, titre, sous-titre.
-class _LinkEntry extends StatelessWidget {
-  const _LinkEntry({
-    required this.icon,
-    required this.title,
-    required this.hint,
-    required this.path,
-  });
-
-  final IconData icon;
-  final String title;
-  final String hint;
-  final String path;
+/// Le trait qui sépare deux portes du bloc : un filet d'accent qui s'éteint
+/// sur les bords, plutôt qu'une barre d'un mur à l'autre. Séparer sans
+/// découper la carte en tranches.
+class _DiscoverSeparator extends StatelessWidget {
+  const _DiscoverSeparator();
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 2),
-      child: GlassBox(
-        radius: 16,
-        blur: false,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: () => context.push(path),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            child: Row(
-              children: [
-                Icon(icon, color: scheme.primary),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 14.5,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      Text(
-                        hint,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: scheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Icon(Icons.chevron_right, color: scheme.onSurfaceVariant),
-              ],
-            ),
+      padding: const EdgeInsets.symmetric(horizontal: 14),
+      child: Container(
+        height: 1,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              scheme.primary.withValues(alpha: 0),
+              scheme.primary.withValues(alpha: 0.35),
+              scheme.primary.withValues(alpha: 0),
+            ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Une porte du bloc « Découvrir » : pastille colorée, titre, sous-titre.
+/// La couleur est celle du service (ou l'accent, pour ce qui est de la
+/// maison) ; elle ne touche que la pastille, le texte reste à l'encre de
+/// l'app pour rester lisible en clair comme en sombre.
+class _DiscoverRow extends StatelessWidget {
+  const _DiscoverRow({
+    required this.icon,
+    required this.color,
+    required this.title,
+    required this.hint,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final Color color;
+  final String title;
+  final String hint;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 10, 12, 10),
+        child: Row(
+          children: [
+            _DiscoverBadge(icon: icon, color: color),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 14.5,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  Text(
+                    hint,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              Icons.chevron_right,
+              size: 20,
+              color: scheme.onSurfaceVariant,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// La pastille d'une porte : l'icône du service dans un carré arrondi de sa
+/// propre couleur, posée à plat.
+class _DiscoverBadge extends StatelessWidget {
+  const _DiscoverBadge({required this.icon, required this.color});
+
+  final IconData icon;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 38,
+      height: 38,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        color: color.withValues(alpha: 0.16),
+        border: Border.all(color: color.withValues(alpha: 0.42)),
+      ),
+      child: Icon(icon, size: 20, color: color),
+    );
+  }
+}
+
+/// La première porte du bloc : un artiste que l'utilisateur ne possède pas,
+/// suggéré par YouTube Music à partir d'un artiste de sa bibliothèque. Un tap
+/// lance une recherche sur ce nom (pour l'explorer / le télécharger) ; le
+/// bouton relance un tirage.
+class _DiscoverArtistRow extends ConsumerWidget {
+  const _DiscoverArtistRow({required this.discover});
+
+  final DiscoverArtist discover;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final scheme = Theme.of(context).colorScheme;
+    return InkWell(
+      onTap: () {
+        ref.read(searchQueryProvider.notifier).set(discover.artist.name);
+        context.go('/search');
+      },
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 10, 12, 10),
+        child: Row(
+          children: [
+            DecoratedBox(
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: Color(0x33000000),
+                    blurRadius: 14,
+                    offset: Offset(0, 6),
+                  ),
+                ],
+              ),
+              child: Artwork(
+                url: discover.artist.thumbnail.isEmpty
+                    ? null
+                    : discover.artist.thumbnail,
+                size: 52,
+                borderRadius: 26,
+                icon: Icons.person,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    discover.artist.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 15.5,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.3,
+                    ),
+                  ),
+                  const SizedBox(height: 1),
+                  Text(
+                    'Parce que vous avez ${discover.becauseOf} dans votre '
+                    'bibliothèque',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 12,
+                      height: 1.15,
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 6),
+            GlassIconButton(
+              icon: Icons.refresh,
+              tooltip: 'Une autre suggestion',
+              size: 36,
+              onPressed: () => ref.invalidate(discoverArtistProvider),
+            ),
+          ],
         ),
       ),
     );

@@ -211,6 +211,23 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     final query = ref.watch(searchQueryProvider);
     final hasQuery = query.trim().isNotEmpty;
 
+    // La requête peut changer ailleurs qu'ici : l'accueil ouvre cet onglet sur
+    // un nom d'artiste, ou le vide pour montrer les nouveautés. Le champ suit,
+    // sinon il garderait le texte de la visite d'avant — le shell garde cet
+    // onglet vivant dans son IndexedStack.
+    ref.listen(searchQueryProvider, (_, next) {
+      if (_controller.text == next) return;
+      _debounce?.cancel();
+      _controller.value = TextEditingValue(
+        text: next,
+        selection: TextSelection.collapsed(offset: next.length),
+      );
+      setState(() {
+        _ytArtist = null;
+        _bcArtist = null;
+      });
+    });
+
     // Focus demandé depuis la barre de l'accueil : ouvre le clavier direct.
     ref.listen(searchFocusRequestProvider, (_, _) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
