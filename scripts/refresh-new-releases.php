@@ -1,20 +1,23 @@
 <?php
 /**
- * Gullify — Nouveautés des artistes que l'on écoute.
+ * Gullify — Sorties des artistes que l'on écoute.
  *
- * Pourquoi ce script existe. « Nouveautés » se servait jusqu'ici de la page
- * `FEmusic_new_releases_albums` de YouTube Music. Interrogée sans compte, cette
- * page renvoie un fourre-tout mondial non trié — le même en CA, US, FR ou JP —
- * fait pour l'essentiel de sorties confidentielles allemandes et russes, et qui
- * ne bouge quasiment pas d'un jour à l'autre. Elle n'a rien à voir avec la page
- * « Nouveautés » de l'app YouTube Music, qui est régionale et personnalisée.
- * D'où l'impression, juste, que la liste est figée depuis des jours.
- *
- * Ce que ce script fait à la place : il demande à YouTube Music la
- * discographie des artistes que l'utilisateur a DÉJÀ dans sa bibliothèque, et
- * garde les albums récents qu'il ne possède pas encore. C'est une liste qui se
- * renouvelle vraiment — dès qu'un artiste suivi sort quelque chose — et qui est
+ * Ce que ce script fait : il demande à YouTube Music la discographie des
+ * artistes que l'utilisateur a DÉJÀ dans sa bibliothèque, et garde les ALBUMS
+ * récents qu'il ne possède pas encore (ni singles ni EP : la recherche
+ * « albums » de YouTube remonte les trois). C'est une liste qui se renouvelle
+ * vraiment — dès qu'un artiste suivi sort quelque chose — et qui est
  * directement actionnable : un clic pour le télécharger.
+ *
+ * Où elle s'affiche. Sous « Sorties de tes artistes », dans l'onglet Recherche
+ * à champ vide, et non sous « Nouveautés » : celles-là sont la page
+ * `FEmusic_new_releases_albums` de YouTube Music, servie telle quelle par
+ * download.php (idée #116). Le script a un temps alimenté les deux, parce que
+ * la page publique de YouTube — la même en CA, US, FR ou JP, faite pour
+ * l'essentiel de sorties confidentielles allemandes et russes — ne ressemble
+ * pas à celle de l'app YouTube Music, qui est régionale et personnalisée.
+ * Mais y mettre autre chose que les nouveautés de YouTube Music était un
+ * contresens : elles cohabitent maintenant, chacune sous son intitulé.
  *
  * Pourquoi par tranches. 1200 artistes × ~1,5 s d'appel, c'est une demi-heure :
  * bien trop pour une requête web. On avance donc d'une tranche par passage
