@@ -43,7 +43,12 @@ def search_albums(query, limit=10):
                 "year": item.get("year", ""),
                 "browseId": item.get("browseId", ""),
                 "thumbnail": item.get("thumbnails", [{}])[-1].get("url", "") if item.get("thumbnails") else "",
-                "type": "album"
+                "type": "album",
+                # Ce que YouTube en dit vraiment : « Album », « Single » ou
+                # « EP ». Le filtre « albums » de la recherche remonte les
+                # trois, et les nouveautés des artistes suivis ne veulent que
+                # les albums (voir scripts/refresh-new-releases.php).
+                "releaseType": item.get("type", ""),
             })
 
         return albums

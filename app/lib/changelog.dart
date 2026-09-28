@@ -8,6 +8,21 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.67.0', [
+    'Recherche — « Nouveautés » montre enfin les nouveautés de YouTube Music '
+        '(idée #116). La section servait d\'abord les sorties des artistes '
+        'que tu as déjà, et la page de YouTube ne venait qu\'en remplissage : '
+        'sous cet intitulé, ce n\'était pas ce qu\'on venait y chercher',
+    'Ces sorties-là n\'ont rien perdu : elles ont leur propre section juste '
+        'en dessous, « Sorties de tes artistes », avec leur année et, pour un '
+        'album à deux noms, l\'artiste à cause de qui elle est proposée',
+    'Albums seulement, des deux côtés : la recherche d\'albums de YouTube '
+        'Music remonte aussi les singles et les EP, qui se glissaient dans '
+        'les sorties de tes artistes. Ils sont écartés, et ceux déjà en liste '
+        'partent au prochain balayage de nuit',
+    'Google TV — la recherche à champ vide montre les deux listes elle '
+        'aussi, chacune sur sa rangée',
+  ]),
   ReleaseNote('3.66.0', [
     'Le dossier local marche enfin dans la voiture (idée #115) : Android Auto '
         'cherchait sans fin un serveur qui n\'existe pas, et n\'affichait le '

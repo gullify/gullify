@@ -292,6 +292,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               ),
               const _OtherUsersSection(),
               _NewReleasesSection(onDownload: _confirmAlbumDownload),
+              _ArtistReleasesSection(onDownload: _confirmAlbumDownload),
             ] else ...[
               // Où chercher : bibliothèque locale, YouTube Music ou
               // Bandcamp. À trois sources, les libellés portent seuls : une
@@ -1238,13 +1239,15 @@ class _UserRow extends StatelessWidget {
   }
 }
 
-/// Découverte : les nouvelles sorties de YouTube Music, ALBUMS seulement (le
+/// Découverte : la page « Nouveautés » de YouTube Music, ALBUMS seulement (le
 /// serveur écarte singles et EP). Affichée dans l'onglet Recherche quand le
 /// champ est vide; un tap propose le téléchargement, comme un résultat.
 ///
 /// YouTube sert la même page mondiale à tout le monde (le pays n'y change
 /// rien) : c'est le serveur qui la reclasse, tes artistes en tête et le bruit
 /// à la fin. Les sorties d'un artiste déjà écouté le disent sous leur titre.
+/// Ce sont bien les sorties de YouTube Music et rien d'autre : celles des
+/// artistes qu'on écoute ont leur propre section juste en dessous.
 class _NewReleasesSection extends ConsumerWidget {
   const _NewReleasesSection({required this.onDownload});
 
@@ -1269,7 +1272,7 @@ class _NewReleasesSection extends ConsumerWidget {
         const Padding(
           padding: EdgeInsets.fromLTRB(20, 0, 20, 6),
           child: Text(
-            'Nouveaux albums sur YouTube Music, tes artistes en premier',
+            'Les nouveaux albums de YouTube Music, tes artistes en premier',
             style: TextStyle(fontSize: 12.5, color: Color(0xFF8A8F98)),
           ),
         ),
@@ -1297,6 +1300,83 @@ class _NewReleasesSection extends ConsumerWidget {
           ),
       ],
     );
+  }
+}
+
+/// Les sorties récentes des artistes qu'on écoute déjà et qui manquent encore
+/// à la bibliothèque. Le serveur parcourt leur discographie chaque nuit; ici
+/// aussi, ALBUMS seulement — un artiste qui sort un titre par mois remplissait
+/// la liste à lui seul.
+///
+/// C'est la liste voisine des nouveautés de YouTube Music, et non plus
+/// mélangée avec elles : sous « Nouveautés » on cherche ce qui sort, ici ce
+/// qui manque (idée #116).
+class _ArtistReleasesSection extends ConsumerWidget {
+  const _ArtistReleasesSection({required this.onDownload});
+
+  final ValueChanged<YtAlbum> onDownload;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final releases = ref.watch(ytArtistReleasesProvider);
+    final limit = ref.watch(artistReleasesLimitProvider);
+    // Valeurs déjà connues : conservées pendant un « Charger plus ».
+    final albums = releases.value ?? const <YtAlbum>[];
+    // Section secondaire : muette tant qu'elle n'a rien à dire — serveur
+    // injoignable, ou balayage de nuit qui n'a encore rien trouvé. (Un état
+    // en erreur se dit aussi « en chargement » le temps d'un éventuel
+    // nouveau tour : c'est `hasError` qui tranche, pas `isLoading`.)
+    if (albums.isEmpty && (releases.hasError || !releases.isLoading)) {
+      return const SizedBox.shrink();
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SectionTitle(
+          'Sorties de tes artistes',
+          padding: EdgeInsets.fromLTRB(20, 18, 20, 2),
+        ),
+        const Padding(
+          padding: EdgeInsets.fromLTRB(20, 0, 20, 6),
+          child: Text(
+            'Des albums parus chez les artistes que tu as déjà, et qui te '
+            'manquent',
+            style: TextStyle(fontSize: 12.5, color: Color(0xFF8A8F98)),
+          ),
+        ),
+        for (final a in albums)
+          _ResultRow(
+            artwork: Artwork(
+              url: a.thumbnail.isEmpty ? null : a.thumbnail,
+              size: 46,
+              borderRadius: 12,
+            ),
+            title: a.title,
+            subtitle: _reason(a),
+            trailing: const Icon(Icons.download_outlined),
+            onTap: () => onDownload(a),
+          ),
+        if (releases.isLoading)
+          const _LoadingRow()
+        else if (albums.length >= limit && limit < 60)
+          _LoadMoreButton(
+            onPressed: () =>
+                ref.read(artistReleasesLimitProvider.notifier).more(),
+          ),
+      ],
+    );
+  }
+
+  /// « Artiste · 2026 ». Quand le crédit de YouTube n'est pas exactement
+  /// l'artiste de la bibliothèque — un album à deux noms, un invité — on dit
+  /// pourquoi la sortie est là, sans quoi elle a l'air de sortir de nulle part.
+  static String _reason(YtAlbum a) {
+    final parts = [a.artist, if (a.year.isNotEmpty) a.year];
+    if (a.becauseOf.isNotEmpty && a.becauseOf != a.artist) {
+      parts.add('parce que tu as ${a.becauseOf}');
+    }
+    return parts.join(' · ');
   }
 }
 

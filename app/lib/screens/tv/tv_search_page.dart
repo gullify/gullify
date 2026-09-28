@@ -314,7 +314,10 @@ class _TvSearchPageState extends ConsumerState<TvSearchPage> {
   );
 }
 
-/// Les nouveautés de YouTube, quand on n'a encore rien tapé.
+/// Les nouveautés de YouTube, quand on n'a encore rien tapé — et, dessous,
+/// les sorties des artistes qu'on écoute déjà. Deux listes distinctes : la
+/// première est la page « Nouveautés » de YouTube Music, la seconde ce que le
+/// serveur relève chaque nuit dans la discographie de tes artistes (idée #116).
 class _NewReleases extends ConsumerWidget {
   const _NewReleases({required this.onDownload});
 
@@ -330,31 +333,50 @@ class _NewReleases extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final scheme = Theme.of(context).colorScheme;
     final releases = ref.watch(ytNewReleasesProvider);
+    final mine = ref.watch(ytArtistReleasesProvider).value ?? const <YtAlbum>[];
     return releases.when(
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e, _) => _placeholder,
-      data: (albums) => albums.isEmpty
+      error: (e, _) => mine.isEmpty ? _placeholder : _shelves(scheme, const [], mine),
+      data: (albums) => albums.isEmpty && mine.isEmpty
           ? _placeholder
-          : ListView(
-              padding: const EdgeInsets.only(bottom: 40),
-              children: [
-                Text(
-                  'Sorties récentes des artistes que tu écoutes. Appuie sur '
-                  'OK pour en télécharger une sur ton serveur.',
-                  style: TextStyle(
-                    fontSize: tvMinText,
-                    height: 1.4,
-                    color: scheme.onSurfaceVariant,
-                  ),
-                ),
-                const SizedBox(height: 20),
-                _YtAlbumShelf(
-                  label: 'Nouveautés sur YouTube',
-                  albums: albums,
-                  onDownload: onDownload,
-                ),
-              ],
-            ),
+          : _shelves(scheme, albums, mine),
+    );
+  }
+
+  Widget _shelves(
+    ColorScheme scheme,
+    List<YtAlbum> albums,
+    List<YtAlbum> mine,
+  ) {
+    return ListView(
+      padding: const EdgeInsets.only(bottom: 40),
+      children: [
+        Text(
+          'Les nouveaux albums de YouTube Music, et les sorties des artistes '
+          'que tu écoutes. Appuie sur OK pour en télécharger une sur ton '
+          'serveur.',
+          style: TextStyle(
+            fontSize: tvMinText,
+            height: 1.4,
+            color: scheme.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: 20),
+        if (albums.isNotEmpty)
+          _YtAlbumShelf(
+            label: 'Nouveautés sur YouTube',
+            albums: albums,
+            onDownload: onDownload,
+          ),
+        if (mine.isNotEmpty) ...[
+          if (albums.isNotEmpty) const SizedBox(height: 26),
+          _YtAlbumShelf(
+            label: 'Sorties de tes artistes',
+            albums: mine,
+            onDownload: onDownload,
+          ),
+        ],
+      ],
     );
   }
 }

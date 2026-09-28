@@ -149,6 +149,11 @@ $now      = time();
 $cutoff   = (int) date('Y', strtotime("-$months months"));
 $examined = 0;
 $added    = 0;
+// Combien de sorties ont annoncé leur type (« Album », « Single », « EP »)
+// pendant ce passage. Sert à savoir si l'on peut purger sans risque les
+// entrées d'avant ce filtre : si YouTube n'a rien répondu du tout, on ne
+// touche à rien plutôt que de vider la liste.
+$typedSeen = 0;
 
 foreach ($users as $user) {
     // La bibliothèque de cet utilisateur : ce qu'il a déjà, pour ne pas lui
@@ -211,6 +216,14 @@ foreach ($users as $user) {
             if ($title === '' || $bid === '' || $year < $cutoff) continue;
             if (preg_match(NR_JUNK, $title)) continue;
 
+            // Albums seulement. Le filtre « albums » de la recherche YouTube
+            // Music remonte aussi les singles et les EP : un artiste qui sort
+            // un titre par mois remplissait la liste à lui seul, alors qu'on
+            // cherche des disques à ranger dans la bibliothèque.
+            $kind = trim((string) ($album['releaseType'] ?? ''));
+            if ($kind !== '') $typedSeen++;
+            if ($kind !== '' && strcasecmp($kind, 'Album') !== 0) continue;
+
             // La recherche ratisse large : « Rancid » remonte aussi des
             // hommages et des compilations d'autres artistes. On ne garde que
             // ce qui est bien crédité à l'artiste de la bibliothèque.
@@ -235,6 +248,9 @@ foreach ($users as $user) {
                 'year'      => (string) $year,
                 'thumbnail' => $album['thumbnail'] ?? '',
                 'browseId'  => $bid,
+                // Ce que YouTube appelle cette sortie. Sa présence marque
+                // aussi une entrée écrite depuis le filtre ci-dessus.
+                'releaseType' => $kind,
                 // Pour qui c'est proposé : l'app peut le dire, et cela sert à
                 // reclasser quand deux artistes sortent la même semaine.
                 'becauseOf' => $name,
@@ -264,7 +280,11 @@ foreach ($users as $user) {
         // Aussi ce qu'un passage précédent avait retenu avant que le filtre
         // des rééditions n'existe : sans cela, elles resteraient à demeure.
         $junk  = preg_match(NR_JUNK, (string) ($entry['title'] ?? '')) === 1;
-        if ($stale || $has || $junk) unset($found[$slot]);
+        // Et les entrées d'avant le filtre des singles : un balayage complet
+        // vient de réécrire tout ce qui mérite d'y rester, ce qui n'a pas de
+        // type est donc un reste — souvent justement un single.
+        $old   = $full && $typedSeen > 0 && ($entry['releaseType'] ?? '') === '';
+        if ($stale || $has || $junk || $old) unset($found[$slot]);
     }
 
     // Enregistré utilisateur par utilisateur : un balayage complet dure une

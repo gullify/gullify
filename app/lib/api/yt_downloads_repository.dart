@@ -10,6 +10,7 @@ class YtAlbum {
     required this.browseId,
     this.inLibrary = false,
     this.knownArtist = false,
+    this.becauseOf = '',
   });
 
   factory YtAlbum.fromJson(Map<String, dynamic> json) => YtAlbum(
@@ -20,6 +21,7 @@ class YtAlbum {
         browseId: json['browseId'] as String? ?? '',
         inLibrary: json['in_library'] == true,
         knownArtist: json['known_artist'] == true,
+        becauseOf: json['becauseOf'] as String? ?? '',
       );
 
   final String title;
@@ -35,6 +37,10 @@ class YtAlbum {
   /// Un des artistes crédités est déjà dans la bibliothèque : c'est ce qui
   /// remonte cette sortie en haut des nouveautés.
   final bool knownArtist;
+
+  /// L'artiste de la bibliothèque à cause de qui cette sortie est proposée
+  /// (« Sorties de tes artistes »). Vide pour les nouveautés de YouTube.
+  final String becauseOf;
 }
 
 /// Artiste similaire suggéré par YouTube Music.
@@ -215,6 +221,23 @@ class YtDownloadsRepository {
     final data = await _client.get(
       'download.php',
       query: {'action': 'new_releases', 'limit': '$limit'},
+    ) as Map<String, dynamic>;
+    final albums = data['albums'] as List<dynamic>? ?? [];
+    return albums
+        .cast<Map<String, dynamic>>()
+        .map(YtAlbum.fromJson)
+        .where((a) => a.browseId.isNotEmpty)
+        .toList();
+  }
+
+  /// Les sorties récentes des artistes que l'on a déjà dans sa bibliothèque,
+  /// et qui manquent encore. Le serveur les relève chaque nuit en parcourant
+  /// la discographie de chaque artiste : c'est une liste qui se renouvelle,
+  /// et qui ne compte que des ALBUMS (ni singles ni EP).
+  Future<List<YtAlbum>> artistReleases({int limit = 30}) async {
+    final data = await _client.get(
+      'download.php',
+      query: {'action': 'artist_releases', 'limit': '$limit'},
     ) as Map<String, dynamic>;
     final albums = data['albums'] as List<dynamic>? ?? [];
     return albums

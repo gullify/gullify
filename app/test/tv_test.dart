@@ -369,6 +369,7 @@ Widget _wrap(
     if (query != null)
       searchQueryProvider.overrideWith(() => _FixedQuery(query)),
     ytNewReleasesProvider.overrideWith((ref) async => <YtAlbum>[]),
+    ytArtistReleasesProvider.overrideWith((ref) async => <YtAlbum>[]),
     // Sans quoi la vraie recherche YouTube part sur le réseau et laisse un
     // minuteur en suspens à la fin du test.
     ytAlbumSearchProvider.overrideWith((ref, q) async => <YtAlbum>[]),

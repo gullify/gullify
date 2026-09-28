@@ -6,6 +6,11 @@
 // Idée #74 : la page de YouTube ignore le pays, alors le serveur la reclasse
 // (tes artistes d'abord) ; l'app se contente d'afficher l'ordre reçu et de
 // signaler les sorties d'un artiste déjà écouté.
+//
+// Idée #116 : « Nouveautés » ne montre plus QUE la page de YouTube Music —
+// les sorties des artistes qu'on écoute, qui y étaient mélangées, ont leur
+// propre section dessous. Ce qui s'y trouvait ne ressemblait pas aux
+// nouveautés de YouTube Music, et c'était juste.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -43,15 +48,27 @@ class _FakeClient extends Fake implements ApiClient {
 }
 
 class _FakeRepo extends Fake implements YtDownloadsRepository {
-  _FakeRepo(this.albums);
+  _FakeRepo(this.albums, {this.mine = const []});
 
   final List<YtAlbum> albums;
+
+  /// Les sorties des artistes de la bibliothèque : l'autre liste, servie par
+  /// une autre action du serveur.
+  final List<YtAlbum> mine;
+
   final List<int> limits = [];
+  final List<int> mineLimits = [];
 
   @override
   Future<List<YtAlbum>> newReleases({int limit = 30}) async {
     limits.add(limit);
     return albums.take(limit).toList();
+  }
+
+  @override
+  Future<List<YtAlbum>> artistReleases({int limit = 30}) async {
+    mineLimits.add(limit);
+    return mine.take(limit).toList();
   }
 }
 
@@ -118,7 +135,7 @@ void main() {
 
     expect(find.text('Nouveautés'), findsOneWidget);
     expect(
-      find.text('Nouveaux albums sur YouTube Music, tes artistes en premier'),
+      find.text('Les nouveaux albums de YouTube Music, tes artistes en premier'),
       findsOneWidget,
     );
     expect(find.text('Nouveauté 0'), findsOneWidget);
@@ -191,6 +208,8 @@ void main() {
       ProviderScope(
         overrides: [
           ytNewReleasesProvider.overrideWith((ref) async => throw 'hors ligne'),
+          ytArtistReleasesProvider
+              .overrideWith((ref) async => throw 'hors ligne'),
           searchResultsProvider
               .overrideWith((ref) async => const SearchResults()),
           serverUsersProvider.overrideWith((ref) async => const <ServerUser>[]),
@@ -198,10 +217,97 @@ void main() {
         child: const MaterialApp(home: SearchScreen()),
       ),
     );
+    // Deux tours : les nouveautés tombent au premier, et la section des
+    // artistes — jusque-là hors écran, donc pas encore construite — au second.
+    await tester.pump();
     await tester.pump();
 
     expect(find.text('Nouveautés'), findsNothing);
+    expect(find.text('Sorties de tes artistes'), findsNothing);
     // La recherche, elle, reste utilisable.
     expect(find.text('Recherche'), findsOneWidget);
+  });
+
+  // ─────────────────────────── idée #116 ───────────────────────────────────
+
+  test('artistReleases demande sa propre action, pas celle des nouveautés',
+      () async {
+    final client = _FakeClient();
+    final albums =
+        await YtDownloadsRepository(client).artistReleases(limit: 12);
+
+    expect(client.calls.single, {
+      'path': 'download.php',
+      'action': 'artist_releases',
+      'limit': '12',
+    });
+    expect(albums.single.title, 'Legacy');
+  });
+
+  testWidgets('les deux listes cohabitent, chacune sous son intitulé',
+      (tester) async {
+    final repo = _FakeRepo(
+      _albums(2),
+      mine: const [
+        YtAlbum(
+          title: 'Pub Royal',
+          artist: 'Les Cowboys Fringants',
+          year: '2026',
+          thumbnail: '',
+          browseId: 'bmine',
+          becauseOf: 'Les Cowboys Fringants',
+        ),
+      ],
+    );
+    await _pumpSearch(tester, repo);
+
+    expect(find.text('Nouveautés'), findsOneWidget);
+    expect(
+      find.text('Les nouveaux albums de YouTube Music, tes artistes en '
+          'premier'),
+      findsOneWidget,
+    );
+    expect(find.text('Nouveauté 0'), findsOneWidget);
+
+    await tester.scrollUntilVisible(
+      find.text('Sorties de tes artistes'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(find.text('Pub Royal'), findsOneWidget);
+    // L'artiste crédité est celui de la bibliothèque : pas de « parce que ».
+    expect(find.text('Les Cowboys Fringants · 2026'), findsOneWidget);
+    expect(repo.mineLimits, [12]);
+  });
+
+  testWidgets('un album à deux noms dit à cause de qui il est proposé',
+      (tester) async {
+    await _pumpSearch(
+      tester,
+      _FakeRepo(const [], mine: const [
+        YtAlbum(
+          title: 'Duo',
+          artist: 'Klô Pelgag & Pierre Lapointe',
+          year: '2026',
+          thumbnail: '',
+          browseId: 'bduo',
+          becauseOf: 'Klô Pelgag',
+        ),
+      ]),
+    );
+
+    expect(
+      find.text('Klô Pelgag & Pierre Lapointe · 2026 · parce que tu as '
+          'Klô Pelgag'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('rien à proposer chez tes artistes : pas de section vide',
+      (tester) async {
+    await _pumpSearch(tester, _FakeRepo(_albums(2)));
+
+    expect(find.text('Nouveautés'), findsOneWidget);
+    expect(find.text('Sorties de tes artistes'), findsNothing);
   });
 }

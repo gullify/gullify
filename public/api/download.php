@@ -236,10 +236,11 @@ function fetchNewReleases() {
  * Les sorties récentes des artistes que [$user] possède déjà, trouvées hors
  * ligne par scripts/refresh-new-releases.php.
  *
- * C'est la vraie source de « Nouveautés ». La page publique de YouTube Music
- * (voir fetchNewReleases) est un fourre-tout mondial qui ne bouge presque pas
- * et ne ressemble en rien à ce que l'app YouTube Music affiche ; elle ne sert
- * plus que de remplissage quand cette liste-ci est courte.
+ * C'est une liste à part : « Sorties de tes artistes », sous les nouveautés.
+ * Elle a longtemps servi de source à « Nouveautés » elle-même, ce qui était
+ * un contresens — on y cherche les nouvelles sorties de YouTube Music, pas sa
+ * propre discothèque prolongée (idée #116). Les deux vivent maintenant côte à
+ * côte, chacune sous son intitulé.
  */
 function personalNewReleases($user) {
     if ($user === '') return [];
@@ -251,6 +252,12 @@ function personalNewReleases($user) {
     $mine = [];
     foreach ($all as $entry) {
         if (!is_array($entry) || ($entry['user'] ?? '') !== $user) continue;
+        // Albums seulement : les singles et les EP que YouTube range sous le
+        // même filtre n'ont rien à faire ici. Les entrées écrites avant que
+        // le script ne note le type n'en portent pas : on les garde jusqu'au
+        // prochain balayage complet, qui les remplace ou les efface.
+        $kind = trim((string) ($entry['releaseType'] ?? ''));
+        if ($kind !== '' && strcasecmp($kind, 'Album') !== 0) continue;
         $mine[] = [
             'title'     => $entry['title']     ?? '',
             'artist'    => $entry['artist']    ?? '',
@@ -691,33 +698,50 @@ try {
             break;
 
         case 'new_releases':
-            // Nouvelles sorties YouTube Music, affichées dans l'onglet
-            // Recherche quand le champ est vide. Albums seulement : les
-            // singles noient la liste sans intéresser personne. La page de
-            // YouTube étant un fourre-tout mondial, on la reclasse pour cet
-            // utilisateur avant de n'en servir que le début.
+            // La page « Nouveautés » de YouTube Music, telle quelle, affichée
+            // dans l'onglet Recherche quand le champ est vide. Albums
+            // seulement : les singles noient la liste sans intéresser
+            // personne. Rien n'est retiré — la page étant mondiale, on la
+            // reclasse pour cet utilisateur (ses artistes d'abord, le bruit à
+            // la fin) avant de n'en servir que le début.
+            //
+            // Les sorties des artistes qu'il écoute ont leur propre liste
+            // (action artist_releases) : les mélanger ici faisait afficher
+            // sous « Nouveautés » tout autre chose que les nouveautés de
+            // YouTube Music, ce qui était le reproche (idée #116).
             $limit = (int)($_GET['limit'] ?? 30);
             if ($limit < 1)   { $limit = 30; }
             if ($limit > 100) { $limit = 100; }
             $user = $_GET['user'] ?? '';
 
-            // D'abord les sorties des artistes que l'utilisateur écoute — la
-            // seule liste qui se renouvelle vraiment et sur laquelle il a
-            // envie de cliquer. Le fourre-tout mondial de YouTube complète
-            // derrière, et seulement s'il reste de la place.
-            $mine   = markAlbumsInLibrary($user, personalNewReleases($user));
-            $mine   = array_values(array_filter($mine, fn($a) => empty($a['in_library'])));
-            $seen   = [];
-            foreach ($mine as $album) $seen[$album['browseId']] = true;
+            $albums = rankNewReleases(
+                $user,
+                markAlbumsInLibrary($user, fetchNewReleases())
+            );
 
-            $albums = $mine;
-            if (count($albums) < $limit) {
-                $global = rankNewReleases($user, markAlbumsInLibrary($user, fetchNewReleases()));
-                foreach ($global as $album) {
-                    if (isset($seen[$album['browseId'] ?? ''])) continue;
-                    $albums[] = $album;
-                }
-            }
+            echo json_encode([
+                'success' => true,
+                'data' => ['albums' => array_slice($albums, 0, $limit)],
+            ]);
+            break;
+
+        case 'artist_releases':
+            // Les sorties récentes des artistes que l'utilisateur a déjà,
+            // relevées chaque nuit par scripts/refresh-new-releases.php. Sous
+            // les nouveautés de YouTube Music, c'est la liste sur laquelle il
+            // y a le plus de raisons de cliquer — et celle qui bouge.
+            $limit = (int)($_GET['limit'] ?? 30);
+            if ($limit < 1)   { $limit = 30; }
+            if ($limit > 100) { $limit = 100; }
+            $user = $_GET['user'] ?? '';
+
+            $albums = markAlbumsInLibrary($user, personalNewReleases($user));
+            // Ce qu'il possède déjà n'est plus une sortie à découvrir : le
+            // balayage l'élague, mais un téléchargement d'hier peut encore
+            // être en liste.
+            $albums = array_values(
+                array_filter($albums, fn($a) => empty($a['in_library']))
+            );
 
             echo json_encode([
                 'success' => true,

@@ -123,6 +123,31 @@ final ytNewReleasesProvider = FutureProvider<List<YtAlbum>>(
       ),
 );
 
+/// Nombre de sorties d'artistes suivis affichées dans l'onglet Recherche.
+/// Même pagination que les nouveautés : le serveur lit un fichier, redemander
+/// une tranche plus grande ne coûte rien.
+const int _kArtistReleasesPageSize = 12;
+
+class _ArtistReleasesLimit extends Notifier<int> {
+  @override
+  int build() => _kArtistReleasesPageSize;
+
+  void more() => state =
+      (state + _kArtistReleasesPageSize).clamp(_kArtistReleasesPageSize, 60);
+}
+
+final artistReleasesLimitProvider =
+    NotifierProvider<_ArtistReleasesLimit, int>(_ArtistReleasesLimit.new);
+
+/// Sorties récentes des artistes déjà dans la bibliothèque, pour l'onglet
+/// Recherche quand le champ est vide. Distinct des nouveautés de YouTube
+/// Music, qui sont la page publique du service (idée #116).
+final ytArtistReleasesProvider = FutureProvider<List<YtAlbum>>(
+  (ref) => ref.watch(ytDownloadsRepositoryProvider).artistReleases(
+        limit: ref.watch(artistReleasesLimitProvider),
+      ),
+);
+
 /// Albums YouTube Music d'un artiste (suggestions sur sa page).
 final ytArtistAlbumsProvider = FutureProvider.family<List<YtAlbum>, String>(
   (ref, artistName) =>
