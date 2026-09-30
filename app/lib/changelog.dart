@@ -8,6 +8,33 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.70.0', [
+    'Accueil — le bloc « Découvrir » ne se voyait plus : sa teinte d\'accent '
+        'était si pâle qu\'elle passait pour du blanc sali. Elle est '
+        'maintenant franche (idée #120), et ce qui s\'écrit dessus est '
+        'passé à l\'encre de l\'app : l\'accent écrit sur l\'accent ne se '
+        'lisait plus dès que le lavis montait',
+    'Les deux maisons du dehors montrent enfin leur VRAI logo, tracé d\'après '
+        'leurs fichiers officiels : le disque rouge de YouTube Music, la '
+        'plaque aqua de Bandcamp. C\'étaient jusqu\'ici deux icônes Material '
+        'quelconques, seulement peintes à leur couleur',
+    'Statistiques — les graphiques sont refaits. Les trente derniers jours '
+        'sont une courbe (c\'est une évolution, pas trente barres), les '
+        'heures et les jours des histogrammes à tête arrondie, avec une '
+        'grille discrète et des graduations qui tombent sur des chiffres '
+        'ronds. On touche — ou on glisse le long — n\'importe où : la valeur '
+        's\'écrit dans l\'en-tête, et les autres barres reculent d\'un ton',
+    'Les genres deviennent une barre de parts : les six premiers gardent leur '
+        'teinte, le reste se replie sur « Autres ». Le serveur en envoyait '
+        'jusqu\'à quatorze pour dix couleurs recyclées — deux genres '
+        'finissaient de la même couleur, et quatorze teintes ne se '
+        'distinguent de toute façon plus à l\'œil',
+    'Les couleurs des graphiques sont vérifiées, pas choisies à vue : écart '
+        'suffisant entre voisines y compris sous daltonisme, et une série '
+        'lisible sur sa carte. En sombre, la teinte des graphiques monte '
+        'd\'un cran — le vert de la marque y tenait 2,3:1 sur fond de nuit, '
+        'il en tient 5,3:1',
+  ]),
   ReleaseNote('3.69.0', [
     'Téléchargements — quand un album échoue, la file dit enfin POURQUOI '
         '(idée #119). « Échec du téléchargement (code: 1) » servait aussi '

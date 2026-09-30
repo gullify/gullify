@@ -6,10 +6,15 @@ import '../api/stats_repository.dart';
 import '../state/library.dart';
 import '../state/stats.dart';
 import '../widgets/artwork.dart';
+import '../widgets/stats_chart.dart';
 
 /// Statistiques d'écoute : chiffres phares, activité (jour/heure/semaine),
 /// genres et tops. Une seule série par graphique → teinte primaire du thème,
 /// pas de légende; étiquettes sélectives (max + bornes d'axe).
+///
+/// Les graphiques eux-mêmes sont peints dans `widgets/stats_chart.dart`
+/// (idée #120) : une courbe d'aire pour les trente jours, des histogrammes à
+/// tête arrondie pour l'heure et le jour, une barre de parts pour les genres.
 class StatsScreen extends ConsumerWidget {
   const StatsScreen({super.key});
 
@@ -87,6 +92,9 @@ class StatsScreen extends ConsumerWidget {
                       _ChartCard(
                         title: '30 derniers jours',
                         chart: s.dailyPlays,
+                        // Trente jours, c'est une évolution : une courbe la
+                        // raconte, trente barres la découpent.
+                        trend: true,
                         sparseLabels: true,
                       ),
                       const SizedBox(height: 16),
@@ -267,16 +275,24 @@ class _StatTiles extends StatelessWidget {
   }
 }
 
+/// Une carte de graphique : son titre, la valeur touchée (ou le total quand
+/// rien ne l'est), puis le tracé.
 class _ChartCard extends StatefulWidget {
   const _ChartCard({
     required this.title,
     required this.chart,
+    this.trend = false,
     this.sparseLabels = false,
     this.labelEvery,
   });
 
   final String title;
   final StatsChart chart;
+
+  /// Courbe d'aire au lieu d'un histogramme : pour une série qui AVANCE dans
+  /// le temps (les trente derniers jours), pas pour des tranches qui
+  /// reviennent (les heures, les jours de la semaine).
+  final bool trend;
 
   /// N'affiche que la première et la dernière étiquette d'axe.
   final bool sparseLabels;
@@ -295,14 +311,21 @@ class _ChartCardState extends State<_ChartCard> {
   Widget build(BuildContext context) {
     final chart = widget.chart;
     final scheme = Theme.of(context).colorScheme;
-    final maxValue =
-        chart.data.reduce((a, b) => a > b ? a : b).clamp(1, 1 << 31);
-    final maxIndex = chart.data.indexOf(maxValue);
+    final muted = Theme.of(context)
+        .textTheme
+        .bodySmall
+        ?.copyWith(color: scheme.onSurfaceVariant);
+    // La valeur touchée s'écrit dans l'en-tête ; sans rien de touché, c'est
+    // le total de la série — l'en-tête ne saute donc pas d'une ligne.
+    final at = _selected;
+    final reading = at != null && at < chart.data.length
+        ? '${chart.labels[at]} · ${_plays(chart.data[at])}'
+        : _plays(chart.data.fold(0, (sum, v) => sum + v));
 
     return Card(
       margin: EdgeInsets.zero,
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 10),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -311,142 +334,44 @@ class _ChartCardState extends State<_ChartCard> {
                 Expanded(
                   child: Text(
                     widget.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: Theme.of(context)
                         .textTheme
                         .titleSmall
                         ?.copyWith(fontWeight: FontWeight.w600),
                   ),
                 ),
-                // « Tooltip » mobile : la barre touchée s'affiche ici.
-                if (_selected != null && _selected! < chart.labels.length)
-                  Text(
-                    '${chart.labels[_selected!]} · '
-                    '${chart.data[_selected!]} écoute'
-                    '${chart.data[_selected!] > 1 ? 's' : ''}',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: scheme.onSurfaceVariant,
-                        ),
-                  ),
+                const SizedBox(width: 8),
+                Text(reading, style: muted),
               ],
             ),
             const SizedBox(height: 14),
-            SizedBox(
-              height: 116,
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  for (final (i, v) in chart.data.indexed)
-                    Expanded(
-                      child: GestureDetector(
-                        behavior: HitTestBehavior.opaque,
-                        onTap: () => setState(
-                          () => _selected = _selected == i ? null : i,
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 1.5),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.end,
-                            children: [
-                              if ((i == maxIndex || _selected == i) && v > 0)
-                                Padding(
-                                  padding: const EdgeInsets.only(bottom: 3),
-                                  child: Text(
-                                    '$v',
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .labelSmall
-                                        ?.copyWith(
-                                          fontWeight: FontWeight.w700,
-                                          color: _selected == i
-                                              ? scheme.primary
-                                              : scheme.onSurfaceVariant,
-                                        ),
-                                  ),
-                                ),
-                              // Piste de fond + barre en dégradé d'accent.
-                              Expanded(
-                                child: Align(
-                                  alignment: Alignment.bottomCenter,
-                                  child: Stack(
-                                    alignment: Alignment.bottomCenter,
-                                    children: [
-                                      // Piste (hauteur pleine, très douce).
-                                      Container(
-                                        decoration: BoxDecoration(
-                                          color: scheme.onSurface
-                                              .withValues(alpha: 0.05),
-                                          borderRadius:
-                                              BorderRadius.circular(6),
-                                        ),
-                                      ),
-                                      FractionallySizedBox(
-                                        heightFactor:
-                                            (v / maxValue).clamp(0.02, 1.0),
-                                        child: Container(
-                                          decoration: BoxDecoration(
-                                            gradient: LinearGradient(
-                                              begin: Alignment.topCenter,
-                                              end: Alignment.bottomCenter,
-                                              colors: v == 0
-                                                  ? [
-                                                      scheme.onSurface
-                                                          .withValues(
-                                                              alpha: 0.08),
-                                                      scheme.onSurface
-                                                          .withValues(
-                                                              alpha: 0.08),
-                                                    ]
-                                                  : [
-                                                      scheme.primary,
-                                                      scheme.primary.withValues(
-                                                          alpha: _selected == i
-                                                              ? 0.85
-                                                              : 0.55),
-                                                    ],
-                                            ),
-                                            borderRadius:
-                                                BorderRadius.circular(6),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                ],
+            if (widget.trend)
+              StatsTrendChart(
+                data: chart.data,
+                labels: chart.labels,
+                selected: _selected,
+                onSelected: (i) => setState(() => _selected = i),
+                showsLabel: _axisLabel,
+              )
+            else
+              StatsBarChart(
+                data: chart.data,
+                labels: chart.labels,
+                selected: _selected,
+                onSelected: (i) => setState(() => _selected = i),
+                showsLabel: _axisLabel,
               ),
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                for (final (i, label) in chart.labels.indexed)
-                  Expanded(
-                    child: _axisLabel(i, label)
-                        ? Text(
-                            label,
-                            style: Theme.of(context)
-                                .textTheme
-                                .labelSmall
-                                ?.copyWith(color: scheme.onSurfaceVariant),
-                            overflow: TextOverflow.visible,
-                            softWrap: false,
-                          )
-                        : const SizedBox.shrink(),
-                  ),
-              ],
-            ),
           ],
         ),
       ),
     );
   }
 
-  bool _axisLabel(int i, String label) {
+  String _plays(int n) => '$n écoute${n > 1 ? 's' : ''}';
+
+  bool _axisLabel(int i) {
     if (widget.sparseLabels) {
       return i == 0 || i == widget.chart.labels.length - 1;
     }
@@ -455,101 +380,100 @@ class _ChartCardState extends State<_ChartCard> {
   }
 }
 
+/// Les genres : une part-à-tout, donc UN tout que l'on découpe — une barre de
+/// parts, puis la légende chiffrée.
+///
+/// Le serveur en renvoie jusqu'à quatorze, avec dix couleurs recyclées : deux
+/// genres finissaient de la même teinte, et quatorze classes de couleur ne se
+/// distinguent de toute façon plus à l'œil. Les six premiers gardent donc leur
+/// teinte, le reste se replie sur « Autres » en gris (idée #120). Chaque
+/// ligne de légende porte son compte et son pourcentage : rien ne se lit
+/// par la seule couleur.
 class _GenresCard extends StatelessWidget {
   const _GenresCard(this.genres);
 
   final List<StatsGenre> genres;
 
-  Color _parse(String hex, Color fallback) {
-    final h = hex.replaceFirst('#', '');
-    if (h.length != 6) return fallback;
-    final v = int.tryParse(h, radix: 16);
-    return v == null ? fallback : Color(0xFF000000 | v);
-  }
-
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final total = genres.fold(0, (sum, g) => sum + g.count).clamp(1, 1 << 31);
-    final maxCount =
-        genres.map((g) => g.count).reduce((a, b) => a > b ? a : b).clamp(1, 1 << 31);
+    final named = genres.take(StatsShare.maxSlots).toList();
+    final tail = genres
+        .skip(StatsShare.maxSlots)
+        .fold(0, (sum, g) => sum + g.count);
+    final shares = [
+      for (final (i, g) in named.indexed)
+        StatsShare(label: g.label, value: g.count, slot: i),
+      if (tail > 0)
+        StatsShare(label: 'Autres', value: tail, slot: null),
+    ];
 
     return Card(
       margin: EdgeInsets.zero,
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Genres',
-              style: Theme.of(context)
-                  .textTheme
-                  .titleSmall
-                  ?.copyWith(fontWeight: FontWeight.w600),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Genres',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleSmall
+                        ?.copyWith(fontWeight: FontWeight.w600),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  '${genres.length} genre${genres.length > 1 ? 's' : ''}',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: scheme.onSurfaceVariant,
+                      ),
+                ),
+              ],
             ),
-            const SizedBox(height: 12),
-            for (final g in genres) ...[
-              Row(
-                children: [
-                  Container(
-                    width: 8,
-                    height: 8,
-                    decoration: BoxDecoration(
-                      color: _parse(g.color, scheme.primary),
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      g.label,
-                      style: Theme.of(context).textTheme.bodyMedium,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  Text(
-                    '${(g.count / total * 100).round()} %',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: scheme.onSurfaceVariant,
-                        ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 5),
+            const SizedBox(height: 14),
+            StatsShareBar(shares: shares),
+            const SizedBox(height: 14),
+            for (final share in shares)
               Padding(
-                padding: const EdgeInsets.only(left: 16, bottom: 9),
-                child: Stack(
+                padding: const EdgeInsets.only(bottom: 7),
+                child: Row(
                   children: [
-                    // Piste de fond douce.
                     Container(
-                      height: 7,
+                      width: 10,
+                      height: 10,
                       decoration: BoxDecoration(
-                        color: scheme.onSurface.withValues(alpha: 0.05),
-                        borderRadius: BorderRadius.circular(4),
+                        color: share.color(scheme.brightness),
+                        borderRadius: BorderRadius.circular(3),
                       ),
                     ),
-                    FractionallySizedBox(
-                      alignment: Alignment.centerLeft,
-                      widthFactor: (g.count / maxCount).clamp(0.03, 1),
-                      child: Container(
-                        height: 7,
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [
-                              _parse(g.color, scheme.primary),
-                              _parse(g.color, scheme.primary)
-                                  .withValues(alpha: 0.6),
-                            ],
-                          ),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
+                    const SizedBox(width: 9),
+                    Expanded(
+                      child: Text(
+                        share.label,
+                        style: Theme.of(context).textTheme.bodyMedium,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      '${share.value} · ${(share.value / total * 100).round()} %',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: scheme.onSurfaceVariant,
+                            fontFeatures: const [FontFeature.tabularFigures()],
+                          ),
                     ),
                   ],
                 ),
               ),
-            ],
           ],
         ),
       ),

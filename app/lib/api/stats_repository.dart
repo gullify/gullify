@@ -103,7 +103,11 @@ class StatsGenre {
   final String label;
   final int count;
 
-  /// Couleur hex '#rrggbb' fournie par le serveur (palette web).
+  /// Couleur hex '#rrggbb' fournie par le serveur (palette web). L'app ne
+  /// s'en sert plus depuis l'idée #120 : le serveur recycle dix couleurs sur
+  /// quatorze genres, et l'écran des statistiques a désormais SA palette,
+  /// vérifiée (voir widgets/stats_chart.dart). Le champ reste lu parce qu'il
+  /// décrit ce que le serveur envoie, et que la page web, elle, s'en sert.
   final String color;
 }
 

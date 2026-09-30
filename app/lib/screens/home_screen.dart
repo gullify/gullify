@@ -11,9 +11,9 @@ import '../state/library.dart';
 import '../state/notifications.dart';
 import '../state/player.dart';
 import '../state/stats.dart';
-import '../theme.dart';
 import '../widgets/album_card.dart';
 import '../widgets/artwork.dart';
+import '../widgets/brand_logo.dart';
 import '../widgets/glass_box.dart';
 import '../widgets/glass_kit.dart';
 import '../widgets/retro_lcd.dart';
@@ -448,9 +448,15 @@ class _ShowMoreTile extends StatelessWidget {
 /// d'être semées dans la page.
 ///
 /// La carte porte la couleur d'accent ; les deux services extérieurs gardent,
-/// eux, LEUR couleur (bleu Bandcamp, rouge YouTube Music) : c'est à elle
-/// qu'on les reconnaît sans lire. Sous le rétro Winamp, le lavis d'accent
-/// s'efface — un châssis de 1999 ne se teinte pas.
+/// eux, LEUR logo et LEUR couleur (aqua Bandcamp, rouge YouTube Music) :
+/// c'est à eux qu'on les reconnaît sans lire. Sous le rétro Winamp, le lavis
+/// d'accent s'efface — un châssis de 1999 ne se teinte pas.
+///
+/// Idée #120 : le lavis était trop pâle pour qu'on voie la carte, et les
+/// pastilles portaient une icône Material à la place des marques. L'accent
+/// monte donc de 20 % à 42 %, les pastilles de la maison se remplissent (au
+/// lieu d'un aplat à 16 % qui disparaissait dans le lavis), et les deux
+/// services montrent leur vrai logo (voir widgets/brand_logo.dart).
 class _DiscoverBlock extends ConsumerWidget {
   const _DiscoverBlock();
 
@@ -471,7 +477,9 @@ class _DiscoverBlock extends ConsumerWidget {
           padding: const EdgeInsets.fromLTRB(14, 13, 14, 2),
           child: Row(
             children: [
-              Icon(Icons.explore_outlined, size: 16, color: scheme.primary),
+              // Encre de l'app, pas l'accent : sur un lavis d'accent franc,
+              // écrire l'accent sur l'accent ne se lisait plus (idée #120).
+              Icon(Icons.explore_outlined, size: 16, color: scheme.onSurface),
               const SizedBox(width: 6),
               Text(
                 'Découvrir',
@@ -479,7 +487,7 @@ class _DiscoverBlock extends ConsumerWidget {
                   fontSize: 12,
                   fontWeight: FontWeight.w800,
                   letterSpacing: 0.4,
-                  color: scheme.primary,
+                  color: scheme.onSurface,
                 ),
               ),
             ],
@@ -490,8 +498,7 @@ class _DiscoverBlock extends ConsumerWidget {
           const _DiscoverSeparator(),
         ],
         _DiscoverRow(
-          icon: Icons.play_circle_fill,
-          color: youtubeMusicRed,
+          badge: const YouTubeMusicLogo(),
           title: 'Nouveautés YouTube Music',
           hint: 'Les albums qui sortent, tes artistes en premier',
           onTap: () {
@@ -503,16 +510,14 @@ class _DiscoverBlock extends ConsumerWidget {
         ),
         const _DiscoverSeparator(),
         _DiscoverRow(
-          icon: Icons.album_outlined,
-          color: bandcampBlue,
+          badge: const BandcampLogo(),
           title: 'Découvrir sur Bandcamp',
           hint: 'Un genre, ses nouveautés ou un tirage au hasard',
           onTap: () => context.push('/bandcamp'),
         ),
         const _DiscoverSeparator(),
         _DiscoverRow(
-          icon: Icons.podcasts_outlined,
-          color: scheme.primary,
+          badge: const _DiscoverBadge(icon: Icons.podcasts_rounded),
           title: 'Podcasts',
           hint: 'Chercher, s\'abonner, écouter ses épisodes',
           onTap: () => context.push('/podcasts'),
@@ -534,8 +539,8 @@ class _DiscoverBlock extends ConsumerWidget {
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                     colors: [
-                      scheme.primary.withValues(alpha: 0.20),
-                      scheme.primary.withValues(alpha: 0.05),
+                      scheme.primary.withValues(alpha: 0.42),
+                      scheme.primary.withValues(alpha: 0.13),
                     ],
                   ),
                 ),
@@ -546,9 +551,10 @@ class _DiscoverBlock extends ConsumerWidget {
   }
 }
 
-/// Le trait qui sépare deux portes du bloc : un filet d'accent qui s'éteint
-/// sur les bords, plutôt qu'une barre d'un mur à l'autre. Séparer sans
-/// découper la carte en tranches.
+/// Le trait qui sépare deux portes du bloc : un filet qui s'éteint sur les
+/// bords, plutôt qu'une barre d'un mur à l'autre. Séparer sans découper la
+/// carte en tranches. Il est à l'encre de l'app depuis que le lavis est
+/// franc (idée #120) : un filet d'accent sur un fond d'accent s'y noyait.
 class _DiscoverSeparator extends StatelessWidget {
   const _DiscoverSeparator();
 
@@ -562,9 +568,9 @@ class _DiscoverSeparator extends StatelessWidget {
         decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: [
-              scheme.primary.withValues(alpha: 0),
-              scheme.primary.withValues(alpha: 0.35),
-              scheme.primary.withValues(alpha: 0),
+              scheme.onSurface.withValues(alpha: 0),
+              scheme.onSurface.withValues(alpha: 0.18),
+              scheme.onSurface.withValues(alpha: 0),
             ],
           ),
         ),
@@ -573,21 +579,19 @@ class _DiscoverSeparator extends StatelessWidget {
   }
 }
 
-/// Une porte du bloc « Découvrir » : pastille colorée, titre, sous-titre.
-/// La couleur est celle du service (ou l'accent, pour ce qui est de la
-/// maison) ; elle ne touche que la pastille, le texte reste à l'encre de
-/// l'app pour rester lisible en clair comme en sombre.
+/// Une porte du bloc « Découvrir » : pastille, titre, sous-titre. La pastille
+/// est le vrai logo du service quand la porte mène dehors, et la pastille
+/// d'accent de la maison sinon. Le texte, lui, reste à l'encre de l'app pour
+/// rester lisible en clair comme en sombre.
 class _DiscoverRow extends StatelessWidget {
   const _DiscoverRow({
-    required this.icon,
-    required this.color,
+    required this.badge,
     required this.title,
     required this.hint,
     required this.onTap,
   });
 
-  final IconData icon;
-  final Color color;
+  final Widget badge;
   final String title;
   final String hint;
   final VoidCallback onTap;
@@ -601,7 +605,7 @@ class _DiscoverRow extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(14, 10, 12, 10),
         child: Row(
           children: [
-            _DiscoverBadge(icon: icon, color: color),
+            badge,
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -620,9 +624,11 @@ class _DiscoverRow extends StatelessWidget {
                     hint,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
+                    // Le gris de l'app ne tenait plus sur un lavis d'accent
+                    // franc (idée #120) : l'encre, à peine levée, oui.
                     style: TextStyle(
                       fontSize: 12,
-                      color: scheme.onSurfaceVariant,
+                      color: scheme.onSurface.withValues(alpha: 0.72),
                     ),
                   ),
                 ],
@@ -631,7 +637,7 @@ class _DiscoverRow extends StatelessWidget {
             Icon(
               Icons.chevron_right,
               size: 20,
-              color: scheme.onSurfaceVariant,
+              color: scheme.onSurface.withValues(alpha: 0.55),
             ),
           ],
         ),
@@ -640,26 +646,27 @@ class _DiscoverRow extends StatelessWidget {
   }
 }
 
-/// La pastille d'une porte : l'icône du service dans un carré arrondi de sa
-/// propre couleur, posée à plat.
+/// La pastille des portes de la maison : l'icône dans un carré arrondi plein
+/// d'accent. Pleine et non plus teintée à 16 % (idée #120) — à côté des vrais
+/// logos des deux services, qui portent eux aussi leur couleur pleine, un
+/// aplat pâle se noyait dans le lavis de la carte.
 class _DiscoverBadge extends StatelessWidget {
-  const _DiscoverBadge({required this.icon, required this.color});
+  const _DiscoverBadge({required this.icon});
 
   final IconData icon;
-  final Color color;
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Container(
       width: 38,
       height: 38,
       alignment: Alignment.center,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12),
-        color: color.withValues(alpha: 0.16),
-        border: Border.all(color: color.withValues(alpha: 0.42)),
+        color: scheme.primary,
       ),
-      child: Icon(icon, size: 20, color: color),
+      child: Icon(icon, size: 21, color: scheme.onPrimary),
     );
   }
 }
@@ -729,7 +736,7 @@ class _DiscoverArtistRow extends ConsumerWidget {
                     style: TextStyle(
                       fontSize: 12,
                       height: 1.15,
-                      color: scheme.onSurfaceVariant,
+                      color: scheme.onSurface.withValues(alpha: 0.72),
                     ),
                   ),
                 ],
