@@ -80,11 +80,10 @@ mettre_a_jour() {
       return
     fi
     dit "Construction de la nouvelle version... (quelques minutes)"
-    # Le numéro est gravé dans l'image : sans lui, le serveur ne sait pas
-    # dire son âge et l'app ne peut rien comparer — elle affichait « version
-    # construite sur place », ce qui est vrai et ne renseigne personne.
-    if ! (cd "$SOURCE" &&
-          essaie docker compose build --build-arg GULLIFY_VERSION="$(version_du_code)" app); then
+    # Rien à passer : le numéro du serveur vit dans le fichier VERSION du
+    # dépôt, que la construction copie dans l'image. Tant qu'il arrivait par
+    # une option, une construction qui l'oubliait donnait un serveur sans âge.
+    if ! (cd "$SOURCE" && essaie docker compose build app); then
       dit "La construction a échoué."
       raconte_l_echec
       return
@@ -106,15 +105,6 @@ mettre_a_jour() {
     dit "La mise en place a échoué — l'ancienne version tourne toujours."
     raconte_l_echec
   fi
-}
-
-# La version que porte le code, telle que la publie build-app.sh : « 3.73.2 »
-# dans « version: 3.73.2+210 ». Vide si on ne la trouve pas — le Dockerfile
-# met alors « dev », et mieux vaut ça qu'un numéro inventé.
-version_du_code() {
-  [ -n "$SOURCE" ] || return 0
-  grep -E '^version:' "$SOURCE/app/pubspec.yaml" 2>/dev/null |
-    awk '{print $2}' | cut -d+ -f1
 }
 
 # essaie garde la sortie de la commande de côté : un échec sans sa raison

@@ -96,11 +96,24 @@ class RemoteImage
      * Les vignettes YouTube reviennent parfois en petit format : on force la
      * taille dans l'URL.
      */
+    /**
+     * 1600 px, et non 1000.
+     *
+     * L'en-tête d'une fiche d'artiste occupe tout l'écran du téléphone : à
+     * 440 points de haut sur un écran ordinaire, c'est ~1300 pixels réels.
+     * Une image de 1000 y était agrandie, et cela se voyait — « l'image de
+     * l'artiste est floue ».
+     *
+     * Ces pixels-là ne sont pas inventés : mesuré sur un cas, la version
+     * 1600 porte 81 % de détail en plus (variance du laplacien 1,84 contre
+     * 1,01) que la 1000 gonflée à la même taille. YouTube sert jusqu'à 2400,
+     * mais 400 ko pour une vignette d'artiste, non.
+     */
     public static function ytFullSize(string $thumb): string
     {
         return $thumb === ''
             ? ''
-            : (string)preg_replace('/=w\d+-h\d+/', '=w1000-h1000', $thumb);
+            : (string)preg_replace('/=w\d+-h\d+/', '=w1600-h1600', $thumb);
     }
 
     /**

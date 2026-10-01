@@ -75,15 +75,15 @@ RUN printf 'PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\n1
 # et réécrirait le fichier que bash est en train de lire.
 RUN dos2unix /app/start.sh && chmod +x /app/start.sh
 
-# La version de ce serveur, gravée dans l'image.
+# La version du serveur n'est pas écrite ici : elle vit dans le fichier
+# VERSION à la racine du dépôt, que le COPY plus haut a déjà posé en
+# /app/VERSION. C'est volontaire — tant qu'elle arrivait par --build-arg, une
+# construction qui oubliait de le passer donnait un serveur sans âge, et la
+# carte de mise à jour accusait le dépôt d'images de ne pas répondre.
 #
-# C'est la seule chose qui permette à un serveur de savoir qu'il est en
-# retard : il compare ce nombre aux versions publiées au dépôt d'images. Posé
-# tout à la fin pour qu'un changement de version ne refasse que cette couche,
-# et « dev » par défaut — une image construite à la main n'a pas de version
-# publiée, et ne doit surtout pas prétendre le contraire.
-ARG GULLIFY_VERSION=dev
-RUN printf '%s' "$GULLIFY_VERSION" > /app/VERSION
+# Le serveur a sa propre numérotation, par date (voir VERSION) : il n'évolue
+# pas au rythme de l'app, et ses numéros ne doivent pas se confondre avec les
+# siens.
 
 EXPOSE 80
 # start-period : le démarrage met yt-dlp à jour avant de lancer apache.

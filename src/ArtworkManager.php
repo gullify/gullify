@@ -121,7 +121,7 @@ class ArtworkManager {
         }
 
         if ($imageData) {
-            if ($this->saveThumbnail($imageData, $targetFile)) {
+            if ($this->saveThumbnail($imageData, $targetFile, 1600)) {
                 $filename = 'artist_' . $artistId . '.jpg';
                 $this->db->prepare("UPDATE artists SET image = ? WHERE id = ?")->execute([$filename, $artistId]);
                 return $filename;
@@ -188,7 +188,7 @@ class ArtworkManager {
         if (!is_dir($cachePath)) mkdir($cachePath, 0775, true);
         $targetFile = $cachePath . '/artist_' . $artistId . '.jpg';
 
-        if (!$this->saveThumbnail($imageData, $targetFile)) return false;
+        if (!$this->saveThumbnail($imageData, $targetFile, 1600)) return false;
 
         $this->db->prepare("UPDATE artists SET image = ? WHERE id = ?")
                  ->execute(['artist_' . $artistId . '.jpg', $artistId]);
@@ -262,6 +262,9 @@ class ArtworkManager {
             } else {
                 $srcX = $srcY = 0;
                 $srcWidth = $width; $srcHeight = $height;
+                // Jamais d'agrandissement ici non plus : il ne coûte que des
+                // octets, et fait croire à une grande image.
+                $size = min($size, max($width, $height));
                 if ($width > $height) {
                     $newWidth = $size; $newHeight = floor($height * ($size / $width));
                 } else {
