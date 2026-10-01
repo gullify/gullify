@@ -1,3 +1,17 @@
+# Le Caddy du conteneur, derrière celui de l'hôte.
+#
+# Sans ce bloc, Caddy REMPLACE X-Forwarded-For au lieu de le compléter : il ne
+# fait confiance qu'aux relais qu'on lui désigne, pour qu'un visiteur ne puisse
+# pas se faire passer pour un autre. Le relais, ici, c'est le Caddy de l'hôte,
+# qui arrive par le réseau privé de Docker — sans cette ligne, PHP ne voit que
+# 172.18.0.1 et ne peut plus savoir d'où vient qui que ce soit. C'est de cette
+# adresse que dépend tout le service d'inscription (voir src/Registry.php).
+{
+	servers {
+		trusted_proxies static private_ranges
+	}
+}
+
 {$APP_DOMAIN:localhost} {
 	reverse_proxy app:80
 }
