@@ -7,10 +7,10 @@
  * crée dans l'espace client IONOS (Domaines & SSL → API DNS). Elle ne vit que
  * dans le .env du serveur central, jamais dans l'installateur.
  *
- * ATTENTION : écrit d'après la documentation publique, mais jamais exécuté
- * contre le vrai service — la clé n'existait pas encore. Le script
- * `scripts/verifier-ionos.php` vérifie chaque appel contre la vraie zone ; il
- * doit être passé avant de croire cette classe sur parole.
+ * Vérifié contre la vraie zone le 2026-10-01 par `scripts/check-ionos-dns.php` :
+ * création, relecture, mise à jour (le même enregistrement est réutilisé),
+ * retrait, retrait d'un nom absent, relecture d'un nom absent. À repasser après
+ * toute modification de cette classe.
  */
 declare(strict_types=1);
 
@@ -107,38 +107,73 @@ final class IonosDns implements DnsProvider
         return null;
     }
 
+    /**
+     * Le nom qu'on décline à IONOS.
+     *
+     * Il n'est pas décoratif : leur passerelle répond **503, en HTML**, à toute
+     * requête dépourvue de `User-Agent` — et PHP n'en envoie aucun par défaut.
+     * Mesuré : le même appel passe à 200 avec, à 503 sans, depuis la même
+     * machine. Sans cette ligne, le service d'inscription ne fonctionne pas du
+     * tout, et le message d'erreur ne dit rien de la cause.
+     */
+    private const AGENT = 'Gullify/1.0 (+https://gullify.app)';
+
+    /** Combien de fois on réessaie quand la panne a l'air passagère. */
+    private const ESSAIS = 3;
+
     private function appel(string $methode, string $chemin, ?array $corps = null): array
     {
-        $ch = curl_init(self::BASE . $chemin);
-        curl_setopt_array($ch, [
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_CUSTOMREQUEST  => $methode,
-            CURLOPT_TIMEOUT        => 20,
-            CURLOPT_HTTPHEADER     => [
-                'X-API-Key: ' . $this->cle,
-                'Content-Type: application/json',
-                'Accept: application/json',
-            ],
-        ]);
-        if ($corps !== null) {
-            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($corps));
+        $dernierMotif = '';
+
+        for ($essai = 1; $essai <= self::ESSAIS; $essai++) {
+            $ch = curl_init(self::BASE . $chemin);
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_CUSTOMREQUEST  => $methode,
+                CURLOPT_TIMEOUT        => 20,
+                CURLOPT_USERAGENT      => self::AGENT,
+                CURLOPT_HTTPHEADER     => [
+                    'X-API-Key: ' . $this->cle,
+                    'Content-Type: application/json',
+                    'Accept: application/json',
+                ],
+            ]);
+            if ($corps !== null) {
+                curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($corps));
+            }
+
+            $reponse = curl_exec($ch);
+            $code = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+            $erreur = curl_error($ch);
+            curl_close($ch);
+
+            // Réseau coupé ou panne de leur côté : on redonne sa chance, une
+            // seconde de plus à chaque fois. Nos écritures sont idempotentes
+            // (on relit avant d'écrire), donc réessayer ne crée pas de doublon.
+            if ($reponse === false || $code >= 500) {
+                $dernierMotif = $reponse === false
+                    ? "injoignable : $erreur"
+                    : "panne $code chez eux";
+                if ($essai < self::ESSAIS) {
+                    sleep($essai);
+                    continue;
+                }
+                throw new RuntimeException("IONOS $methode $chemin — $dernierMotif");
+            }
+
+            if ($code >= 400) {
+                // Le corps d'erreur contient le motif ; on le garde, tronqué,
+                // parce que c'est lui qui dit si la clé est mauvaise ou le nom
+                // invalide. Une erreur 4xx ne se réessaie pas : elle se corrige.
+                throw new RuntimeException(
+                    "IONOS a refusé $methode $chemin ($code) : " . substr((string)$reponse, 0, 300)
+                );
+            }
+
+            $j = json_decode((string)$reponse, true);
+            return is_array($j) ? $j : [];
         }
 
-        $reponse = curl_exec($ch);
-        $code = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
-        $erreur = curl_error($ch);
-        curl_close($ch);
-
-        if ($reponse === false) {
-            throw new RuntimeException("IONOS injoignable ($methode $chemin) : $erreur");
-        }
-        if ($code >= 400) {
-            // Le corps d'erreur d'IONOS contient le motif ; on le garde, tronqué,
-            // parce que c'est lui qui dit si la clé est mauvaise ou le nom invalide.
-            throw new RuntimeException("IONOS a refusé $methode $chemin ($code) : " . substr((string)$reponse, 0, 300));
-        }
-
-        $j = json_decode((string)$reponse, true);
-        return is_array($j) ? $j : [];
+        throw new RuntimeException("IONOS $methode $chemin — $dernierMotif");
     }
 }
