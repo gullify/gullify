@@ -144,9 +144,10 @@ let installationDocker = false;
 function majCarteDockerEnCours(avancement) {
   $('#carte-docker').innerHTML =
     '<h2>J\'installe Docker</h2>' +
-    '<p>Environ 600 Mo à télécharger : compte cinq à quinze minutes selon ta ' +
-    'connexion. Windows demandera peut-être une confirmation, et un ' +
-    'redémarrage à la fin.</p>' +
+    '<p><strong>Une fenêtre noire s\'est ouverte : c\'est elle qui travaille.</strong> ' +
+    'Elle affiche l\'avancement et posera ses questions — Windows demandera ' +
+    'une confirmation d\'administrateur, et un redémarrage à la fin. ' +
+    'Cette page, elle, guette simplement le moment où Docker répondra.</p>' +
     `<p class="avancement">${avancement || 'Je lance l\'installateur de Docker…'}</p>` +
     '<p class="aparte">Tu peux laisser cette page ouverte et aller faire autre chose. ' +
     'Si rien ne bouge au bout de deux minutes, regarde si une fenêtre de Windows ' +

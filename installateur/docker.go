@@ -80,16 +80,25 @@ func regardeDocker() DockerEtat {
 func commandeInstallation() (commande string, explique string) {
 	switch runtime.GOOS {
 	case "windows":
-		// Les trois drapeaux ne sont pas décoratifs : sans eux, winget POSE DES
-		// QUESTIONS (accepter les conditions de la source, puis celles du
-		// paquet) et attend une réponse que personne ne verra — la commande
-		// reste figée indéfiniment, sans rien écrire. C'est exactement ce qui
-		// s'est produit : vingt minutes de silence sur une fibre à 3 Gbit/s.
-		return "winget install -e --id Docker.DockerDesktop " +
-				"--accept-source-agreements --accept-package-agreements --disable-interactivity",
-			"Docker n'est pas là. Je peux l'installer pour toi (environ 600 Mo). " +
+		// Une fenêtre VISIBLE, et winget qui parle lui-même.
+		//
+		// Deux leçons payées comptant. D'abord, winget pose des questions
+		// (conditions de la source, puis du paquet) et attend une réponse que
+		// personne ne voit : vingt minutes de silence sur une fibre à 3 Gbit/s,
+		// sans un octet téléchargé. Ensuite, dès que Windows élève les
+		// privilèges, l'installation se poursuit dans un AUTRE processus —
+		// sa sortie ne revient plus ici, et prétendre afficher sa progression
+		// est un mensonge.
+		//
+		// Donc : « start » ouvre une console à part, que la personne voit, où
+		// winget affiche sa vraie barre et pose ses vraies questions. Cette
+		// page, elle, se contente de guetter le moment où Docker répond.
+		return `start "Installation de Docker" cmd /K winget install -e --id Docker.DockerDesktop ` +
+				`--accept-source-agreements --accept-package-agreements`,
+			"Docker n'est pas là. Je peux lancer son installation (environ 600 Mo) : " +
+				"une fenêtre noire s'ouvrira, c'est elle qui montre l'avancement. " +
 				"Windows demandera une confirmation d'administrateur, et il faudra " +
-				"redémarrer l'ordinateur une fois."
+				"redémarrer l'ordinateur à la fin."
 	case "darwin":
 		return "brew install --cask docker",
 			"Docker n'est pas là. Si tu as Homebrew, je peux l'installer pour toi. " +
@@ -133,6 +142,21 @@ func (e *Etat) installerDocker(w http.ResponseWriter, _ *http.Request) {
 			cmd = exec.Command("cmd", "/C", commande)
 		} else {
 			cmd = exec.Command("sh", "-c", commande)
+		}
+
+		// Sous Windows, la commande ne fait qu'OUVRIR une fenêtre : elle rend
+		// la main tout de suite, et c'est cette fenêtre qui travaille. Rien à
+		// lire ici — on le dit, et on guette l'arrivée de Docker.
+		if runtime.GOOS == "windows" {
+			if err := cmd.Start(); err != nil {
+				e.echoue("Je n'ai pas réussi à lancer l'installation (%v). "+
+					"Installe Docker Desktop depuis docker.com, puis reviens.", err)
+				return
+			}
+			e.dit("Une fenêtre d'installation s'est ouverte : suis-la, c'est elle qui montre l'avancement.")
+			e.majProgresDocker("L'installation se passe dans la fenêtre qui vient de s'ouvrir.")
+			e.guetteDocker(30 * time.Minute)
+			return
 		}
 
 		// On suit la sortie au fil de l'eau plutôt qu'à la fin.
@@ -219,6 +243,44 @@ func (e *Etat) installerDocker(w http.ResponseWriter, _ *http.Request) {
 	}()
 
 	e.repond(w, map[string]bool{"lance": true})
+}
+
+// guetteDocker attend que Docker se mette à répondre, quoi qu'il arrive
+// ailleurs.
+//
+// C'est la seule chose dont on soit sûr : peu importe comment l'installation
+// s'est déroulée, dans quelle fenêtre et avec quels privilèges, Docker finit
+// par répondre — ou pas. On regarde ça, et rien d'autre.
+func (e *Etat) guetteDocker(patience time.Duration) {
+	limite := time.Now().Add(patience)
+	dit := false
+
+	for time.Now().Before(limite) {
+		time.Sleep(10 * time.Second)
+
+		etat := regardeDocker()
+		e.mu.Lock()
+		progres := e.Docker.Progres
+		etat.Progres = progres
+		e.Docker = etat
+		e.mu.Unlock()
+
+		if etat.Demarre && etat.Compose {
+			e.majProgresDocker("")
+			e.dit("Docker %s est prêt.", etat.Version)
+			return
+		}
+		if etat.Installe && !dit {
+			dit = true
+			e.dit("Docker est posé. Il reste à le démarrer — et Windows demande souvent " +
+				"un redémarrage d'abord.")
+			e.majProgresDocker("Docker est installé, en attente de démarrage.")
+		}
+	}
+
+	e.majProgresDocker("")
+	e.dit("Je n'ai pas vu Docker arriver. Regarde la fenêtre d'installation, " +
+		"ou installe-le depuis docker.com, puis clique sur « Revérifier ».")
 }
 
 // dernieresLignes garde la fin d'une sortie de commande : c'est là que se
