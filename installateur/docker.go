@@ -113,6 +113,13 @@ func (e *Etat) verifierDocker(w http.ResponseWriter, _ *http.Request) {
 	etat := regardeDocker()
 
 	e.mu.Lock()
+	// La ligne d'avancement survit au contrôle.
+	//
+	// La page demande « Docker est-il prêt ? » toutes les dix secondes ; sans
+	// cette reprise, chaque passage écrasait l'avancement du téléchargement et
+	// l'écran retombait sur son texte de départ. C'est ce qui donnait
+	// l'impression d'une installation figée alors qu'elle avançait.
+	etat.Progres = e.Docker.Progres
 	e.Docker = etat
 	e.mu.Unlock()
 

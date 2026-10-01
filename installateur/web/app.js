@@ -56,7 +56,22 @@ async function rafraichir() {
   $('#jauge').style.width = `${etat.progression || 0}%`;
 
   if (installationDocker) {
-    majCarteDockerEnCours(etat.docker && etat.docker.progres);
+    const d = etat.docker || {};
+    // Installé mais pas démarré : c'est un état à part, et la personne doit
+    // savoir qu'il ne lui reste qu'un clic — pas croire que ça télécharge
+    // encore.
+    if (d.installe && !d.demarre) {
+      $('#carte-docker').innerHTML =
+        '<h2>Docker est installé</h2>' +
+        '<p>Il ne reste qu\'à le démarrer : ouvre <strong>Docker Desktop</strong> ' +
+        '(il est sur ton bureau ou dans le menu Démarrer), attends que son icône ' +
+        'devienne verte, et reviens ici.</p>' +
+        '<p class="aparte">Si Windows demande un redémarrage, fais-le : relance ' +
+        'ensuite ce programme, il reprendra où il en était.</p>';
+      $('#revoir-docker').hidden = false;
+    } else {
+      majCarteDockerEnCours(d.progres);
+    }
   }
 
   if (etat.courriel) $('#rappel-courriel').textContent = etat.courriel;
