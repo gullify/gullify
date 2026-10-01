@@ -125,11 +125,31 @@ raconte_l_echec() {
 attendre_le_retour() {
   for _ in $(seq 1 60); do
     if dans_le_serveur curl -sf -o /dev/null http://localhost/ >/dev/null 2>&1; then
+      verifie_les_points
       return 0
     fi
     sleep 5
   done
   return 1
+}
+
+# La page d'accueil peut très bien répondre pendant que l'API est morte : le
+# 2026-10-01, une erreur de chargement dans un fichier interne a rendu toute
+# l'API inutilisable, et la mise à jour s'est dite « finie » sans rien voir.
+# On regarde donc quelques points d'entrée : aucun ne doit rendre un 500.
+verifie_les_points() {
+  local casses=""
+  for point in / api/library.php?action=library api/v2/server-info.php \
+               get_popular.php get_recent_albums.php; do
+    code="$(dans_le_serveur curl -s -o /dev/null -w '%{http_code}' "http://localhost/$point")"
+    case "$code" in
+      5*) casses="$casses $point" ;;
+    esac
+  done
+  if [ -n "$casses" ]; then
+    dit "⚠ Le serveur répond mais son API est en panne :$casses"
+    dit "⚠ La version précédente était saine — préviens qui t'a donné celle-ci."
+  fi
 }
 
 # ── La boucle ────────────────────────────────────────────────────────────────

@@ -6,7 +6,7 @@
 header('Content-Type: application/json');
 
 require_once __DIR__ . '/../src/AppConfig.php';
-require_once __DIR__ . '../src/ImageUrl.php';
+require_once __DIR__ . '/../src/ImageUrl.php';
 
 $user     = $_GET['user']      ?? null;
 $artistId = isset($_GET['artist_id']) ? (int)$_GET['artist_id'] : null;

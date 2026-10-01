@@ -15,7 +15,7 @@ ini_set('memory_limit', '1024M');
 header('Content-Type: application/json');
 
 require_once __DIR__ . '/../../src/AppConfig.php';
-require_once __DIR__ . '../../src/ImageUrl.php';
+require_once __DIR__ . '/../../src/ImageUrl.php';
 require_once __DIR__ . '/../../src/Database.php';
 require_once __DIR__ . '/../../src/GameSource.php';
 require_once __DIR__ . '/../../src/GenreTaxonomy.php';
