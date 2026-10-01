@@ -8,6 +8,13 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.73.4', [
+    'Les photos d\'artiste restaient floues même une fois le serveur à jour : '
+        'l\'app garde les images sur le téléphone et les range par adresse, '
+        'or l\'adresse ne changeait pas quand la photo changeait. Elle porte '
+        'maintenant la date du fichier, et l\'en-tête d\'une fiche la reprend '
+        'telle quelle',
+  ]),
   ReleaseNote('3.73.3', [
     'La carte de mise à jour disait « le dépôt des versions n\'a pas '
         'répondu » alors qu\'il avait très bien répondu : c\'est le serveur '
