@@ -77,11 +77,16 @@ func (e *Etat) appelService(methode, action string, parametres url.Values, corps
 func (e *Etat) verifierNom(w http.ResponseWriter, r *http.Request) {
 	nom := strings.TrimSpace(r.URL.Query().Get("nom"))
 
+	// Chaque champ compte : ce qui n'est pas déclaré ici est PERDU, puisque la
+	// réponse est recopiée depuis cette structure. « reprenable » y manquait,
+	// et la page ne pouvait donc pas proposer de reprendre un nom — elle
+	// affichait pourtant le message du service, qui l'y invitait.
 	var resultat struct {
-		Nom     string `json:"nom"`
-		Libre   bool   `json:"libre"`
-		Motif   string `json:"motif"`
-		Adresse string `json:"adresse"`
+		Nom        string `json:"nom"`
+		Libre      bool   `json:"libre"`
+		Reprenable bool   `json:"reprenable"`
+		Motif      string `json:"motif"`
+		Adresse    string `json:"adresse"`
 	}
 	if err := e.appelService("GET", "disponible", url.Values{"nom": {nom}}, nil, &resultat); err != nil {
 		e.repond(w, map[string]any{"libre": false, "motif": err.Error()})
