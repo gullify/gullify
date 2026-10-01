@@ -252,6 +252,10 @@ function squareCrop($bin, $size) {
     $side = min($w, $h);
     $sx = (int)(($w - $side) / 2);
     $sy = (int)(($h - $side) / 2);
+    // Jamais d'agrandissement : une source de 300 px rendue en 1024 pèse
+    // quatre fois plus pour la même image, et l'agrandir ici puis la
+    // réduire à l'écran la traverse deux fois au lieu d'une.
+    $size = min($size, $side);
     $dst = imagecreatetruecolor($size, $size);
     imagecopyresampled($dst, $src, 0, 0, $sx, $sy, $size, $size, $side, $side);
     ob_start();

@@ -7,39 +7,48 @@ import 'package:gullify/widgets/artwork.dart';
 
 void main() {
   group('carree — quelle adresse demander', () {
-    test('demande au serveur un carré au palier supérieur', () {
-      expect(carree('https://m.gullify.app/serve_image.php?album_id=7', 132),
+    test('une vignette : le serveur la recadre, au palier supérieur', () {
+      expect(carree('https://m.gullify.app/serve_image.php?album_id=7', 44, 3),
           'https://m.gullify.app/serve_image.php?album_id=7&size=256');
-      expect(carree('/serve_image.php?album_id=7', 128),
+      expect(carree('/serve_image.php?album_id=7', 64, 2),
           '/serve_image.php?album_id=7&size=128');
-      expect(carree('/serve_image.php?album_id=7', 129),
+      expect(carree('/serve_image.php?album_id=7', 64, 2.1),
           '/serve_image.php?album_id=7&size=256');
     });
 
+    test('au-delà de la vignette, la source entière', () {
+      // Le grand portrait d'une fiche : une image réduite par le serveur puis
+      // redessinée à l'écran a traversé deux rééchantillonnages, et ça se voit.
+      expect(carree('/serve_image.php?artist_id=7', 200, 1),
+          '/serve_image.php?artist_id=7');
+      expect(carree('/serve_image.php?album_id=7', 140, 3),
+          '/serve_image.php?album_id=7');
+    });
+
     test('plafonne au plus grand palier', () {
-      expect(carree('/serve_image.php?album_id=7', 4000),
+      expect(carree('/serve_image.php?album_id=7', 96, 12),
           '/serve_image.php?album_id=7&size=1024');
     });
 
     test('sans taille connue, la source telle quelle', () {
-      // La grande pochette du lecteur et les tuiles d'une grille : c'est
+      // Les tuiles d'une grille et la pochette du lecteur : c'est
       // `BoxFit.cover` qui recadre, à l'écran.
-      expect(carree('/serve_image.php?album_id=7', null),
+      expect(carree('/serve_image.php?album_id=7', null, 3),
           '/serve_image.php?album_id=7');
     });
 
     test('une vignette externe ne comprend pas « size »', () {
       const yt = 'https://i.ytimg.com/vi/abc/hqdefault.jpg';
-      expect(carree(yt, 132), yt);
+      expect(carree(yt, 48, 3), yt);
     });
 
     test('une adresse déjà dimensionnée (téléviseur) passe intacte', () {
       const tv = '/serve_image.php?album_id=7&size=512';
-      expect(carree(tv, 132), tv);
+      expect(carree(tv, 48, 3), tv);
     });
 
     test('rien à demander sans adresse', () {
-      expect(carree(null, 132), isNull);
+      expect(carree(null, 48, 3), isNull);
     });
   });
 

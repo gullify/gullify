@@ -70,7 +70,7 @@ class Artwork extends StatelessWidget {
     // Mieux que recadrer après coup : demander la pochette déjà carrée. Le
     // serveur sait le faire et garde une copie par palier — ce sont les
     // mêmes paliers que le téléviseur, donc les mêmes fichiers.
-    final adresse = carree(url, decode);
+    final adresse = carree(url, size, dpr);
 
     // Mode « dossier local » (idée #114) : la pochette a été extraite du
     // fichier audio et vit sur le disque de l'app — un chemin, pas une adresse.
@@ -109,18 +109,31 @@ class Artwork extends StatelessWidget {
 /// téléphone, sans fabriquer un fichier par taille de vignette.
 const _paliers = [128, 256, 384, 512, 768, 1024];
 
+/// Au-delà de cette taille d'affichage, on prend la source.
+///
+/// Réduire sert aux vignettes : une liste de cent pastilles de 48 points ne
+/// doit pas faire voyager cent images de 800 px. Mais le grand portrait en
+/// tête d'une fiche se REGARDE, et une image réduite par le serveur puis
+/// redessinée à l'écran a traversé deux rééchantillonnages au lieu d'un — ce
+/// qui se voit tout de suite, surtout sur le web, qui prenait la source
+/// entière jusqu'ici. Il n'y en a qu'une par page : qu'elle vienne entière.
+const _vignetteMax = 96.0;
+
 /// L'adresse à demander : la pochette recadrée en carré quand le serveur sait
 /// le faire, la source telle quelle sinon.
 ///
-/// Trois cas passent inchangés. Sans taille connue (la grande pochette du
+/// Quatre cas prennent la source. Sans taille connue (la grande pochette du
 /// lecteur, les tuiles d'une grille) il n'y a pas de palier à choisir, et
-/// `BoxFit.cover` suffit à l'écran. Une vignette externe — logo de radio,
-/// image Deezer, miniature YouTube — ne comprend pas `size`. Et une adresse
-/// déjà pourvue d'un `size` vient du téléviseur, qui a déjà choisi.
-String? carree(String? url, int? decode) {
-  if (url == null || decode == null) return url;
+/// `BoxFit.cover` suffit à l'écran. Au-dessus de [_vignetteMax], réduire
+/// coûterait plus de netteté qu'il ne fait gagner d'octets. Une vignette
+/// externe — logo de radio, image Deezer, miniature YouTube — ne comprend
+/// pas `size`. Et une adresse déjà pourvue d'un `size` vient du téléviseur,
+/// qui a déjà choisi.
+String? carree(String? url, double? size, double dpr) {
+  if (url == null || size == null || size > _vignetteMax) return url;
   if (!url.contains('serve_image.php')) return url;
   if (url.contains('size=')) return url;
-  final cote = _paliers.firstWhere((p) => p >= decode, orElse: () => 1024);
+  final besoin = (size * dpr).round();
+  final cote = _paliers.firstWhere((p) => p >= besoin, orElse: () => 1024);
   return '$url${url.contains('?') ? '&' : '?'}size=$cote';
 }
