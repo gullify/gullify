@@ -105,6 +105,27 @@ $comptes = $r->comptageDesEchecs();
 verifie('deux cas de réseau d\'opérateur', ($comptes['cgnat'] ?? 0) === 2, json_encode($comptes));
 verifie('un routeur fermé', ($comptes['routeur-ferme'] ?? 0) === 1);
 
+echo "\n— Reprendre un nom qu'on possède —\n";
+refuse('une autre adresse ne reprend pas le nom',
+    fn() => $r->reserver('chez-papa', 'voleur@exemple.ca', '2.2.2.2'));
+$avant = (string)$db->query("SELECT token_hash FROM registry_servers WHERE name='chez-papa'")->fetchColumn();
+$reprise = $r->reserver('chez-papa', 'papa@exemple.ca', '55.55.55.55');
+verifie('la même adresse obtient une reprise', strlen($reprise) === 32);
+verifie('le serveur d\'origine marche toujours (jeton inchangé)',
+    (string)$db->query("SELECT token_hash FROM registry_servers WHERE name='chez-papa'")->fetchColumn() === $avant);
+verifie('le courriel annonce une reprise',
+    str_contains((string)file_get_contents('/tmp/courriels.log'), 'REPRENDRE'));
+preg_match_all('/code=([a-f0-9]{32})/', (string)file_get_contents('/tmp/courriels.log'), $tous);
+$codeReprise = end($tous[1]);
+$fqdn2 = $r->confirmer($codeReprise);
+verifie('la reprise aboutit au même nom', $fqdn2 === 'chez-papa.gullify.app');
+verifie('le DNS suit la nouvelle machine', $dns->lookupA('chez-papa.gullify.app') === '55.55.55.55');
+$etatReprise = $r->etatReservation($reprise);
+verifie('un nouveau jeton est remis', is_string($etatReprise['token']) && strlen($etatReprise['token']) === 48);
+refuse('et l\'ancien jeton ne vaut plus rien', fn() => $r->majIp($jeton, '1.2.3.4'));
+$jeton = $etatReprise['token'];
+verifie('le nouveau, lui, fonctionne', $r->majIp($jeton, '66.66.66.66')['changed'] === true);
+
 echo "\n— Révoquer —\n";
 $r->revoquer('chez-papa', 'essai');
 verifie('le DNS est retiré', $dns->lookupA('chez-papa.gullify.app') === null);

@@ -165,11 +165,26 @@ final class Registry
         $nom = strtolower(trim($nom));
         $adresse = trim($adresse);
 
-        if ($refus = $this->refusDuNom($nom)) {
-            throw new RuntimeException($refus);
-        }
         if (!filter_var($adresse, FILTER_VALIDATE_EMAIL)) {
             throw new RuntimeException('Cette adresse de courriel n\'a pas l\'air valide.');
+        }
+
+        // Reprendre un nom qu'on possède déjà.
+        //
+        // Un serveur se réinstalle : nouvelle machine, disque changé, dossier
+        // effacé. Le nom, lui, est resté — et son jeton est perdu avec
+        // l'ancienne installation. Sans ce chemin, la seule issue serait de
+        // choisir un autre nom, c'est-à-dire de prévenir toute la famille.
+        //
+        // La preuve de propriété est la même qu'à la première fois : le
+        // courriel. Même adresse, même personne ; une autre adresse, et le nom
+        // reste pris, comme il se doit.
+        if ($reprise = $this->proprietaire($nom, $adresse)) {
+            return $this->prepareLaReprise($reprise, $adresse, $ipDemandeur);
+        }
+
+        if ($refus = $this->refusDuNom($nom)) {
+            throw new RuntimeException($refus);
         }
         if ($this->tropDeReservations($ipDemandeur)) {
             throw new RuntimeException(
@@ -191,6 +206,50 @@ final class Registry
         return $reservation;
     }
 
+    /**
+     * La ligne de ce nom si elle appartient DÉJÀ à cette adresse de courriel.
+     *
+     * Un nom révoqué ne se reprend pas : il a été coupé pour un motif, et le
+     * rendre à son propriétaire annulerait la décision.
+     */
+    private function proprietaire(string $nom, string $adresse): ?array
+    {
+        $q = $this->db->prepare(
+            "SELECT * FROM registry_servers
+              WHERE name = ? AND state = 'active' AND LOWER(email) = LOWER(?)
+              LIMIT 1"
+        );
+        $q->execute([$nom, $adresse]);
+        $ligne = $q->fetch(PDO::FETCH_ASSOC);
+        return $ligne ?: null;
+    }
+
+    /**
+     * Prépare la reprise : un nouveau code de confirmation sur la ligne
+     * existante, et un courriel qui dit clairement ce qui va se passer.
+     *
+     * Le jeton actuel reste valable jusqu'à la confirmation : si la personne
+     * ne confirme pas, son serveur d'origine continue de fonctionner comme
+     * avant. Rien n'est cassé par une reprise entamée puis abandonnée.
+     */
+    private function prepareLaReprise(array $ligne, string $adresse, string $ipDemandeur): string
+    {
+        $reservation = bin2hex(random_bytes(16));
+        $confirmation = bin2hex(random_bytes(16));
+
+        $q = $this->db->prepare(
+            'UPDATE registry_servers
+                SET claim_id = ?, confirm_code = ?, claim_ip = ?
+              WHERE id = ?'
+        );
+        $q->execute([$reservation, $confirmation, $ipDemandeur, $ligne['id']]);
+
+        $this->envoyerLaConfirmation((string)$ligne['name'], $adresse, $confirmation, true);
+        $this->noter('reprise-demandee', (string)$ligne['name'], null, $ipDemandeur);
+
+        return $reservation;
+    }
+
     private function tropDeReservations(string $ip): bool
     {
         $q = $this->db->prepare(
@@ -200,16 +259,22 @@ final class Registry
         return (int)$q->fetchColumn() >= self::RESERVATIONS_PAR_JOUR;
     }
 
-    private function envoyerLaConfirmation(string $nom, string $adresse, string $code): void
+    private function envoyerLaConfirmation(string $nom, string $adresse, string $code, bool $reprise = false): void
     {
         $lien = rtrim((string)AppConfig::get('app.url'), '/') . '/confirmer-serveur.php?code=' . $code;
         $complet = $nom . '.' . $this->domaine;
 
+        $quoi = $reprise
+            ? "Quelqu'un vient de demander à REPRENDRE « $complet » sur une autre\n"
+                . "machine. Ton serveur actuel continuera de fonctionner tant que ce lien\n"
+                . "n'est pas ouvert."
+            : "Quelqu'un vient de réserver « $complet » pour son serveur de musique\n"
+                . "GulliFY, avec cette adresse de courriel.";
+
         $texte = <<<TEXTE
             Bonjour,
 
-            Quelqu'un vient de réserver « $complet » pour son serveur de musique
-            GulliFY, avec cette adresse de courriel.
+            $quoi
 
             Si c'est toi, confirme en ouvrant ce lien :
             $lien
@@ -220,14 +285,25 @@ final class Registry
             — GulliFY
             TEXTE;
 
-        $html = '<p>Bonjour,</p><p>Quelqu\'un vient de réserver <strong>'
-            . htmlspecialchars($complet, ENT_QUOTES, 'UTF-8')
-            . '</strong> pour son serveur de musique GulliFY, avec cette adresse de courriel.</p>'
+        $html = '<p>Bonjour,</p><p>' . ($reprise
+                ? 'Quelqu\'un vient de demander à <strong>reprendre</strong> '
+                    . htmlspecialchars($complet, ENT_QUOTES, 'UTF-8')
+                    . ' sur une autre machine. Ton serveur actuel continuera de fonctionner '
+                    . 'tant que ce lien n\'est pas ouvert.'
+                : 'Quelqu\'un vient de réserver <strong>'
+                    . htmlspecialchars($complet, ENT_QUOTES, 'UTF-8')
+                    . '</strong> pour son serveur de musique GulliFY, avec cette adresse de courriel.')
+            . '</p>'
             . '<p>Si c\'est toi : <a href="' . htmlspecialchars($lien, ENT_QUOTES, 'UTF-8') . '">confirme ici</a>.</p>'
             . '<p>Le lien vaut 48 heures. Si ce n\'est pas toi, ignore ce message : sans confirmation, '
             . 'le nom est rendu à tout le monde.</p><p>— GulliFY</p>';
 
-        $this->courriel->envoyer($adresse, "Confirme ton serveur $complet", $texte, $html);
+        $this->courriel->envoyer(
+            $adresse,
+            $reprise ? "Reprendre $complet sur une autre machine" : "Confirme ton serveur $complet",
+            $texte,
+            $html
+        );
     }
 
     /**
@@ -238,11 +314,14 @@ final class Registry
      */
     public function confirmer(string $code): string
     {
+        // Une réservation neuve, ou la reprise d'un nom déjà en service : les
+        // deux portent un code de confirmation, et aboutissent au même endroit
+        // — un nouveau jeton, remis une seule fois.
         $q = $this->db->prepare(
             "SELECT * FROM registry_servers
-              WHERE confirm_code = ? AND state = 'pending' AND created_at > ?"
+              WHERE confirm_code = ? AND state IN ('pending', 'active')"
         );
-        $q->execute([$code, $this->ilYA(self::HEURES_DE_CONFIRMATION * 3600)]);
+        $q->execute([$code]);
         $ligne = $q->fetch(PDO::FETCH_ASSOC);
 
         if (!$ligne) {
@@ -251,9 +330,19 @@ final class Registry
             );
         }
 
+        $reprise = ((string)$ligne['state']) === 'active';
+
+        // Une réservation neuve expire ; une reprise, elle, porte sur un nom
+        // qu'on possède déjà et peut attendre.
+        if (!$reprise && strtotime((string)$ligne['created_at']) < time() - self::HEURES_DE_CONFIRMATION * 3600) {
+            throw new RuntimeException(
+                'Ce lien a expiré. Relance l\'installateur pour réserver ton nom à nouveau.'
+            );
+        }
+
         // Entre-temps, quelqu'un a pu confirmer le même nom : le premier arrivé
-        // l'emporte, et on le dit clairement au seçond.
-        if ($this->estActif((string)$ligne['name'])) {
+        // l'emporte, et on le dit clairement au second.
+        if (!$reprise && $this->estActif((string)$ligne['name'])) {
             throw new RuntimeException('Ce nom a été pris entre-temps. Relance l\'installateur et choisis-en un autre.');
         }
 
@@ -270,7 +359,7 @@ final class Registry
         );
         $maj->execute([hash('sha256', $jeton), $jeton, $id, $ligne['id']]);
 
-        $this->noter('confirme', $ligne['name'], null, (string)$ligne['claim_ip']);
+        $this->noter($reprise ? 'reprise-confirmee' : 'confirme', $ligne['name'], null, (string)$ligne['claim_ip']);
         return $fqdn;
     }
 
