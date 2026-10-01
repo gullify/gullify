@@ -57,6 +57,24 @@ if (($_SERVER['REQUEST_URI'] ?? '/') !== '/' && !str_starts_with((string)($_SERV
 }
 
 const APK_LATEST = 'https://download.gullify.app/gullify-latest.apk';
+const INSTALLATEUR = 'https://download.gullify.app/installateur/gullify-installateur-';
+
+/**
+ * Le poids d'un installateur, en Mo, ou null s'il n'est pas publié.
+ *
+ * Lu dans un manifeste écrit à la fabrication (installateur/construire.sh) :
+ * cette page tourne dans un conteneur, qui ne voit pas le dossier des
+ * téléchargements de l'hôte. Le manifeste, lui, voyage avec l'image.
+ */
+function poidsInstallateur(string $systeme): ?int {
+    static $manifeste = null;
+    if ($manifeste === null) {
+        $brut = @file_get_contents(__DIR__ . '/download/installateur.json');
+        $manifeste = $brut === false ? [] : (json_decode($brut, true) ?: []);
+    }
+    $octets = $manifeste[$systeme] ?? null;
+    return is_numeric($octets) ? (int)round(((int)$octets) / 1048576) : null;
+}
 
 $manifeste = @file_get_contents(__DIR__ . '/download/version.json');
 $version = null;
@@ -106,7 +124,7 @@ function e(?string $s): string {
     <a href="#installation">Installation</a>
     <a href="#serveur">Le serveur</a>
     <a href="#nouveautes">Nouveautés</a>
-    <a class="lien-app" href="/app/">Ouvrir l'app</a>
+    <a class="lien-app" href="#installation">Installer</a>
   </nav>
 </header>
 
@@ -122,12 +140,14 @@ function e(?string $s): string {
       <p class="promesse">Votre musique, sur tous vos écrans. Vos fichiers, sur
         votre serveur — rien à confier à personne.</p>
       <div class="actions">
-        <a class="bouton principal" href="/app/">Ouvrir l'app web</a>
+        <a class="bouton principal" href="#installation">Installer mon serveur</a>
         <a class="bouton secondaire" href="<?= APK_LATEST ?>">
-          Télécharger pour Android
+          L'app Android
           <span class="bouton-version"><?= $version ? 'v' . e($version) : '' ?></span>
         </a>
       </div>
+      <p class="deja">Déjà un serveur ? Il vit à <strong>ton-nom.gullify.app</strong> —
+        ouvre cette adresse, c'est ton app.</p>
       <ul class="specs">
         <li>Navigateur</li>
         <li>Android</li>
@@ -299,42 +319,64 @@ function e(?string $s): string {
   </section>
 
   <section id="installation" class="section">
-    <h2 class="titre-section reveal">L'installer, en une minute</h2>
-    <p class="intro-section reveal">Rien à publier sur un magasin
-      d'applications : GulliFY s'installe depuis cette page, et se met à jour
-      tout seul ensuite.</p>
+    <h2 class="titre-section reveal">Un fichier, six écrans</h2>
+    <p class="intro-section reveal">L'installateur fait tout : il pose ce qu'il
+      faut, te donne une adresse à toi, ouvre ton routeur et démarre ton
+      serveur. Tu réponds à trois questions — ton adresse, ta musique, ton
+      compte.</p>
+
+    <div class="telechargements reveal">
+      <a class="bouton principal" href="<?= INSTALLATEUR ?>windows-amd64.exe" id="pour-windows">
+        Télécharger pour Windows
+        <?php if ($p = poidsInstallateur('windows-amd64.exe')): ?>
+          <span class="bouton-version"><?= $p ?> Mo</span>
+        <?php endif ?>
+      </a>
+      <a class="bouton secondaire" href="<?= INSTALLATEUR ?>linux-amd64" id="pour-linux">
+        Pour Linux
+        <?php if ($p = poidsInstallateur('linux-amd64')): ?>
+          <span class="bouton-version"><?= $p ?> Mo</span>
+        <?php endif ?>
+      </a>
+      <span class="bientot-mac">macOS : bientôt</span>
+    </div>
 
     <ol class="etapes">
       <li class="reveal">
         <span class="etape-num">1</span>
-        <h3>Android</h3>
-        <p>Téléchargez l'APK<?= $poids ? ' (' . $poids . ' Mo)' : '' ?> et
-          autorisez l'installation depuis cette source quand Android le
-          demande.</p>
-        <p><a href="<?= APK_LATEST ?>">Télécharger l'APK</a><?= $version ? ' — version ' . e($version) : '' ?></p>
+        <h3>Tu le lances</h3>
+        <p>Une page s'ouvre dans ton navigateur. C'est elle qui te guide,
+          du début à la fin.</p>
       </li>
       <li class="reveal">
         <span class="etape-num">2</span>
-        <h3>Windows</h3>
-        <p>Ouvrez <a href="/app/">l'app web</a> dans Chrome ou Edge, puis
-          l'icône d'installation dans la barre d'adresse — ou menu
-          <kbd>⋯</kbd> → <em>Installer GulliFY</em>.</p>
-        <p>Elle s'ouvre alors dans sa propre fenêtre, comme un logiciel.</p>
+        <h3>Tu choisis ton adresse</h3>
+        <p>Un nom court, facile à dicter. Il devient
+          <em>ton-nom</em>.gullify.app, et c'est tout ce qu'il y aura à
+          retenir — même quand ton fournisseur change ton adresse IP.</p>
       </li>
       <li class="reveal">
         <span class="etape-num">3</span>
-        <h3>iPhone et iPad</h3>
-        <p>Ouvrez <a href="/app/">l'app web</a> dans Safari, puis
-          <em>Partager</em> → <em>Sur l'écran d'accueil</em>.</p>
-        <p>Elle s'ouvre en plein écran, sans barre de navigateur.</p>
+        <h3>Tu montres ta musique</h3>
+        <p>Le dossier où elle est rangée. Elle n'en bouge pas : GulliFY se
+          contente de la lire, et d'y ranger ce que tu téléchargeras.</p>
       </li>
     </ol>
 
     <p class="apres">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m0 0-4-4m4 4 4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+      <span><strong>Windows dira « Éditeur inconnu ».</strong> C'est normal : le
+        programme n'est pas signé — une signature coûte quelques centaines de
+        dollars par an, que GulliFY ne fait payer à personne. Clique sur
+        <em>Informations complémentaires</em>, puis <em>Exécuter quand
+        même</em>.</span>
+    </p>
+
+    <p class="apres">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="5" width="19" height="12.5" rx="2"/><path d="M8.5 21h7"/></svg>
-      <span><strong>Sur un téléviseur :</strong> installez une app de
-        téléchargement, puis saisissez <kbd>gullify.app/tv</kbd> à la
-        télécommande — l'APK arrive directement.
+      <span><strong>Ensuite, le téléphone et la télévision :</strong> installe
+        l'app Android, saisis ton adresse, et c'est fait. Sur un téléviseur,
+        tape <kbd>gullify.app/tv</kbd> à la télécommande.
         <a href="/tv?page=1">Voir la marche à suivre</a></span>
     </p>
   </section>
@@ -412,7 +454,7 @@ docker compose up -d</code></pre>
     <span class="pied-marque">Gulli<span class="fy">FY</span></span>
     <span class="pied-note">Votre musique, sur votre serveur<?= $version ? ' — app v' . e($version) : '' ?>.</span>
     <span class="pied-liens">
-      <a href="/app/">Ouvrir l'app</a> ·
+      <a href="#installation">Installer son serveur</a> ·
       <a href="/tv?page=1">Google TV</a> ·
       <a href="https://vr.madeli.co">GulliVR</a> ·
       <a href="https://github.com/gullify/gullify">Le code (AGPL-3.0)</a>

@@ -32,6 +32,26 @@ fabrique windows amd64 ".exe"
 fabrique darwin  amd64 ""
 fabrique darwin  arm64 ""
 
+# Le manifeste : les tailles, lisibles par la page d'accueil.
+#
+# Elle tourne dans un conteneur, qui ne voit pas le dossier des
+# téléchargements de l'hôte. Ce fichier-ci voyage avec l'image, lui.
+MANIFESTE="$(dirname "$0")/../public/download/installateur.json"
+mkdir -p "$(dirname "$MANIFESTE")"
+{
+  echo '{'
+  premier=1
+  for f in "$SORTIE"/gullify-installateur-*; do
+    [ -f "$f" ] || continue
+    [ $premier -eq 0 ] && echo ','
+    premier=0
+    printf '  "%s": %s' "$(basename "$f" | sed 's/^gullify-installateur-//')" "$(stat -c%s "$f")"
+  done
+  echo
+  echo '}'
+} > "$MANIFESTE"
+echo "Manifeste écrit : $MANIFESTE"
+
 echo
 ls -lh "$SORTIE" | awk 'NR>1 {print "  "$9"  "$5}'
 echo

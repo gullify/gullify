@@ -940,3 +940,29 @@ strong { color: var(--texte-vif); font-weight: 600; }
   *, *::before, *::after { animation: none !important; transition: none !important; }
   .js .reveal { opacity: 1; transform: none; }
 }
+
+/* ── Télécharger l'installateur ──────────────────────────────────────────── */
+
+.telechargements {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .8rem;
+  margin: 2rem 0 2.5rem;
+}
+
+.bientot-mac {
+  color: var(--texte-attenue);
+  font-size: .92rem;
+  padding-left: .4rem;
+}
+
+/* Le rappel, sous les boutons du héros : où retrouver son serveur quand on en
+   a déjà un. C'est la question que se posera tout visiteur qui revient. */
+.deja {
+  margin-top: 1rem;
+  color: var(--texte-attenue);
+  font-size: .92rem;
+}
+
+.deja strong { color: var(--accent-clair); font-weight: 700; }
