@@ -26,8 +26,14 @@ import (
 // répondu aux trois questions qui comptent (son nom, sa musique, son compte) ;
 // tout le reste se déduit.
 
-// L'image publiée. Le dépôt sert à la construire ; les gens, eux, la tirent.
-const imageParDefaut = "ghcr.io/gullify/gullify:latest"
+// L'image publiée. Le dépôt de code sert à la construire ; les gens, eux, la
+// tirent — d'un dépôt d'images tenu sur gullify.app, en lecture libre.
+//
+// La lecture est ouverte parce qu'un installateur ne sait pas s'authentifier,
+// et n'a pas à le savoir. L'écriture, elle, demande un mot de passe : sans
+// quoi n'importe qui pourrait remplacer l'image que tous les serveurs
+// installent.
+const imageParDefaut = "registry.gullify.app/gullify:latest"
 
 // Le nom du projet Docker, imposé plutôt que déduit.
 //
