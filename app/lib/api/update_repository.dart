@@ -16,7 +16,22 @@ class ServerUpdate {
     required this.possible,
     required this.enCours,
     required this.journal,
+    this.joignable = true,
   });
+
+  /// Le serveur ne répond pas — pendant qu'il redémarre, par exemple.
+  ///
+  /// C'est une RÉPONSE, pas une erreur : un provider en panne est repris par
+  /// Riverpod avec un délai qui double à chaque essai, et la carte restait
+  /// alors figée sur la dernière réponse reçue, parfois pour toujours.
+  const ServerUpdate.injoignable()
+      : installee = null,
+        disponible = null,
+        aJour = null,
+        possible = false,
+        enCours = false,
+        journal = const [],
+        joignable = false;
 
   factory ServerUpdate.fromJson(Map<String, dynamic> json) => ServerUpdate(
     installee: json['installee'] as String?,
@@ -39,6 +54,9 @@ class ServerUpdate {
   final bool possible;
   final bool enCours;
   final List<String> journal;
+
+  /// Le serveur a répondu. Faux pendant qu'il redémarre.
+  final bool joignable;
 
   /// Une mise à jour n'est offerte que si l'on sait qu'elle existe ET que le
   /// serveur sait la faire.

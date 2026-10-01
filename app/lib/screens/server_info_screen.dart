@@ -28,7 +28,12 @@ class ServerInfoScreen extends ConsumerWidget {
           IconButton(
             icon: const Icon(Icons.refresh),
             tooltip: 'Actualiser',
-            onPressed: () => ref.invalidate(serverInfoProvider),
+            // Les deux : « actualiser » sans rafraîchir la carte de mise à
+            // jour laissait le seul moyen de la réveiller hors de portée.
+            onPressed: () {
+              ref.invalidate(serverInfoProvider);
+              ref.invalidate(serverUpdateProvider);
+            },
           ),
         ],
       ),
@@ -39,7 +44,10 @@ class ServerInfoScreen extends ConsumerWidget {
           onRetry: () => ref.invalidate(serverInfoProvider),
         ),
         data: (data) => RefreshIndicator(
-          onRefresh: () async => ref.invalidate(serverInfoProvider),
+          onRefresh: () async {
+            ref.invalidate(serverInfoProvider);
+            ref.invalidate(serverUpdateProvider);
+          },
           child: ListView(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
             children: [
@@ -468,20 +476,25 @@ class _UpdateCardState extends ConsumerState<_UpdateCard> {
   /// Redemander l'état jusqu'à ce que le serveur soit revenu.
   ///
   /// Il tombe au milieu de l'opération — c'est ce qu'on lui a demandé — donc
-  /// les erreurs de réseau de ces secondes-là sont attendues. La fin, c'est
-  /// son retour avec un journal qui dit « fini ».
+  /// son silence pendant ces secondes-là est attendu. La fin, c'est son
+  /// retour avec un journal qui dit « fini ».
   void _surveille() {
     _rappel?.cancel();
     _rappel = Timer.periodic(const Duration(seconds: 3), (minuteur) {
       if (!mounted) {
         minuteur.cancel();
+        _rappel = null;
         return;
       }
       final etat = ref.read(serverUpdateProvider).asData?.value;
-      if (_demandee && etat != null && !etat.enCours) {
+      // Un serveur qui répond et ne travaille plus : c'est fini. Un serveur
+      // muet ne conclut rien — il est en train de revenir.
+      if (_demandee && etat != null && etat.joignable && !etat.enCours) {
         minuteur.cancel();
+        _rappel = null;
         setState(() => _demandee = false);
         ref.invalidate(serverInfoProvider);
+        return;
       }
       ref.invalidate(serverUpdateProvider);
     });
@@ -492,17 +505,20 @@ class _UpdateCardState extends ConsumerState<_UpdateCard> {
     final scheme = Theme.of(context).colorScheme;
     final etat = ref.watch(serverUpdateProvider);
 
+    // Le minuteur est rétabli à chaque construction tant qu'on attend : s'il
+    // disparaissait — l'écran reconstruit, l'état recréé — la carte resterait
+    // figée sur la dernière réponse reçue, sans rien pour la réveiller.
+    if (_demandee && _rappel == null) _surveille();
+
     return _InfoCard(
       icon: Icons.system_update_alt,
       title: 'Mise à jour',
       children: [
         ...etat.when(
           loading: () => const [_LigneDiscrete('Je regarde…')],
-          // Pendant la mise à jour, le serveur ne répond plus : c'est normal,
-          // et le dire autrement affolerait pour rien.
-          error: (e, _) => _demandee
-              ? const [_LigneDiscrete('Le serveur redémarre…')]
-              : [_LigneDiscrete('État inconnu : $e')],
+          // Le provider ne tombe plus en panne quand le serveur se tait (voir
+          // serverUpdateProvider) ; ceci ne couvre donc qu'un imprévu.
+          error: (e, _) => [_LigneDiscrete('État inconnu : $e')],
           data: (maj) => _contenu(context, maj),
         ),
         if (_erreur != null) ...[
@@ -516,6 +532,19 @@ class _UpdateCardState extends ConsumerState<_UpdateCard> {
   List<Widget> _contenu(BuildContext context, ServerUpdate maj) {
     final scheme = Theme.of(context).colorScheme;
     final enCours = _demandee || maj.enCours;
+
+    // Muet : il redémarre, ou il n'est plus là. Pendant qu'on attend, c'est
+    // attendu ; en dehors, c'est à dire.
+    if (!maj.joignable) {
+      return [
+        const SizedBox(height: 4),
+        const LinearProgressIndicator(),
+        const SizedBox(height: 10),
+        _LigneDiscrete(enCours
+            ? 'Le serveur redémarre…'
+            : 'Le serveur ne répond pas.'),
+      ];
+    }
 
     final lignes = <Widget>[
       _LigneDiscrete(maj.installee == null
@@ -531,6 +560,16 @@ class _UpdateCardState extends ConsumerState<_UpdateCard> {
         for (final ligne in maj.journal.where((l) => l != 'fini').take(6))
           _LigneDiscrete(ligne),
         if (maj.journal.isEmpty) const _LigneDiscrete('En cours…'),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton(
+            onPressed: () {
+              ref.invalidate(serverUpdateProvider);
+              _surveille();
+            },
+            child: const Text('Vérifier maintenant'),
+          ),
+        ),
       ]);
       return lignes;
     }

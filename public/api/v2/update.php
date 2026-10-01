@@ -24,6 +24,8 @@ const MAJ_DEPOT = 'registry.gullify.app/gullify';
 const MAJ_SIGNE_DE_VIE = 120;
 /** Le dépôt d'images est interrogé au plus une fois par heure. */
 const MAJ_CACHE = 3600;
+/** Un journal muet aussi longtemps n'est plus un travail en cours. */
+const MAJ_ABANDON = 900;
 
 $session = v2_auth();
 $dossier = AppConfig::getDataPath() . '/maj';
@@ -120,11 +122,19 @@ function majServicePresent(string $dossier): bool {
     return is_file($vie) && (time() - (int)@filemtime($vie)) < MAJ_SIGNE_DE_VIE;
 }
 
-/** Une mise à jour est en cours tant que le journal n'a pas dit « fini ». */
+/**
+ * Une mise à jour est en cours tant que le journal n'a pas dit « fini ».
+ *
+ * À moins qu'il ne dise plus rien depuis longtemps : un compagnon tué en
+ * plein travail laisserait son journal inachevé, et la carte tournerait
+ * pour toujours sur une opération que personne ne mène plus.
+ */
 function majTravaille(string $dossier): bool {
+    $fichier = $dossier . '/journal';
     $lignes = majJournal($dossier);
     if (!$lignes) return false;
-    return !str_starts_with(end($lignes), 'fini');
+    if (str_starts_with(end($lignes), 'fini')) return false;
+    return (time() - (int)@filemtime($fichier)) < MAJ_ABANDON;
 }
 
 /** @return string[] */
