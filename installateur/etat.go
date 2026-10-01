@@ -24,8 +24,9 @@ type Etat struct {
 	Erreur  string   `json:"erreur"`  // vide si tout va bien
 	Journal []string `json:"journal"` // ce qui s'est passé, en français, pour l'écran
 
-	Docker DockerEtat `json:"docker"`
-	Reseau Diagnostic `json:"reseau"`
+	Docker    DockerEtat `json:"docker"`
+	Prerequis Prerequis  `json:"prerequis"`
+	Reseau    Diagnostic `json:"reseau"`
 
 	Nom         string `json:"nom"`
 	Courriel    string `json:"courriel"`
@@ -113,6 +114,7 @@ func (e *Etat) Router(mux *http.ServeMux, jeton string) {
 	mux.HandleFunc("/api/dossiers", garde(e.listerDossiers))
 	mux.HandleFunc("/api/docker", garde(e.verifierDocker))
 	mux.HandleFunc("/api/docker/installer", garde(e.installerDocker))
+	mux.HandleFunc("/api/prerequis/reparer", garde(e.reparerPrerequis))
 	mux.HandleFunc("/api/reseau", garde(e.verifierReseau))
 	mux.HandleFunc("/api/reseau/ouvrir", garde(e.ouvrirLesPorts))
 	mux.HandleFunc("/api/joignable", garde(e.verifierJoignable))
@@ -136,6 +138,7 @@ func (e *Etat) lireEtat(w http.ResponseWriter, _ *http.Request) {
 		Erreur         string     `json:"erreur"`
 		Journal        []string   `json:"journal"`
 		Docker         DockerEtat `json:"docker"`
+		Prerequis      Prerequis  `json:"prerequis"`
 		Reseau         Diagnostic `json:"reseau"`
 		Nom            string     `json:"nom"`
 		Courriel       string     `json:"courriel"`
@@ -146,8 +149,8 @@ func (e *Etat) lireEtat(w http.ResponseWriter, _ *http.Request) {
 		Progression    int        `json:"progression"`
 	}{
 		Etape: e.Etape, Erreur: e.Erreur, Journal: e.Journal, Docker: e.Docker,
-		Reseau: e.Reseau,
-		Nom:    e.Nom, Courriel: e.Courriel, Adresse: e.Adresse,
+		Prerequis: e.Prerequis, Reseau: e.Reseau,
+		Nom: e.Nom, Courriel: e.Courriel, Adresse: e.Adresse,
 		DossierMusique: e.DossierMusique, DossierServeur: e.DossierServeur,
 		Utilisateur: e.Utilisateur, Progression: e.Progression,
 	}

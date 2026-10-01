@@ -110,6 +110,13 @@ func commandeInstallation() (commande string, explique string) {
 // ── Les points d'entrée ──────────────────────────────────────────────────────
 
 func (e *Etat) verifierDocker(w http.ResponseWriter, _ *http.Request) {
+	// D'abord ce sans quoi Docker ne démarrera jamais : sur une machine dont la
+	// virtualisation est éteinte, tout le reste est perdu d'avance.
+	prerequis := regardePrerequis()
+	e.mu.Lock()
+	e.Prerequis = prerequis
+	e.mu.Unlock()
+
 	etat := regardeDocker()
 
 	e.mu.Lock()
@@ -122,6 +129,12 @@ func (e *Etat) verifierDocker(w http.ResponseWriter, _ *http.Request) {
 	etat.Progres = e.Docker.Progres
 	e.Docker = etat
 	e.mu.Unlock()
+
+	// Docker installé mais incapable de démarrer : c'est presque toujours la
+	// virtualisation, et son propre message ne le dit pas clairement.
+	if prerequis.Bloquant && !etat.Demarre {
+		etat.Explique = prerequis.Explique
+	}
 
 	switch {
 	case etat.Demarre && etat.Compose:
@@ -141,6 +154,30 @@ func (e *Etat) installerDocker(w http.ResponseWriter, _ *http.Request) {
 	// Windows a sa propre route : on télécharge et on installe nous-mêmes, pour
 	// pouvoir montrer un avancement qui dise la vérité (voir docker_windows.go).
 	if runtime.GOOS == "windows" {
+		// Six cents mégaoctets sur une machine qui ne pourra pas les faire
+		// tourner, c'est du temps volé. On vérifie d'abord.
+		prerequis := regardePrerequis()
+		e.mu.Lock()
+		e.Prerequis = prerequis
+		e.mu.Unlock()
+
+		if prerequis.Bloquant && !prerequis.Reparable {
+			e.echoue("%s", prerequis.Explique)
+			e.repond(w, map[string]any{"lance": false, "prerequis": prerequis})
+			return
+		}
+		if prerequis.Bloquant && prerequis.Reparable {
+			go func() {
+				if err := e.installeWSL(); err != nil {
+					e.echoue("L'installation du composant Linux a échoué (%v).", err)
+					return
+				}
+				e.installeDockerWindows()
+			}()
+			e.repond(w, map[string]bool{"lance": true})
+			return
+		}
+
 		go e.installeDockerWindows()
 		e.repond(w, map[string]bool{"lance": true})
 		return

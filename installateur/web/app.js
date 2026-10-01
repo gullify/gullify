@@ -23,6 +23,7 @@ const etapes = [...document.querySelectorAll('.etape')];
 
 let etapeAffichee = null;
 let dernierJournal = 0;
+let dernierEtat = null;
 
 function montre(nom) {
   if (etapeAffichee === nom) return;
@@ -44,6 +45,8 @@ async function rafraichir() {
   } catch {
     return; // l'installateur s'est peut-être fermé ; la page le dira d'elle-même
   }
+
+  dernierEtat = etat;
 
   // Le journal, en ajout seulement : on ne réécrit pas tout à chaque tour.
   if (etat.journal && etat.journal.length !== dernierJournal) {
@@ -116,6 +119,20 @@ async function regardeDocker() {
   if (d.demarre && d.compose) {
     carte.innerHTML = `<h2>Tout est prêt</h2><p>Docker ${d.version || ''} tourne sur cette machine.</p>`;
     $('#docker-suivant').hidden = false;
+    return;
+  }
+
+  // Un obstacle en amont de Docker : la virtualisation éteinte, ou le composant
+  // Linux absent. Inutile de proposer d'installer Docker tant que c'est le cas —
+  // il ne démarrerait pas.
+  const pre = dernierEtat && dernierEtat.prerequis;
+  if (pre && pre.bloquant) {
+    carte.innerHTML =
+      `<h2>${pre.reparable ? 'Il manque un composant à Windows' : 'La virtualisation est éteinte'}</h2>` +
+      `<p>${pre.explique}</p>` +
+      (pre.marche ? `<pre class="marche">${pre.marche}</pre>` : '');
+    $('#installer-docker').hidden = !pre.reparable;
+    if (pre.reparable) $('#installer-docker').textContent = 'Installer ce composant';
     return;
   }
 
