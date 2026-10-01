@@ -15,6 +15,7 @@ ini_set('memory_limit', '1024M');
 header('Content-Type: application/json');
 
 require_once __DIR__ . '/../../src/AppConfig.php';
+require_once __DIR__ . '../../src/ImageUrl.php';
 require_once __DIR__ . '/../../src/Database.php';
 require_once __DIR__ . '/../../src/GameSource.php';
 require_once __DIR__ . '/../../src/GenreTaxonomy.php';
@@ -33,7 +34,7 @@ function albumArtworkUrl(int $albumId): string {
     }
     $file = $artworkCache . '/album_' . $albumId . '.jpg';
     $v = @filemtime($file) ?: 0;
-    return 'serve_image.php?album_id=' . $albumId . ($v ? '&v=' . $v : '');
+    return ImageUrl::album($albumId);
 }
 
 /**
@@ -59,7 +60,7 @@ function artistImagePayload(int $artistId): array {
     $v = @filemtime(ArtistImage::cacheFile($artistId)) ?: 0;
     return [
         'artist_id' => $artistId,
-        'imageUrl'  => 'serve_image.php?artist_id=' . $artistId . ($v ? '&v=' . $v : ''),
+        'imageUrl'  => ImageUrl::artiste($artistId),
         'version'   => $v,
     ];
 }
@@ -93,7 +94,7 @@ function albumCoverPayload(int $albumId): array {
     $v = @filemtime(AlbumCover::cacheFile($albumId)) ?: 0;
     return [
         'album_id'   => $albumId,
-        'artworkUrl' => 'serve_image.php?album_id=' . $albumId . ($v ? '&v=' . $v : ''),
+        'artworkUrl' => ImageUrl::album($albumId),
         'version'    => $v,
     ];
 }
@@ -198,7 +199,7 @@ try {
             $artists[] = [
                 'id' => $row['id'],
                 'name' => $row['name'],
-                'imageUrl' => $hasImage ? 'serve_image.php?artist_id=' . $row['id'] : null,
+                'imageUrl' => $hasImage ? ImageUrl::artiste($row['id']) : null,
                 'hasImage' => $hasImage,
                 'albumCount' => (int)$row['album_count'],
                 'songCount' => (int)$row['song_count']
@@ -304,7 +305,7 @@ try {
             'artist' => [
                 'id' => $artist['id'],
                 'name' => $artist['name'],
-                'imageUrl' => 'serve_image.php?artist_id=' . $artist['id'],
+                'imageUrl' => ImageUrl::artiste($artist['id']),
                 'genre' => $artist['genre'] ?? null
             ],
             'albums' => $albums,
@@ -450,7 +451,7 @@ try {
             $artists[] = [
                 'id' => $row['id'],
                 'name' => $row['name'],
-                'imageUrl' => 'serve_image.php?artist_id=' . $row['id'],
+                'imageUrl' => ImageUrl::artiste($row['id']),
                 'album_count' => (int)$row['album_count'],
                 'song_count' => (int)$row['song_count']
             ];
@@ -542,7 +543,7 @@ try {
             $topArtists[] = [
                 'id' => (int)$row['id'],
                 'name' => $row['name'],
-                'imageUrl' => $row['has_image'] ? 'serve_image.php?artist_id=' . $row['id'] : 'assets/radio-placeholder.svg',
+                'imageUrl' => $row['has_image'] ? ImageUrl::artiste($row['id']) : 'assets/radio-placeholder.svg',
                 'play_count' => (int)$row['play_count'],
             ];
         }
@@ -1145,7 +1146,7 @@ try {
                 $artists[] = [
                     'id' => (int)$row['id'],
                     'name' => $row['name'],
-                    'imageUrl' => 'serve_image.php?artist_id=' . $row['id'],
+                    'imageUrl' => ImageUrl::artiste($row['id']),
                 ];
             }
 
@@ -1458,7 +1459,7 @@ try {
                 $artists[] = [
                     'id' => $row['id'],
                     'name' => $row['name'],
-                    'imageUrl' => $row['has_image'] ? 'serve_image.php?artist_id=' . $row['id'] : null,
+                    'imageUrl' => $row['has_image'] ? ImageUrl::artiste($row['id']) : null,
                     'albumCount' => (int)$row['album_count'],
                     'songCount' => (int)$row['song_count']
                 ];
@@ -1495,7 +1496,7 @@ try {
             $artists[] = [
                 'id' => (int)$row['id'],
                 'name' => $row['name'],
-                'imageUrl' => $row['has_image'] ? 'serve_image.php?artist_id=' . $row['id'] : null,
+                'imageUrl' => $row['has_image'] ? ImageUrl::artiste($row['id']) : null,
                 'albumCount' => (int)$row['album_count'],
                 'songCount' => (int)$row['song_count']
             ];
@@ -1842,7 +1843,7 @@ try {
                 $artists[] = [
                     'id'          => (int)$row['artist_id'],
                     'name'        => $row['artist_name'],
-                    'imageUrl'    => 'serve_image.php?artist_id=' . $row['artist_id'],
+                    'imageUrl'    => ImageUrl::artiste($row['artist_id']),
                     'album_count' => 0,
                 ];
             }

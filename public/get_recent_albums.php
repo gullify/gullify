@@ -5,6 +5,7 @@
 header('Content-Type: application/json');
 
 require_once __DIR__ . '/../src/AppConfig.php';
+require_once __DIR__ . '../src/ImageUrl.php';
 require_once __DIR__ . '/../src/Database.php';
 
 try {
@@ -76,7 +77,7 @@ try {
             'name' => $row['name'],
             'year' => $row['year'],
             'created_at' => $row['created_at'],
-            'artworkUrl' => 'serve_image.php?album_id=' . $row['id'],
+            'artworkUrl' => ImageUrl::album($row['id']),
             'artist_id' => (int)$row['artist_id'],
             'artist_name' => $row['artist_name'],
             'song_count' => (int)$row['song_count']

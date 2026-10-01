@@ -6,6 +6,7 @@
 header('Content-Type: application/json');
 
 require_once __DIR__ . '/../src/AppConfig.php';
+require_once __DIR__ . '../src/ImageUrl.php';
 require_once __DIR__ . '/../src/Database.php';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -106,7 +107,7 @@ try {
             'artist_id'   => (int)$r['artist_id'],
             'artist_name' => $r['artist_name'],
             'play_count'  => (int)$r['play_count'],
-            'artworkUrl'  => 'serve_image.php?album_id=' . $r['album_id'],
+            'artworkUrl'  => ImageUrl::album($r['album_id']),
         ];
     }
 
@@ -129,7 +130,7 @@ try {
             'id'         => (int)$r['id'],
             'name'       => $r['name'],
             'play_count' => (int)$r['play_count'],
-            'imageUrl'   => 'serve_image.php?artist_id=' . $r['id'],
+            'imageUrl'   => ImageUrl::artiste($r['id']),
         ];
     }
 
@@ -155,7 +156,7 @@ try {
             'artist_id'   => (int)$r['artist_id'],
             'artist_name' => $r['artist_name'],
             'play_count'  => (int)$r['play_count'],
-            'artworkUrl'  => 'serve_image.php?album_id=' . $r['id'],
+            'artworkUrl'  => ImageUrl::album($r['id']),
         ];
     }
 
@@ -345,7 +346,7 @@ try {
             'album_id'     => (int)$r['album_id'],
             'album_name'   => $r['album_name'],
             'artist_name'  => $r['artist_name'],
-            'artworkUrl'   => 'serve_image.php?album_id=' . $r['album_id'],
+            'artworkUrl'   => ImageUrl::album($r['album_id']),
             'played_at'    => $r['played_at'],
             'played_at_iso'=> $r['played_at'],
             'duration'     => (int)$r['play_duration'],

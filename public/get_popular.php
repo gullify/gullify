@@ -5,6 +5,7 @@
 header('Content-Type: application/json');
 
 require_once __DIR__ . '/../src/AppConfig.php';
+require_once __DIR__ . '../src/ImageUrl.php';
 require_once __DIR__ . '/../src/Database.php';
 require_once __DIR__ . '/../src/TrackArtist.php';
 
@@ -54,7 +55,7 @@ try {
             'filePath' => $row['file_path'],
             'albumId' => (int)$row['album_id'],
             'albumName' => $row['album_name'],
-            'artworkUrl' => 'serve_image.php?album_id=' . $row['album_id'],
+            'artworkUrl' => ImageUrl::album($row['album_id']),
             'artistId' => $row['artist_id'] !== null ? (int)$row['artist_id'] : null,
             'artistName' => $row['artist_name'],
             'playCount' => (int)$row['play_count']

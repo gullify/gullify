@@ -17,6 +17,7 @@
  * artist id it navigates and plays through the existing endpoints.
  */
 require_once __DIR__ . '/_v2.php';
+require_once __DIR__ . '../../../src/ImageUrl.php';
 require_once __DIR__ . '/../../../src/Database.php';
 require_once __DIR__ . '/../../../src/Avatar.php';
 
@@ -91,7 +92,7 @@ try {
             $artists[] = [
                 'id'         => (int) $row['id'],
                 'name'       => $row['name'],
-                'imageUrl'   => $hasImage ? 'serve_image.php?artist_id=' . $row['id'] : null,
+                'imageUrl'   => $hasImage ? ImageUrl::artiste($row['id']) : null,
                 'hasImage'   => $hasImage,
                 'albumCount' => (int) $row['album_count'],
                 'songCount'  => (int) $row['song_count'],

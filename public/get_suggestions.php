@@ -6,6 +6,7 @@
 header('Content-Type: application/json');
 
 require_once __DIR__ . '/../src/AppConfig.php';
+require_once __DIR__ . '../src/ImageUrl.php';
 
 $user     = $_GET['user']      ?? null;
 $artistId = isset($_GET['artist_id']) ? (int)$_GET['artist_id'] : null;
@@ -75,7 +76,7 @@ try {
             $artists[] = [
                 'id'         => (int)$row['id'],
                 'name'       => $row['name'],
-                'imageUrl'   => 'serve_image.php?artist_id=' . $row['id'],
+                'imageUrl'   => ImageUrl::artiste($row['id']),
                 'albumCount' => (int)$row['album_count'],
             ];
         }
@@ -112,7 +113,7 @@ try {
                 'year'        => $row['year'],
                 'artist_name' => $row['artist_name'],
                 'artist_id'   => (int)$row['artist_id'],
-                'artworkUrl'  => 'serve_image.php?album_id=' . $row['id'],
+                'artworkUrl'  => ImageUrl::album($row['id']),
             ];
         }
     }
@@ -155,7 +156,7 @@ try {
                 'album_name'  => $row['album_name'],
                 'artist_id'   => (int)$row['artist_id'],
                 'artist_name' => $row['artist_name'],
-                'artworkUrl'  => 'serve_image.php?album_id=' . $row['album_id'],
+                'artworkUrl'  => ImageUrl::album($row['album_id']),
             ];
         }
     }

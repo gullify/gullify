@@ -274,9 +274,29 @@ class LibraryRepository {
   /// ne l'a nulle part — un artiste qui vient d'arriver dans la bibliothèque
   /// n'a rien, et restait sur le logo Gullify. Réservé à la page d'un artiste :
   /// une liste en déclencherait des centaines.
-  String artistImageUrl(int id) => _client.resourceUrl(
-    'serve_image.php?artist_id=$id&fetch=1&fallback=404${_imageV(id)}',
-  );
+  ///
+  /// [dateServeur] : la date que le serveur a posée sur SON adresse. Cette
+  /// adresse-ci est fabriquée ici — à cause de `fetch=1` — et n'héritait donc
+  /// de rien : quand une photo changeait sur le serveur, l'en-tête gardait
+  /// l'ancienne, tirée du cache du téléphone, parfois pour des jours.
+  String artistImageUrl(int id, [String dateServeur = '']) =>
+      _client.resourceUrl(cheminImageArtiste(
+        id,
+        _imageV(id).isNotEmpty ? _imageV(id) : dateServeur,
+      ));
+
+  /// Le chemin seul, sans l'adresse du serveur devant : la part qui se vérifie.
+  static String cheminImageArtiste(int id, String date) =>
+      'serve_image.php?artist_id=$id&fetch=1&fallback=404$date';
+
+  /// Le `&v=…` que porte une adresse, ou rien. Ce qui vient du serveur est
+  /// recopié tel quel plutôt que réinterprété : c'est lui qui sait quand
+  /// l'image a changé.
+  static String dateDeAdresse(String? url) {
+    if (url == null) return '';
+    final m = RegExp(r'[&?](v=\d+)').firstMatch(url);
+    return m == null ? '' : '&${m.group(1)}';
+  }
 
   /// Les albums dont la jaquette a changé depuis le lancement (idée #93), et
   /// quand. Même raison que pour les artistes : le serveur date bien ses URL,
@@ -553,7 +573,7 @@ class LibraryRepository {
     final albums = _list(data['albums'], _album);
     return ArtistDetail(
       artist: artist.copyWith(
-        imageUrl: artistImageUrl(id),
+        imageUrl: artistImageUrl(id, dateDeAdresse(artist.imageUrl)),
         albumCount: albums.length,
         songCount: (data['totalSongs'] as num?)?.toInt() ?? artist.songCount,
       ),

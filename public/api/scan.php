@@ -5,6 +5,7 @@
  */
 
 require_once __DIR__ . '/../../src/AppConfig.php';
+require_once __DIR__ . '../../src/ImageUrl.php';
 require_once __DIR__ . '/../../src/Database.php';
 
 header('Content-Type: application/json');
@@ -36,7 +37,7 @@ function normalizeSongData($row) {
         'filePath' => $row['file_path'],
         'albumId' => (int)($row['album_id'] ?? 0),
         'album' => $row['album_name'] ?? null,
-        'artworkUrl' => $row['artworkUrl'] ?? ('serve_image.php?album_id=' . ($row['album_id'] ?? 0)),
+        'artworkUrl' => $row['artworkUrl'] ?? (ImageUrl::album(($row['album_id'] ?? 0))),
         'artistId' => (int)($row['artist_id'] ?? 0),
         'artist' => $row['artist_name'] ?? null,
     ];

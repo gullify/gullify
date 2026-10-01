@@ -8,6 +8,7 @@
 header('Content-Type: application/json');
 
 require_once __DIR__ . '/../../src/AppConfig.php';
+require_once __DIR__ . '../../src/ImageUrl.php';
 require_once __DIR__ . '/../../src/Database.php';
 require_once __DIR__ . '/../../src/PathHelper.php';
 
@@ -119,7 +120,7 @@ try {
                 'filePath' => $row['file_path'],
                 'albumId' => $row['album_id'],
                 'album' => $row['album'],
-                'artworkUrl' => 'serve_image.php?album_id=' . $row['album_id'],
+                'artworkUrl' => ImageUrl::album($row['album_id']),
                 'artistId' => $row['artist_id'],
                 'artist' => $row['artist']
             ];

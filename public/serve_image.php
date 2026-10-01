@@ -185,7 +185,9 @@ function serveResizedCache($path) {
     if ($bin === false) return; // fichier disparu : on retombe sur la génération normale
     $etag = '"' . substr(md5($bin), 0, 16) . '"';
     header('Content-Type: image/jpeg');
-    header('Cache-Control: no-cache');
+    header('Cache-Control: ' . (isset($_GET['v'])
+        ? 'public, max-age=31536000, immutable'
+        : 'max-age=0, must-revalidate'));
     header('ETag: ' . $etag);
     if (trim($_SERVER['HTTP_IF_NONE_MATCH'] ?? '') === $etag) { http_response_code(304); exit; }
     header('Content-Length: ' . strlen($bin));
@@ -223,12 +225,21 @@ function emit($bin, $mime = 'image/jpeg') {
             }
         }
     }
-    // Use the content hash as ETag so updates invalidate the browser cache.
-    // no-cache here is "must revalidate" — when the data hasn't changed the
-    // browser gets a fast 304 (no body); when it has, it gets the new bytes.
+    // L'étiquette est le condensé du contenu : elle change exactement quand
+    // l'image change, et le client revalide pour un 304 de quelques octets.
+    //
+    // Et la durée de garde dépend de ce qu'on nous a demandé. Une adresse
+    // DATÉE (`v=` posé par ImageUrl, la date du fichier) ne désignera jamais
+    // une autre image : elle se garde un an, sans une requête de plus. Une
+    // adresse sans date, elle, doit être revalidée à chaque fois — c'est ce
+    // qui manquait : le cache d'images de l'app Android gardait ses fichiers
+    // des jours durant, et 646 photos d'artiste ont changé sur le serveur
+    // sans qu'une seule requête parte du téléphone.
     $etag = '"' . substr(md5($bin), 0, 16) . '"';
     header('Content-Type: ' . $mime);
-    header('Cache-Control: no-cache');
+    header('Cache-Control: ' . (isset($_GET['v'])
+        ? 'public, max-age=31536000, immutable'
+        : 'max-age=0, must-revalidate'));
     header('ETag: ' . $etag);
     header('Last-Modified: ' . gmdate('D, d M Y H:i:s', time()) . ' GMT');
     if (trim($_SERVER['HTTP_IF_NONE_MATCH'] ?? '') === $etag) {
