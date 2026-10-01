@@ -84,13 +84,23 @@ func (e *Etat) installe() {
 			return e.docker(dossier, 5*time.Minute, "compose", "-p", projetCompose, "up", "-d")
 		}},
 		{"Attente du serveur", func() error { return e.attendLeServeur(3 * time.Minute) }},
+		{"Vérification de la base", func() error { return e.verifieOuRepareLaBase(dossier) }},
 		{"Préparation de la base", func() error { return e.setup("create_tables", nil) }},
 		{"Création de ton compte", func() error {
-			return e.setup("create_admin", map[string]string{
+			err := e.setup("create_admin", map[string]string{
 				"username":        utilisateur,
 				"password":        motDePasse,
 				"music_directory": "/music",
 			})
+			// Réinstallation sur une base existante : le compte est déjà là.
+			// Ce n'est pas un échec, et on ne touche surtout pas à son mot de
+			// passe — celui qui l'a choisi la première fois s'en sert peut-être
+			// encore, et le remplacer en silence serait pire que tout.
+			if err != nil && strings.Contains(err.Error(), "existe deja") {
+				e.dit("  Ton compte existait déjà : je l'ai gardé tel quel, avec son mot de passe d'origine.")
+				return nil
+			}
+			return err
 		}},
 		{"Enregistrement de ta musique", func() error {
 			return e.setup("save_storage", map[string]string{
@@ -112,6 +122,11 @@ func (e *Etat) installe() {
 		e.mu.Lock()
 		e.Progression = (i + 1) * 100 / len(etapes)
 		e.mu.Unlock()
+	}
+
+	if err := e.ecritLaFiche(dossier, adresse, musique, utilisateur); err != nil {
+		// Un pense-bête manquant ne gâche pas une installation réussie.
+		e.dit("  (je n'ai pas pu écrire la fiche : %v)", err)
 	}
 
 	e.dit("C'est prêt.")
@@ -137,6 +152,111 @@ func (e *Etat) tireLesImages(dossier string) error {
 
 	e.dit("  Téléchargement impossible, mais %s est déjà sur cette machine : je continue.", image)
 	return nil
+}
+
+// verifieOuRepareLaBase remet d'aplomb une base qui ne reconnaît plus ses
+// identifiants, sans rien demander à personne.
+//
+// Le cas arrive pour de bon : MySQL ne lit son mot de passe qu'à sa toute
+// première mise en route, puis le garde gravé dans son volume. Si le .env
+// disparaît — dossier effacé, machine réinstallée, sauvegarde partielle — le
+// volume survit avec un mot de passe que plus personne ne connaît, et la pile
+// ne peut plus ouvrir sa propre base. Sans ce rattrapage, il ne resterait qu'à
+// jeter la base, c'est-à-dire les comptes, les listes et les statistiques.
+//
+// La réparation : une instance temporaire sans contrôle d'accès, le temps de
+// réinscrire les mots de passe du .env, et on repart. Rien n'est supprimé.
+func (e *Etat) verifieOuRepareLaBase(dossier string) error {
+	if e.baseRepond(dossier) {
+		return nil
+	}
+
+	e.dit("  La base ne reconnaît pas ses identifiants (installation précédente ?). Je la remets d'aplomb.")
+
+	env := litEnv(filepath.Join(dossier, ".env"))
+	motDePasse, racine := env["MYSQL_PASSWORD"], env["MYSQL_ROOT_PASSWORD"]
+	if motDePasse == "" || racine == "" {
+		return fmt.Errorf("le fichier .env ne contient pas les mots de passe de la base")
+	}
+
+	volume := projetCompose + "_gullify_db"
+	if err := e.docker(dossier, 2*time.Minute, "compose", "-p", projetCompose, "stop", "db"); err != nil {
+		return err
+	}
+	// Quoi qu'il arrive ensuite, la base doit repartir : une réparation qui
+	// échoue ne doit pas laisser la pile éteinte.
+	defer func() {
+		_ = e.docker(dossier, 2*time.Minute, "compose", "-p", projetCompose, "start", "db")
+		e.attendLaBase(dossier, 2*time.Minute)
+	}()
+
+	const temporaire = "gullify-reparation-base"
+	_ = exec.Command("docker", "rm", "-f", temporaire).Run()
+
+	demarrer := exec.Command("docker", "run", "-d", "--name", temporaire,
+		"-v", volume+":/var/lib/mysql", "mysql:8.0", "--skip-grant-tables")
+	if sortie, err := demarrer.CombinedOutput(); err != nil {
+		return fmt.Errorf("impossible d'ouvrir la base pour la réparer : %s", strings.TrimSpace(string(sortie)))
+	}
+	defer exec.Command("docker", "rm", "-f", temporaire).Run()
+
+	// MySQL met une poignée de secondes à être prêt, même sans contrôle d'accès.
+	pret := false
+	for i := 0; i < 40; i++ {
+		if exec.Command("docker", "exec", temporaire, "mysqladmin", "ping", "-h", "localhost").Run() == nil {
+			pret = true
+			break
+		}
+		time.Sleep(3 * time.Second)
+	}
+	if !pret {
+		return fmt.Errorf("la base temporaire n'a pas démarré")
+	}
+
+	// FLUSH PRIVILEGES d'abord : sans contrôle d'accès, ALTER USER est refusé
+	// tant que les tables de droits ne sont pas rechargées.
+	ordres := fmt.Sprintf(
+		"FLUSH PRIVILEGES; ALTER USER 'root'@'localhost' IDENTIFIED BY %s; "+
+			"ALTER USER 'gullify'@'%%' IDENTIFIED BY %s; FLUSH PRIVILEGES;",
+		citerSQL(racine), citerSQL(motDePasse))
+
+	if sortie, err := exec.Command("docker", "exec", temporaire, "mysql", "-e", ordres).CombinedOutput(); err != nil {
+		return fmt.Errorf("la remise à jour des mots de passe a échoué : %s", strings.TrimSpace(string(sortie)))
+	}
+
+	e.dit("  Mots de passe remis. Je redémarre la base.")
+	return nil
+}
+
+// attendLaBase laisse à MySQL le temps d'accepter des connexions.
+//
+// Un conteneur « démarré » ne veut pas dire une base prête : il y a quelques
+// secondes entre les deux, et l'étape suivante échouait sur un « Connection
+// refused » qui n'avait rien à voir avec la réparation qu'elle venait de faire.
+func (e *Etat) attendLaBase(dossier string, patience time.Duration) {
+	limite := time.Now().Add(patience)
+	for time.Now().Before(limite) {
+		if e.baseRepond(dossier) {
+			return
+		}
+		time.Sleep(3 * time.Second)
+	}
+}
+
+// baseRepond demande à l'app si elle voit sa base.
+func (e *Etat) baseRepond(dossier string) bool {
+	cmd := exec.Command("docker", "compose", "-p", projetCompose, "exec", "-T", "app",
+		"php", "-r", `require "/app/src/AppConfig.php"; AppConfig::getDB(); echo "ok";`)
+	cmd.Dir = dossier
+	sortie, err := cmd.Output()
+	return err == nil && strings.Contains(string(sortie), "ok")
+}
+
+// citerSQL entoure une valeur de guillemets simples en doublant ceux qu'elle
+// contient. Les mots de passe sont fabriqués par nous et n'en contiennent pas,
+// mais un .env se modifie à la main.
+func citerSQL(valeur string) string {
+	return "'" + strings.ReplaceAll(valeur, "'", "''") + "'"
 }
 
 // ── Les ports ────────────────────────────────────────────────────────────────
@@ -356,6 +476,42 @@ func groupeSysteme() int {
 		return 1000
 	}
 	return os.Getgid()
+}
+
+// ecritLaFiche laisse, à côté de l'installation, un papier lisible par un
+// humain.
+//
+// Six mois plus tard, personne ne se souviendra de ce dossier ni de ce qu'il
+// contient. La fiche dit l'essentiel en dix lignes et, surtout, qu'il ne faut
+// pas jeter le `.env` : c'est lui qui garde les clés de la base. Sans lui, une
+// réinstallation sait encore se rattraper, mais autant ne pas en arriver là.
+func (e *Etat) ecritLaFiche(dossier, adresse, musique, utilisateur string) error {
+	fiche := fmt.Sprintf(`MON SERVEUR GULLIFY
+===================
+
+Mon adresse      %s
+Ma musique       %s
+Mon compte       %s
+
+Les fichiers de mon serveur sont ici : %s
+
+À SAVOIR
+--------
+* Pour écouter : ouvre https://%s dans un navigateur, ou saisis cette adresse
+  dans l'app Android (à télécharger sur https://download.gullify.app).
+* Ce dossier contient un fichier « .env » avec les clés de la base de données.
+  Ne le jette pas. Si tu changes d'ordinateur, emporte-le.
+* Pour arrêter le serveur : ouvre un terminal dans ce dossier et tape
+    docker compose -p %s stop
+  Pour le relancer, « start » à la place de « stop ».
+* Ta musique n'est pas dans ce dossier : elle reste où elle est, GulliFY se
+  contente de la lire.
+
+Installé le %s
+`, adresse, musique, utilisateur, dossier, adresse, projetCompose,
+		time.Now().Format("2 January 2006 à 15:04"))
+
+	return os.WriteFile(filepath.Join(dossier, "MON-SERVEUR.txt"), []byte(fiche), 0o644)
 }
 
 // ── Docker ───────────────────────────────────────────────────────────────────
