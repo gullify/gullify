@@ -8,6 +8,14 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.73.3', [
+    'La carte de mise à jour disait « le dépôt des versions n\'a pas '
+        'répondu » alors qu\'il avait très bien répondu : c\'est le serveur '
+        'qui ne disait pas son numéro, quand son image a été construite sur '
+        'sa propre machine. Deux ignorances bien différentes, affichées '
+        'pareil. Et le service qui construit grave maintenant le numéro dans '
+        'l\'image, pour qu\'il n\'y ait plus d\'ignorance du tout',
+  ]),
   ReleaseNote('3.73.2', [
     'Paramètres annonçait « Version 3.71.0 » quoi qu\'il arrive : le numéro '
         'était écrit à la main dans le code et n\'avait pas suivi. On croyait '

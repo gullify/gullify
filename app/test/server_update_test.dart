@@ -64,6 +64,34 @@ void main() {
     expect(etat.offerte, isFalse); // à jour : rien à proposer
   });
 
+  test('deux ignorances différentes se distinguent', () {
+    // Le dépôt muet et le serveur sans numéro donnaient tous deux aJour ==
+    // null, et l'écran disait « le dépôt n'a pas répondu » dans les deux
+    // cas — faux une fois sur deux. C'est `disponible` qui tranche.
+    final depotMuet = ServerUpdate.fromJson(const {
+      'installee': '3.73.2',
+      'disponible': null,
+      'aJour': null,
+      'possible': true,
+      'enCours': false,
+      'journal': <String>[],
+    });
+    final serveurSansNumero = ServerUpdate.fromJson(const {
+      'installee': null,
+      'disponible': '3.73.2',
+      'aJour': null,
+      'possible': true,
+      'enCours': false,
+      'journal': <String>[],
+    });
+
+    expect(depotMuet.aJour, isNull);
+    expect(depotMuet.disponible, isNull);
+    expect(serveurSansNumero.aJour, isNull);
+    expect(serveurSansNumero.disponible, '3.73.2');
+    expect(serveurSansNumero.installee, isNull);
+  });
+
   test('ne pas savoir n\'est pas être à jour', () {
     final etat = ServerUpdate.fromJson(const {
       'installee': '3.73.0',

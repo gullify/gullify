@@ -611,10 +611,17 @@ class _UpdateCardState extends ConsumerState<_UpdateCard> {
       ));
     } else if (maj.aJour == false) {
       lignes.add(_LigneDiscrete('Version disponible : ${maj.disponible}'));
-    } else {
+    } else if (maj.disponible == null) {
       lignes.add(const _LigneDiscrete(
         "Le dépôt des versions n'a pas répondu : je ne sais pas s'il en existe "
         'une plus récente.',
+      ));
+    } else {
+      // Deux ignorances bien différentes, qu'on affichait pareil : ici le
+      // dépôt a répondu, c'est le serveur qui ne dit pas son numéro.
+      lignes.add(_LigneDiscrete(
+        'Dernière version publiée : ${maj.disponible}. Ce serveur ne dit pas '
+        'la sienne, il n\'y a donc rien à comparer.',
       ));
     }
 
