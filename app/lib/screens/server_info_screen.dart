@@ -449,13 +449,13 @@ class _UpdateCardState extends ConsumerState<_UpdateCard> {
     super.dispose();
   }
 
-  Future<void> _lancer() async {
+  Future<void> _lancer(String action) async {
     setState(() {
       _demandee = true;
       _erreur = null;
     });
     try {
-      await ref.read(updateRepositoryProvider).lancer();
+      await ref.read(updateRepositoryProvider).lancer(action: action);
       _surveille();
     } catch (e) {
       setState(() {
@@ -465,7 +465,11 @@ class _UpdateCardState extends ConsumerState<_UpdateCard> {
     }
   }
 
-  /// Redemander l'état jusqu'à ce que le serveur revienne mis à jour.
+  /// Redemander l'état jusqu'à ce que le serveur soit revenu.
+  ///
+  /// Il tombe au milieu de l'opération — c'est ce qu'on lui a demandé — donc
+  /// les erreurs de réseau de ces secondes-là sont attendues. La fin, c'est
+  /// son retour avec un journal qui dit « fini ».
   void _surveille() {
     _rappel?.cancel();
     _rappel = Timer.periodic(const Duration(seconds: 3), (minuteur) {
@@ -474,7 +478,7 @@ class _UpdateCardState extends ConsumerState<_UpdateCard> {
         return;
       }
       final etat = ref.read(serverUpdateProvider).asData?.value;
-      if (_demandee && etat != null && !etat.enCours && etat.aJour == true) {
+      if (_demandee && etat != null && !etat.enCours) {
         minuteur.cancel();
         setState(() => _demandee = false);
         ref.invalidate(serverInfoProvider);
@@ -526,7 +530,7 @@ class _UpdateCardState extends ConsumerState<_UpdateCard> {
         const SizedBox(height: 10),
         for (final ligne in maj.journal.where((l) => l != 'fini').take(6))
           _LigneDiscrete(ligne),
-        if (maj.journal.isEmpty) const _LigneDiscrete('Mise à jour en cours…'),
+        if (maj.journal.isEmpty) const _LigneDiscrete('En cours…'),
       ]);
       return lignes;
     }
@@ -550,49 +554,100 @@ class _UpdateCardState extends ConsumerState<_UpdateCard> {
       return lignes;
     }
 
-    if (maj.aJour == null) {
-      lignes.addAll([
-        const SizedBox(height: 6),
-        const _LigneDiscrete(
-          "Impossible de joindre le dépôt des versions : je ne sais pas si "
-          "une mise à jour existe.",
-        ),
-      ]);
-      return lignes;
-    }
-
+    // Le compagnon est là : les deux gestes sont offerts.
+    //
+    // Mettre à jour reste proposé même quand on se croit à jour : un serveur
+    // qui porte le code n'a pas de version publiée à laquelle se comparer, et
+    // « à jour » s'y dirait sans rien en savoir.
     if (maj.aJour == true) {
-      lignes.addAll([
-        const SizedBox(height: 6),
-        Row(
+      lignes.add(Padding(
+        padding: const EdgeInsets.only(top: 4, bottom: 2),
+        child: Row(
           children: [
             Icon(Icons.check_circle, size: 18, color: scheme.primary),
             const SizedBox(width: 8),
             const Text('À jour', style: TextStyle(fontSize: 13.5)),
           ],
         ),
-      ]);
-      return lignes;
+      ));
+    } else if (maj.aJour == false) {
+      lignes.add(_LigneDiscrete('Version disponible : ${maj.disponible}'));
+    } else {
+      lignes.add(const _LigneDiscrete(
+        "Le dépôt des versions n'a pas répondu : je ne sais pas s'il en existe "
+        'une plus récente.',
+      ));
     }
 
     lignes.addAll([
-      _LigneDiscrete('Version disponible : ${maj.disponible}'),
       const SizedBox(height: 12),
-      SizedBox(
-        width: double.infinity,
-        child: FilledButton.icon(
-          onPressed: _lancer,
-          icon: const Icon(Icons.download),
-          label: Text('Mettre à jour vers ${maj.disponible}'),
-        ),
-      ),
-      const SizedBox(height: 6),
-      const _LigneDiscrete(
-        'Le serveur sera indisponible une minute ou deux, et la musique en '
-        'cours de lecture s\'arrêtera.',
+      Row(
+        children: [
+          Expanded(
+            child: OutlinedButton.icon(
+              onPressed: () => _confirmer(
+                context,
+                'Redémarrer le serveur ?',
+                'Il sera injoignable une minute environ, et la lecture en '
+                    'cours s\'arrêtera.',
+                'Redémarrer',
+                'redemarrer',
+              ),
+              icon: const Icon(Icons.restart_alt),
+              label: const Text('Redémarrer'),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: FilledButton.icon(
+              onPressed: () => _confirmer(
+                context,
+                'Mettre à jour le serveur ?',
+                maj.aJour == false
+                    ? 'La version ${maj.disponible} sera installée. Quelques '
+                        'minutes, pendant lesquelles le serveur est injoignable.'
+                    : 'La dernière version sera installée. Quelques minutes, '
+                        'pendant lesquelles le serveur est injoignable.',
+                'Mettre à jour',
+                'maj',
+              ),
+              icon: const Icon(Icons.download),
+              label: const Text('Mettre à jour'),
+            ),
+          ),
+        ],
       ),
     ]);
     return lignes;
+  }
+
+  /// Rien ne part sans un second geste : les deux boutons coupent la musique
+  /// de tout le monde, et celui du bas peut changer la version du serveur.
+  Future<void> _confirmer(
+    BuildContext context,
+    String titre,
+    String corps,
+    String bouton,
+    String action,
+  ) async {
+    final oui = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(titre),
+        content: Text(corps),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Annuler'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(bouton),
+          ),
+        ],
+      ),
+    );
+    if (oui == true) await _lancer(action);
   }
 }
 

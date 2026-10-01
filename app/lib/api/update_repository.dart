@@ -53,5 +53,9 @@ class UpdateRepository {
   Future<ServerUpdate> etat() async =>
       ServerUpdate.fromJson(await _client.get('update.php') as Map<String, dynamic>);
 
-  Future<void> lancer() async => _client.post('update.php', body: const {});
+  /// Demande un geste au compagnon qui tourne sur la machine du serveur :
+  /// `maj` pour aller chercher la version suivante, `redemarrer` pour
+  /// simplement relever le serveur.
+  Future<void> lancer({String action = 'maj'}) async =>
+      _client.post('update.php', body: {'action': action});
 }

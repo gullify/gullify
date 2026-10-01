@@ -1,0 +1,26 @@
+[Unit]
+# Un service par pile : gullify-compagnon@maxime, gullify-compagnon@service…
+# Les réglages de chacune vivent dans /etc/gullify-compagnon/<nom>.conf :
+#   PROJET=gullify-perso
+#   PILE=/home/maxime/gullify-perso
+#   SOURCE=/home/maxime/gullify      (vide pour un serveur posé par l'installateur)
+Description=Compagnon GulliFY (%i) — redémarrage et mise à jour demandés depuis l'app
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=simple
+User=maxime
+Group=maxime
+EnvironmentFile=/etc/gullify-compagnon/%i.conf
+ExecStart=/home/maxime/gullify/compagnon/gullify-compagnon.sh ${PROJET} ${PILE} ${SOURCE}
+Restart=always
+RestartSec=10
+# Il ne fait rien d'autre que parler à Docker : rien à écrire ailleurs.
+NoNewPrivileges=true
+ProtectHome=read-only
+ReadWritePaths=/home/maxime/gullify /home/maxime/gullify-perso
+PrivateTmp=false
+
+[Install]
+WantedBy=multi-user.target

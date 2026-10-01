@@ -30,19 +30,24 @@ $dossier = AppConfig::getDataPath() . '/maj';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($session['user']['is_admin'])) {
-        v2_fail('forbidden', "Seul un administrateur peut mettre le serveur à jour.", 403);
+        v2_fail('forbidden', "Seul un administrateur peut agir sur le serveur.", 403);
     }
     if (!majServicePresent($dossier)) {
         v2_fail('maj_impossible',
-            "Ce serveur ne sait pas se mettre à jour tout seul : lance ./update.sh sur la machine.", 409);
+            "Personne n'écoute sur la machine : le compagnon GulliFY n'y tourne pas.", 409);
     }
+
+    // Deux gestes, un seul mécanisme. « redemarrer » relève le serveur sans
+    // rien changer — ce qu'on demande quand quelque chose s'est coincé ;
+    // « maj » va chercher la version suivante.
+    $corps  = json_decode((string)file_get_contents('php://input'), true);
+    $action = (is_array($corps) && ($corps['action'] ?? '') === 'redemarrer') ? 'redemarrer' : 'maj';
+
     if (!is_dir($dossier)) @mkdir($dossier, 0775, true);
-    // Le journal repart à zéro : ce qu'on y lira ensuite est bien de cette fois.
-    @file_put_contents($dossier . '/journal', '');
-    if (@file_put_contents($dossier . '/demande', (string)time()) === false) {
-        v2_fail('maj_impossible', "Je n'ai pas pu déposer la demande de mise à jour.", 500);
+    if (@file_put_contents($dossier . '/demande', $action) === false) {
+        v2_fail('maj_impossible', "Je n'ai pas pu déposer la demande sur le disque.", 500);
     }
-    v2_ok(['demande' => true]);
+    v2_ok(['demande' => $action]);
 }
 
 $installee  = majVersionInstallee();
