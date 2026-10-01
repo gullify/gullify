@@ -214,6 +214,15 @@ class AppConfig {
             'app.debug' => 'false',
             'app.secret' => '',
             'lastfm.api_key' => '',
+            // Service d'inscription : éteint partout sauf sur le serveur central.
+            'registry.domain' => '',
+            'registry.dns' => 'fictif',
+            'registry.ionos_key' => '',
+            'mail.driver' => 'journal',
+            'mail.from' => 'GulliFY <bonjour@gullify.app>',
+            'mail.http_url' => '',
+            'mail.http_token' => '',
+            'mail.log' => '',
         ];
     }
 
@@ -266,6 +275,17 @@ class AppConfig {
             'LASTFM_API_KEY' => 'lastfm.api_key',
             'GULLIFY_ANDROID_URL'     => 'apps.android.url',
             'GULLIFY_ANDROID_VERSION' => 'apps.android.version',
+            // Le service d'inscription des serveurs (voir src/Registry.php).
+            // Absent de la plupart des installations : seul le serveur central
+            // de gullify.app distribue des sous-domaines.
+            'REGISTRY_DOMAIN'    => 'registry.domain',
+            'REGISTRY_DNS'       => 'registry.dns',
+            'IONOS_API_KEY'      => 'registry.ionos_key',
+            'MAIL_DRIVER'        => 'mail.driver',
+            'MAIL_FROM'          => 'mail.from',
+            'MAIL_HTTP_URL'      => 'mail.http_url',
+            'MAIL_HTTP_TOKEN'    => 'mail.http_token',
+            'MAIL_LOG'           => 'mail.log',
         ];
 
         foreach ($envMap as $envKey => $configKey) {
@@ -292,6 +312,17 @@ class AppConfig {
             'LASTFM_API_KEY' => 'lastfm.api_key',
             'GULLIFY_ANDROID_URL'     => 'apps.android.url',
             'GULLIFY_ANDROID_VERSION' => 'apps.android.version',
+            // Le service d'inscription des serveurs (voir src/Registry.php).
+            // Absent de la plupart des installations : seul le serveur central
+            // de gullify.app distribue des sous-domaines.
+            'REGISTRY_DOMAIN'    => 'registry.domain',
+            'REGISTRY_DNS'       => 'registry.dns',
+            'IONOS_API_KEY'      => 'registry.ionos_key',
+            'MAIL_DRIVER'        => 'mail.driver',
+            'MAIL_FROM'          => 'mail.from',
+            'MAIL_HTTP_URL'      => 'mail.http_url',
+            'MAIL_HTTP_TOKEN'    => 'mail.http_token',
+            'MAIL_LOG'           => 'mail.log',
         ];
 
         if (isset($map[$key])) {
