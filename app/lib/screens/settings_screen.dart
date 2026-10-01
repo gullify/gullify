@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 import '../audio/alarm_platform.dart';
 import '../audio/equalizer.dart';
@@ -26,7 +27,21 @@ import '../widgets/retro_lcd.dart';
 import '../widgets/update_dialog.dart';
 import '../widgets/wordmark.dart';
 
-const appVersion = '3.71.0';
+/// La version réellement installée, demandée au système.
+///
+/// C'était une constante écrite à la main. Elle est restée à 3.71.0 pendant
+/// que l'app partait en 3.73 : Paramètres annonçait une version que personne
+/// n'avait plus, et l'on croyait la mise à jour en panne alors qu'elle était
+/// faite. Ce qu'il faut penser à changer finit toujours par mentir.
+/// Vide si le système ne sait pas répondre : mieux vaut ne rien annoncer
+/// qu'annoncer un chiffre qu'on n'a pas vérifié — c'est tout le défaut.
+final appVersionProvider = FutureProvider<String>((ref) async {
+  try {
+    return (await PackageInfo.fromPlatform()).version;
+  } catch (_) {
+    return '';
+  }
+});
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -166,7 +181,13 @@ class SettingsScreen extends ConsumerWidget {
           ListTile(
             leading: const Icon(Icons.info_outline),
             title: const GulliWordmark(),
-            subtitle: const Text('Version $appVersion'),
+            subtitle: Text(
+              switch (ref.watch(appVersionProvider).asData?.value) {
+                null => 'Historique des versions',
+                '' => 'Historique des versions',
+                final v => 'Version $v',
+              },
+            ),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => context.push('/settings/changelog'),
           ),

@@ -8,6 +8,43 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.73.2', [
+    'Paramètres annonçait « Version 3.71.0 » quoi qu\'il arrive : le numéro '
+        'était écrit à la main dans le code et n\'avait pas suivi. On croyait '
+        'la mise à jour en panne alors qu\'elle était faite. L\'app demande '
+        'maintenant sa version au système',
+    'Cet historique-ci avait pris trois versions de retard pour la même '
+        'raison — il est tenu à la main. Une version ne peut plus être '
+        'publiée sans que sa note y soit écrite',
+  ]),
+  ReleaseNote('3.73.1', [
+    'La carte de mise à jour du serveur restait figée sur la première ligne '
+        'de son journal : pendant les quelques secondes où le serveur se fait '
+        'remplacer, son silence passait pour une panne et l\'app cessait de '
+        'le rappeler — même une fois revenu. Un serveur muet est maintenant '
+        'une réponse comme une autre, et « Actualiser » réveille aussi cette '
+        'carte',
+  ]),
+  ReleaseNote('3.73.0', [
+    'Infos du serveur gagne deux boutons, pour les administrateurs : '
+        'redémarrer le serveur, et le mettre à jour. Chacun demande '
+        'confirmation — ils coupent la musique de tout le monde. Le serveur '
+        'ne se remplace pas lui-même : un petit service posé sur sa machine '
+        'exécute la demande, et l\'app montre son journal pendant ce temps',
+    'Les boutons n\'apparaissent que si ce service est là. Sinon, la carte '
+        'dit la commande à taper sur la machine plutôt qu\'un bouton sans '
+        'effet',
+  ]),
+  ReleaseNote('3.72.0', [
+    'La moitié des jaquettes étaient des vignettes de clip en 16:9 — la vraie '
+        'pochette au milieu, des bandes de couleur peintes de chaque côté. Le '
+        'web ne les montrait pas, Android si. Elles sont recadrées, et une '
+        'vignette de cette forme ne peut plus entrer telle quelle',
+    'Le grand portrait en tête d\'une fiche reprend la source entière : la '
+        'réduire côté serveur pour la redessiner plus grand à l\'écran lui '
+        'faisait traverser deux rééchantillonnages, et ça se voyait. Seules '
+        'les vignettes sont réduites',
+  ]),
   ReleaseNote('3.71.0', [
     'L\'app web (gullify.app/app/) suit maintenant chaque version (idée '
         '#121). C\'est le même code que l\'app Android, mais elle n\'était '

@@ -21,6 +21,20 @@ VERSION_FULL=$(grep -E '^version:' pubspec.yaml | awk '{print $2}')
 VERSION_NAME="${VERSION_FULL%+*}"
 VERSION_CODE="${VERSION_FULL#*+}"
 
+# L'historique des versions doit parler de celle qu'on livre.
+#
+# Il est tenu à la main, et il avait pris trois versions de retard sans que
+# rien ne le dise — comme le numéro de version affiché dans Paramètres, écrit
+# en dur, resté à 3.71.0 pendant que l'app partait en 3.73. Celui-là est
+# maintenant demandé au système ; celui-ci se vérifie ici, pendant qu'il est
+# encore temps d'écrire la note.
+TETE_CHANGELOG=$(grep -m1 -oP "ReleaseNote\('\K[^']+" lib/changelog.dart || true)
+if [ "$TETE_CHANGELOG" != "$VERSION_NAME" ]; then
+  echo "lib/changelog.dart commence par « $TETE_CHANGELOG », or on livre la $VERSION_NAME." >&2
+  echo "Ajoute l'entrée de la $VERSION_NAME en tête, puis relance." >&2
+  exit 1
+fi
+
 flutter pub get
 flutter build apk --release
 
