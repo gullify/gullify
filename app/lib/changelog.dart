@@ -8,6 +8,18 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.71.0', [
+    'L\'app web (gullify.app/app/) suit maintenant chaque version (idée '
+        '#121). C\'est le même code que l\'app Android, mais elle n\'était '
+        'reconstruite qu\'à la main : elle en était restée à la 3.63, sans '
+        'les podcasts en français, les nouveautés YouTube Music, le bloc '
+        '« Découvrir », les erreurs de téléchargement expliquées ni les '
+        'nouveaux graphiques. Chaque version publiée part désormais sur le '
+        'téléphone ET sur le web, au même numéro',
+    'Seule exception, voulue : « Ouvrir un dossier du téléphone » reste '
+        'propre au téléphone — le navigateur n\'a pas de dossier de musique '
+        'à parcourir, l\'app web vit de son serveur',
+  ]),
   ReleaseNote('3.70.0', [
     'Accueil — le bloc « Découvrir » ne se voyait plus : sa teinte d\'accent '
         'était si pâle qu\'elle passait pour du blanc sali. Elle est '

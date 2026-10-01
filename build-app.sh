@@ -5,6 +5,8 @@
 #   - version.json → public/download/version.json (auto-update manifest)
 # If the static download dir exists (download.gullify.app), publish there
 # too: versioned APK, gullify-latest.apk symlink and version.json.
+# Puis la version web (/app/), construite du même code : une version de l'app
+# sort sur les deux à la fois, jamais l'APK seul (idée #121).
 #
 # Usage: ./build-app.sh ["changelog de la version"]
 # Requires the Flutter SDK on PATH.
@@ -43,4 +45,17 @@ if [ -d "$DOWNLOAD_DIR" ]; then
   ln -sfn "gullify-$VERSION_NAME.apk" "$DOWNLOAD_DIR/gullify-latest.apk"
   cp ../public/download/version.json "$DOWNLOAD_DIR/version.json"
   echo "Publié sur download.gullify.app: gullify-$VERSION_NAME.apk (+ latest, version.json)"
+fi
+
+# ── La même version pour le web (idée #121) ─────────────────────────────────
+# Le web est servi depuis public/app/. Si le conteneur monte ce dossier, la
+# copie de build-web.sh suffit ; sinon l'image doit être reconstruite.
+cd ..
+./build-web.sh
+if docker inspect gullify --format '{{range .Mounts}}{{println .Destination}}{{end}}' 2>/dev/null \
+     | grep -qx '/app/public/app'; then
+  echo "Web en ligne : gullify.app/app/ sert la v$VERSION_NAME."
+else
+  echo "⚠️  public/app/ n'est pas monté dans le conteneur : lancer" \
+       "./build-web.sh --deploy pour mettre le web en ligne." >&2
 fi

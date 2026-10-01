@@ -5,7 +5,8 @@
 #
 # Le conteneur embarque une copie du dépôt (COPY . /app/ dans le Dockerfile) :
 # il faut donc reconstruire l'image pour que le serveur voie la nouvelle
-# version. `--deploy` s'en charge.
+# version. `--deploy` s'en charge — sauf si public/app/ est monté dans le
+# conteneur (c'est le cas sur gullify.app) : la copie suffit alors.
 #
 # Usage: ./build-web.sh [--deploy]
 # Requiert le SDK Flutter sur le PATH.
@@ -44,8 +45,13 @@ sed -i "s#\"mainJsPath\":\"main.dart.js\"#\"mainJsPath\":\"main.dart.js?v=$MAIN_
   build/web/flutter_bootstrap.js
 cd ..
 
-rm -rf "$DEST"
-cp -r app/build/web "$DEST"
+# Remplacé fichier à fichier, sans jamais supprimer le dossier : sur ce
+# serveur il est monté tel quel dans le conteneur (docker-compose.override.yml),
+# et un dossier recréé ne serait plus celui que le conteneur voit — il
+# continuerait de servir l'ancien, effacé. rsync ne laisse pas non plus de
+# moment où l'app est à moitié copiée.
+mkdir -p "$DEST"
+rsync -a --delete app/build/web/ "$DEST/"
 echo "Web publié: $DEST (base href $BASE_HREF, $(du -sh "$DEST" | cut -f1))"
 
 if [ "${1:-}" = "--deploy" ]; then

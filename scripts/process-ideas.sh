@@ -130,6 +130,7 @@ Pour CHAQUE idée en 'in_progress' :
  1. Implémente-la entièrement et proprement (respecte le style existant).
  2. flutter analyze + flutter test doivent passer (mets à jour les goldens si besoin).
  3. Bump de version (pubspec + settings + changelog.dart), ./build-app.sh, commit + push, et rebuild docker UNIQUEMENT si tu as changé du PHP/python.
+    L'app web (gullify.app/app/) est la MÊME app que l'APK : tout changement vaut aussi pour elle. ./build-app.sh la construit et la met en ligne ; vérifie qu'il affiche « Web en ligne ». Si un changement ne peut pas marcher sur le web (dart:io, Platform, plugin Android seul), garde-le derrière kIsWeb et donne au web un équivalent ou un message clair — jamais un écran qui plante.
  4. Marque l'idée 'done' :  ...UPDATE dev_ideas SET status='done' WHERE id=<ID>;
  5. Si une idée est trop ambiguë ou risquée, NE la réalise PAS : marque-la 'needs_review' et passe à la suivante.
 
