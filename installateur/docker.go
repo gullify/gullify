@@ -4,7 +4,9 @@ import (
 	"bufio"
 	"context"
 	"net/http"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
@@ -29,24 +31,54 @@ func (e *Etat) majProgresDocker(ligne string) {
 	e.mu.Unlock()
 }
 
+// cheminDocker trouve le programme, même quand le PATH n'a pas suivi.
+//
+// Sur Windows, l'installation de Docker ajoute son dossier au PATH du système —
+// mais un programme DÉJÀ LANCÉ garde l'environnement qu'il avait au démarrage.
+// L'installateur, qui tournait avant, ne le voit donc pas. Sans ce rattrapage,
+// il faudrait le fermer et le rouvrir, sans que rien ne le dise.
+func cheminDocker() (string, bool) {
+	if chemin, err := exec.LookPath("docker"); err == nil {
+		return chemin, true
+	}
+
+	candidats := []string{
+		`C:\Program Files\Docker\Docker\resources\bin\docker.exe`,
+		filepath.Join(os.Getenv("ProgramFiles"), `Docker\Docker\resources\bin\docker.exe`),
+		"/usr/local/bin/docker",
+		"/usr/bin/docker",
+		"/opt/homebrew/bin/docker",
+	}
+	for _, chemin := range candidats {
+		if chemin == "" {
+			continue
+		}
+		if info, err := os.Stat(chemin); err == nil && !info.IsDir() {
+			return chemin, true
+		}
+	}
+	return "", false
+}
+
 // regardeDocker ne modifie rien : il observe et raconte.
+//
+// Il prend son temps : sous Windows, « docker info » demande couramment dix à
+// vingt secondes quand Docker Desktop vient de démarrer. Lui en accorder huit,
+// comme je l'avais fait pour que la page ne gèle pas, revenait à déclarer
+// éteint un Docker parfaitement vert. La page ne gèle plus pour une autre
+// raison : ce contrôle tourne en arrière-plan, et les points d'entrée rendent
+// le dernier état connu (voir surveilleDocker).
 func regardeDocker() DockerEtat {
 	etat := DockerEtat{Verifie: true}
 
-	chemin, err := exec.LookPath("docker")
-	if err != nil {
+	chemin, trouve := cheminDocker()
+	if !trouve {
 		etat.Commande, etat.Explique = commandeInstallation()
 		return etat
 	}
 	etat.Installe = true
 
-	// `docker info` échoue si le service n'est pas démarré : c'est le cas le
-	// plus courant sur Windows et macOS, où Docker Desktop doit être lancé.
-	// Court exprès : la page interroge en boucle, et un « docker info » qui
-	// traîne vingt secondes donne l'impression que tout est figé. Si le service
-	// met plus de huit secondes à répondre, c'est qu'il n'est pas prêt — la
-	// réponse est la même.
-	ctx, annule := context.WithTimeout(context.Background(), 8*time.Second)
+	ctx, annule := context.WithTimeout(context.Background(), 40*time.Second)
 	defer annule()
 	if err := exec.CommandContext(ctx, chemin, "info", "--format", "{{.ServerVersion}}").Run(); err != nil {
 		etat.Explique = "Docker est installé mais ne tourne pas. Lance Docker Desktop, attends qu'il soit vert, puis reviens ici."
@@ -109,25 +141,61 @@ func commandeInstallation() (commande string, explique string) {
 
 // ── Les points d'entrée ──────────────────────────────────────────────────────
 
+// surveilleDocker tient l'état à jour en arrière-plan.
+//
+// Le contrôle lui-même est lent — « docker info » met couramment dix à vingt
+// secondes sous Windows. Le faire DANS la réponse à la page, c'est la figer ;
+// le faire trop vite, c'est déclarer éteint un Docker qui démarre. On le sort
+// donc du chemin : une boucle le refait régulièrement, et les points d'entrée
+// rendent le dernier état connu, tout de suite.
+func (e *Etat) surveilleDocker() {
+	e.surveille.Do(func() {
+		go func() {
+			for {
+				prerequis := regardePrerequis()
+				etat := regardeDocker()
+
+				e.mu.Lock()
+				etat.Progres = e.Docker.Progres // l'avancement survit au contrôle
+				e.Docker = etat
+				e.Prerequis = prerequis
+				pret := etat.Demarre && etat.Compose
+				e.mu.Unlock()
+
+				// Une fois Docker prêt, on espace : il ne disparaîtra pas.
+				if pret {
+					time.Sleep(30 * time.Second)
+				} else {
+					time.Sleep(5 * time.Second)
+				}
+			}
+		}()
+	})
+}
+
 func (e *Etat) verifierDocker(w http.ResponseWriter, _ *http.Request) {
-	// D'abord ce sans quoi Docker ne démarrera jamais : sur une machine dont la
-	// virtualisation est éteinte, tout le reste est perdu d'avance.
-	prerequis := regardePrerequis()
+	e.surveilleDocker()
+
+	// Premier passage : on attend le temps qu'il faut, une seule fois, pour ne
+	// pas répondre « je ne sais pas » à la question qu'on vient de poser.
 	e.mu.Lock()
-	e.Prerequis = prerequis
+	connu := e.Docker.Verifie
 	e.mu.Unlock()
-
-	etat := regardeDocker()
+	if !connu {
+		for i := 0; i < 50; i++ {
+			time.Sleep(time.Second)
+			e.mu.Lock()
+			connu = e.Docker.Verifie
+			e.mu.Unlock()
+			if connu {
+				break
+			}
+		}
+	}
 
 	e.mu.Lock()
-	// La ligne d'avancement survit au contrôle.
-	//
-	// La page demande « Docker est-il prêt ? » toutes les dix secondes ; sans
-	// cette reprise, chaque passage écrasait l'avancement du téléchargement et
-	// l'écran retombait sur son texte de départ. C'est ce qui donnait
-	// l'impression d'une installation figée alors qu'elle avançait.
-	etat.Progres = e.Docker.Progres
-	e.Docker = etat
+	etat := e.Docker
+	prerequis := e.Prerequis
 	e.mu.Unlock()
 
 	// Docker installé mais incapable de démarrer : c'est presque toujours la

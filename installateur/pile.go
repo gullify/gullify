@@ -149,7 +149,8 @@ func (e *Etat) tireLesImages(dossier string) error {
 	}
 
 	image := imageGullify()
-	if exec.Command("docker", "image", "inspect", image).Run() != nil {
+	programme, trouve := cheminDocker()
+	if !trouve || exec.Command(programme, "image", "inspect", image).Run() != nil {
 		return err
 	}
 
@@ -194,19 +195,19 @@ func (e *Etat) verifieOuRepareLaBase(dossier string) error {
 	}()
 
 	const temporaire = "gullify-reparation-base"
-	_ = exec.Command("docker", "rm", "-f", temporaire).Run()
+	_ = exec.Command(programmeDocker(), "rm", "-f", temporaire).Run()
 
-	demarrer := exec.Command("docker", "run", "-d", "--name", temporaire,
+	demarrer := exec.Command(programmeDocker(), "run", "-d", "--name", temporaire,
 		"-v", volume+":/var/lib/mysql", "mysql:8.0", "--skip-grant-tables")
 	if sortie, err := demarrer.CombinedOutput(); err != nil {
 		return fmt.Errorf("impossible d'ouvrir la base pour la réparer : %s", strings.TrimSpace(string(sortie)))
 	}
-	defer exec.Command("docker", "rm", "-f", temporaire).Run()
+	defer exec.Command(programmeDocker(), "rm", "-f", temporaire).Run()
 
 	// MySQL met une poignée de secondes à être prêt, même sans contrôle d'accès.
 	pret := false
 	for i := 0; i < 40; i++ {
-		if exec.Command("docker", "exec", temporaire, "mysqladmin", "ping", "-h", "localhost").Run() == nil {
+		if exec.Command(programmeDocker(), "exec", temporaire, "mysqladmin", "ping", "-h", "localhost").Run() == nil {
 			pret = true
 			break
 		}
@@ -223,7 +224,7 @@ func (e *Etat) verifieOuRepareLaBase(dossier string) error {
 			"ALTER USER 'gullify'@'%%' IDENTIFIED BY %s; FLUSH PRIVILEGES;",
 		citerSQL(racine), citerSQL(motDePasse))
 
-	if sortie, err := exec.Command("docker", "exec", temporaire, "mysql", "-e", ordres).CombinedOutput(); err != nil {
+	if sortie, err := exec.Command(programmeDocker(), "exec", temporaire, "mysql", "-e", ordres).CombinedOutput(); err != nil {
 		return fmt.Errorf("la remise à jour des mots de passe a échoué : %s", strings.TrimSpace(string(sortie)))
 	}
 
@@ -248,7 +249,11 @@ func (e *Etat) attendLaBase(dossier string, patience time.Duration) {
 
 // baseRepond demande à l'app si elle voit sa base.
 func (e *Etat) baseRepond(dossier string) bool {
-	cmd := exec.Command("docker", "compose", "-p", projetCompose, "exec", "-T", "app",
+	programme, trouve := cheminDocker()
+	if !trouve {
+		return false
+	}
+	cmd := exec.Command(programme, "compose", "-p", projetCompose, "exec", "-T", "app",
 		"php", "-r", `require "/app/src/AppConfig.php"; AppConfig::getDB(); echo "ok";`)
 	cmd.Dir = dossier
 	sortie, err := cmd.Output()
@@ -523,7 +528,14 @@ func (e *Etat) docker(dossier string, patience time.Duration, args ...string) er
 	ctx, annule := context.WithTimeout(context.Background(), patience)
 	defer annule()
 
-	cmd := exec.CommandContext(ctx, "docker", args...)
+	// Le chemin trouvé, pas « docker » nu : sur Windows, le PATH d'un programme
+	// lancé avant l'installation de Docker ne contient pas son dossier.
+	programme, trouve := cheminDocker()
+	if !trouve {
+		return fmt.Errorf("docker est introuvable sur cette machine")
+	}
+
+	cmd := exec.CommandContext(ctx, programme, args...)
 	cmd.Dir = dossier
 
 	sortie, err := cmd.CombinedOutput()
@@ -599,4 +611,13 @@ func decodeJSON(reponse *http.Response, cible any) error {
 		return fmt.Errorf("le serveur a répondu autre chose que du JSON : %s", apercu)
 	}
 	return nil
+}
+
+// programmeDocker : le chemin de docker, ou « docker » à défaut — pour les
+// appels où un échec se gère de toute façon par le code de retour.
+func programmeDocker() string {
+	if chemin, trouve := cheminDocker(); trouve {
+		return chemin
+	}
+	return "docker"
 }

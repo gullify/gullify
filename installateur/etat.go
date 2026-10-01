@@ -41,9 +41,10 @@ type Etat struct {
 
 	Progression int `json:"progression"` // 0 à 100, pendant l'installation
 
-	service string
-	fini    chan struct{}
-	ferme   sync.Once
+	service   string
+	fini      chan struct{}
+	ferme     sync.Once
+	surveille sync.Once // la surveillance de Docker ne se lance qu'une fois
 }
 
 func NouvelEtat(service string) *Etat {
