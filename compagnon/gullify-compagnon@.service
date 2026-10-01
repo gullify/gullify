@@ -16,10 +16,12 @@ EnvironmentFile=/etc/gullify-compagnon/%i.conf
 ExecStart=/home/maxime/gullify/compagnon/gullify-compagnon.sh ${PROJET} ${PILE} ${SOURCE}
 Restart=always
 RestartSec=10
-# Il ne fait rien d'autre que parler à Docker : rien à écrire ailleurs.
 NoNewPrivileges=true
-ProtectHome=read-only
-ReadWritePaths=/home/maxime/gullify /home/maxime/gullify-perso
+# Pas de ProtectHome : construire une image demande à buildx d'écrire son
+# état sous ~/.docker, et un home en lecture seule faisait échouer la mise à
+# jour d'un serveur qui porte le code — sans rien protéger de plus, puisque
+# ce service tourne de toute façon en tant que la personne qui peut tout y
+# faire à la main.
 PrivateTmp=false
 
 [Install]

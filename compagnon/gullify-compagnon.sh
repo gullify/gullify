@@ -24,8 +24,9 @@ PILE="${2:?il faut le dossier de la pile}"
 SOURCE="${3:-}"
 
 INTERVALLE="${GULLIFY_COMPAGNON_INTERVALLE:-10}"
-TAMPON="$(mktemp -t gullify-compagnon-XXXXXX)"
-trap 'rm -f "$TAMPON"' EXIT
+TAMPON="$(mktemp -t gullify-compagnon-XXXXXX)"   # le journal en attente
+SORTIE="$(mktemp -t gullify-sortie-XXXXXX)"      # ce qu'a dit la dernière commande
+trap 'rm -f "$TAMPON" "$SORTIE"' EXIT
 
 # ── Parler au serveur ────────────────────────────────────────────────────────
 
@@ -73,34 +74,46 @@ mettre_a_jour() {
 
   if [ -n "$SOURCE" ]; then
     dit "Récupération du code..."
-    if ! git -C "$SOURCE" pull --ff-only >/dev/null 2>&1; then
+    if ! essaie git -C "$SOURCE" pull --ff-only; then
       dit "Le code n'a pas pu être récupéré (dépôt modifié sur place ?)."
-      dit "fini"
+      raconte_l_echec
       return
     fi
     dit "Construction de la nouvelle version... (quelques minutes)"
-    if ! (cd "$SOURCE" && docker compose build app >/dev/null 2>&1); then
+    if ! (cd "$SOURCE" && essaie docker compose build app); then
       dit "La construction a échoué."
-      dit "fini"
+      raconte_l_echec
       return
     fi
   else
     dit "Téléchargement de la nouvelle version..."
-    if ! (cd "$PILE" && docker compose -p "$PROJET" pull app >/dev/null 2>&1); then
+    if ! (cd "$PILE" && essaie docker compose -p "$PROJET" pull app); then
       dit "Le téléchargement a échoué."
-      dit "fini"
+      raconte_l_echec
       return
     fi
   fi
 
   dit "Mise en place..."
-  if (cd "$PILE" && docker compose -p "$PROJET" up -d --force-recreate app >/dev/null 2>&1); then
+  if (cd "$PILE" && essaie docker compose -p "$PROJET" up -d --force-recreate app); then
     attendre_le_retour
     dit "fini"
   else
     dit "La mise en place a échoué — l'ancienne version tourne toujours."
-    dit "fini"
+    raconte_l_echec
   fi
+}
+
+# essaie garde la sortie de la commande de côté : un échec sans sa raison
+# oblige à aller fouiller le journal du système, c'est-à-dire à ne jamais
+# savoir pour qui n'a pas de console.
+essaie() { "$@" > "$SORTIE" 2>&1; }
+
+raconte_l_echec() {
+  while IFS= read -r ligne; do
+    [ -n "$ligne" ] && dit "  $ligne"
+  done < <(tail -n 4 "$SORTIE")
+  dit "fini"
 }
 
 # Le serveur met un moment à répondre après une recréation (yt-dlp se met à
