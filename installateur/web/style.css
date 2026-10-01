@@ -349,3 +349,45 @@ input:focus { outline: none; border-color: var(--accent); }
   .cadre { padding: 1rem 1rem 4rem; }
   .actions .bouton { flex: 1 1 100%; }
 }
+
+/* ── La marche à suivre pour le routeur ──────────────────────────────────── */
+
+/* Des étapes numérotées, en chasse fixe : on les lit en gardant son doigt sur
+   la ligne, souvent sur un téléphone, devant l'interface du routeur. */
+.marche {
+  margin: 1rem 0 0;
+  padding: 1.1rem 1.2rem;
+  border-radius: var(--rayon);
+  background: #05060b;
+  border: 1px solid var(--bordure);
+  color: var(--texte);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: .86rem;
+  line-height: 1.8;
+  white-space: pre-wrap;
+}
+
+.verdict-reseau { display: flex; align-items: flex-start; gap: .9rem; }
+
+.pastille-verdict {
+  flex: none;
+  width: 2.2rem;
+  height: 2.2rem;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 1.1rem;
+}
+
+.pastille-verdict.ouvert { background: rgba(63, 169, 140, .16); color: var(--succes); }
+.pastille-verdict.ferme { background: rgba(255, 200, 100, .14); color: #ffc864; }
+.pastille-verdict.cgnat { background: rgba(255, 128, 128, .14); color: var(--danger); }
+.pastille-verdict.inconnu { background: rgba(153, 161, 183, .14); color: var(--texte-attenue); }
+
+.detail-reseau {
+  margin-top: .9rem;
+  font-size: .85rem;
+  color: var(--texte-attenue);
+  display: grid;
+  gap: .25rem;
+}

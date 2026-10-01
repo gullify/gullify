@@ -49,11 +49,32 @@
     <div class="actions">
       <button class="bouton secondaire" id="revoir-docker">Revérifier</button>
       <button class="bouton principal" id="installer-docker" hidden>Installer Docker</button>
-      <button class="bouton principal" id="docker-suivant" hidden data-aller="nom">Continuer</button>
+      <button class="bouton principal" id="docker-suivant" hidden data-aller="reseau">Continuer</button>
     </div>
   </section>
 
-  <!-- 3 ─ Le nom ----------------------------------------------------------- -->
+  <!-- 3 ─ Le réseau --------------------------------------------------------- -->
+  <section class="etape" data-etape="reseau" hidden>
+    <h1>Ta connexion</h1>
+    <p class="intro">Pour que ta musique te suive dehors, ton routeur doit
+      laisser entrer. Je regarde comment ta maison est branchée — et je lui
+      demande d'ouvrir, s'il veut bien.</p>
+
+    <div class="carte" id="carte-reseau">
+      <p class="attente">Je regarde…</p>
+    </div>
+
+    <pre class="marche" id="marche-reseau" hidden></pre>
+
+    <div class="actions">
+      <button class="bouton secondaire" id="revoir-reseau">Revérifier</button>
+      <button class="bouton principal" id="ouvrir-ports" hidden>Ouvrir mon routeur</button>
+      <button class="bouton principal" id="reseau-suivant" hidden data-aller="nom">Continuer</button>
+      <button class="bouton secondaire" id="reseau-quand-meme" hidden data-aller="nom">Continuer quand même</button>
+    </div>
+  </section>
+
+  <!-- 4 ─ Le nom ----------------------------------------------------------- -->
   <section class="etape" data-etape="nom" hidden>
     <h1>Choisis ton adresse</h1>
     <p class="intro">C'est elle que tu taperas dans l'app, et que tu donneras à
@@ -149,6 +170,11 @@
       y a à retenir.</p>
 
     <p class="adresse-finale" id="adresse-finale"></p>
+
+    <div class="carte" id="carte-joignable">
+      <h2>Depuis l'extérieur</h2>
+      <p class="attente">Je vérifie si ton serveur répond depuis Internet…</p>
+    </div>
 
     <div class="carte">
       <h2>Sur ton téléphone et ta télévision</h2>

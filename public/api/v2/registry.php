@@ -6,6 +6,7 @@
  * justement ce qu'il vient chercher. Les garde-fous sont ailleurs — un courriel
  * à confirmer, une limite par adresse IP, des noms réservés.
  *
+ *   GET  ?action=mon-ip
  *   GET  ?action=disponible&nom=papa
  *   POST ?action=reserver        {nom, courriel}
  *   GET  ?action=etat&reservation=…
@@ -105,6 +106,14 @@ try {
 
         case 'etat': {
             v2_ok($registre->etatReservation((string)($_GET['reservation'] ?? '')));
+        }
+
+        // ── Comment Internet te voit ──────────────────────────────────────
+        case 'mon-ip': {
+            // L'installateur s'en sert pour démasquer les réseaux d'opérateur :
+            // il compare cette adresse à celle que le routeur de la maison croit
+            // avoir. Si les deux diffèrent, un second partage existe en amont.
+            v2_ok(['ip' => demandeurOuRefus()]);
         }
 
         // ── Le DNS dynamique ──────────────────────────────────────────────

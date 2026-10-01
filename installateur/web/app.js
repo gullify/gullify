@@ -27,6 +27,8 @@ let dernierJournal = 0;
 function montre(nom) {
   if (etapeAffichee === nom) return;
   etapeAffichee = nom;
+  if (nom === 'reseau') regardeReseau();
+  if (nom === 'fini') verifieDepuisDehors();
   for (const section of etapes) {
     section.hidden = section.dataset.etape !== nom;
   }
@@ -117,6 +119,62 @@ $('#installer-docker').addEventListener('click', async () => {
       regardeDocker();
     }
   }, 5000);
+});
+
+// ── 3 : le réseau ────────────────────────────────────────────────────────────
+
+const PASTILLES = { ouvert: '✓', ferme: '!', cgnat: '✕', inconnu: '?' };
+
+function montreReseau(d) {
+  const carte = $('#carte-reseau');
+  const verdict = d.verdict || 'inconnu';
+
+  const details = [];
+  if (d.ipLocale) details.push(`Cette machine : ${d.ipLocale}`);
+  if (d.ipPublique) details.push(`Vue d'Internet : ${d.ipPublique}`);
+  if (d.ipRouteur && d.ipRouteur !== d.ipPublique) details.push(`Ton routeur croit avoir : ${d.ipRouteur}`);
+  if (d.routeur) details.push(`Routeur : ${d.routeur}`);
+
+  carte.innerHTML =
+    `<div class="verdict-reseau">
+       <span class="pastille-verdict ${verdict}">${PASTILLES[verdict] || '?'}</span>
+       <div><p>${d.explique || ''}</p>
+       ${details.length ? `<div class="detail-reseau">${details.map((l) => `<span>${l}</span>`).join('')}</div>` : ''}
+       </div>
+     </div>`;
+
+  const marche = $('#marche-reseau');
+  marche.textContent = d.marche || '';
+  marche.hidden = !d.marche;
+
+  // Trois issues, trois jeux de boutons : ouvrir, continuer, ou continuer en
+  // sachant que le serveur ne sera joignable que depuis la maison.
+  $('#ouvrir-ports').hidden = !(verdict === 'ferme' && d.upnp);
+  $('#reseau-suivant').hidden = verdict !== 'ouvert';
+  $('#reseau-quand-meme').hidden = verdict === 'ouvert';
+}
+
+async function regardeReseau() {
+  $('#carte-reseau').innerHTML = '<p class="attente">Je regarde…</p>';
+  for (const id of ['ouvrir-ports', 'reseau-suivant', 'reseau-quand-meme']) $(`#${id}`).hidden = true;
+  try {
+    montreReseau(await api('/api/reseau'));
+  } catch (e) {
+    $('#carte-reseau').innerHTML = `<p class="attente">${e.message}</p>`;
+  }
+}
+
+$('#revoir-reseau').addEventListener('click', regardeReseau);
+
+$('#ouvrir-ports').addEventListener('click', async () => {
+  const bouton = $('#ouvrir-ports');
+  bouton.disabled = true;
+  $('#carte-reseau').innerHTML = '<p class="attente">Je parle à ton routeur…</p>';
+  try {
+    montreReseau(await api('/api/reseau/ouvrir', { method: 'POST' }));
+  } finally {
+    bouton.disabled = false;
+  }
 });
 
 // ── 3 : le nom ───────────────────────────────────────────────────────────────
@@ -256,7 +314,39 @@ $('#installer').addEventListener('click', async () => {
   await api('/api/installer', { method: 'POST' });
 });
 
-// ── 7 : fermer ───────────────────────────────────────────────────────────────
+// ── 7 : la preuve, depuis l'extérieur ────────────────────────────────────────
+
+async function verifieDepuisDehors() {
+  const carte = $('#carte-joignable');
+  carte.innerHTML = '<h2>Depuis l\'extérieur</h2><p class="attente">Je vérifie si ton serveur répond depuis Internet…</p>';
+
+  let r;
+  try {
+    r = await api('/api/joignable');
+  } catch (e) {
+    carte.innerHTML = `<h2>Depuis l'extérieur</h2><p>${e.message}</p>`;
+    return;
+  }
+
+  if (r.joignable) {
+    carte.innerHTML =
+      '<h2>Depuis l\'extérieur</h2>' +
+      '<p>Ton serveur répond depuis Internet : ta musique te suivra partout.</p>';
+    return;
+  }
+
+  // Le cas le plus fréquent : le certificat n'est pas encore là, ou le routeur
+  // s'est refermé. On le dit sans dramatiser, et on laisse réessayer — rien
+  // n'est perdu, le serveur fonctionne déjà chez soi.
+  carte.innerHTML =
+    '<h2>Depuis l\'extérieur, pas encore</h2>' +
+    `<p>Ton serveur ne répond pas encore depuis Internet${r.motif ? ' — ' + r.motif : ''}. ` +
+    'Chez toi, il fonctionne déjà. Si tu viens d\'ouvrir ton routeur, laisse-lui une minute.</p>' +
+    '<p><button class="bouton secondaire" id="rever-dehors">Réessayer</button></p>';
+  $('#rever-dehors').addEventListener('click', verifieDepuisDehors);
+}
+
+// ── 8 : fermer ───────────────────────────────────────────────────────────────
 
 $('#fermer').addEventListener('click', async () => {
   await api('/api/fermer', { method: 'POST' });
