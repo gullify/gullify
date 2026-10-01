@@ -55,6 +55,10 @@ async function rafraichir() {
 
   $('#jauge').style.width = `${etat.progression || 0}%`;
 
+  if (installationDocker) {
+    majCarteDockerEnCours(etat.docker && etat.docker.progres);
+  }
+
   if (etat.courriel) $('#rappel-courriel').textContent = etat.courriel;
   if (etat.adresse) {
     $('#adresse-finale').textContent = etat.adresse;
@@ -108,18 +112,39 @@ $('#revoir-docker').addEventListener('click', regardeDocker);
 
 $('#installer-docker').addEventListener('click', async () => {
   $('#installer-docker').disabled = true;
-  $('#carte-docker').innerHTML = '<p class="attente">Installation en cours… (regarde la fenêtre noire si elle demande quelque chose)</p>';
+  installationDocker = true;
+  majCarteDockerEnCours('Je démarre le téléchargement…');
   await api('/api/docker/installer', { method: 'POST' });
-  // Le reste se suit dans le journal ; on revérifie régulièrement.
+
+  // On ne demande plus « es-tu prêt ? » en boucle : l'état général, que la
+  // page lit déjà toutes les 1,5 s, porte l'avancement. Un appel toutes les
+  // dix secondes suffit pour savoir quand c'est fini.
   const minuteur = setInterval(async () => {
     const d = await api('/api/docker');
     if (d.demarre && d.compose) {
       clearInterval(minuteur);
+      installationDocker = false;
       $('#installer-docker').disabled = false;
       regardeDocker();
     }
-  }, 5000);
+  }, 10000);
 });
+
+// Pendant l'installation de Docker, la carte raconte ce qui se passe.
+//
+// Six cents mégaoctets, c'est long : sans rien à l'écran, on croit que le
+// programme est planté — et on ferme la fenêtre au pire moment.
+let installationDocker = false;
+
+function majCarteDockerEnCours(avancement) {
+  $('#carte-docker').innerHTML =
+    '<h2>J\'installe Docker</h2>' +
+    '<p>Environ 600 Mo à télécharger : compte cinq à quinze minutes selon ta ' +
+    'connexion. Windows demandera peut-être une confirmation, et un ' +
+    'redémarrage à la fin.</p>' +
+    `<p class="avancement">${avancement || 'Téléchargement en cours…'}</p>` +
+    '<p class="aparte">Tu peux laisser cette page ouverte et aller faire autre chose.</p>';
+}
 
 // ── 3 : le réseau ────────────────────────────────────────────────────────────
 

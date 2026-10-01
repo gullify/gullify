@@ -142,9 +142,9 @@ func TestPartagee(t *testing.T) {
 // L'adresse probable du routeur, qu'on affiche dans la marche à suivre.
 func TestPasserelleProbable(t *testing.T) {
 	cas := map[string]string{
-		"192.168.1.42":  "http://192.168.1.1",
-		"10.0.0.17":     "http://10.0.0.1",
-		"172.16.31.200": "http://172.16.31.1",
+		"192.168.1.42":   "http://192.168.1.1",
+		"10.0.0.17":      "http://10.0.0.1",
+		"172.16.31.200":  "http://172.16.31.1",
 		"n'importe quoi": "192.168.1.1", // repli : mieux vaut une piste qu'un vide
 	}
 	for locale, attendu := range cas {

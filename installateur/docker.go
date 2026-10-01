@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"net/http"
 	"os/exec"
@@ -18,6 +19,14 @@ type DockerEtat struct {
 	Commande string `json:"commande"` // ce qu'il faut taper pour l'installer
 	Explique string `json:"explique"` // ce qu'on dit à l'écran
 	Verifie  bool   `json:"verifie"`  // la vérification a eu lieu
+	Progres  string `json:"progres"`  // où en est le téléchargement, s'il tourne
+}
+
+// majProgresDocker remplace la ligne d'avancement, sans encombrer le journal.
+func (e *Etat) majProgresDocker(ligne string) {
+	e.mu.Lock()
+	e.Docker.Progres = ligne
+	e.mu.Unlock()
 }
 
 // regardeDocker ne modifie rien : il observe et raconte.
@@ -33,7 +42,11 @@ func regardeDocker() DockerEtat {
 
 	// `docker info` échoue si le service n'est pas démarré : c'est le cas le
 	// plus courant sur Windows et macOS, où Docker Desktop doit être lancé.
-	ctx, annule := context.WithTimeout(context.Background(), 20*time.Second)
+	// Court exprès : la page interroge en boucle, et un « docker info » qui
+	// traîne vingt secondes donne l'impression que tout est figé. Si le service
+	// met plus de huit secondes à répondre, c'est qu'il n'est pas prêt — la
+	// réponse est la même.
+	ctx, annule := context.WithTimeout(context.Background(), 8*time.Second)
 	defer annule()
 	if err := exec.CommandContext(ctx, chemin, "info", "--format", "{{.ServerVersion}}").Run(); err != nil {
 		etat.Explique = "Docker est installé mais ne tourne pas. Lance Docker Desktop, attends qu'il soit vert, puis reviens ici."
@@ -115,18 +128,53 @@ func (e *Etat) installerDocker(w http.ResponseWriter, _ *http.Request) {
 			cmd = exec.Command("sh", "-c", commande)
 		}
 
-		sortie, err := cmd.CombinedOutput()
-		for _, ligne := range dernieresLignes(string(sortie), 8) {
-			e.dit("  %s", ligne)
+		// On suit la sortie au fil de l'eau plutôt qu'à la fin.
+		//
+		// Six cents mégaoctets prennent de longues minutes, pendant lesquelles
+		// l'écran ne disait RIEN : on croit l'installateur planté. Les lignes
+		// de progression s'écrasent l'une l'autre (un seul « Avancement »), les
+		// autres s'ajoutent au journal.
+		tuyau, err := cmd.StdoutPipe()
+		if err == nil {
+			cmd.Stderr = cmd.Stdout
 		}
-		if err != nil {
+		if err := cmd.Start(); err != nil {
+			e.echoue("Je n'ai pas réussi à lancer l'installation de Docker (%v).", err)
+			return
+		}
+
+		e.majProgresDocker("Téléchargement en cours…")
+		lecteur := bufio.NewReader(tuyau)
+		for {
+			// Les barres de progression se terminent par un retour chariot, pas
+			// par un saut de ligne : on découpe sur les deux.
+			morceau, err := lecteur.ReadString('\r')
+			if morceau == "" && err != nil {
+				break
+			}
+			ligne := strings.TrimSpace(strings.ReplaceAll(morceau, "\n", " "))
+			if ligne == "" {
+				continue
+			}
+			if strings.ContainsAny(ligne, "%█▒") || strings.Contains(ligne, "MB") {
+				e.majProgresDocker(ligne)
+			} else {
+				e.dit("  %s", ligne)
+			}
+		}
+
+		if err := cmd.Wait(); err != nil {
+			e.majProgresDocker("")
 			e.echoue("L'installation de Docker a échoué. Installe-le toi-même depuis docker.com, puis reviens.")
 			return
 		}
+
+		e.majProgresDocker("")
 		e.dit("Docker est installé. Je vérifie…")
 
 		etat := regardeDocker()
 		e.mu.Lock()
+		etat.Verifie = true
 		e.Docker = etat
 		e.mu.Unlock()
 		if !etat.Demarre {

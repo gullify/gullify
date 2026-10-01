@@ -391,3 +391,18 @@ input:focus { outline: none; border-color: var(--accent); }
   display: grid;
   gap: .25rem;
 }
+
+/* L'avancement d'un téléchargement : une seule ligne qui se réécrit, en chasse
+   fixe pour qu'elle ne danse pas d'un caractère à l'autre. */
+.avancement {
+  margin-top: .8rem;
+  padding: .6em .9em;
+  border-radius: var(--rayon);
+  background: var(--fond-champ);
+  border: 1px solid var(--bordure);
+  color: var(--accent-clair);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: .84rem;
+  overflow-x: auto;
+  white-space: nowrap;
+}
