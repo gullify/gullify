@@ -188,6 +188,8 @@ input:focus { outline: none; border-color: var(--accent); }
 .verdict { min-height: 1.4rem; margin: .5rem 0 0; font-size: .92rem; }
 .verdict.libre { color: var(--succes); }
 .verdict.pris { color: var(--danger); }
+/* Pris, mais récupérable : ce n'est ni un feu vert ni un refus. */
+.verdict.reprise { color: #ffc864; }
 .verdict.attente { color: var(--texte-attenue); }
 
 .erreur {

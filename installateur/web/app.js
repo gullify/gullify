@@ -263,8 +263,14 @@ const champNom = $('#nom');
 const champCourriel = $('#courriel');
 const verdict = $('#verdict-nom');
 
+// Deux façons d'obtenir une adresse : la réserver si elle est libre, ou la
+// reprendre si elle est déjà à soi. Dans les deux cas il faut un courriel —
+// c'est lui qui sert de preuve dans le second.
+let nomReprenable = false;
+
 function nomValide() {
-  return verdict.classList.contains('libre') && /\S+@\S+\.\S+/.test(champCourriel.value);
+  const utilisable = verdict.classList.contains('libre') || nomReprenable;
+  return utilisable && /\S+@\S+\.\S+/.test(champCourriel.value);
 }
 
 function majBoutonReserver() {
@@ -275,6 +281,8 @@ champNom.addEventListener('input', () => {
   const nom = champNom.value.trim().toLowerCase();
   verdict.className = 'verdict attente';
   verdict.textContent = nom ? 'Je vérifie…' : '';
+  nomReprenable = false;
+  $('#reserver').textContent = 'Réserver cette adresse';
   majBoutonReserver();
 
   clearTimeout(minuteurNom);
@@ -286,8 +294,11 @@ champNom.addEventListener('input', () => {
     try {
       const r = await api(`/api/nom/verifier?nom=${encodeURIComponent(nom)}`);
       if (champNom.value.trim().toLowerCase() !== nom) return; // déjà changé
-      verdict.className = `verdict ${r.libre ? 'libre' : 'pris'}`;
+
+      nomReprenable = !r.libre && !!r.reprenable;
+      verdict.className = `verdict ${r.libre ? 'libre' : (nomReprenable ? 'reprise' : 'pris')}`;
       verdict.textContent = r.libre ? `${r.adresse} est libre.` : r.motif;
+      $('#reserver').textContent = nomReprenable ? 'Reprendre cette adresse' : 'Réserver cette adresse';
     } catch (e) {
       verdict.className = 'verdict pris';
       verdict.textContent = e.message;
@@ -313,6 +324,9 @@ $('#reserver').addEventListener('click', async () => {
     $('#erreur-nom').hidden = false;
     bouton.disabled = false;
     return;
+  }
+  if (nomReprenable) {
+    $('#titre-confirmation').textContent = 'Confirme la reprise';
   }
   montre('confirmation');
   attendreConfirmation();

@@ -80,9 +80,20 @@ try {
         case 'disponible': {
             $nom = (string)($_GET['nom'] ?? '');
             $refus = $registre->refusDuNom($nom);
+
+            // « Pris » n'est pas une fin de non-recevoir quand le nom est le
+            // vôtre : une réinstallation doit pouvoir le reprendre, sur preuve
+            // de l'adresse de courriel qui l'a réservé.
+            $reprenable = $refus !== null && $registre->reprenable($nom);
+            if ($reprenable) {
+                $refus = 'Ce nom est déjà pris. S\'il est à toi, indique l\'adresse de courriel '
+                    . 'qui l\'a réservé : tu pourras le reprendre sur cette machine.';
+            }
+
             v2_ok([
                 'nom'        => strtolower(trim($nom)),
                 'libre'      => $refus === null,
+                'reprenable' => $reprenable,
                 'motif'      => $refus,
                 'adresse'    => strtolower(trim($nom)) . '.' . $registre->domaine(),
             ]);

@@ -138,6 +138,19 @@ final class Registry
      * pendant trois mois) retournent au pot commun ; c'est là toute la
      * différence entre « expiré » et « révoqué ».
      */
+    /**
+     * Vrai si ce nom est en service — donc repris par qui l'a réservé.
+     *
+     * Un nom révoqué n'est pas reprenable : il a été coupé pour un motif. Un
+     * nom libre non plus, évidemment : il se réserve.
+     */
+    public function reprenable(string $nom): bool
+    {
+        $q = $this->db->prepare("SELECT 1 FROM registry_servers WHERE name = ? AND state = 'active' LIMIT 1");
+        $q->execute([strtolower(trim($nom))]);
+        return (bool)$q->fetchColumn();
+    }
+
     private function nomPris(string $nom): bool
     {
         $q = $this->db->prepare(
