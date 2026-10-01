@@ -54,8 +54,23 @@ class Artwork extends StatelessWidget {
     // Google TV, un écran d'accueil plein de pochettes épuisait la mémoire et
     // l'app finissait par se faire tuer. On décode donc à la taille affichée,
     // au facteur de pixels près pour rester net.
+    //
+    // Une seule dimension, la largeur : avec les deux, le décodeur rend
+    // EXACTEMENT ce carré et écrase l'image au passage. Bon nombre de
+    // pochettes n'en sont pas une — les vignettes trouvées sur le web
+    // arrivent en 16:9, la pochette carrée au milieu et des bandes de
+    // couleur peintes de chaque côté. Écrasées, elles montraient ces bandes
+    // (« un rectangle pas assez large avec un fond des deux côtés ») alors
+    // que le web, qui ignore ces bornes, les recadrait proprement. Avec la
+    // largeur seule, les proportions sont gardées et `BoxFit.cover` fait
+    // son travail : on ne voit que le centre, c'est-à-dire la pochette.
     final dpr = MediaQuery.maybeDevicePixelRatioOf(context) ?? 1.0;
     final decode = size == null ? null : (size! * dpr).round();
+
+    // Mieux que recadrer après coup : demander la pochette déjà carrée. Le
+    // serveur sait le faire et garde une copie par palier — ce sont les
+    // mêmes paliers que le téléviseur, donc les mêmes fichiers.
+    final adresse = carree(url, decode);
 
     // Mode « dossier local » (idée #114) : la pochette a été extraite du
     // fichier audio et vit sur le disque de l'app — un chemin, pas une adresse.
@@ -72,20 +87,40 @@ class Artwork extends StatelessWidget {
                   width: size,
                   height: size,
                   cacheWidth: decode,
-                  cacheHeight: decode,
                   fit: BoxFit.cover,
                   errorBuilder: (_, _, _) => placeholder,
                 )
               : CachedNetworkImage(
-                  imageUrl: url!,
+                  imageUrl: adresse!,
                   width: size,
                   height: size,
                   memCacheWidth: decode,
-                  memCacheHeight: decode,
                   fit: BoxFit.cover,
                   placeholder: (_, _) => placeholder,
                   errorWidget: (_, _, _) => placeholder,
                 ),
     );
   }
+}
+
+/// Paliers de taille demandés au serveur, qui en garde une copie (il plafonne
+/// lui-même à 1024). Les mêmes que ceux du téléviseur : une pochette déjà
+/// réduite pour l'écran d'accueil du salon sert aussi la vignette du
+/// téléphone, sans fabriquer un fichier par taille de vignette.
+const _paliers = [128, 256, 384, 512, 768, 1024];
+
+/// L'adresse à demander : la pochette recadrée en carré quand le serveur sait
+/// le faire, la source telle quelle sinon.
+///
+/// Trois cas passent inchangés. Sans taille connue (la grande pochette du
+/// lecteur, les tuiles d'une grille) il n'y a pas de palier à choisir, et
+/// `BoxFit.cover` suffit à l'écran. Une vignette externe — logo de radio,
+/// image Deezer, miniature YouTube — ne comprend pas `size`. Et une adresse
+/// déjà pourvue d'un `size` vient du téléviseur, qui a déjà choisi.
+String? carree(String? url, int? decode) {
+  if (url == null || decode == null) return url;
+  if (!url.contains('serve_image.php')) return url;
+  if (url.contains('size=')) return url;
+  final cote = _paliers.firstWhere((p) => p >= decode, orElse: () => 1024);
+  return '$url${url.contains('?') ? '&' : '?'}size=$cote';
 }

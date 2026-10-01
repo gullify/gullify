@@ -68,7 +68,7 @@ class ArtworkManager {
         }
 
         if ($imageData) {
-            if ($this->saveThumbnail($imageData, $targetFile)) {
+            if ($this->saveThumbnail($imageData, $targetFile, 800, true)) {
                 $filename = 'album_' . $albumId . '.jpg';
                 $this->db->prepare("UPDATE albums SET artwork = ? WHERE id = ?")->execute([$filename, $albumId]);
                 return $filename;
@@ -142,7 +142,7 @@ class ArtworkManager {
         if (!is_dir($cachePath)) mkdir($cachePath, 0775, true);
         $targetFile = $cachePath . '/album_' . $albumId . '.jpg';
 
-        if (!$this->saveThumbnail($imageData, $targetFile)) return false;
+        if (!$this->saveThumbnail($imageData, $targetFile, 800, true)) return false;
 
         $this->db->prepare("UPDATE albums SET artwork = ? WHERE id = ?")
                  ->execute(['album_' . $albumId . '.jpg', $albumId]);
@@ -230,19 +230,48 @@ class ArtworkManager {
         return null;
     }
 
-    private function saveThumbnail(string $imageData, string $targetPath, int $size = 800): bool {
+    /**
+     * Écrit l'image réduite à $size.
+     *
+     * $carre recadre au centre plutôt que de réduire l'image entière. Une
+     * pochette EST carrée : les vignettes trouvées sur le web, elles,
+     * arrivent souvent en 16:9 — la pochette au milieu, des bandes de
+     * couleur peintes de chaque côté. Rangée telle quelle, l'image gardait
+     * ses bandes, et tout ce qui ne recadre pas à l'affichage les montrait :
+     * Android Auto, la notification du téléphone, l'écran verrouillé, et
+     * n'importe quel autre lecteur ouvrant le folder.jpg du dossier.
+     *
+     * Les photos d'artiste n'y passent pas : couper une photo de presse en
+     * son centre décapite son monde.
+     */
+    private function saveThumbnail(string $imageData, string $targetPath, int $size = 800, bool $carre = false): bool {
         try {
             $src = @imagecreatefromstring($imageData);
             if (!$src) return false;
             $width = imagesx($src); $height = imagesy($src);
-            if ($width > $height) {
-                $newWidth = $size; $newHeight = floor($height * ($size / $width));
+
+            if ($carre) {
+                // Le plus grand carré que l'image contient, pris au centre —
+                // et jamais d'agrandissement : étirer une petite pochette
+                // n'ajoute aucun détail, et fait croire à une grande.
+                $cote = min($width, $height);
+                $srcX = intdiv($width - $cote, 2);
+                $srcY = intdiv($height - $cote, 2);
+                $newWidth = $newHeight = min($size, $cote);
+                $srcWidth = $srcHeight = $cote;
             } else {
-                $newHeight = $size; $newWidth = floor($width * ($size / $height));
+                $srcX = $srcY = 0;
+                $srcWidth = $width; $srcHeight = $height;
+                if ($width > $height) {
+                    $newWidth = $size; $newHeight = floor($height * ($size / $width));
+                } else {
+                    $newHeight = $size; $newWidth = floor($width * ($size / $height));
+                }
             }
+
             $tmp = imagecreatetruecolor($newWidth, $newHeight);
             imagealphablending($tmp, false); imagesavealpha($tmp, true);
-            imagecopyresampled($tmp, $src, 0, 0, 0, 0, $newWidth, $newHeight, $width, $height);
+            imagecopyresampled($tmp, $src, 0, 0, $srcX, $srcY, $newWidth, $newHeight, $srcWidth, $srcHeight);
             $result = imagejpeg($tmp, $targetPath, 85);
             imagedestroy($src); imagedestroy($tmp);
             return $result;
