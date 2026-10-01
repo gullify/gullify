@@ -88,9 +88,12 @@ func (e *Etat) installe() {
 		{"Préparation de la base", func() error { return e.setup("create_tables", nil) }},
 		{"Création de ton compte", func() error {
 			err := e.setup("create_admin", map[string]string{
-				"username":        utilisateur,
-				"password":        motDePasse,
-				"music_directory": "/music",
+				"username": utilisateur,
+				"password": motDePasse,
+				// Le dossier choisi est monté SUR /music : pour le serveur,
+				// la bibliothèque est la racine de ce montage. « /music »
+				// donnait « /music//music » — un dossier qui n'existe pas.
+				"music_directory": ".",
 			})
 			// Réinstallation sur une base existante : le compte est déjà là.
 			// Ce n'est pas un échec, et on ne touche surtout pas à son mot de
@@ -105,7 +108,7 @@ func (e *Etat) installe() {
 		{"Enregistrement de ta musique", func() error {
 			return e.setup("save_storage", map[string]string{
 				"storage_type":    "local",
-				"music_directory": "/music",
+				"music_directory": ".",
 			})
 		}},
 		{"Dernier réglage", func() error { return e.setup("finish_setup", nil) }},

@@ -94,12 +94,27 @@ function getPostData(): array {
  * rien casser de ce qui appelle encore cette API.
  */
 function getDBFromRequest(array $data): PDO {
+    // Un champ VIDE vaut « pas fourni », pas « chaîne vide ».
+    //
+    // La nuance a du mordant : l'assistant envoie toujours ses champs, vides
+    // compris. Avec `??`, une chaîne vide passait pour une valeur — on se
+    // connectait sans mot de passe (« using password: NO »), et l'accès était
+    // refusé alors que le .env contenait le bon.
+    $premier = static function (array $candidats, string $defaut): string {
+        foreach ($candidats as $valeur) {
+            if (is_scalar($valeur) && (string)$valeur !== '') {
+                return (string)$valeur;
+            }
+        }
+        return $defaut;
+    };
+
     return getDBConnection([
-        'host'     => $data['db_host']     ?? $data['host']     ?? AppConfig::get('mysql.host'),
-        'port'     => $data['db_port']     ?? $data['port']     ?? AppConfig::get('mysql.port'),
-        'database' => $data['db_database'] ?? $data['database'] ?? AppConfig::get('mysql.database'),
-        'user'     => $data['db_user']     ?? $data['user']     ?? AppConfig::get('mysql.user'),
-        'password' => $data['db_password'] ?? AppConfig::get('mysql.password'),
+        'host'     => $premier([$data['db_host'] ?? null, $data['host'] ?? null], (string)AppConfig::get('mysql.host')),
+        'port'     => $premier([$data['db_port'] ?? null, $data['port'] ?? null], (string)AppConfig::get('mysql.port')),
+        'database' => $premier([$data['db_database'] ?? null, $data['database'] ?? null], (string)AppConfig::get('mysql.database')),
+        'user'     => $premier([$data['db_user'] ?? null, $data['user'] ?? null], (string)AppConfig::get('mysql.user')),
+        'password' => $premier([$data['db_password'] ?? null], (string)AppConfig::get('mysql.password')),
     ]);
 }
 

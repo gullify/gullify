@@ -36,25 +36,27 @@ $_langData = file_exists($_langFile) ? file_get_contents($_langFile) : '{}';
            Rien n'est téléchargé : ni police, ni bibliothèque. Un serveur qu'on
            installe n'a pas toujours une connexion aimable. */
         :root {
-            color-scheme: dark;
+            color-scheme: light;
 
-            --fond: #07080e;
-            --fond-carte: #121622;
-            --fond-carte-haut: #161b2a;
-            --fond-champ: #1a2030;
+            /* Les couleurs de l'app en thème clair, reprises telles quelles
+               (app/lib/theme.dart) : qui enchaîne l'assistant puis l'écran de
+               connexion ne doit sentir aucune marche entre les deux. */
+            --fond-haut: #F6F6F8;
+            --fond-bas: #E6EAF1;
+            --surface: #FFFFFF;
+            --surface-douce: #F2F3F7;
 
-            --bordure: #262c3d;
-            --bordure-vive: #39415c;
+            --bordure: #D8DCE4;
+            --bordure-vive: #A0A4AC;
 
-            --texte: #c3cbdd;
-            --texte-vif: #f2f5fc;
-            --texte-attenue: #99a1b7;
+            --texte: #191B21;
+            --texte-attenue: #6B7078;
 
             --fy: #2C6774;
-            --accent: #3A93AC;
-            --accent-clair: #6FC6DB;
-            --succes: #5ad79b;
-            --danger: #ff8080;
+            --accent: #2C6774;
+            --accent-clair: #3A93AC;
+            --succes: #1F8A5B;
+            --danger: #C0392B;
 
             --rayon: 14px;
             --rayon-l: 20px;
@@ -68,9 +70,12 @@ $_langData = file_exists($_langFile) ? file_get_contents($_langFile) : '{}';
 
         body {
             font-family: var(--police);
+            /* Le même dégradé en diagonale que l'app, avec la tache d'accent
+               diffuse en haut à gauche. */
             background:
-                radial-gradient(900px 500px at 15% -10%, rgba(58, 147, 172, .16), transparent 60%),
-                var(--fond);
+                radial-gradient(760px 420px at 12% -8%, rgba(44, 103, 116, .10), transparent 62%),
+                linear-gradient(135deg, var(--fond-haut), var(--fond-bas));
+            background-attachment: fixed;
             color: var(--texte);
             line-height: 1.6;
             min-height: 100vh;
@@ -93,7 +98,7 @@ $_langData = file_exists($_langFile) ? file_get_contents($_langFile) : '{}';
             font-weight: 800;
             font-size: 2.1rem;
             letter-spacing: -.03em;
-            color: var(--texte-vif);
+            color: var(--texte);
             line-height: 1;
         }
 
@@ -116,28 +121,28 @@ $_langData = file_exists($_langFile) ? file_get_contents($_langFile) : '{}';
             width: 9px;
             height: 9px;
             border-radius: 50%;
-            background: var(--bordure-vive);
+            background: var(--bordure);
             transition: background-color .25s ease, transform .25s ease;
         }
 
-        .steps .step-dot.active { background: var(--accent-clair); transform: scale(1.35); }
+        .steps .step-dot.active { background: var(--accent); transform: scale(1.35); }
         .steps .step-dot.done { background: var(--fy); }
 
         /* ── Les cartes ──────────────────────────────────────────────────── */
 
         .card {
-            background: linear-gradient(180deg, var(--fond-carte-haut), var(--fond-carte));
+            background: var(--surface);
             border: 1px solid var(--bordure);
             border-radius: var(--rayon-l);
             padding: 28px;
-            box-shadow: 0 18px 44px rgba(0, 0, 0, .45);
+            box-shadow: 0 10px 30px rgba(25, 27, 33, .07);
         }
 
         .card h2 {
             font-size: 1.45rem;
             font-weight: 700;
             letter-spacing: -.02em;
-            color: var(--texte-vif);
+            color: var(--texte);
             margin-bottom: 6px;
         }
 
@@ -159,7 +164,7 @@ $_langData = file_exists($_langFile) ? file_get_contents($_langFile) : '{}';
         .form-group label {
             display: block;
             font-size: .88rem;
-            color: var(--texte-vif);
+            color: var(--texte);
             margin-bottom: 6px;
         }
 
@@ -167,9 +172,9 @@ $_langData = file_exists($_langFile) ? file_get_contents($_langFile) : '{}';
             width: 100%;
             padding: .75em .9em;
             border-radius: var(--rayon);
-            background: var(--fond-champ);
+            background: var(--surface-douce);
             border: 1px solid var(--bordure);
-            color: var(--texte-vif);
+            color: var(--texte);
             font: inherit;
         }
 
@@ -199,15 +204,15 @@ $_langData = file_exists($_langFile) ? file_get_contents($_langFile) : '{}';
             transition: transform .15s ease, background-color .15s ease, border-color .15s ease;
         }
 
-        .btn-primary { background: var(--accent); color: #04121a; }
+        .btn-primary { background: var(--accent); color: #FFFFFF; }
         .btn-primary:hover:not(:disabled) { transform: translateY(-1px); background: var(--accent-clair); }
         .btn-primary:disabled { opacity: .45; cursor: not-allowed; transform: none; }
 
-        .btn-secondary { background: transparent; color: var(--texte-vif); border-color: var(--bordure-vive); }
+        .btn-secondary { background: var(--surface); color: var(--texte); border-color: var(--bordure); }
         .btn-secondary:hover:not(:disabled) { border-color: var(--accent); color: var(--accent-clair); }
         .btn-secondary:disabled { opacity: .45; cursor: not-allowed; }
 
-        .btn-success { background: var(--succes); color: #04121a; }
+        .btn-success { background: var(--succes); color: #FFFFFF; }
 
         /* ── Les messages ────────────────────────────────────────────────── */
 
@@ -219,9 +224,9 @@ $_langData = file_exists($_langFile) ? file_get_contents($_langFile) : '{}';
             border: 1px solid transparent;
         }
 
-        .status-msg.info { background: rgba(58, 147, 172, .1); border-color: rgba(58, 147, 172, .3); color: var(--accent-clair); }
-        .status-msg.success { background: rgba(90, 215, 155, .1); border-color: rgba(90, 215, 155, .3); color: var(--succes); }
-        .status-msg.error { background: rgba(255, 128, 128, .1); border-color: rgba(255, 128, 128, .3); color: var(--danger); }
+        .status-msg.info { background: rgba(44, 103, 116, .08); border-color: rgba(44, 103, 116, .22); color: var(--accent); }
+        .status-msg.success { background: rgba(31, 138, 91, .09); border-color: rgba(31, 138, 91, .25); color: var(--succes); }
+        .status-msg.error { background: rgba(192, 57, 43, .08); border-color: rgba(192, 57, 43, .25); color: var(--danger); }
 
         /* ── La liste des vérifications ──────────────────────────────────── */
 
@@ -249,9 +254,9 @@ $_langData = file_exists($_langFile) ? file_get_contents($_langFile) : '{}';
             font-weight: 700;
         }
 
-        .check-icon.pass { background: rgba(90, 215, 155, .16); color: var(--succes); }
-        .check-icon.fail { background: rgba(255, 128, 128, .16); color: var(--danger); }
-        .check-icon.wait { background: rgba(153, 161, 183, .14); color: var(--texte-attenue); }
+        .check-icon.pass { background: rgba(31, 138, 91, .13); color: var(--succes); }
+        .check-icon.fail { background: rgba(192, 57, 43, .12); color: var(--danger); }
+        .check-icon.wait { background: rgba(107, 112, 120, .12); color: var(--texte-attenue); }
 
         /* ── Le choix du stockage ────────────────────────────────────────── */
 
@@ -264,15 +269,15 @@ $_langData = file_exists($_langFile) ? file_get_contents($_langFile) : '{}';
             padding: 16px;
             border-radius: var(--rayon);
             border: 1px solid var(--bordure);
-            background: var(--fond-champ);
+            background: var(--surface-douce);
             cursor: pointer;
             transition: border-color .15s ease, background-color .15s ease;
         }
 
         .storage-option:hover { border-color: var(--bordure-vive); }
-        .storage-option.active { border-color: var(--accent); background: rgba(58, 147, 172, .1); }
+        .storage-option.active { border-color: var(--accent); background: rgba(44, 103, 116, .08); }
         .storage-option .storage-icon { font-size: 1.5rem; line-height: 1.2; }
-        .storage-option strong { display: block; color: var(--texte-vif); }
+        .storage-option strong { display: block; color: var(--texte); }
         .storage-option p { color: var(--texte-attenue); font-size: .88rem; }
 
         .sftp-fields { margin-top: 6px; }
@@ -286,7 +291,7 @@ $_langData = file_exists($_langFile) ? file_get_contents($_langFile) : '{}';
             gap: 12px;
             padding: 12px 14px;
             border-radius: var(--rayon);
-            background: var(--fond-champ);
+            background: var(--surface-douce);
             border: 1px solid var(--bordure);
             margin-bottom: 10px;
         }
@@ -299,7 +304,7 @@ $_langData = file_exists($_langFile) ? file_get_contents($_langFile) : '{}';
             color: var(--texte-attenue);
         }
 
-        .user-card .role.admin { color: var(--accent-clair); }
+        .user-card .role.admin { color: var(--accent); }
 
         /* ── La fin ──────────────────────────────────────────────────────── */
 
@@ -311,8 +316,8 @@ $_langData = file_exists($_langFile) ? file_get_contents($_langFile) : '{}';
             display: grid;
             place-items: center;
             font-size: 2rem;
-            background: rgba(90, 215, 155, .14);
-            border: 1px solid rgba(90, 215, 155, .35);
+            background: rgba(31, 138, 91, .12);
+            border: 1px solid rgba(31, 138, 91, .3);
             color: var(--succes);
         }
 
@@ -324,8 +329,8 @@ $_langData = file_exists($_langFile) ? file_get_contents($_langFile) : '{}';
             display: inline-block;
             width: 16px;
             height: 16px;
-            border: 2px solid rgba(255, 255, 255, .25);
-            border-top-color: var(--texte-vif);
+            border: 2px solid rgba(25, 27, 33, .18);
+            border-top-color: var(--texte);
             border-radius: 50%;
             animation: spin .7s linear infinite;
         }

@@ -216,7 +216,12 @@ class Scanner {
             if (!$relPath) {
                 throw new Exception("No music directory found for user: $user");
             }
-            $musicRoot = $this->basePath . '/' . $relPath;
+            // realpath normalise le chemin : un dossier de musique noté « . »
+            // — le cas de toute installation où le dossier choisi EST la
+            // bibliothèque — donnerait sinon « /music/. », et chaque fichier
+            // serait enregistré sous « ./Artiste/… ».
+            $brut = $this->basePath . '/' . $relPath;
+            $musicRoot = realpath($brut) ?: $brut;
             $this->scanPathBase = $this->basePath; // keeps existing behavior (includes music_dir prefix)
         }
 
