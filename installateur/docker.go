@@ -93,12 +93,10 @@ func commandeInstallation() (commande string, explique string) {
 		// Donc : « start » ouvre une console à part, que la personne voit, où
 		// winget affiche sa vraie barre et pose ses vraies questions. Cette
 		// page, elle, se contente de guetter le moment où Docker répond.
-		return `start "Installation de Docker" cmd /K winget install -e --id Docker.DockerDesktop ` +
-				`--accept-source-agreements --accept-package-agreements`,
-			"Docker n'est pas là. Je peux lancer son installation (environ 600 Mo) : " +
-				"une fenêtre noire s'ouvrira, c'est elle qui montre l'avancement. " +
-				"Windows demandera une confirmation d'administrateur, et il faudra " +
-				"redémarrer l'ordinateur à la fin."
+		return "", // Windows ne passe pas par une commande : voir docker_windows.go
+			"Docker n'est pas là. Je le télécharge et je l'installe pour toi " +
+				"(environ 600 Mo). Tu verras l'avancement ici, et Windows te " +
+				"demandera une seule autorisation."
 	case "darwin":
 		return "brew install --cask docker",
 			"Docker n'est pas là. Si tu as Homebrew, je peux l'installer pour toi. " +
@@ -133,6 +131,14 @@ func (e *Etat) verifierDocker(w http.ResponseWriter, _ *http.Request) {
 // installerDocker lance la commande du système et rend la main tout de suite :
 // l'installation peut durer, la page suit le journal.
 func (e *Etat) installerDocker(w http.ResponseWriter, _ *http.Request) {
+	// Windows a sa propre route : on télécharge et on installe nous-mêmes, pour
+	// pouvoir montrer un avancement qui dise la vérité (voir docker_windows.go).
+	if runtime.GOOS == "windows" {
+		go e.installeDockerWindows()
+		e.repond(w, map[string]bool{"lance": true})
+		return
+	}
+
 	commande, _ := commandeInstallation()
 	e.dit("Installation de Docker : %s", commande)
 
@@ -142,21 +148,6 @@ func (e *Etat) installerDocker(w http.ResponseWriter, _ *http.Request) {
 			cmd = exec.Command("cmd", "/C", commande)
 		} else {
 			cmd = exec.Command("sh", "-c", commande)
-		}
-
-		// Sous Windows, la commande ne fait qu'OUVRIR une fenêtre : elle rend
-		// la main tout de suite, et c'est cette fenêtre qui travaille. Rien à
-		// lire ici — on le dit, et on guette l'arrivée de Docker.
-		if runtime.GOOS == "windows" {
-			if err := cmd.Start(); err != nil {
-				e.echoue("Je n'ai pas réussi à lancer l'installation (%v). "+
-					"Installe Docker Desktop depuis docker.com, puis reviens.", err)
-				return
-			}
-			e.dit("Une fenêtre d'installation s'est ouverte : suis-la, c'est elle qui montre l'avancement.")
-			e.majProgresDocker("L'installation se passe dans la fenêtre qui vient de s'ouvrir.")
-			e.guetteDocker(30 * time.Minute)
-			return
 		}
 
 		// On suit la sortie au fil de l'eau plutôt qu'à la fin.
