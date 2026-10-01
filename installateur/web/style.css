@@ -406,3 +406,5 @@ input:focus { outline: none; border-color: var(--accent); }
   overflow-x: auto;
   white-space: nowrap;
 }
+
+.aparte a { color: var(--accent-clair); }

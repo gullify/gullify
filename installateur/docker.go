@@ -80,9 +80,16 @@ func regardeDocker() DockerEtat {
 func commandeInstallation() (commande string, explique string) {
 	switch runtime.GOOS {
 	case "windows":
-		return "winget install -e --id Docker.DockerDesktop",
+		// Les trois drapeaux ne sont pas décoratifs : sans eux, winget POSE DES
+		// QUESTIONS (accepter les conditions de la source, puis celles du
+		// paquet) et attend une réponse que personne ne verra — la commande
+		// reste figée indéfiniment, sans rien écrire. C'est exactement ce qui
+		// s'est produit : vingt minutes de silence sur une fibre à 3 Gbit/s.
+		return "winget install -e --id Docker.DockerDesktop " +
+				"--accept-source-agreements --accept-package-agreements --disable-interactivity",
 			"Docker n'est pas là. Je peux l'installer pour toi (environ 600 Mo). " +
-				"Windows demandera une confirmation, et il faudra redémarrer l'ordinateur une fois."
+				"Windows demandera une confirmation d'administrateur, et il faudra " +
+				"redémarrer l'ordinateur une fois."
 	case "darwin":
 		return "brew install --cask docker",
 			"Docker n'est pas là. Si tu as Homebrew, je peux l'installer pour toi. " +
@@ -143,7 +150,31 @@ func (e *Etat) installerDocker(w http.ResponseWriter, _ *http.Request) {
 			return
 		}
 
-		e.majProgresDocker("Téléchargement en cours…")
+		e.majProgresDocker("Je lance l'installateur de Docker…")
+
+		// Chien de garde : une installation qui n'écrit RIEN pendant deux
+		// minutes est une installation bloquée, pas une installation lente.
+		// Mieux vaut le dire et proposer la voie manuelle que laisser quelqu'un
+		// regarder un écran immobile — c'est ce qui est arrivé.
+		dernierSigne := make(chan struct{}, 1)
+		alerte := make(chan struct{})
+		go func() {
+			for {
+				select {
+				case <-dernierSigne:
+				case <-alerte:
+					return
+				case <-time.After(2 * time.Minute):
+					e.majProgresDocker("")
+					e.dit("Docker ne donne aucun signe de vie depuis deux minutes.")
+					e.dit("Regarde si une fenêtre de Windows attend une réponse, " +
+						"ou installe Docker Desktop toi-même : https://docker.com/products/docker-desktop")
+					return
+				}
+			}
+		}()
+		defer close(alerte)
+
 		lecteur := bufio.NewReader(tuyau)
 		for {
 			// Les barres de progression se terminent par un retour chariot, pas
@@ -156,6 +187,11 @@ func (e *Etat) installerDocker(w http.ResponseWriter, _ *http.Request) {
 			if ligne == "" {
 				continue
 			}
+			select {
+			case dernierSigne <- struct{}{}:
+			default:
+			}
+
 			if strings.ContainsAny(ligne, "%█▒") || strings.Contains(ligne, "MB") {
 				e.majProgresDocker(ligne)
 			} else {

@@ -104,7 +104,12 @@ async function regardeDocker() {
     return;
   }
 
-  carte.innerHTML = `<h2>${d.installe ? 'Presque' : 'Il manque Docker'}</h2><p>${d.explique || ''}</p>`;
+  carte.innerHTML =
+    `<h2>${d.installe ? 'Presque' : 'Il manque Docker'}</h2><p>${d.explique || ''}</p>` +
+    (d.installe ? '' :
+      '<p class="aparte">Tu peux aussi l\'installer toi-même depuis ' +
+      '<a href="https://www.docker.com/products/docker-desktop/" target="_blank" rel="noopener">docker.com</a> ' +
+      '— c\'est parfois plus simple — puis revenir ici et cliquer sur « Revérifier ».</p>');
   $('#installer-docker').hidden = d.installe; // installé mais arrêté : rien à installer
 }
 
@@ -142,8 +147,12 @@ function majCarteDockerEnCours(avancement) {
     '<p>Environ 600 Mo à télécharger : compte cinq à quinze minutes selon ta ' +
     'connexion. Windows demandera peut-être une confirmation, et un ' +
     'redémarrage à la fin.</p>' +
-    `<p class="avancement">${avancement || 'Téléchargement en cours…'}</p>` +
-    '<p class="aparte">Tu peux laisser cette page ouverte et aller faire autre chose.</p>';
+    `<p class="avancement">${avancement || 'Je lance l\'installateur de Docker…'}</p>` +
+    '<p class="aparte">Tu peux laisser cette page ouverte et aller faire autre chose. ' +
+    'Si rien ne bouge au bout de deux minutes, regarde si une fenêtre de Windows ' +
+    'attend une réponse — ou installe-le toi-même : ' +
+    '<a href="https://www.docker.com/products/docker-desktop/" target="_blank" rel="noopener">docker.com</a>, ' +
+    'puis reviens ici et clique sur « Revérifier ».</p>';
 }
 
 // ── 3 : le réseau ────────────────────────────────────────────────────────────
