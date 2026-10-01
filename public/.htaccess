@@ -28,3 +28,31 @@ RewriteRule ^tv$ tv.php [L]
     Header set Cache-Control "no-cache"
   </IfModule>
 </If>
+
+
+# La racine EST l'app, sur un serveur personnel.
+#
+# L'app web est construite avec un « base href » à la racine : elle demande
+# /main.dart.js, /assets/…, /canvaskit/…. Ces fichiers vivent dans public/app/,
+# où la construction les dépose. On les y renvoie — mais seulement si rien
+# d'autre ne répond : les API, les images, le flux et la page de présentation
+# de gullify.app sont de vrais fichiers, ils gagnent.
+<IfModule mod_rewrite.c>
+  RewriteCond %{REQUEST_URI} !^/app/
+  RewriteCond %{DOCUMENT_ROOT}%{REQUEST_URI} !-f
+  RewriteCond %{DOCUMENT_ROOT}%{REQUEST_URI} !-d
+  RewriteCond %{DOCUMENT_ROOT}/app%{REQUEST_URI} -f
+  RewriteRule ^(.*)$ /app/$1 [L]
+
+  # Et pour tout le reste : la coque de l'app.
+  #
+  # L'app a des adresses à elle (/recherche, /album/12…). Rafraîchir une de ces
+  # pages, ou l'ouvrir depuis un signet, demande au serveur un chemin qui
+  # n'existe pas sur le disque — il faut lui rendre la coque, qui saura quoi
+  # afficher. Les fichiers réels (les API, le flux, les images) ont déjà
+  # gagné plus haut : cette règle ne voit passer que ce qui n'existe pas.
+  RewriteCond %{REQUEST_URI} !^/app/
+  RewriteCond %{DOCUMENT_ROOT}%{REQUEST_URI} !-f
+  RewriteCond %{DOCUMENT_ROOT}%{REQUEST_URI} !-d
+  RewriteRule ^(.*)$ /index.php [L]
+</IfModule>

@@ -17,6 +17,45 @@
  */
 declare(strict_types=1);
 
+require_once __DIR__ . '/../src/AppConfig.php';
+
+/*
+ * Sur un serveur PERSONNEL, la racine est l'app — pas cette page.
+ *
+ * Qui tape « maxime.gullify.app » veut sa musique, tout de suite. La page de
+ * présentation n'a de sens qu'à un seul endroit : gullify.app, la vitrine,
+ * marquée GULLIFY_ROLE=service. Partout ailleurs on sert l'app web, qui vit
+ * dans public/app/ et que l'image emporte avec elle ; son `base href` la fait
+ * chercher ses fichiers à la racine, où le .htaccess les renvoie.
+ *
+ * L'ancien chemin « /app/ » n'existait que parce que le projet occupait la
+ * racine de gullify.app. Il ne sert plus à rien chez les gens.
+ */
+if (AppConfig::get('role', 'personnel') !== 'service') {
+    $application = __DIR__ . '/app/index.html';
+    if (is_file($application)) {
+        header('Content-Type: text/html; charset=utf-8');
+        // Jamais de copie gardée pour la coque : c'est elle qui désigne la
+        // version des fichiers, et une coque périmée fige l'app entière.
+        header('Cache-Control: no-cache');
+        readfile($application);
+        exit;
+    }
+    http_response_code(503);
+    exit('L\'app web n\'est pas encore installée sur ce serveur.');
+}
+
+/*
+ * Sur la vitrine, une adresse inconnue reste une adresse inconnue.
+ *
+ * Le .htaccess renvoie ici tout ce qui ne correspond à aucun fichier — c'est
+ * ce qui permet à l'app de garder ses propres adresses sur un serveur
+ * personnel. Ici, ce serait prétendre que n'importe quelle adresse existe.
+ */
+if (($_SERVER['REQUEST_URI'] ?? '/') !== '/' && !str_starts_with((string)($_SERVER['REQUEST_URI'] ?? ''), '/?')) {
+    http_response_code(404);
+}
+
 const APK_LATEST = 'https://download.gullify.app/gullify-latest.apk';
 
 $manifeste = @file_get_contents(__DIR__ . '/download/version.json');

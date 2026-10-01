@@ -172,8 +172,16 @@ func (e *Etat) ecritFichiers(dossier, musique, adresse string) error {
 		return fmt.Errorf("impossible de créer %s : %w", dossier, err)
 	}
 
-	motDePasseBase := secret(18)
-	secretApp := secret(32)
+	// Les secrets d'une installation PRÉCÉDENTE priment sur des neufs.
+	//
+	// MySQL ne lit son mot de passe qu'à la toute première mise en route :
+	// ensuite il garde celui-là, gravé dans son volume. Réinstaller en
+	// fabriquant de nouveaux secrets donnerait une pile qui ne peut plus ouvrir
+	// sa propre base — « Access denied », sans que rien n'explique pourquoi.
+	ancien := litEnv(filepath.Join(dossier, ".env"))
+	motDePasseBase := reprendre(ancien, "MYSQL_PASSWORD", 18)
+	motDePasseRacine := reprendre(ancien, "MYSQL_ROOT_PASSWORD", 18)
+	secretApp := reprendre(ancien, "APP_SECRET", 32)
 
 	env := fmt.Sprintf(`# Écrit par l'installateur GulliFY — modifiable, mais prudence.
 GULLIFY_SETUP_DONE=false
@@ -196,7 +204,7 @@ APP_SECRET=%s
 
 PUID=%d
 PGID=%d
-`, motDePasseBase, secret(18), musique, adresse, adresse, secretApp, utilisateurSysteme(), groupeSysteme())
+`, motDePasseBase, motDePasseRacine, musique, adresse, adresse, secretApp, utilisateurSysteme(), groupeSysteme())
 
 	if err := os.WriteFile(filepath.Join(dossier, ".env"), []byte(env), 0o600); err != nil {
 		return fmt.Errorf("impossible d'écrire la configuration : %w", err)
@@ -294,6 +302,34 @@ func imageGullify() string {
 		return image
 	}
 	return imageParDefaut
+}
+
+// litEnv relit un .env déjà posé. Un fichier absent n'est pas une erreur :
+// c'est simplement une première installation.
+func litEnv(chemin string) map[string]string {
+	valeurs := map[string]string{}
+	contenu, err := os.ReadFile(chemin)
+	if err != nil {
+		return valeurs
+	}
+	for _, ligne := range strings.Split(string(contenu), "\n") {
+		ligne = strings.TrimSpace(ligne)
+		if ligne == "" || strings.HasPrefix(ligne, "#") {
+			continue
+		}
+		if cle, valeur, trouve := strings.Cut(ligne, "="); trouve {
+			valeurs[strings.TrimSpace(cle)] = strings.TrimSpace(valeur)
+		}
+	}
+	return valeurs
+}
+
+// reprendre rend l'ancienne valeur si elle existe, sinon un secret tout neuf.
+func reprendre(ancien map[string]string, cle string, octets int) string {
+	if valeur, existe := ancien[cle]; existe && valeur != "" {
+		return valeur
+	}
+	return secret(octets)
 }
 
 func secret(octets int) string {

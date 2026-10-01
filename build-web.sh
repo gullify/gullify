@@ -13,8 +13,8 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-BASE_HREF="${BASE_HREF:-/app/}"
-DEST="public${BASE_HREF%/}"
+BASE_HREF="${BASE_HREF:-/}"
+DEST="${DEST:-public/app}"
 
 cd app
 flutter pub get

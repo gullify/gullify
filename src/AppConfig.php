@@ -215,6 +215,7 @@ class AppConfig {
             'app.secret' => '',
             'lastfm.api_key' => '',
             // Service d'inscription : éteint partout sauf sur le serveur central.
+            'role' => 'personnel',
             'registry.domain' => '',
             'registry.dns' => 'fictif',
             'registry.ionos_key' => '',
@@ -282,6 +283,10 @@ class AppConfig {
             // Le service d'inscription des serveurs (voir src/Registry.php).
             // Absent de la plupart des installations : seul le serveur central
             // de gullify.app distribue des sous-domaines.
+            // « service » = gullify.app (la vitrine et le service d'inscription).
+            // Partout ailleurs — c'est-à-dire chez les gens — le serveur est
+            // PERSONNEL : sa racine est l'app, pas une page de présentation.
+            'GULLIFY_ROLE'       => 'role',
             'REGISTRY_DOMAIN'    => 'registry.domain',
             'REGISTRY_DNS'       => 'registry.dns',
             'IONOS_API_KEY'      => 'registry.ionos_key',
@@ -323,6 +328,10 @@ class AppConfig {
             // Le service d'inscription des serveurs (voir src/Registry.php).
             // Absent de la plupart des installations : seul le serveur central
             // de gullify.app distribue des sous-domaines.
+            // « service » = gullify.app (la vitrine et le service d'inscription).
+            // Partout ailleurs — c'est-à-dire chez les gens — le serveur est
+            // PERSONNEL : sa racine est l'app, pas une page de présentation.
+            'GULLIFY_ROLE'       => 'role',
             'REGISTRY_DOMAIN'    => 'registry.domain',
             'REGISTRY_DNS'       => 'registry.dns',
             'IONOS_API_KEY'      => 'registry.ionos_key',
