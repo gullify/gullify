@@ -553,13 +553,16 @@ async function checkRequirements() {
     }
 }
 
+// Les identifiants de la BASE, préfixés : sans ça, « password » désignait à la
+// fois le mot de passe de la base et celui du compte à créer, et le premier
+// écrasait le second.
 function getDbCredentials() {
     return {
-        host: document.getElementById('dbHost').value,
-        port: document.getElementById('dbPort').value,
-        database: document.getElementById('dbName').value,
-        user: document.getElementById('dbUser').value,
-        password: document.getElementById('dbPass').value,
+        db_host: document.getElementById('dbHost').value,
+        db_port: document.getElementById('dbPort').value,
+        db_database: document.getElementById('dbName').value,
+        db_user: document.getElementById('dbUser').value,
+        db_password: document.getElementById('dbPass').value,
     };
 }
 

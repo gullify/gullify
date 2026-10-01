@@ -1,0 +1,351 @@
+/* L'habillage de l'installateur : celui de gullify.app, pour que ce soit la
+   même maison du début à la fin. Rien n'est téléchargé — ni police, ni
+   bibliothèque : l'installateur doit fonctionner même sur une machine dont la
+   connexion est capricieuse. */
+
+:root {
+  color-scheme: dark;
+
+  --fond: #07080e;
+  --fond-2: #0b0e16;
+  --fond-carte: #121622;
+  --fond-carte-haut: #161b2a;
+  --fond-champ: #1a2030;
+
+  --bordure: #262c3d;
+  --bordure-vive: #39415c;
+
+  --texte: #c3cbdd;
+  --texte-vif: #f2f5fc;
+  --texte-attenue: #99a1b7;
+
+  --fy: #2C6774;
+  --accent: #3A93AC;
+  --accent-clair: #6FC6DB;
+  --succes: #5ad79b;
+  --danger: #ff8080;
+
+  --rayon: 14px;
+  --rayon-l: 20px;
+
+  /* La pile système : c'est la police du logotype de la gamme. */
+  --police: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+    'Helvetica Neue', Arial, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background:
+    radial-gradient(900px 500px at 15% -10%, rgba(58, 147, 172, .16), transparent 60%),
+    var(--fond);
+  color: var(--texte);
+  font-family: var(--police);
+  line-height: 1.6;
+  min-height: 100vh;
+}
+
+/* ── En-tête ─────────────────────────────────────────────────────────────── */
+
+.entete {
+  display: flex;
+  align-items: center;
+  gap: .7rem;
+  padding: 1.5rem 1.5rem .5rem;
+  max-width: 760px;
+  margin: 0 auto;
+}
+
+.signe { width: 34px; height: 48px; object-fit: contain; }
+
+.marque {
+  font-weight: 800;
+  font-size: 1.7rem;
+  letter-spacing: -.03em;
+  color: var(--texte-vif);
+}
+
+.fy { color: var(--fy); }
+
+.sous-titre {
+  margin-left: auto;
+  color: var(--texte-attenue);
+  font-size: .9rem;
+}
+
+/* ── Le cadre et les étapes ──────────────────────────────────────────────── */
+
+.cadre {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 1rem 1.5rem 5rem;
+}
+
+h1 {
+  font-size: clamp(1.7rem, 4vw, 2.3rem);
+  font-weight: 700;
+  letter-spacing: -.03em;
+  color: var(--texte-vif);
+  margin: 1rem 0 .6rem;
+}
+
+h2 {
+  font-size: 1.02rem;
+  font-weight: 700;
+  color: var(--texte-vif);
+  margin: 0 0 .6rem;
+}
+
+.intro { color: var(--texte-attenue); max-width: 58ch; margin: 0 0 2rem; }
+
+.etape[hidden] { display: none; }
+
+/* ── L'aperçu des trois étapes ───────────────────────────────────────────── */
+
+.apercu { list-style: none; margin: 0 0 2.5rem; padding: 0; display: grid; gap: .8rem; }
+
+.apercu li {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+  background: linear-gradient(180deg, var(--fond-carte-haut), var(--fond-carte));
+  border: 1px solid var(--bordure);
+  border-radius: var(--rayon-l);
+  padding: 1rem 1.2rem;
+}
+
+.num {
+  flex: none;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+  color: var(--accent-clair);
+  background: rgba(58, 147, 172, .14);
+  border: 1px solid rgba(58, 147, 172, .3);
+}
+
+.apercu strong { color: var(--texte-vif); }
+
+/* ── Cartes, champs ──────────────────────────────────────────────────────── */
+
+.carte {
+  background: linear-gradient(180deg, var(--fond-carte-haut), var(--fond-carte));
+  border: 1px solid var(--bordure);
+  border-radius: var(--rayon-l);
+  padding: 1.2rem 1.3rem;
+  margin-bottom: 1rem;
+}
+
+.carte .attente { color: var(--texte-attenue); margin: 0; }
+
+.champ { display: block; margin: 1rem 0; }
+.champ > span { display: block; font-size: .9rem; color: var(--texte-vif); margin-bottom: .4rem; }
+.champ small, .carte > small { display: block; margin-top: .45rem; color: var(--texte-attenue); font-size: .84rem; }
+
+input[type=text], input[type=email], input[type=password] {
+  width: 100%;
+  padding: .75em .9em;
+  border-radius: var(--rayon);
+  background: var(--fond-champ);
+  border: 1px solid var(--bordure);
+  color: var(--texte-vif);
+  font: inherit;
+}
+
+input:focus { outline: none; border-color: var(--accent); }
+
+.champ-adresse {
+  display: flex;
+  align-items: stretch;
+  border-radius: var(--rayon);
+  border: 1px solid var(--bordure);
+  background: var(--fond-champ);
+  overflow: hidden;
+}
+
+.champ-adresse input {
+  border: 0;
+  border-radius: 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+.suffixe {
+  display: flex;
+  align-items: center;
+  padding: 0 1em;
+  background: rgba(255, 255, 255, .03);
+  border-left: 1px solid var(--bordure);
+  color: var(--texte-attenue);
+  font-size: 1.05rem;
+  white-space: nowrap;
+}
+
+.verdict { min-height: 1.4rem; margin: .5rem 0 0; font-size: .92rem; }
+.verdict.libre { color: var(--succes); }
+.verdict.pris { color: var(--danger); }
+.verdict.attente { color: var(--texte-attenue); }
+
+.erreur {
+  margin: 1rem 0 0;
+  padding: .85rem 1rem;
+  border-radius: var(--rayon);
+  background: rgba(255, 128, 128, .1);
+  border: 1px solid rgba(255, 128, 128, .3);
+  color: var(--danger);
+  font-size: .92rem;
+}
+
+.aparte { color: var(--texte-attenue); font-size: .88rem; margin-top: 2rem; }
+
+/* ── Boutons ─────────────────────────────────────────────────────────────── */
+
+.actions { display: flex; flex-wrap: wrap; gap: .7rem; margin-top: 1.6rem; }
+
+.bouton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .5rem;
+  min-height: 48px;
+  padding: .7em 1.5em;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: none;
+  transition: transform .15s ease, background-color .15s ease, border-color .15s ease;
+}
+
+.bouton.principal { background: var(--accent); color: #04121a; }
+.bouton.principal:hover:not(:disabled) { transform: translateY(-1px); background: var(--accent-clair); }
+.bouton.secondaire { background: transparent; color: var(--texte-vif); border-color: var(--bordure-vive); }
+.bouton.secondaire:hover { border-color: var(--accent); color: var(--accent-clair); }
+.bouton:disabled { opacity: .45; cursor: not-allowed; }
+
+/* ── L'explorateur de dossiers ───────────────────────────────────────────── */
+
+.chemin-choisi {
+  margin: 0 0 .7rem;
+  padding: .55em .8em;
+  border-radius: var(--rayon);
+  background: var(--fond-champ);
+  border: 1px solid var(--bordure);
+  color: var(--texte-vif);
+  font-size: .92rem;
+  word-break: break-all;
+}
+
+.explorateur { display: flex; gap: .6rem; align-items: flex-start; }
+
+.remonter {
+  flex: none;
+  width: 42px;
+  height: 42px;
+  border-radius: var(--rayon);
+  background: var(--fond-champ);
+  border: 1px solid var(--bordure);
+  color: var(--texte-vif);
+  font-size: 1.1rem;
+  cursor: pointer;
+}
+
+.remonter:hover { border-color: var(--accent); }
+
+#liste-dossiers {
+  flex: 1;
+  list-style: none;
+  margin: 0;
+  padding: .3rem;
+  max-height: 230px;
+  overflow-y: auto;
+  border-radius: var(--rayon);
+  background: var(--fond-2);
+  border: 1px solid var(--bordure);
+}
+
+#liste-dossiers li {
+  padding: .45em .7em;
+  border-radius: 9px;
+  cursor: pointer;
+  font-size: .92rem;
+}
+
+#liste-dossiers li:hover { background: rgba(58, 147, 172, .14); color: var(--texte-vif); }
+#liste-dossiers li.vide { color: var(--texte-attenue); cursor: default; }
+#liste-dossiers li.vide:hover { background: none; }
+
+/* ── Attente, jauge, journal ─────────────────────────────────────────────── */
+
+.patience { display: flex; align-items: center; gap: 1rem; margin: 2rem 0; }
+.patience p { margin: 0; color: var(--texte-attenue); }
+
+.pulsation {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--accent-clair);
+  animation: battement 1.6s ease-in-out infinite;
+}
+
+@keyframes battement {
+  0%, 100% { opacity: .35; transform: scale(.85); }
+  50% { opacity: 1; transform: scale(1.15); }
+}
+
+.jauge {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--fond-champ);
+  border: 1px solid var(--bordure);
+  overflow: hidden;
+  margin-bottom: 1rem;
+}
+
+.jauge-remplie {
+  height: 100%;
+  width: 0;
+  background: linear-gradient(90deg, var(--fy), var(--accent-clair));
+  transition: width .4s ease;
+}
+
+.journal {
+  margin: 0;
+  padding: 1rem 1.1rem;
+  max-height: 320px;
+  overflow-y: auto;
+  border-radius: var(--rayon);
+  background: #05060b;
+  border: 1px solid var(--bordure);
+  color: var(--texte);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: .84rem;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* ── La fin ──────────────────────────────────────────────────────────────── */
+
+.adresse-finale {
+  margin: 0 0 1.5rem;
+  padding: .9em 1.1em;
+  border-radius: var(--rayon-l);
+  background: rgba(63, 169, 140, .1);
+  border: 1px solid rgba(63, 169, 140, .35);
+  color: var(--texte-vif);
+  font-size: clamp(1.1rem, 3.5vw, 1.5rem);
+  font-weight: 800;
+  text-align: center;
+  word-break: break-all;
+}
+
+@media (max-width: 560px) {
+  .cadre { padding: 1rem 1rem 4rem; }
+  .actions .bouton { flex: 1 1 100%; }
+}

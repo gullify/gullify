@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Installer GulliFY</title>
+<link rel="icon" href="gulli-mark.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="entete">
+  <img class="signe" src="gulli-mark.png" alt="" width="43" height="60">
+  <span class="marque">Gulli<span class="fy">FY</span></span>
+  <span class="sous-titre">Installation</span>
+</header>
+
+<main class="cadre">
+
+  <!-- 1 ─ Bienvenue ------------------------------------------------------- -->
+  <section class="etape" data-etape="bienvenue">
+    <h1>Ton serveur de musique, chez toi</h1>
+    <p class="intro">Dans quelques minutes, ta musique sera accessible depuis ton
+      téléphone, ta voiture et ta télévision — sans que rien ne quitte ta maison.
+      Je m'occupe de tout ; tu auras trois questions à répondre.</p>
+
+    <ol class="apercu">
+      <li><span class="num">1</span><div><strong>Le logiciel</strong><br>Je vérifie ce qu'il faut, et je l'installe au besoin.</div></li>
+      <li><span class="num">2</span><div><strong>Ton adresse</strong><br>Tu choisis un nom. Il devient <em>ton-nom</em>.gullify.app.</div></li>
+      <li><span class="num">3</span><div><strong>Ta musique</strong><br>Tu montres où elle est rangée, et tu crées ton compte.</div></li>
+    </ol>
+
+    <div class="actions">
+      <button class="bouton principal" data-aller="docker">Commencer</button>
+    </div>
+  </section>
+
+  <!-- 2 ─ Docker ----------------------------------------------------------- -->
+  <section class="etape" data-etape="docker" hidden>
+    <h1>Le moteur</h1>
+    <p class="intro">GulliFY tourne dans Docker : un programme qui fait vivre ton
+      serveur sans toucher au reste de ton ordinateur. C'est la seule chose à
+      installer.</p>
+
+    <div class="carte" id="carte-docker">
+      <p class="attente">Je regarde…</p>
+    </div>
+
+    <div class="actions">
+      <button class="bouton secondaire" id="revoir-docker">Revérifier</button>
+      <button class="bouton principal" id="installer-docker" hidden>Installer Docker</button>
+      <button class="bouton principal" id="docker-suivant" hidden data-aller="nom">Continuer</button>
+    </div>
+  </section>
+
+  <!-- 3 ─ Le nom ----------------------------------------------------------- -->
+  <section class="etape" data-etape="nom" hidden>
+    <h1>Choisis ton adresse</h1>
+    <p class="intro">C'est elle que tu taperas dans l'app, et que tu donneras à
+      ta famille. Prends quelque chose de court et facile à dicter.</p>
+
+    <label class="champ-adresse">
+      <input id="nom" type="text" placeholder="chez-nous" autocomplete="off" spellcheck="false">
+      <span class="suffixe">.gullify.app</span>
+    </label>
+    <p class="verdict" id="verdict-nom"></p>
+
+    <label class="champ">
+      <span>Ton courriel</span>
+      <input id="courriel" type="email" placeholder="toi@exemple.ca" autocomplete="email">
+      <small>Il sert à confirmer que l'adresse est bien à toi, et à te prévenir
+        si ton serveur cesse de donner signe de vie. Rien d'autre.</small>
+    </label>
+
+    <p class="erreur" id="erreur-nom" hidden></p>
+
+    <div class="actions">
+      <button class="bouton principal" id="reserver" disabled>Réserver cette adresse</button>
+    </div>
+  </section>
+
+  <!-- 4 ─ Confirmation ----------------------------------------------------- -->
+  <section class="etape" data-etape="confirmation" hidden>
+    <h1>Va voir tes courriels</h1>
+    <p class="intro">Je viens d'envoyer un message à <strong id="rappel-courriel"></strong>.
+      Ouvre le lien qu'il contient : cette page reprendra toute seule.</p>
+
+    <div class="patience">
+      <div class="pulsation"></div>
+      <p>J'attends…</p>
+    </div>
+
+    <p class="aparte">Rien reçu après deux minutes ? Regarde dans les
+      indésirables. Le lien reste valable deux jours.</p>
+  </section>
+
+  <!-- 5 ─ Réglages --------------------------------------------------------- -->
+  <section class="etape" data-etape="reglages" hidden>
+    <h1>Ta musique, et toi</h1>
+    <p class="intro">Deux dernières choses : où se trouve ta musique, et le
+      compte qui te servira à te connecter.</p>
+
+    <div class="carte">
+      <h2>Le dossier de ta musique</h2>
+      <p class="chemin-choisi" id="chemin-choisi">—</p>
+      <div class="explorateur">
+        <button class="remonter" id="remonter" title="Dossier parent">↑</button>
+        <ul id="liste-dossiers"></ul>
+      </div>
+      <small>C'est là que GulliFY ira chercher tes fichiers, et qu'il rangera
+        ce que tu téléchargeras ensuite.</small>
+    </div>
+
+    <div class="carte">
+      <h2>Ton compte</h2>
+      <label class="champ">
+        <span>Nom d'utilisateur</span>
+        <input id="utilisateur" type="text" autocomplete="username" spellcheck="false">
+      </label>
+      <label class="champ">
+        <span>Mot de passe</span>
+        <input id="motdepasse" type="password" autocomplete="new-password">
+        <small>Huit caractères au minimum. C'est lui qui protège ta musique.</small>
+      </label>
+    </div>
+
+    <p class="erreur" id="erreur-reglages" hidden></p>
+
+    <div class="actions">
+      <button class="bouton principal" id="installer">Installer</button>
+    </div>
+  </section>
+
+  <!-- 6 ─ Installation ----------------------------------------------------- -->
+  <section class="etape" data-etape="installation" hidden>
+    <h1>J'installe</h1>
+    <p class="intro">Le premier téléchargement prend quelques minutes. Tu peux
+      laisser cette fenêtre ouverte et aller faire autre chose.</p>
+
+    <div class="jauge"><div class="jauge-remplie" id="jauge"></div></div>
+    <pre class="journal" id="journal"></pre>
+    <p class="erreur" id="erreur-installation" hidden></p>
+  </section>
+
+  <!-- 7 ─ Fini ------------------------------------------------------------- -->
+  <section class="etape" data-etape="fini" hidden>
+    <h1>C'est prêt</h1>
+    <p class="intro">Ton serveur tourne. Voici ton adresse — c'est tout ce qu'il
+      y a à retenir.</p>
+
+    <p class="adresse-finale" id="adresse-finale"></p>
+
+    <div class="carte">
+      <h2>Sur ton téléphone et ta télévision</h2>
+      <p>Installe l'app Android, puis saisis l'adresse ci-dessus et ton compte.</p>
+      <p><a class="bouton secondaire" id="lien-apk" href="https://download.gullify.app/gullify-latest.apk">Télécharger l'app Android</a></p>
+    </div>
+
+    <div class="actions">
+      <a class="bouton principal" id="ouvrir-serveur" href="#" target="_blank" rel="noopener">Ouvrir mon serveur</a>
+      <button class="bouton secondaire" id="fermer">Fermer</button>
+    </div>
+  </section>
+
+</main>
+
+<script src="app.js"></script>
+</body>
+</html>

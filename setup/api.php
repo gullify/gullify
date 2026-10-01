@@ -82,13 +82,24 @@ function getPostData(): array {
 /**
  * Build a PDO connection from request data with AppConfig fallbacks.
  */
+/**
+ * La connexion à la base, d'après ce que la requête apporte — ou, à défaut, le
+ * .env.
+ *
+ * Les champs de la BASE portent le préfixe `db_`. C'est ce qui évite la
+ * confusion qui existait ici : l'assistant envoyait `password` pour la base ET
+ * pour le compte à créer, et le mot de passe de la base écrasait celui de
+ * l'utilisateur — le compte était créé avec un mot de passe que personne
+ * n'avait tapé. Les anciens noms restent acceptés en second recours, pour ne
+ * rien casser de ce qui appelle encore cette API.
+ */
 function getDBFromRequest(array $data): PDO {
     return getDBConnection([
-        'host' => $data['host'] ?? AppConfig::get('mysql.host'),
-        'port' => $data['port'] ?? AppConfig::get('mysql.port'),
-        'database' => $data['database'] ?? AppConfig::get('mysql.database'),
-        'user' => $data['user'] ?? $data['db_user'] ?? AppConfig::get('mysql.user'),
-        'password' => $data['password'] ?? $data['db_password'] ?? AppConfig::get('mysql.password'),
+        'host'     => $data['db_host']     ?? $data['host']     ?? AppConfig::get('mysql.host'),
+        'port'     => $data['db_port']     ?? $data['port']     ?? AppConfig::get('mysql.port'),
+        'database' => $data['db_database'] ?? $data['database'] ?? AppConfig::get('mysql.database'),
+        'user'     => $data['db_user']     ?? $data['user']     ?? AppConfig::get('mysql.user'),
+        'password' => $data['db_password'] ?? AppConfig::get('mysql.password'),
     ]);
 }
 
@@ -169,23 +180,32 @@ function handleCheckRequirements(): void {
 function handleTestDatabase(): void {
     $data = getPostData();
 
-    $required = ['host', 'port', 'database', 'user', 'password'];
-    foreach ($required as $field) {
-        if (empty($data[$field]) && $field !== 'password') {
-            jsonResponse(false, "Le champ '$field' est requis.");
+    // Les identifiants de la base arrivent préfixés `db_` ; les anciens noms
+    // restent acceptés (voir getDBFromRequest).
+    $base = [
+        'host'     => $data['db_host']     ?? $data['host']     ?? '',
+        'port'     => $data['db_port']     ?? $data['port']     ?? '',
+        'database' => $data['db_database'] ?? $data['database'] ?? '',
+        'user'     => $data['db_user']     ?? $data['user']     ?? '',
+        'password' => $data['db_password'] ?? $data['password'] ?? '',
+    ];
+
+    foreach (['host', 'port', 'database', 'user'] as $champ) {
+        if (empty($base[$champ])) {
+            jsonResponse(false, "Le champ '$champ' est requis.");
         }
     }
 
     try {
-        $db = getDBConnection($data);
+        $db = getDBConnection($base);
         $version = $db->query('SELECT VERSION()')->fetchColumn();
 
         // Save credentials to .env
-        AppConfig::updateEnv('MYSQL_HOST', $data['host']);
-        AppConfig::updateEnv('MYSQL_PORT', $data['port']);
-        AppConfig::updateEnv('MYSQL_DATABASE', $data['database']);
-        AppConfig::updateEnv('MYSQL_USER', $data['user']);
-        AppConfig::updateEnv('MYSQL_PASSWORD', $data['password']);
+        AppConfig::updateEnv('MYSQL_HOST', $base['host']);
+        AppConfig::updateEnv('MYSQL_PORT', $base['port']);
+        AppConfig::updateEnv('MYSQL_DATABASE', $base['database']);
+        AppConfig::updateEnv('MYSQL_USER', $base['user']);
+        AppConfig::updateEnv('MYSQL_PASSWORD', $base['password']);
 
         jsonResponse(true, "Connexion reussie. MySQL $version", [
             'version' => $version,
@@ -208,7 +228,9 @@ function handleCreateTables(): void {
     $data = getPostData();
 
     try {
-        $db = getDBConnection($data);
+        // Par getDBFromRequest : l'installateur n'envoie aucun identifiant,
+        // il a déjà écrit le .env — et c'est là que la vérité se trouve.
+        $db = getDBFromRequest($data);
     } catch (PDOException $e) {
         jsonResponse(false, 'Connexion echouee: ' . $e->getMessage());
     }
