@@ -2,6 +2,11 @@
 require_once __DIR__ . '/../../src/AppConfig.php';
 header('Content-Type: text/html; charset=UTF-8');
 // If already set up, go to main app
+/** Échappement court : la page affiche des valeurs venues de la configuration. */
+function e(?string $v): string {
+    return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
+}
+
 if (AppConfig::isSetupDone()) {
     header('Location: /');
     exit;
@@ -22,238 +27,326 @@ $_langData = file_exists($_langFile) ? file_get_contents($_langFile) : '{}';
     <title>Gullify - Configuration</title>
     <link rel="icon" href="/favicon.ico">
     <style>
+        /* L'assistant porte l'habillage de la maison : les mêmes couleurs et la
+           même matière que l'app qui s'ouvrira juste après, et que la page
+           d'accueil de gullify.app. C'est le premier écran qu'on voit de
+           GulliFY — il ne doit pas avoir l'air d'un formulaire d'administration
+           tombé d'un autre logiciel.
+
+           Rien n'est téléchargé : ni police, ni bibliothèque. Un serveur qu'on
+           installe n'a pas toujours une connexion aimable. */
+        :root {
+            color-scheme: dark;
+
+            --fond: #07080e;
+            --fond-carte: #121622;
+            --fond-carte-haut: #161b2a;
+            --fond-champ: #1a2030;
+
+            --bordure: #262c3d;
+            --bordure-vive: #39415c;
+
+            --texte: #c3cbdd;
+            --texte-vif: #f2f5fc;
+            --texte-attenue: #99a1b7;
+
+            --fy: #2C6774;
+            --accent: #3A93AC;
+            --accent-clair: #6FC6DB;
+            --succes: #5ad79b;
+            --danger: #ff8080;
+
+            --rayon: 14px;
+            --rayon-l: 20px;
+
+            /* La pile système : c'est la police du logotype de la gamme. */
+            --police: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+                'Helvetica Neue', Arial, sans-serif;
+        }
+
         * { margin: 0; padding: 0; box-sizing: border-box; }
+
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: #0a0a0a;
-            color: #e0e0e0;
+            font-family: var(--police);
+            background:
+                radial-gradient(900px 500px at 15% -10%, rgba(58, 147, 172, .16), transparent 60%),
+                var(--fond);
+            color: var(--texte);
+            line-height: 1.6;
             min-height: 100vh;
             display: flex;
             justify-content: center;
             align-items: flex-start;
-            padding: 40px 20px;
+            padding: 40px 20px 80px;
         }
-        .wizard {
-            max-width: 560px;
-            width: 100%;
+
+        .wizard { max-width: 620px; width: 100%; }
+
+        /* ── Le logo ─────────────────────────────────────────────────────── */
+
+        .logo { text-align: center; margin-bottom: 28px; }
+
+        .logo .marque {
+            display: inline-flex;
+            align-items: center;
+            gap: .55rem;
+            font-weight: 800;
+            font-size: 2.1rem;
+            letter-spacing: -.03em;
+            color: var(--texte-vif);
+            line-height: 1;
         }
-        .logo {
-            text-align: center;
-            margin-bottom: 32px;
-        }
-        .logo img {
-            max-width: 200px;
-            height: auto;
-        }
-        .logo p {
-            color: #888;
-            margin-top: 8px;
-            font-size: 14px;
-        }
+
+        /* Le signe fait 1,74 fois la taille du nom : les proportions de la
+           gamme, les mêmes que sur le site et dans l'app. */
+        .logo .marque img { width: 42px; height: 60px; object-fit: contain; }
+        .logo .fy { color: var(--fy); }
+        .logo p { color: var(--texte-attenue); margin-top: 10px; font-size: .95rem; }
+
+        /* ── Les pastilles d'étapes ──────────────────────────────────────── */
+
         .steps {
             display: flex;
-            gap: 4px;
-            margin-bottom: 28px;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 26px;
         }
+
         .steps .step-dot {
-            flex: 1;
-            height: 4px;
-            border-radius: 2px;
-            background: #222;
-            transition: background 0.3s;
+            width: 9px;
+            height: 9px;
+            border-radius: 50%;
+            background: var(--bordure-vive);
+            transition: background-color .25s ease, transform .25s ease;
         }
-        .steps .step-dot.active { background: #6c5ce7; }
-        .steps .step-dot.done { background: #00b894; }
+
+        .steps .step-dot.active { background: var(--accent-clair); transform: scale(1.35); }
+        .steps .step-dot.done { background: var(--fy); }
+
+        /* ── Les cartes ──────────────────────────────────────────────────── */
+
         .card {
-            background: #141414;
-            border: 1px solid #222;
-            border-radius: 12px;
+            background: linear-gradient(180deg, var(--fond-carte-haut), var(--fond-carte));
+            border: 1px solid var(--bordure);
+            border-radius: var(--rayon-l);
             padding: 28px;
+            box-shadow: 0 18px 44px rgba(0, 0, 0, .45);
         }
+
         .card h2 {
-            font-size: 18px;
+            font-size: 1.45rem;
+            font-weight: 700;
+            letter-spacing: -.02em;
+            color: var(--texte-vif);
             margin-bottom: 6px;
-            color: #fff;
         }
+
         .card .subtitle {
-            font-size: 13px;
-            color: #888;
-            margin-bottom: 20px;
+            color: var(--texte-attenue);
+            font-size: .95rem;
+            margin-bottom: 22px;
         }
-        .form-group {
-            margin-bottom: 16px;
-        }
+
+        /* Les écrans se cachent par la classe « hidden », que goStep() pose et
+           retire — pas par une classe « active » : le premier écran n'en a
+           aucune au chargement. */
+        .hidden { display: none !important; }
+
+        /* ── Les champs ──────────────────────────────────────────────────── */
+
+        .form-group { margin-bottom: 16px; }
+
         .form-group label {
             display: block;
-            font-size: 13px;
-            color: #aaa;
+            font-size: .88rem;
+            color: var(--texte-vif);
             margin-bottom: 6px;
-            font-weight: 500;
         }
+
         .form-group input {
             width: 100%;
-            padding: 10px 12px;
-            background: #1a1a1a;
-            border: 1px solid #333;
-            border-radius: 8px;
-            color: #e0e0e0;
-            font-size: 14px;
-            outline: none;
-            transition: border-color 0.2s;
+            padding: .75em .9em;
+            border-radius: var(--rayon);
+            background: var(--fond-champ);
+            border: 1px solid var(--bordure);
+            color: var(--texte-vif);
+            font: inherit;
         }
-        .form-group input:focus {
-            border-color: #6c5ce7;
-        }
-        .form-row {
-            display: flex;
-            gap: 12px;
-        }
+
+        .form-group input::placeholder { color: var(--texte-attenue); }
+        .form-group input:focus { outline: none; border-color: var(--accent); }
+
+        .form-row { display: flex; gap: 12px; }
         .form-row .form-group { flex: 1; }
+
+        /* ── Les boutons ─────────────────────────────────────────────────── */
+
+        .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 22px; }
+
         .btn {
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            gap: 6px;
-            padding: 10px 20px;
-            border-radius: 8px;
-            font-size: 14px;
-            font-weight: 500;
+            gap: .5rem;
+            min-height: 48px;
+            padding: .7em 1.5em;
+            border-radius: 999px;
+            border: 1px solid transparent;
+            font: inherit;
+            font-weight: 700;
             cursor: pointer;
-            border: none;
-            transition: all 0.2s;
+            text-decoration: none;
+            transition: transform .15s ease, background-color .15s ease, border-color .15s ease;
         }
-        .btn-primary {
-            background: #6c5ce7;
-            color: #fff;
+
+        .btn-primary { background: var(--accent); color: #04121a; }
+        .btn-primary:hover:not(:disabled) { transform: translateY(-1px); background: var(--accent-clair); }
+        .btn-primary:disabled { opacity: .45; cursor: not-allowed; transform: none; }
+
+        .btn-secondary { background: transparent; color: var(--texte-vif); border-color: var(--bordure-vive); }
+        .btn-secondary:hover:not(:disabled) { border-color: var(--accent); color: var(--accent-clair); }
+        .btn-secondary:disabled { opacity: .45; cursor: not-allowed; }
+
+        .btn-success { background: var(--succes); color: #04121a; }
+
+        /* ── Les messages ────────────────────────────────────────────────── */
+
+        .status-msg {
+            margin-top: 14px;
+            padding: .8em 1em;
+            border-radius: var(--rayon);
+            font-size: .92rem;
+            border: 1px solid transparent;
         }
-        .btn-primary:hover { background: #5a4bd1; }
-        .btn-primary:disabled {
-            background: #333;
-            color: #666;
-            cursor: not-allowed;
-        }
-        .btn-secondary {
-            background: #222;
-            color: #ccc;
-        }
-        .btn-secondary:hover { background: #2a2a2a; }
-        .btn-secondary:disabled { opacity: 0.5; cursor: not-allowed; }
-        .btn-success {
-            background: #00b894;
-            color: #fff;
-        }
-        .actions {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-top: 24px;
-        }
-        .check-list {
-            list-style: none;
-        }
+
+        .status-msg.info { background: rgba(58, 147, 172, .1); border-color: rgba(58, 147, 172, .3); color: var(--accent-clair); }
+        .status-msg.success { background: rgba(90, 215, 155, .1); border-color: rgba(90, 215, 155, .3); color: var(--succes); }
+        .status-msg.error { background: rgba(255, 128, 128, .1); border-color: rgba(255, 128, 128, .3); color: var(--danger); }
+
+        /* ── La liste des vérifications ──────────────────────────────────── */
+
+        .check-list { list-style: none; }
+
         .check-list li {
             display: flex;
             align-items: center;
-            gap: 10px;
-            padding: 8px 0;
-            font-size: 14px;
-            border-bottom: 1px solid #1a1a1a;
+            gap: 12px;
+            padding: 11px 0;
+            border-bottom: 1px solid var(--bordure);
+            font-size: .95rem;
         }
+
         .check-list li:last-child { border-bottom: none; }
+
         .check-icon {
-            width: 20px;
-            height: 20px;
+            flex: none;
+            width: 22px;
+            height: 22px;
             border-radius: 50%;
+            display: grid;
+            place-items: center;
+            font-size: .75rem;
+            font-weight: 700;
+        }
+
+        .check-icon.pass { background: rgba(90, 215, 155, .16); color: var(--succes); }
+        .check-icon.fail { background: rgba(255, 128, 128, .16); color: var(--danger); }
+        .check-icon.wait { background: rgba(153, 161, 183, .14); color: var(--texte-attenue); }
+
+        /* ── Le choix du stockage ────────────────────────────────────────── */
+
+        .storage-options { display: grid; gap: 12px; margin-bottom: 18px; }
+
+        .storage-option {
             display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 11px;
-            flex-shrink: 0;
+            align-items: flex-start;
+            gap: 14px;
+            padding: 16px;
+            border-radius: var(--rayon);
+            border: 1px solid var(--bordure);
+            background: var(--fond-champ);
+            cursor: pointer;
+            transition: border-color .15s ease, background-color .15s ease;
         }
-        .check-icon.pass { background: #00b89433; color: #00b894; }
-        .check-icon.fail { background: #e1725633; color: #e17256; }
-        .check-icon.wait { background: #33333366; color: #666; }
-        .status-msg {
-            padding: 10px 14px;
-            border-radius: 8px;
-            font-size: 13px;
-            margin-top: 12px;
-        }
-        .status-msg.success { background: #00b89420; color: #00b894; border: 1px solid #00b89433; }
-        .status-msg.error { background: #e1725620; color: #e17256; border: 1px solid #e1725633; }
-        .status-msg.info { background: #6c5ce720; color: #a29bfe; border: 1px solid #6c5ce733; }
-        .hidden { display: none !important; }
-        .spinner {
-            display: inline-block;
-            width: 16px;
-            height: 16px;
-            border: 2px solid #444;
-            border-top-color: #6c5ce7;
-            border-radius: 50%;
-            animation: spin 0.6s linear infinite;
-        }
-        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .storage-option:hover { border-color: var(--bordure-vive); }
+        .storage-option.active { border-color: var(--accent); background: rgba(58, 147, 172, .1); }
+        .storage-option .storage-icon { font-size: 1.5rem; line-height: 1.2; }
+        .storage-option strong { display: block; color: var(--texte-vif); }
+        .storage-option p { color: var(--texte-attenue); font-size: .88rem; }
+
+        .sftp-fields { margin-top: 6px; }
+
+        /* ── Les comptes créés ───────────────────────────────────────────── */
+
         .user-card {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 10px 14px;
-            background: #1a1a1a;
-            border-radius: 8px;
-            margin-bottom: 8px;
-            font-size: 14px;
+            gap: 12px;
+            padding: 12px 14px;
+            border-radius: var(--rayon);
+            background: var(--fond-champ);
+            border: 1px solid var(--bordure);
+            margin-bottom: 10px;
         }
+
         .user-card .role {
-            font-size: 11px;
-            padding: 2px 8px;
-            border-radius: 4px;
-            background: #6c5ce733;
-            color: #a29bfe;
+            font-size: .78rem;
+            font-weight: 700;
+            letter-spacing: .06em;
+            text-transform: uppercase;
+            color: var(--texte-attenue);
         }
-        .user-card .role.admin { background: #fdcb6e33; color: #fdcb6e; }
+
+        .user-card .role.admin { color: var(--accent-clair); }
+
+        /* ── La fin ──────────────────────────────────────────────────────── */
+
         .done-icon {
-            text-align: center;
-            font-size: 48px;
-            margin: 16px 0;
+            width: 72px;
+            height: 72px;
+            margin: 0 auto 18px;
+            border-radius: 50%;
+            display: grid;
+            place-items: center;
+            font-size: 2rem;
+            background: rgba(90, 215, 155, .14);
+            border: 1px solid rgba(90, 215, 155, .35);
+            color: var(--succes);
         }
-        .done-hint {
-            font-size: 13px;
-            color: #888;
-            margin-top: 12px;
-            padding: 10px 14px;
-            background: #1a1a1a;
-            border-radius: 8px;
+
+        .done-hint { color: var(--texte-attenue); font-size: .92rem; margin-top: 14px; }
+
+        /* ── L'attente ───────────────────────────────────────────────────── */
+
+        .spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(255, 255, 255, .25);
+            border-top-color: var(--texte-vif);
+            border-radius: 50%;
+            animation: spin .7s linear infinite;
         }
-        /* Storage step */
-        .storage-options {
-            display: flex;
-            gap: 12px;
-            margin-bottom: 16px;
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        @media (max-width: 560px) {
+            body { padding: 24px 14px 60px; }
+            .card { padding: 20px; }
+            .form-row { flex-direction: column; gap: 0; }
+            .actions .btn { flex: 1 1 100%; }
         }
-        .storage-option {
-            flex: 1;
-            display: flex;
-            align-items: flex-start;
-            gap: 12px;
-            padding: 14px;
-            background: #1a1a1a;
-            border: 2px solid #2a2a2a;
-            border-radius: 10px;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        .storage-option:hover { border-color: #444; }
-        .storage-option.active { border-color: #6c5ce7; background: #6c5ce710; }
-        .storage-option .storage-icon { font-size: 22px; flex-shrink: 0; margin-top: 2px; }
-        .storage-option strong { display: block; font-size: 14px; color: #e0e0e0; margin-bottom: 3px; }
-        .storage-option p { font-size: 12px; color: #666; margin: 0; line-height: 1.4; }
-        .sftp-fields { margin-top: 4px; }
     </style>
 </head>
 <body>
 <div class="wizard">
     <div class="logo">
-        <img src="../logo_gullify_wh.png" alt="Gullify">
+        <span class="marque">
+            <img src="gulli-mark.png" alt="" width="42" height="60" decoding="async">
+            <span>Gulli<span class="fy">FY</span></span>
+        </span>
         <p id="setupSubtitle">Assistant de configuration</p>
     </div>
 
@@ -279,25 +372,25 @@ $_langData = file_exists($_langFile) ? file_get_contents($_langFile) : '{}';
         <div class="form-row">
             <div class="form-group">
                 <label id="s2-host">Hôte</label>
-                <input type="text" id="dbHost" value="db">
+                <input type="text" id="dbHost" value="<?= e(AppConfig::get('mysql.host', 'db')) ?>">
             </div>
             <div class="form-group" style="max-width: 100px;">
                 <label id="s2-port">Port</label>
-                <input type="text" id="dbPort" value="3306">
+                <input type="text" id="dbPort" value="<?= e(AppConfig::get('mysql.port', '3306')) ?>">
             </div>
         </div>
         <div class="form-group">
             <label id="s2-dbname">Base de données</label>
-            <input type="text" id="dbName" value="gullify">
+            <input type="text" id="dbName" value="<?= e(AppConfig::get('mysql.database', 'gullify')) ?>">
         </div>
         <div class="form-row">
             <div class="form-group">
                 <label id="s2-user">Utilisateur</label>
-                <input type="text" id="dbUser" value="gullify">
+                <input type="text" id="dbUser" value="<?= e(AppConfig::get('mysql.user', 'gullify')) ?>">
             </div>
             <div class="form-group">
                 <label id="s2-pass">Mot de passe</label>
-                <input type="password" id="dbPass" value="gullify_secret">
+                <input type="password" id="dbPass" value="" placeholder="celui du serveur (laisse vide)">
             </div>
         </div>
         <div id="dbStatus"></div>

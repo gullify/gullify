@@ -190,10 +190,19 @@ function handleTestDatabase(): void {
         'password' => $data['db_password'] ?? $data['password'] ?? '',
     ];
 
+    // Champ laissé vide = « celui du serveur ». Chaque installation a un mot de
+    // passe fabriqué au hasard, que personne n'a à connaître ni à recopier :
+    // il est déjà dans le .env, c'est là qu'on va le chercher.
     foreach (['host', 'port', 'database', 'user'] as $champ) {
+        if (empty($base[$champ])) {
+            $base[$champ] = (string)AppConfig::get('mysql.' . $champ, '');
+        }
         if (empty($base[$champ])) {
             jsonResponse(false, "Le champ '$champ' est requis.");
         }
+    }
+    if ($base['password'] === '') {
+        $base['password'] = (string)AppConfig::get('mysql.password', '');
     }
 
     try {

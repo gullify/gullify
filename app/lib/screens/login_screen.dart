@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../api/api_client.dart';
 import '../state/auth.dart';
-import '../widgets/brand_image.dart';
+import '../widgets/wordmark.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -62,17 +62,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const BrandImage(
-                  'assets/icon/mascot.png',
-                  width: 96,
-                  height: 96,
-                ),
-                const SizedBox(height: 12),
+                // Le logo de la marque, pas la mascotte seule : c'est le
+                // premier écran qu'on voit de GulliFY, il doit dire son nom
+                // comme le site et l'installateur le disent.
+                const Center(child: GulliLogo(fontSize: 34)),
+                const SizedBox(height: 18),
                 Text(
                   'Connexion',
                   textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
                 ),
                 const SizedBox(height: 8),
