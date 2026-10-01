@@ -52,7 +52,7 @@ func main() {
 	}
 
 	mux := http.NewServeMux()
-	mux.Handle("/", http.FileServer(http.FS(racine)))
+	mux.Handle("/", sansCache(http.FileServer(http.FS(racine))))
 	etat.Router(mux, jeton)
 
 	ecoute, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", *port))
@@ -114,6 +114,21 @@ func ouvrirNavigateur(adresse string) {
 	if err := cmd.Start(); err != nil {
 		log.Printf("impossible d'ouvrir le navigateur (%v) — ouvre l'adresse à la main", err)
 	}
+}
+
+// sansCache interdit au navigateur de garder la page.
+//
+// L'installateur ouvre un port au hasard, mais rien ne garantit qu'il soit
+// différent d'une fois sur l'autre : le navigateur peut alors resservir la page
+// d'une version précédente, et l'on croit corriger un défaut qui reste à
+// l'écran. Ces fichiers sont minuscules et lus une seule fois — rien à gagner à
+// les garder.
+func sansCache(suivant http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-store, must-revalidate")
+		w.Header().Set("Pragma", "no-cache")
+		suivant.ServeHTTP(w, r)
+	})
 }
 
 // journalise écrit les appels dans la console, qui sert de journal en cas de
