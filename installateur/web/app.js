@@ -91,9 +91,21 @@ async function rafraichir() {
 
   // L'installateur commande : la page suit. C'est lui qui sait, par exemple,
   // que le courriel vient d'être confirmé.
+  // L'installateur peut faire AVANCER la page — c'est lui qui sait, par
+  // exemple, que le courriel vient d'être confirmé. Il ne doit jamais la faire
+  // reculer : les premiers écrans se parcourent de ce côté-ci, et l'installateur
+  // les ignore encore.
+  //
+  // Une étape absente de cette liste valait -1, donc « plus tôt que tout » :
+  // l'écran du réseau, oublié ici quand il a été ajouté, renvoyait la page au
+  // tout début dès le premier rafraîchissement.
+  const ordonnees = ['bienvenue', 'docker', 'reseau', 'nom', 'confirmation',
+    'reglages', 'installation', 'fini'];
+
   if (etat.etape && etat.etape !== etapeAffichee) {
-    const ordonnees = ['bienvenue', 'docker', 'nom', 'confirmation', 'reglages', 'installation', 'fini'];
-    if (ordonnees.indexOf(etat.etape) >= ordonnees.indexOf(etapeAffichee || 'bienvenue')) {
+    const ici = ordonnees.indexOf(etapeAffichee || 'bienvenue');
+    const la = ordonnees.indexOf(etat.etape);
+    if (la > ici) {
       montre(etat.etape);
       if (etat.etape === 'reglages') chargeDossiers(etat.dossierMusique || '');
     }
