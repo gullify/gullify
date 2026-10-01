@@ -1,9 +1,14 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../api/server_info_repository.dart';
+import '../api/update_repository.dart';
+import '../state/admin.dart';
 import '../state/auth.dart';
 import '../state/server_info.dart';
+import '../state/server_update.dart';
 import 'settings_screen.dart' show formatBytes;
 
 /// Infos du serveur : espace disque restant, poids de la musique et des
@@ -40,6 +45,10 @@ class ServerInfoScreen extends ConsumerWidget {
             children: [
               _AddressCard(url: ref.watch(authProvider).serverUrl ?? ''),
               const SizedBox(height: 16),
+              if (ref.watch(isAdminProvider)) ...[
+                const _UpdateCard(),
+                const SizedBox(height: 16),
+              ],
               for (final disk in data.disks) ...[
                 _DiskCard(disk: disk),
                 const SizedBox(height: 16),
@@ -410,4 +419,197 @@ String _ago(DateTime at) {
   final d = at.toLocal();
   String two(int n) => n.toString().padLeft(2, '0');
   return 'le ${two(d.day)}/${two(d.month)}/${d.year}';
+}
+
+/// La mise à jour du serveur, pour qui a le droit de la décider.
+///
+/// Trois états, et un seul bouton. « À jour » ne se dit que lorsqu'on le
+/// sait : si le dépôt d'images n'a pas répondu, la carte ne promet rien
+/// plutôt que de rassurer à tort.
+///
+/// Pendant l'opération, le serveur disparaît — c'est précisément ce qu'on
+/// lui a demandé. On continue donc de l'appeler, et les erreurs de réseau
+/// de ces quelques secondes ne sont pas des pannes : c'est son retour, avec
+/// un nouveau numéro de version, qui marque la fin.
+class _UpdateCard extends ConsumerStatefulWidget {
+  const _UpdateCard();
+
+  @override
+  ConsumerState<_UpdateCard> createState() => _UpdateCardState();
+}
+
+class _UpdateCardState extends ConsumerState<_UpdateCard> {
+  Timer? _rappel;
+  bool _demandee = false;
+  String? _erreur;
+
+  @override
+  void dispose() {
+    _rappel?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _lancer() async {
+    setState(() {
+      _demandee = true;
+      _erreur = null;
+    });
+    try {
+      await ref.read(updateRepositoryProvider).lancer();
+      _surveille();
+    } catch (e) {
+      setState(() {
+        _demandee = false;
+        _erreur = '$e';
+      });
+    }
+  }
+
+  /// Redemander l'état jusqu'à ce que le serveur revienne mis à jour.
+  void _surveille() {
+    _rappel?.cancel();
+    _rappel = Timer.periodic(const Duration(seconds: 3), (minuteur) {
+      if (!mounted) {
+        minuteur.cancel();
+        return;
+      }
+      final etat = ref.read(serverUpdateProvider).asData?.value;
+      if (_demandee && etat != null && !etat.enCours && etat.aJour == true) {
+        minuteur.cancel();
+        setState(() => _demandee = false);
+        ref.invalidate(serverInfoProvider);
+      }
+      ref.invalidate(serverUpdateProvider);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final etat = ref.watch(serverUpdateProvider);
+
+    return _InfoCard(
+      icon: Icons.system_update_alt,
+      title: 'Mise à jour',
+      children: [
+        ...etat.when(
+          loading: () => const [_LigneDiscrete('Je regarde…')],
+          // Pendant la mise à jour, le serveur ne répond plus : c'est normal,
+          // et le dire autrement affolerait pour rien.
+          error: (e, _) => _demandee
+              ? const [_LigneDiscrete('Le serveur redémarre…')]
+              : [_LigneDiscrete('État inconnu : $e')],
+          data: (maj) => _contenu(context, maj),
+        ),
+        if (_erreur != null) ...[
+          const SizedBox(height: 8),
+          Text(_erreur!, style: TextStyle(fontSize: 13, color: scheme.error)),
+        ],
+      ],
+    );
+  }
+
+  List<Widget> _contenu(BuildContext context, ServerUpdate maj) {
+    final scheme = Theme.of(context).colorScheme;
+    final enCours = _demandee || maj.enCours;
+
+    final lignes = <Widget>[
+      _LigneDiscrete(maj.installee == null
+          ? 'Version : construite sur place'
+          : 'Version installée : ${maj.installee}'),
+    ];
+
+    if (enCours) {
+      lignes.addAll([
+        const SizedBox(height: 10),
+        const LinearProgressIndicator(),
+        const SizedBox(height: 10),
+        for (final ligne in maj.journal.where((l) => l != 'fini').take(6))
+          _LigneDiscrete(ligne),
+        if (maj.journal.isEmpty) const _LigneDiscrete('Mise à jour en cours…'),
+      ]);
+      return lignes;
+    }
+
+    if (!maj.possible) {
+      // Pas de bouton : un conteneur ne se remplace pas lui-même. On dit donc
+      // le geste à faire sur la machine — et il n'est pas le même selon que
+      // le serveur porte le code ou qu'il tire une image déjà construite.
+      lignes.addAll([
+        if (maj.disponible != null && maj.aJour == false)
+          _LigneDiscrete('Version disponible : ${maj.disponible}'),
+        const SizedBox(height: 6),
+        _LigneDiscrete(
+          maj.installee == null
+              ? 'Ce serveur porte le code : il se met à jour avec ./update.sh '
+                'sur sa machine.'
+              : 'Pour le mettre à jour, dans son dossier Gullify sur la '
+                'machine : docker compose pull puis docker compose up -d.',
+        ),
+      ]);
+      return lignes;
+    }
+
+    if (maj.aJour == null) {
+      lignes.addAll([
+        const SizedBox(height: 6),
+        const _LigneDiscrete(
+          "Impossible de joindre le dépôt des versions : je ne sais pas si "
+          "une mise à jour existe.",
+        ),
+      ]);
+      return lignes;
+    }
+
+    if (maj.aJour == true) {
+      lignes.addAll([
+        const SizedBox(height: 6),
+        Row(
+          children: [
+            Icon(Icons.check_circle, size: 18, color: scheme.primary),
+            const SizedBox(width: 8),
+            const Text('À jour', style: TextStyle(fontSize: 13.5)),
+          ],
+        ),
+      ]);
+      return lignes;
+    }
+
+    lignes.addAll([
+      _LigneDiscrete('Version disponible : ${maj.disponible}'),
+      const SizedBox(height: 12),
+      SizedBox(
+        width: double.infinity,
+        child: FilledButton.icon(
+          onPressed: _lancer,
+          icon: const Icon(Icons.download),
+          label: Text('Mettre à jour vers ${maj.disponible}'),
+        ),
+      ),
+      const SizedBox(height: 6),
+      const _LigneDiscrete(
+        'Le serveur sera indisponible une minute ou deux, et la musique en '
+        'cours de lecture s\'arrêtera.',
+      ),
+    ]);
+    return lignes;
+  }
+}
+
+class _LigneDiscrete extends StatelessWidget {
+  const _LigneDiscrete(this.texte);
+
+  final String texte;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: 2),
+    child: Text(
+      texte,
+      style: TextStyle(
+        fontSize: 13.5,
+        color: Theme.of(context).colorScheme.onSurfaceVariant,
+      ),
+    ),
+  );
 }

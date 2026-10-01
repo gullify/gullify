@@ -12,7 +12,7 @@ MDP_FICHIER="${MDP_FICHIER:-/home/maxime/gullify-registre/motdepasse-pousse.txt}
 VERSION="$(grep '^version:' app/pubspec.yaml | awk '{print $2}' | cut -d+ -f1)"
 
 echo "Construction de l'image…"
-docker compose build --build-arg CACHEBUST="$(date +%s)" app
+docker compose build --build-arg CACHEBUST="$(date +%s)" --build-arg GULLIFY_VERSION="$VERSION" app
 
 echo "Publication de $DEPOT:$VERSION"
 docker login "${DEPOT%%/*}" -u gullify --password-stdin < "$MDP_FICHIER"
