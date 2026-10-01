@@ -19,7 +19,16 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/_v2.php';
 
-const MAJ_DEPOT = 'registry.gullify.app/gullify';
+/**
+ * Ce qui fait foi sur « la dernière version du serveur ».
+ *
+ * Pas la liste des étiquettes du dépôt d'images : elle garde pour toujours
+ * celles d'avant, quand le serveur portait le numéro de l'app (3.71, 3.73…).
+ * Un serveur en 1.0.0 s'y serait cru en retard de 3.73.3 à jamais. Un
+ * manifeste dit une seule chose, celle qu'on veut savoir — comme celui de
+ * l'APK, à côté duquel il est publié.
+ */
+const MAJ_MANIFESTE = 'https://download.gullify.app/serveur.json';
 /** Au-delà, le service d'à côté est considéré comme absent ou mort. */
 const MAJ_SIGNE_DE_VIE = 120;
 /** Le dépôt d'images est interrogé au plus une fois par heure. */
@@ -78,8 +87,8 @@ function majVersionInstallee(): ?string {
     return ($v === '' || $v === 'dev') ? null : $v;
 }
 
-/** La plus haute version publiée au dépôt d'images, ou null s'il ne répond
- *  pas. Le dépôt est public en lecture : pas de secret à porter ici. */
+/** La dernière version publiée du serveur, ou null si le manifeste ne
+ *  répond pas. Il est public : pas de secret à porter ici. */
 function majVersionPubliee(): ?string {
     $cache = AppConfig::getDataPath() . '/cache/maj-versions.json';
     if (is_file($cache) && time() - (int)@filemtime($cache) < MAJ_CACHE) {
@@ -87,9 +96,7 @@ function majVersionPubliee(): ?string {
         return $v !== '' ? $v : null;
     }
 
-    $url = 'https://' . substr(MAJ_DEPOT, 0, strpos(MAJ_DEPOT, '/'))
-         . '/v2/' . substr(MAJ_DEPOT, strpos(MAJ_DEPOT, '/') + 1) . '/tags/list';
-    $ch = curl_init($url);
+    $ch = curl_init(MAJ_MANIFESTE);
     curl_setopt_array($ch, [
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_TIMEOUT        => 8,
@@ -100,19 +107,12 @@ function majVersionPubliee(): ?string {
     curl_close($ch);
     if ($code !== 200 || !is_string($corps)) return null;
 
-    $tags = json_decode($corps, true)['tags'] ?? null;
-    if (!is_array($tags)) return null;
+    $version = json_decode($corps, true)['version'] ?? null;
+    if (!is_string($version) || !preg_match('/^\d+\.\d+\.\d+$/', $version)) return null;
 
-    $meilleure = null;
-    foreach ($tags as $tag) {
-        if (!is_string($tag) || !preg_match('/^\d+\.\d+\.\d+$/', $tag)) continue; // « latest » n'est pas une version
-        if ($meilleure === null || version_compare($tag, $meilleure, '>')) $meilleure = $tag;
-    }
-    if ($meilleure !== null) {
-        if (!is_dir(dirname($cache))) @mkdir(dirname($cache), 0775, true);
-        @file_put_contents($cache, $meilleure);
-    }
-    return $meilleure;
+    if (!is_dir(dirname($cache))) @mkdir(dirname($cache), 0775, true);
+    @file_put_contents($cache, $version);
+    return $version;
 }
 
 /** Le service d'à côté donne signe de vie en touchant un fichier. Un fichier
