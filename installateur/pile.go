@@ -86,9 +86,7 @@ func (e *Etat) installe() {
 		{fmt.Sprintf("Vérification des ports %s et %s", portHTTP(), portHTTPS()), func() error { return e.verifiePorts() }},
 		{"Écriture des fichiers", func() error { return e.ecritFichiers(dossier, musique, adresse) }},
 		{"Téléchargement de GulliFY", func() error { return e.tireLesImages(dossier) }},
-		{"Démarrage", func() error {
-			return e.docker(dossier, 5*time.Minute, "compose", "-p", projetCompose, "up", "-d")
-		}},
+		{"Démarrage", func() error { return e.demarreLaPile(dossier) }},
 		{"Attente du serveur", func() error { return e.attendLeServeur(3 * time.Minute) }},
 		{"Vérification de la base", func() error { return e.verifieOuRepareLaBase(dossier) }},
 		{"Préparation de la base", func() error { return e.setup("create_tables", nil) }},
@@ -273,6 +271,30 @@ func citerSQL(valeur string) string {
 	return "'" + strings.ReplaceAll(valeur, "'", "''") + "'"
 }
 
+// demarreLaPile lance les conteneurs, et raconte ce qui a lâché si ça lâche.
+//
+// « dependency failed to start » ne dit rien à personne. Le journal du
+// conteneur fautif, lui, dit tout — manque de mémoire, dossier de données
+// abîmé, port occupé. Sans lui on ne peut qu'essayer au hasard.
+func (e *Etat) demarreLaPile(dossier string) error {
+	err := e.docker(dossier, 8*time.Minute, "compose", "-p", projetCompose, "up", "-d")
+	if err == nil {
+		return nil
+	}
+
+	e.dit("  Le démarrage a échoué. Voici ce que dit la base de données :")
+	if programme, trouve := cheminDocker(); trouve {
+		cmd := exec.Command(programme, "compose", "-p", projetCompose, "logs", "--tail", "25", "db")
+		cmd.Dir = dossier
+		sortie, _ := cmd.CombinedOutput()
+		for _, ligne := range dernieresLignes(string(sortie), 25) {
+			e.dit("  │ %s", ligne)
+		}
+	}
+
+	return err
+}
+
 // ── Les ports ────────────────────────────────────────────────────────────────
 
 // verifiePorts regarde si 80 et 443 sont libres.
@@ -410,8 +432,14 @@ services:
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       interval: 5s
-      timeout: 3s
-      retries: 20
+      timeout: 5s
+      retries: 30
+      # La toute première mise en route construit la base : plusieurs minutes
+      # sur un disque lent, et sous Windows où tout passe par une machine
+      # virtuelle. Sans ce délai de grâce, les échecs du début comptaient
+      # comme de vraies pannes et la pile abandonnait avant que la base soit
+      # prête — « dependency failed to start », alors que rien n'était cassé.
+      start_period: 180s
     restart: unless-stopped
 
 volumes:
