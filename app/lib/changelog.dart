@@ -8,6 +8,13 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.74.0', [
+    'Les balados arrivent dans Android Auto, où ils n\'avaient jamais eu '
+        'leur place : « Balados » à la racine, les séries suivies, puis leurs '
+        'épisodes. Chacun dit s\'il est écouté ou ce qu\'il reste à '
+        'entendre, et reprend où on l\'avait laissé — c\'est tout l\'intérêt '
+        'd\'un balado en voiture',
+  ]),
   ReleaseNote('3.73.4', [
     'Les photos d\'artiste restaient floues même une fois le serveur à jour : '
         'l\'app garde les images sur le téléphone et les range par adresse, '

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:audio_service/audio_service.dart';
 import 'package:audio_session/audio_session.dart';
@@ -155,6 +156,28 @@ class BrowseIds {
   /// « Découvrir sur Bandcamp » (idée #111) : genres, puis sous-genres, puis
   /// nouveautés / aléatoire / populaires.
   static const bandcamp = 'BANDCAMP';
+
+  /// Les balados (idée #112), auxquels la voiture n'avait pas accès.
+  static const podcasts = 'PODCASTS';
+
+  /// Une série, puis un épisode. L'adresse d'un flux et l'identifiant d'un
+  /// épisode contiennent n'importe quoi — deux-points, barres obliques,
+  /// esperluettes — et ces identifiants-ci voyagent dans un protocole qui les
+  /// traite comme des mots. On les encode donc, plutôt que d'espérer.
+  static String podcastShow(String feedUrl) => 'PODCAST_${encode(feedUrl)}';
+  ///
+  /// Le point sépare les deux : l'alphabet de base64url contient le tiret ET
+  /// le tiret bas, donc découper à l'un d'eux tomberait un jour au milieu
+  /// d'une adresse. Le point, lui, n'en fait pas partie.
+  static String podcastEpisode(String feedUrl, String guid) =>
+      'PODEP_${encode(feedUrl)}.${encode(guid)}';
+
+  static String encode(String valeur) =>
+      base64Url.encode(utf8.encode(valeur)).replaceAll('=', '');
+  static String decode(String valeur) => utf8.decode(
+        base64Url.decode(valeur.padRight((valeur.length + 3) ~/ 4 * 4, '=')),
+      );
+
   /// Item « Réessayer » proposé quand une catégorie n'a pas pu se charger.
   static String retry(String parentId) => 'RETRY_$parentId';
   static String album(int id) => 'ALBUM_$id';
@@ -355,6 +378,11 @@ class GullifyAudioHandler extends BaseAudioHandler
 
   /// Set after login — playlists pour Android Auto.
   PlaylistRepository? playlistRepository;
+
+  /// Set after login — les balados dans la voiture (idée #112).
+  PodcastsRepository? podcastsRepository;
+  List<PodcastShow>? _showsCache;
+  final _episodesCache = <String, List<PodcastEpisode>>{};
 
   /// Set after login — « Découvrir sur Bandcamp » dans Android Auto
   /// (idée #111).
@@ -1173,6 +1201,82 @@ class GullifyAudioHandler extends BaseAudioHandler
       position: episodes[at].startAt,
     );
   }
+
+  /// Joue l'épisode désigné par un identifiant de la voiture.
+  ///
+  /// L'identifiant porte l'adresse du flux et celui de l'épisode, encodés :
+  /// il se suffit donc à lui-même. Le cache n'est qu'un raccourci — Android
+  /// Auto peut très bien demander la lecture d'un épisode longtemps après
+  /// l'avoir listé, ou après un redémarrage du lecteur, et il faut alors
+  /// relire le flux plutôt que de ne rien faire.
+  Future<void> _playPodcastEpisode(String mediaId) async {
+    final reste = mediaId.substring('PODEP_'.length);
+    final coupure = reste.indexOf('.');
+    if (coupure <= 0) {
+      logAA('identifiant d\'épisode incompréhensible : $mediaId');
+      return;
+    }
+    final feedUrl = BrowseIds.decode(reste.substring(0, coupure));
+    final guid = BrowseIds.decode(reste.substring(coupure + 1));
+
+    final podcasts = podcastsRepository;
+    var episodes = _episodesCache[feedUrl];
+    var titre = _showsCache
+            ?.where((s) => s.feedUrl == feedUrl)
+            .firstOrNull
+            ?.title ??
+        '';
+    var image = _showsCache
+            ?.where((s) => s.feedUrl == feedUrl)
+            .firstOrNull
+            ?.image ??
+        '';
+
+    if (episodes == null) {
+      if (podcasts == null) {
+        logAA('balados non liés : impossible de jouer $guid');
+        return;
+      }
+      final feed = await podcasts.episodes(feedUrl, limit: 50);
+      episodes = feed.episodes;
+      _episodesCache[feedUrl] = episodes;
+      if (titre.isEmpty) titre = feed.show.title;
+      if (image.isEmpty) image = feed.show.image;
+    }
+
+    final index = episodes.indexWhere((e) => e.guid == guid);
+    if (index < 0) {
+      logAA('épisode introuvable dans le flux : $guid');
+      return;
+    }
+    await playPodcast(
+      episodes,
+      feedUrl: feedUrl,
+      showTitle: titre,
+      showImage: image,
+      startIndex: index,
+    );
+  }
+
+  /// Ce qu'on dit d'un épisode dans la liste de la voiture.
+  ///
+  /// Une ligne, lue d'un coup d'œil : repris où on en était, déjà écouté, ou
+  /// rien de particulier. Le résumé de l'épisode, lui, ne se lit pas en
+  /// conduisant.
+  @visibleForTesting
+  static String etatEpisode(PodcastEpisode e, String showTitle) {
+    if (e.completed) return '$showTitle · écouté';
+    if (e.resumable) {
+      final reste = e.duration > 0 ? e.duration - e.position : 0;
+      return reste > 60
+          ? '$showTitle · reprendre, ${(reste / 60).round()} min restantes'
+          : '$showTitle · reprendre';
+    }
+    return showTitle;
+  }
+
+  String _etatEpisode(PodcastEpisode e, String showTitle) =>
+      etatEpisode(e, showTitle);
 
   /// La fiche d'un épisode de podcast dans la file.
   @visibleForTesting
@@ -2230,6 +2334,7 @@ class GullifyAudioHandler extends BaseAudioHandler
           MediaItem(id: BrowseIds.library, title: 'Bibliothèque',
               playable: false),
           MediaItem(id: BrowseIds.radios, title: 'Radios', playable: false),
+          MediaItem(id: BrowseIds.podcasts, title: 'Balados', playable: false),
           MediaItem(id: BrowseIds.favorites, title: 'Favoris', playable: false),
         ];
       case BrowseIds.home:
@@ -2732,6 +2837,24 @@ class GullifyAudioHandler extends BaseAudioHandler
             ),
         ];
 
+      // Les balados suivis. Pas la découverte ni la recherche : en voiture,
+      // on reprend ce qu'on écoute, on ne fouille pas un catalogue.
+      case BrowseIds.podcasts:
+        final podcasts = podcastsRepository;
+        if (podcasts == null) throw StateError('balados non liés');
+        final shows = await podcasts.subscriptions();
+        _showsCache = shows;
+        return [
+          for (final s in shows)
+            MediaItem(
+              id: BrowseIds.podcastShow(s.feedUrl),
+              title: s.title,
+              artist: s.author,
+              artUri: _artUri(s.image.isEmpty ? null : s.image),
+              playable: false,
+            ),
+        ];
+
       case BrowseIds.radios:
         final radios = radioRepository;
         if (radios == null) throw StateError('radios non liées');
@@ -2774,6 +2897,31 @@ class GullifyAudioHandler extends BaseAudioHandler
         ..._playAllItems('ARTIST_$id'),
         for (final a in detail.albums)
           _browsableAlbum(a.id, a.name, detail.artist.name, a.artworkUrl),
+      ];
+    }
+
+    if (parentMediaId.startsWith('PODCAST_')) {
+      final feedUrl = BrowseIds.decode(parentMediaId.substring('PODCAST_'.length));
+      final podcasts = podcastsRepository;
+      if (podcasts == null) throw StateError('balados non liés');
+      final feed = await podcasts.episodes(feedUrl, limit: 50);
+      _episodesCache[feedUrl] = feed.episodes;
+      return [
+        for (final e in feed.episodes)
+          MediaItem(
+            id: BrowseIds.podcastEpisode(feedUrl, e.guid),
+            title: e.title,
+            // Ce qu'on veut savoir d'un épisode en conduisant : sa durée, et
+            // s'il est commencé. Le reste se lit mal à cette distance.
+            artist: _etatEpisode(e, feed.show.title),
+            artUri: _artUri(
+              (e.image.isNotEmpty ? e.image : feed.show.image).isEmpty
+                  ? null
+                  : (e.image.isNotEmpty ? e.image : feed.show.image),
+            ),
+            duration: e.duration > 0 ? Duration(seconds: e.duration) : null,
+            playable: true,
+          ),
       ];
     }
 
@@ -3296,6 +3444,14 @@ class GullifyAudioHandler extends BaseAudioHandler
         if (s != null) {
           await playRadio(url: s.streamUrl, title: s.name, logo: s.logo);
         }
+        return;
+      }
+
+      // Un épisode choisi dans la voiture. La file devient la série, comme
+      // dans l'app : « suivant » descend vers les épisodes plus anciens. Et
+      // l'épisode reprend où on l'avait laissé — c'est tout l'intérêt.
+      if (mediaId.startsWith('PODEP_')) {
+        await _playPodcastEpisode(mediaId);
         return;
       }
 

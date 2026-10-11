@@ -14,6 +14,7 @@ import 'library.dart';
 import 'local_library.dart';
 import 'offline.dart';
 import 'playlists.dart';
+import 'podcasts.dart';
 import 'radio.dart';
 import 'yt_downloads.dart';
 
@@ -82,6 +83,12 @@ final audioHandlerBinderProvider = Provider<void>((ref) {
         usable ? ref.watch(playlistRepositoryProvider) : null;
   } catch (e) {
     handler.logAA('ERREUR liaison playlists: $e');
+  }
+  try {
+    handler.podcastsRepository =
+        usable ? ref.watch(podcastsRepositoryProvider) : null;
+  } catch (e) {
+    handler.logAA('ERREUR liaison balados: $e');
   }
   try {
     handler.bandcampRepository =
