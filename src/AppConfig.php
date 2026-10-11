@@ -298,6 +298,11 @@ class AppConfig {
             'MAIL_SMTP_PASSWORD' => 'mail.smtp_password',
             'MAIL_HTTP_URL'      => 'mail.http_url',
             'MAIL_HTTP_TOKEN'    => 'mail.http_token',
+            // Le carnet d'idées. `IDEAS_RELAY` : où partent les idées écrites
+            // ici (vide = elles restent chez soi). `IDEAS_INBOX_OWNER` : sur
+            // le serveur qui les reçoit, le seul compte qui puisse les lire.
+            'IDEAS_RELAY'        => 'ideas.relay',
+            'IDEAS_INBOX_OWNER'  => 'ideas.inbox_owner',
             'MAIL_LOG'           => 'mail.log',
         ];
 
@@ -343,6 +348,11 @@ class AppConfig {
             'MAIL_SMTP_PASSWORD' => 'mail.smtp_password',
             'MAIL_HTTP_URL'      => 'mail.http_url',
             'MAIL_HTTP_TOKEN'    => 'mail.http_token',
+            // Le carnet d'idées. `IDEAS_RELAY` : où partent les idées écrites
+            // ici (vide = elles restent chez soi). `IDEAS_INBOX_OWNER` : sur
+            // le serveur qui les reçoit, le seul compte qui puisse les lire.
+            'IDEAS_RELAY'        => 'ideas.relay',
+            'IDEAS_INBOX_OWNER'  => 'ideas.inbox_owner',
             'MAIL_LOG'           => 'mail.log',
         ];
 

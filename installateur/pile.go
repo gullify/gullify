@@ -360,6 +360,11 @@ APP_SECRET=%s
 
 PUID=%d
 PGID=%d
+
+# Le carnet d'idées de ce serveur envoie ce qu'on y écrit au développeur de
+# GulliFY, avec le nom du serveur et de qui l'a écrite — l'app le dit à qui
+# écrit. Vider cette ligne garde les idées ici, pour soi.
+IDEAS_RELAY=https://maxime.gullify.app
 `, motDePasseBase, motDePasseRacine, musique, adresse, adresse, secretApp, utilisateurSysteme(), groupeSysteme())
 
 	if err := os.WriteFile(filepath.Join(dossier, ".env"), []byte(env), 0o600); err != nil {

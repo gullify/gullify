@@ -4,6 +4,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:gullify/api/ideas_inbox_repository.dart';
 import 'package:gullify/api/ideas_repository.dart';
 import 'package:gullify/screens/ideas_screen.dart';
 import 'package:gullify/state/ideas.dart';
@@ -18,7 +19,7 @@ class _FakeIdeasRepo extends Fake implements IdeasRepository {
   int nextId = 42;
 
   @override
-  Future<List<Idea>> list() async => ideas;
+  Future<Carnet> list() async => Carnet(idees: ideas);
 
   @override
   Future<int> add(String text) async {
@@ -77,6 +78,9 @@ Future<void> _pump(
         // Les octets d'une pièce jointe sortent de l'API v2 : le jeton part
         // en en-tête. Rien à authentifier dans un test.
         ideaFileHeadersProvider.overrideWithValue(const <String, String>{}),
+        // La boîte du développeur n'a rien à faire ici : sans serveur, son
+        // appel partirait pour de vrai et laisserait un minuteur en vol.
+        ideasInboxProvider.overrideWith((ref) async => const <IdeeRecue>[]),
       ],
       child: MaterialApp(
         // Ni galerie ni SAF sous test : le choix du fichier est simulé.

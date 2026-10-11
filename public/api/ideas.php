@@ -8,6 +8,7 @@
 require_once __DIR__ . '/../../src/AppConfig.php';
 require_once __DIR__ . '/../../src/auth_required.php';
 require_once __DIR__ . '/../../src/IdeaAttachments.php';
+require_once __DIR__ . '/../../src/IdeasRelay.php';
 
 header('Content-Type: application/json');
 header('Cache-Control: no-cache');
@@ -31,6 +32,7 @@ $db->exec("
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
 ");
 IdeaAttachments::ensureTable($db);
+IdeasRelay::creerColonnes($db);
 
 $readBody = function (): array {
     $j = json_decode((string)file_get_contents('php://input'), true);
@@ -56,7 +58,15 @@ switch ($action) {
             'createdAt'   => $r['created_at'],
             'attachments' => $files[(int)$r['id']] ?? [],
         ], $rows);
-        echo json_encode(['success' => true, 'ideas' => $ideas]);
+        echo json_encode([
+            'success' => true,
+            'ideas'   => $ideas,
+            // Où va une idée écrite ici : chez le développeur, ou nulle part
+            // qu'ici. L'app le dit à qui écrit, plutôt que de le laisser
+            // deviner que ses mots quittent sa machine.
+            'relay'   => IdeasRelay::actif($user) ? IdeasRelay::adresse() : null,
+        ]);
+        IdeasRelay::rattraper($db, $user);
         break;
 
     case 'add':
@@ -68,7 +78,15 @@ switch ($action) {
         }
         $stmt = $db->prepare("INSERT INTO dev_ideas (user, text) VALUES (?, ?)");
         $stmt->execute([$user, mb_substr($text, 0, 2000)]);
-        echo json_encode(['success' => true, 'id' => (int)$db->lastInsertId()]);
+        $id = (int)$db->lastInsertId();
+
+        // L'idée part vers le développeur, s'il y en a un à joindre. L'envoi
+        // ne décide de rien : qu'il réussisse ou non, l'idée est écrite, et
+        // un échec se rattrape au prochain affichage de la liste.
+        $relayee = IdeasRelay::actif($user)
+            ? IdeasRelay::envoyer($db, $id, $user, mb_substr($text, 0, 2000))
+            : null;
+        echo json_encode(['success' => true, 'id' => $id, 'relayee' => $relayee]);
         break;
 
     case 'set_status':

@@ -8,6 +8,15 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.75.0', [
+    'Le carnet d\'idées sort de son serveur : ce qu\'on y écrit part chez '
+        'le développeur de GulliFY, et l\'app le dit en toutes lettres au '
+        'moment d\'écrire — avec le nom du serveur. Chacun garde sa copie '
+        'dans son propre carnet',
+    'Et lui reçoit : une boîte visible de lui seul, où les idées des autres '
+        'attendent d\'être adoptées (versées dans son carnet, d\'où elles '
+        'partent vers Claude) ou écartées',
+  ]),
   ReleaseNote('3.74.0', [
     'Les balados arrivent dans Android Auto, où ils n\'avaient jamais eu '
         'leur place : « Balados » à la racine, les séries suivies, puis leurs '

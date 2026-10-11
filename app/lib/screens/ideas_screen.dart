@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../api/ideas_inbox_repository.dart';
 import '../api/ideas_repository.dart';
 import '../state/auth.dart';
 import '../state/ideas.dart';
@@ -286,6 +287,29 @@ class _IdeasScreenState extends ConsumerState<IdeasScreen> {
                           ),
                   ],
                 ),
+                // Les mots de quelqu'un quittent sa machine : il doit le
+                // savoir en les écrivant, pas le découvrir.
+                if (ideas.asData?.value.partChezLeDeveloppeur ?? false)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Row(
+                      children: [
+                        Icon(Icons.send_outlined,
+                            size: 15, color: scheme.onSurfaceVariant),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            'Ces idées sont envoyées au développeur de '
+                            'GulliFY, avec le nom de ton serveur.',
+                            style: TextStyle(
+                              fontSize: 12.5,
+                              color: scheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 if (_pending.isNotEmpty)
                   Padding(
                     padding: const EdgeInsets.only(top: 8),
@@ -321,11 +345,15 @@ class _IdeasScreenState extends ConsumerState<IdeasScreen> {
               ],
             ),
           ),
+          // La boîte du développeur. Vide — donc invisible — pour tout le
+          // monde sauf lui : c'est le serveur qui en décide, pas l'app.
+          const _BoiteDuDeveloppeur(),
           Expanded(
             child: ideas.when(
               loading: () => const Center(child: CircularProgressIndicator()),
               error: (e, _) => Center(child: Text('Erreur : $e')),
-              data: (list) {
+              data: (carnet) {
+                final list = carnet.idees;
                 if (list.isEmpty) {
                   return Center(
                     child: Padding(
@@ -640,6 +668,111 @@ class _AttachmentsSheetState extends ConsumerState<_AttachmentsSheet> {
               ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Les idées que les autres serveurs ont envoyées.
+///
+/// Elles ne sont à personne tant qu'on ne les a pas adoptées : adopter, c'est
+/// les verser dans son propre carnet, d'où elles partiront vers Claude comme
+/// les autres. Écarter, c'est dire qu'on les a lues et qu'on en reste là.
+class _BoiteDuDeveloppeur extends ConsumerWidget {
+  const _BoiteDuDeveloppeur();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final recues = ref.watch(ideasInboxProvider).asData?.value ?? const [];
+    if (recues.isEmpty) return const SizedBox.shrink();
+
+    final scheme = Theme.of(context).colorScheme;
+
+    // Le dépôt n'est lu qu'au clic : s'afficher ne doit rien demander au
+    // réseau ni à la session. Lu à la construction, il faisait tomber la
+    // section entière là où aucun serveur n'est configuré.
+    Future<void> agir(
+      Future<void> Function(IdeasInboxRepository depot) action,
+      String fait,
+    ) async {
+      final messager = ScaffoldMessenger.of(context);
+      try {
+        await action(ref.read(ideasInboxRepositoryProvider));
+        ref.invalidate(ideasInboxProvider);
+        ref.invalidate(ideasProvider);
+        messager.showSnackBar(SnackBar(content: Text(fait)));
+      } catch (e) {
+        messager.showSnackBar(SnackBar(content: Text('Échec : $e')));
+      }
+    }
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 6),
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.inbox_outlined, size: 18, color: scheme.primary),
+              const SizedBox(width: 8),
+              Text(
+                'Reçues des autres · ${recues.length}',
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          // Une liste bornée : la boîte ne doit pas chasser le carnet de
+          // l'écran. Le reste vient au fur et à mesure qu'on en traite.
+          for (final idee in recues.take(4))
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(idee.texte, style: const TextStyle(fontSize: 14)),
+                  Text(
+                    idee.provenance,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
+                  Row(
+                    children: [
+                      TextButton(
+                        onPressed: () => agir(
+                          (depot) => depot.adopter(idee.id),
+                          'Versée dans ton carnet.',
+                        ),
+                        child: const Text('Adopter'),
+                      ),
+                      TextButton(
+                        onPressed: () => agir(
+                          (depot) => depot.rejeter(idee.id),
+                          'Écartée.',
+                        ),
+                        child: const Text('Écarter'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          if (recues.length > 4)
+            Padding(
+              padding: const EdgeInsets.only(top: 4, bottom: 4),
+              child: Text(
+                'et ${recues.length - 4} autres',
+                style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+              ),
+            ),
+        ],
       ),
     );
   }

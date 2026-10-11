@@ -72,18 +72,35 @@ class Idea {
   bool get needsReview => status == 'needs_review';
 }
 
+/// Le carnet de quelqu'un, et la destination de ce qu'il y écrit.
+///
+/// [relais] n'est pas une adresse à afficher telle quelle : c'est la réponse
+/// à « mes mots quittent-ils cette machine ? ». Null veut dire non.
+class Carnet {
+  const Carnet({required this.idees, this.relais});
+
+  final List<Idea> idees;
+  final String? relais;
+
+  bool get partChezLeDeveloppeur => relais != null && relais!.isNotEmpty;
+}
+
 class IdeasRepository {
   IdeasRepository(this._client);
 
   final ApiClient _client;
 
-  Future<List<Idea>> list() async {
+  /// Le carnet, et où vont les idées qu'on y écrit.
+  Future<Carnet> list() async {
     final data = await _client.get('ideas.php', query: {'action': 'list'})
         as Map<String, dynamic>;
-    return (data['ideas'] as List<dynamic>? ?? [])
-        .cast<Map<String, dynamic>>()
-        .map(Idea.fromJson)
-        .toList();
+    return Carnet(
+      idees: (data['ideas'] as List<dynamic>? ?? [])
+          .cast<Map<String, dynamic>>()
+          .map(Idea.fromJson)
+          .toList(),
+      relais: data['relay'] as String?,
+    );
   }
 
   /// Ajoute une idée et renvoie son id (0 si le serveur ne le dit pas).

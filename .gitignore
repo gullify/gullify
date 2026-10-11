@@ -33,3 +33,6 @@ __pycache__/
 
 # Construction Flutter web (produite par build-web.sh)
 public/app/
+
+# Le binaire local de `go build` : les vrais sont construits par construire.sh
+installateur/installateur
