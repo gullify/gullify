@@ -136,7 +136,8 @@ void main() {
     expect(find.text('1 album · 12 titres'), findsOneWidget);
   });
 
-  testWidgets('la radio d\'une année joue ses titres', (tester) async {
+  testWidgets('l\'année se lance dans l\'ordre, et sa radio la mélange',
+      (tester) async {
     final repo = _FakeRepo(songs: const [
       Song(id: 7, title: 'Un titre de 1994', filePath: 'a.mp3', duration: 200),
     ]);
@@ -148,16 +149,24 @@ void main() {
         playerActionsProvider.overrideWithValue(actions),
       ],
       child: _app(
-        const Scaffold(body: Center(child: YearRadioButton(year: 1994))),
+        const Scaffold(body: Center(child: YearPlayButtons(year: 1994))),
       ),
     ));
 
-    expect(find.text('Radio 1994'), findsOneWidget);
-    await tester.tap(find.text('Radio 1994'));
+    // Le gros bouton joue l'année en ordre, la plaque de verre la mélange :
+    // les deux gestes sont là sans avoir à ouvrir un album.
+    expect(find.text('Tout lire'), findsOneWidget);
+    await tester.tap(find.text('Tout lire'));
     await tester.pumpAndSettle();
 
     expect(repo.asked, [1994]);
     expect(actions.played.single.single.title, 'Un titre de 1994');
+
+    await tester.tap(find.byIcon(Icons.shuffle));
+    await tester.pumpAndSettle();
+
+    expect(repo.asked, [1994, 1994]);
+    expect(actions.played.length, 2);
   });
 
   testWidgets('une année vide le dit plutôt que de lancer le vide',
@@ -171,11 +180,11 @@ void main() {
         playerActionsProvider.overrideWithValue(actions),
       ],
       child: _app(
-        const Scaffold(body: Center(child: YearRadioButton(year: 1994))),
+        const Scaffold(body: Center(child: YearPlayButtons(year: 1994))),
       ),
     ));
 
-    await tester.tap(find.text('Radio 1994'));
+    await tester.tap(find.text('Tout lire'));
     await tester.pumpAndSettle();
 
     expect(actions.played, isEmpty);

@@ -2,17 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/album.dart';
+import '../state/collection_play.dart';
 import '../state/library.dart';
-import '../state/player.dart';
 import '../widgets/album_card.dart';
 import '../widgets/genre_mosaic.dart';
 import '../widgets/glass_kit.dart';
 import '../widgets/mascot_empty.dart';
+import '../widgets/play_pair.dart';
 import 'shell_screen.dart';
 
-/// Une année de la bibliothèque (idée #80) : sa radio « machine à remonter le
-/// temps » — les titres sortis cette année-là, mélangés — puis les albums qui
-/// la composent.
+/// Une année de la bibliothèque (idée #80) : les titres sortis cette année-là,
+/// dans l'ordre ou mélangés — sa radio « machine à remonter le temps » —, puis
+/// les albums qui la composent.
 class YearScreen extends ConsumerWidget {
   const YearScreen({super.key, required this.year});
 
@@ -88,8 +89,8 @@ class YearScreen extends ConsumerWidget {
   }
 }
 
-/// En-tête : mosaïque des pochettes de l'année, ce qu'elle contient et le
-/// bouton qui lance sa radio.
+/// En-tête : mosaïque des pochettes de l'année, ce qu'elle contient, et les
+/// deux façons de la lancer.
 class _YearHeader extends StatelessWidget {
   const _YearHeader({required this.year, required this.albums});
 
@@ -133,7 +134,7 @@ class _YearHeader extends StatelessWidget {
                       ),
                     ),
                   ),
-                YearRadioButton(year: year),
+                YearPlayButtons(year: year),
               ],
             ),
           ),
@@ -143,46 +144,23 @@ class _YearHeader extends StatelessWidget {
   }
 }
 
-/// Lance la radio d'une année : ses titres, mélangés côté serveur, comme la
-/// lecture aléatoire d'un genre.
-class YearRadioButton extends ConsumerStatefulWidget {
-  const YearRadioButton({super.key, required this.year});
+/// Lance une année : tous ses titres dans l'ordre, ou sa radio « machine à
+/// remonter le temps » — les mêmes, mélangés côté serveur.
+class YearPlayButtons extends ConsumerWidget {
+  const YearPlayButtons({super.key, required this.year});
 
   final int year;
 
   @override
-  ConsumerState<YearRadioButton> createState() => _YearRadioButtonState();
-}
-
-class _YearRadioButtonState extends ConsumerState<YearRadioButton> {
-  bool _busy = false;
-
-  Future<void> _play() async {
-    setState(() => _busy = true);
-    final messenger = ScaffoldMessenger.of(context);
-    try {
-      final songs =
-          await ref.read(libraryRepositoryProvider).yearSongs(widget.year);
-      if (songs.isEmpty) {
-        messenger.showSnackBar(
-          SnackBar(content: Text('Aucun titre de ${widget.year}')),
-        );
-        return;
-      }
-      await ref.read(playerActionsProvider).playSongs(songs);
-    } catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text('Erreur : $e')));
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AccentPlayButton(
-      label: _busy ? 'Chargement…' : 'Radio ${widget.year}',
-      icon: Icons.radio,
-      onPressed: _busy ? null : _play,
+  Widget build(BuildContext context, WidgetRef ref) {
+    return PaireDeLecture(
+      aleatoire: 'Radio $year',
+      vide: 'Aucun titre de $year',
+      titres: ({required bool shuffle}) => titresDeLAnnee(
+        ref.read(libraryRepositoryProvider),
+        year,
+        shuffle: shuffle,
+      ),
     );
   }
 }

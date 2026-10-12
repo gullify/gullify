@@ -8,6 +8,17 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.77.0', [
+    'La fiche d\'un genre lance tout le genre : « Tout lire » dans l\'ordre, '
+        'ou le bouton aléatoire à côté. Il n\'y avait que l\'aléatoire, et '
+        'il ne tirait qu\'un échantillon',
+    'Un genre que le serveur ne sait pas tirer se rassemble maintenant '
+        'artiste par artiste plutôt que de ne rien jouer — comme au volant',
+    'Une année a les deux gestes elle aussi : ses titres dans l\'ordre, ou sa '
+        'radio « machine à remonter le temps »',
+    'Les téléchargements se lancent d\'un tap, en ordre ou mélangés, au lieu '
+        'de devoir choisir un titre',
+  ]),
   ReleaseNote('3.76.0', [
     'Le menu d\'Android Auto est refait. La racine n\'a plus que quatre '
         'entrées — Accueil, Bibliothèque, Balados, Radios — parce que c\'est '

@@ -12,8 +12,8 @@ import '../api/playlist_repository.dart';
 import '../api/podcasts_repository.dart';
 import '../api/radio_repository.dart';
 import '../api/yt_downloads_repository.dart';
-import '../models/game_source.dart';
 import '../models/song.dart';
+import '../state/collection_play.dart';
 import 'equalizer.dart';
 import 'fade.dart';
 import 'local_mode.dart';
@@ -3306,13 +3306,8 @@ class GullifyAudioHandler extends BaseAudioHandler
   }
 
   /// Toutes les chansons d'un artiste, dans l'ordre des albums.
-  Future<List<Song>> _artistSongs(LibraryRepository repo, int artistId) async {
-    final detail = await repo.artistDetail(artistId);
-    final albums = await Future.wait(
-      [for (final a in detail.albums) repo.albumDetail(a.id)],
-    );
-    return [for (final a in albums) ...a.songs];
-  }
+  Future<List<Song>> _artistSongs(LibraryRepository repo, int artistId) =>
+      titresDeLArtiste(repo, artistId);
 
   Future<List<Song>> _albumSongs(LibraryRepository repo, int albumId) async =>
       _albumSongsCache[albumId] ?? (await repo.albumDetail(albumId)).songs;
@@ -3785,54 +3780,9 @@ class GullifyAudioHandler extends BaseAudioHandler
     if (!rest.endsWith(suffix)) return const [];
     final name = rest.substring(0, rest.length - suffix.length);
     if (name.isEmpty) return const [];
-    var songs = await repo.randomSongs(
-      limit: 500,
-      source: GameSource(mode: GameSourceMode.genres, genres: [name]),
-    );
-    if (songs.isEmpty) {
-      // Le vivier du serveur n'a rien rendu pour ce genre. Plutôt que le
-      // silence au volant, on rassemble le genre artiste par artiste — c'est
-      // lent, d'où le repli seulement, et borné.
-      songs = await _genreSongsByArtist(name, repo);
-      if (songs.isNotEmpty) songs = songs.toList()..shuffle();
-    }
-    logAA('genre « $name » : ${songs.length} titres '
-        '(${shuffle ? 'aléatoire' : 'tout lire'})');
-    // La liste est mélangée (serveur, ou repli) : l'aléatoire se joue telle
-    // quelle, « Tout lire » la remet en ordre artiste / album / piste.
-    if (shuffle) return songs;
-    return songs.toList()
-      ..sort((a, b) {
-        final artist = (a.artistName ?? '').compareTo(b.artistName ?? '');
-        if (artist != 0) return artist;
-        final album = (a.albumName ?? '').compareTo(b.albumName ?? '');
-        if (album != 0) return album;
-        return (a.trackNumber ?? 0).compareTo(b.trackNumber ?? 0);
-      });
-  }
-
-  /// Repli du genre : ses artistes, puis leurs titres. Un genre peut compter
-  /// cinquante artistes et chacun coûte un détail par album — on s'arrête donc
-  /// à une poignée d'artistes tirés au hasard, de quoi remplir une file sans
-  /// faire attendre la voiture. Un artiste illisible est simplement sauté.
-  Future<List<Song>> _genreSongsByArtist(
-    String name,
-    LibraryRepository repo,
-  ) async {
-    const maxArtists = 8;
-    final artists = await repo.artistsByGenre(name);
-    if (artists.isEmpty) return const [];
-    final picked = artists.toList()..shuffle();
-    final songs = <Song>[];
-    for (final ar in picked.take(maxArtists)) {
-      try {
-        songs.addAll(await _artistSongs(repo, ar.id));
-      } catch (e) {
-        logAA('genre « $name » : artiste ${ar.name} illisible ($e)');
-      }
-    }
-    logAA('genre « $name » : repli par artiste, ${songs.length} titres');
-    return songs;
+    // La même liste que la fiche du genre dans l'app, repli par artiste
+    // compris : « aléatoire » doit dire la même chose aux deux endroits.
+    return titresDuGenre(repo, name, shuffle: shuffle, journal: logAA);
   }
 
   /// « Tout lire », « Lecture aléatoire » ou un titre précis parmi les

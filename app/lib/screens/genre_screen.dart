@@ -2,18 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/album.dart';
-import '../models/game_source.dart';
+import '../state/collection_play.dart';
 import '../state/library.dart';
-import '../state/player.dart';
 import '../widgets/album_card.dart';
 import '../widgets/artist_row.dart';
 import '../widgets/genre_mosaic.dart';
 import '../widgets/glass_kit.dart';
 import '../widgets/mascot_empty.dart';
+import '../widgets/play_pair.dart';
 import 'shell_screen.dart';
 
-/// Un genre en entier : mosaïque de ses pochettes, lecture aléatoire du
-/// genre, puis ses albums (grille) et ses artistes (liste).
+/// Un genre en entier : mosaïque de ses pochettes, de quoi le lancer dans
+/// l'ordre ou mélangé, puis ses albums (grille) et ses artistes (liste).
 class GenreScreen extends ConsumerWidget {
   const GenreScreen({super.key, required this.genre});
 
@@ -119,8 +119,8 @@ class GenreScreen extends ConsumerWidget {
   }
 }
 
-/// En-tête : mosaïque des pochettes du genre, ce qu'il contient et la
-/// lecture aléatoire.
+/// En-tête : mosaïque des pochettes du genre, ce qu'il contient, et les deux
+/// façons de le lancer.
 class _GenreHeader extends StatelessWidget {
   const _GenreHeader({
     required this.genre,
@@ -176,7 +176,7 @@ class _GenreHeader extends StatelessWidget {
                       ),
                     ),
                   ),
-                ShuffleGenreButton(genre: genre),
+                GenrePlayButtons(genre: genre),
               ],
             ),
           ),
@@ -186,50 +186,23 @@ class _GenreHeader extends StatelessWidget {
   }
 }
 
-/// Lance un échantillon aléatoire du genre (mélangé côté serveur, comme la
-/// lecture aléatoire de toute la bibliothèque).
-class ShuffleGenreButton extends ConsumerStatefulWidget {
-  const ShuffleGenreButton({super.key, required this.genre});
+/// Lance le genre entier : dans l'ordre, ou mélangé par le serveur. C'est le
+/// même geste qu'au volant, où les deux entrées ouvrent un genre (idée #109) —
+/// et la même liste, repli par artiste compris.
+class GenrePlayButtons extends ConsumerWidget {
+  const GenrePlayButtons({super.key, required this.genre});
 
   final String genre;
 
   @override
-  ConsumerState<ShuffleGenreButton> createState() => _ShuffleGenreButtonState();
-}
-
-class _ShuffleGenreButtonState extends ConsumerState<ShuffleGenreButton> {
-  bool _busy = false;
-
-  Future<void> _play() async {
-    setState(() => _busy = true);
-    final messenger = ScaffoldMessenger.of(context);
-    try {
-      final songs = await ref.read(libraryRepositoryProvider).randomSongs(
-            source: GameSource(
-              mode: GameSourceMode.genres,
-              genres: [widget.genre],
-            ),
-          );
-      if (songs.isEmpty) {
-        messenger.showSnackBar(
-          const SnackBar(content: Text('Aucun titre dans ce genre')),
-        );
-        return;
-      }
-      await ref.read(playerActionsProvider).playSongs(songs);
-    } catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text('Erreur : $e')));
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AccentPlayButton(
-      label: _busy ? 'Chargement…' : 'Lecture aléatoire',
-      icon: Icons.shuffle,
-      onPressed: _busy ? null : _play,
+  Widget build(BuildContext context, WidgetRef ref) {
+    return PaireDeLecture(
+      vide: 'Aucun titre dans ce genre',
+      titres: ({required bool shuffle}) => titresDuGenre(
+        ref.read(libraryRepositoryProvider),
+        genre,
+        shuffle: shuffle,
+      ),
     );
   }
 }
