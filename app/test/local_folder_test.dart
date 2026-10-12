@@ -865,8 +865,16 @@ void main() {
       handler.offlineSongs = [downloaded];
       handler.offlinePaths = {12: '/telechargements/b.mp3'};
 
+      // La racine reste à quatre entrées : les téléchargements faisaient la
+      // cinquième, hors du cadre annoncé par la voiture. Ils sont maintenant
+      // en tête des Titres — dossier local et titres descendus sont tous des
+      // fichiers du téléphone.
       final root = await handler.getChildren(BrowseIds.root);
-      expect(root.map((i) => i.title), contains('Téléchargements'));
+      expect(root, hasLength(4));
+      expect(root.map((i) => i.title), isNot(contains('Téléchargements')));
+
+      final titres = await handler.getChildren(BrowseIds.localSongs);
+      expect(titres.map((i) => i.title), contains('Téléchargements'));
       final items = await handler.getChildren(BrowseIds.downloads);
       expect(items.any((i) => i.title == 'Descendu'), isTrue);
     });
@@ -886,13 +894,15 @@ void main() {
       expect(await handler.getMediaItem('LOCAL_ALBUM_1_TRACK_0'), isNotNull);
     });
 
-    test('en mode serveur, la racine ne change pas', () async {
+    test('en mode serveur, la racine garde ses quatre portes', () async {
       final handler = GullifyAudioHandler();
       addTearDown(handler.player.dispose);
 
       final root = await handler.getChildren(BrowseIds.root);
+      // Quatre, comme la voiture le demande — et les mêmes quatre qu'en mode
+      // local, à ceci près qu'ici elles mènent au serveur.
       expect(root.map((i) => i.title),
-          ['Accueil', 'Bibliothèque', 'Radios', 'Favoris']);
+          ['Accueil', 'Bibliothèque', 'Balados', 'Radios']);
     });
   });
 

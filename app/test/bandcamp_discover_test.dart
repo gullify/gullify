@@ -202,10 +202,12 @@ void main() {
   });
 
   group('Android Auto', () {
-    test('l\'accueil propose « Découvrir sur Bandcamp »', () async {
+    test('la bibliothèque propose « Découvrir sur Bandcamp »', () async {
+      // Descendu de l'accueil avec le modèle A : fouiller un catalogue n'est
+      // pas ce qu'on fait au volant, et l'accueil ne garde que la conduite.
       final handler = _handler(_FakeBandcamp());
 
-      final home = await handler.getChildren(BrowseIds.home);
+      final home = await handler.getChildren(BrowseIds.library);
 
       final entry = home.where((i) => i.id == BrowseIds.bandcamp).single;
       expect(entry.title, 'Découvrir sur Bandcamp');

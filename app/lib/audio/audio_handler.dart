@@ -35,6 +35,21 @@ Future<GullifyAudioHandler> initAudioHandler() {
       androidNotificationIcon: 'drawable/ic_notification',
       androidNotificationOngoing: true,
       androidStopForegroundOnPause: true,
+      // Ce que la voiture a besoin de savoir avant d'afficher quoi que ce
+      // soit. Sans la première clé, toutes les indications de présentation
+      // (grille, liste, titres de section) sont ignorées en silence : l'arbre
+      // repart alors en liste grise uniforme, ce qu'il était jusqu'ici.
+      androidBrowsableRootExtras: {
+        AndroidContentStyle.supportedKey: true,
+        AndroidContentStyle.browsableHintKey:
+            AndroidContentStyle.listItemHintValue,
+        AndroidContentStyle.playableHintKey:
+            AndroidContentStyle.listItemHintValue,
+        // Le champ de recherche de l'autoradio. search() y répond depuis
+        // longtemps ; faute de cette déclaration, le bouton n'apparaissait
+        // jamais et tout ce travail restait hors d'atteinte.
+        'android.media.browse.SEARCH_SUPPORTED': true,
+      },
     ),
   );
 }
@@ -2101,6 +2116,53 @@ class GullifyAudioHandler extends BaseAudioHandler
 
   // ── Media browser tree (Android Auto) ──────────────────────────────────────
 
+  /// Les extras d'un élément NAVIGABLE décrivent comment la voiture doit
+  /// présenter SES ENFANTS. Deux indications cohabitent dans un même écran —
+  /// une pour ce qui se navigue, une pour ce qui se joue —, et c'est ce qui
+  /// permet à l'accueil d'aligner des raccourcis en liste au-dessus de
+  /// pochettes en grille.
+  static const enfantsEnGrille = <String, dynamic>{
+    AndroidContentStyle.browsableHintKey: AndroidContentStyle.gridItemHintValue,
+    AndroidContentStyle.playableHintKey: AndroidContentStyle.listItemHintValue,
+  };
+
+  /// Le titre de section d'un élément. Tous ceux d'une même section portent
+  /// exactement la même chaîne et se suivent dans la liste : c'est à ces deux
+  /// conditions que la voiture dessine un écran à sections plutôt qu'une liste
+  /// plate. C'est le seul moyen d'empiler plusieurs rubriques sans ouvrir un
+  /// sous-menu par rubrique.
+  static const titreDeSection =
+      'android.media.browse.CONTENT_STYLE_GROUP_TITLE_HINT';
+
+  static const sectionReprendre = 'Reprendre';
+  static const sectionRoute = 'Pour la route';
+  static const sectionNouveautes = 'Nouveautés';
+
+  static Map<String, dynamic> _dansLaSection(
+    String titre, [
+    Map<String, dynamic> autres = const {},
+  ]) =>
+      {titreDeSection: titre, ...autres};
+
+  /// L'état d'écoute d'un élément, tel que la voiture le dessine : une barre
+  /// de progression sous la vignette, ou la mention « écouté ».
+  ///
+  /// Deux générations de clés cohabitent selon les autoradios — l'ancienne
+  /// (`android.media.extra`) et celle d'androidx. On envoie les deux : un
+  /// extra ignoré ne coûte rien, une barre manquante se voit.
+  static Map<String, dynamic> etatDEcoute({
+    required bool termine,
+    required double progression,
+  }) {
+    final etat = termine ? 2 : (progression > 0 ? 1 : 0);
+    return {
+      'android.media.extra.PLAYBACK_STATUS': etat,
+      'androidx.media.MediaItem.Extras.COMPLETION_STATUS': etat,
+      if (!termine && progression > 0)
+        'androidx.media.MediaItem.Extras.COMPLETION_PERCENTAGE': progression,
+    };
+  }
+
   MediaItem _browsableAlbum(int id, String name, String? artist, String? art) =>
       MediaItem(
         id: BrowseIds.album(id),
@@ -2186,6 +2248,15 @@ class GullifyAudioHandler extends BaseAudioHandler
       return local;
     }
 
+    // L'accueil tient dans un seul écran, et doit paraître même sans session :
+    // ses raccourcis ne demandent rien au disque ni au réseau, et ce qui vient
+    // du serveur s'y ajoute sans jamais pouvoir le vider.
+    if (parentMediaId == BrowseIds.home) {
+      final items = await _accueil();
+      logAA('→ ${items.length} items (accueil)');
+      return items;
+    }
+
     // Les écrans qui ne demandent rien au serveur (racine, onglets, titres
     // téléchargés) répondent tout de suite, même sans session : c'est ce qui
     // reste navigable dans la voiture quand il n'y a pas de réseau.
@@ -2269,13 +2340,8 @@ class GullifyAudioHandler extends BaseAudioHandler
         duration: Duration(seconds: s.duration),
         artUri: _artUri(s.artworkUrl),
         playable: true,
-        // Les deux clés d'androidx.media : la vignette de reprise porte alors
-        // la barre de progression là où on s'était arrêté.
-        extras: {
-          'android.media.extra.PLAYBACK_STATUS': progress > 0 ? 1 : 0,
-          if (progress > 0)
-            'androidx.media.MediaItem.Extras.COMPLETION_PERCENTAGE': progress,
-        },
+        // La vignette porte la barre de progression là où on s'était arrêté.
+        extras: etatDEcoute(termine: false, progression: progress),
       ),
     ];
   }
@@ -2327,17 +2393,20 @@ class GullifyAudioHandler extends BaseAudioHandler
   /// autres, qui ont besoin du dépôt.
   List<MediaItem>? _offlineCategory(String parentMediaId) {
     switch (parentMediaId) {
-      // Miroir de l'app mobile : Accueil, Bibliothèque, Radios, Favoris.
+      // Quatre portes, et pas cinq : la voiture annonce dans ses « root
+      // hints » combien d'entrées elle veut à la racine (quatre par défaut),
+      // et ce qui dépasse est écarté ou enfoui. Favoris était la cinquième —
+      // probablement invisible, et déjà présente dans Bibliothèque.
       case BrowseIds.root:
         return const [
-          MediaItem(id: BrowseIds.home, title: 'Accueil', playable: false),
+          MediaItem(id: BrowseIds.home, title: 'Accueil', playable: false,
+              extras: enfantsEnGrille),
           MediaItem(id: BrowseIds.library, title: 'Bibliothèque',
               playable: false),
+          MediaItem(id: BrowseIds.podcasts, title: 'Balados', playable: false,
+              extras: enfantsEnGrille),
           MediaItem(id: BrowseIds.radios, title: 'Radios', playable: false),
-          MediaItem(id: BrowseIds.podcasts, title: 'Balados', playable: false),
-          MediaItem(id: BrowseIds.favorites, title: 'Favoris', playable: false),
         ];
-      case BrowseIds.home:
       case BrowseIds.library:
       case BrowseIds.downloads:
         return _staticCategory(parentMediaId);
@@ -2396,6 +2465,12 @@ class GullifyAudioHandler extends BaseAudioHandler
         if (localSongs.isEmpty) return _localRoot();
         return [
           ..._playAllItems('LOCAL_ALL', playLabel: 'Tout lire'),
+          if (downloads.isNotEmpty)
+            const MediaItem(
+              id: BrowseIds.downloads,
+              title: 'Téléchargements',
+              playable: false,
+            ),
           ..._trackItems('LOCAL_ALL', localSongs),
         ];
     }
@@ -2435,6 +2510,11 @@ class GullifyAudioHandler extends BaseAudioHandler
 
   /// La racine du mode local. Elle ne repart JAMAIS vide : une liste vide,
   /// Android Auto la garde telle quelle.
+  ///
+  /// Quatre entrées au plus, ici aussi : les téléchargements faisaient la
+  /// cinquième, hors du cadre que la voiture annonce. Ils passent en tête des
+  /// Titres — dossier local et titres descendus sont tous des fichiers du
+  /// téléphone.
   List<MediaItem> _localRoot() => [
         if (localSongs.isNotEmpty) ...[
           const MediaItem(
@@ -2446,11 +2526,13 @@ class GullifyAudioHandler extends BaseAudioHandler
             id: BrowseIds.localArtists,
             title: 'Artistes',
             playable: false,
+            extras: enfantsEnGrille,
           ),
           const MediaItem(
             id: BrowseIds.localAlbums,
             title: 'Albums',
             playable: false,
+            extras: enfantsEnGrille,
           ),
           const MediaItem(
             id: BrowseIds.localSongs,
@@ -2458,7 +2540,9 @@ class GullifyAudioHandler extends BaseAudioHandler
             playable: false,
           ),
         ],
-        if (downloads.isNotEmpty)
+        // Dossier vide mais des titres descendus : ils sont tout ce qu'il y a
+        // à écouter, ils prennent la racine.
+        if (localSongs.isEmpty && downloads.isNotEmpty)
           const MediaItem(
             id: BrowseIds.downloads,
             title: 'Téléchargements',
@@ -2676,38 +2760,152 @@ class GullifyAudioHandler extends BaseAudioHandler
 
   static const _maxReloadAttempts = 120;
 
+  // ── L'accueil : un écran, trois sections ─────────────────────────────────
+  //
+  // « Reprendre » se lit sur le disque, « Pour la route » ne demande rien, et
+  // « Nouveautés » vient du serveur. Les trois arrivent dans cet ordre, et
+  // chaque élément porte le nom de sa section : la voiture en fait alors un
+  // seul écran. C'est ce qui remplace l'accueil d'avant, qui était un menu
+  // vers d'autres menus — trois taps avant la moindre note.
+
+  /// Combien de temps l'accueil attend la session avant de se montrer
+  /// incomplet. Les autres catégories patientent jusqu'à vingt-cinq secondes,
+  /// faute de pouvoir dire quoi que ce soit sans elle ; l'accueil, lui, a
+  /// toujours ses raccourcis à offrir. Deux secondes suffisent à éviter un
+  /// écran qui se complète sous les yeux au démarrage à chaud ; au-delà, mieux
+  /// vaut quelque chose à toucher tout de suite.
+  @visibleForTesting
+  Duration accueilAttente = const Duration(seconds: 2);
+
+  /// L'accueil tel qu'on peut le servir à cet instant.
+  Future<List<MediaItem>> _accueil() async {
+    final point = await _resumePoint();
+    final repo = await _awaitRepository(timeout: accueilAttente);
+    if (repo != null) {
+      try {
+        return await _accueilComplet(repo, point);
+      } catch (e) {
+        logAA('accueil incomplet ($e) : on garde les raccourcis');
+      }
+    }
+    // Pas de session, ou le serveur n'a pas répondu : on ne renvoie SURTOUT
+    // pas le repli « Réessayer » des autres catégories. L'accueil garde ses
+    // raccourcis — le temps d'y toucher, la session est souvent revenue — et
+    // se recomplète de lui-même.
+    _scheduleReload(BrowseIds.home);
+    return [
+      if (point != null) _repriseItem(point),
+      ..._pourLaRoute(),
+    ];
+  }
+
+  Future<List<MediaItem>> _accueilComplet(
+    LibraryRepository repo,
+    ResumePoint? point,
+  ) async {
+    // Les mêmes titres que « Derniers joués », et le même cache : toucher
+    // l'un des trois de l'accueil pose la file entière, à la bonne piste.
+    final derniers = await repo.recentSongs(limit: 50);
+    _recentPlaysCache = derniers;
+    final nouveautes = await repo.recentAlbums();
+    // Le titre qu'on reprend est presque toujours le dernier joué : sans ça,
+    // la même chanson ouvrirait l'écran deux fois de suite.
+    final sansLaReprise = [
+      for (final (i, s) in derniers.indexed)
+        if (s.id != point?.song.id) (i, s),
+    ];
+    // Trois lignes au plus pour la section : la reprise y prend sa place, et
+    // ce qui suit remplit le reste. Plus haut, l'écran se met à défiler avant
+    // d'avoir montré les raccourcis.
+    final places = point != null ? 2 : 3;
+    return [
+      if (point != null) _repriseItem(point),
+      for (final (i, s) in sansLaReprise.take(places))
+        MediaItem(
+          id: 'RECENTPLAYS_TRACK_$i',
+          title: s.title,
+          artist: s.artistName,
+          album: s.albumName,
+          duration: Duration(seconds: s.duration),
+          artUri: _artUri(s.artworkUrl),
+          playable: true,
+          extras: _dansLaSection(sectionReprendre),
+        ),
+      ..._pourLaRoute(),
+      for (final a in nouveautes.take(6))
+        MediaItem(
+          id: BrowseIds.album(a.id),
+          title: a.name,
+          artist: a.artistName,
+          artUri: _artUri(a.artworkUrl),
+          playable: false,
+          extras: _dansLaSection(sectionNouveautes),
+        ),
+    ];
+  }
+
+  /// Ce qu'on écoutait, en tête de l'accueil, avec sa barre de progression.
+  MediaItem _repriseItem(ResumePoint point) {
+    final s = point.song;
+    return MediaItem(
+      id: BrowseIds.resume,
+      title: s.title,
+      artist: s.artistName,
+      album: s.albumName,
+      duration: Duration(seconds: s.duration),
+      artUri: _artUri(s.artworkUrl),
+      playable: true,
+      extras: _dansLaSection(
+        sectionReprendre,
+        etatDEcoute(termine: false, progression: point.progress),
+      ),
+    );
+  }
+
+  /// Les trois façons de lancer quelque chose sans rien choisir. Toutes
+  /// demandent le serveur au moment de jouer — mais elles restent affichées
+  /// sans lui : la session se restaure pendant qu'on lit l'écran.
+  List<MediaItem> _pourLaRoute() => [
+        MediaItem(
+          id: 'ALL_SHUFFLE',
+          title: 'Lecture aléatoire',
+          playable: true,
+          extras: _dansLaSection(sectionRoute),
+        ),
+        MediaItem(
+          id: 'DISCOVERY_SHUFFLE',
+          title: 'Découverte',
+          playable: true,
+          extras: _dansLaSection(sectionRoute),
+        ),
+        MediaItem(
+          id: 'FAV_SHUFFLE',
+          title: 'Favoris en vrac',
+          playable: true,
+          extras: _dansLaSection(sectionRoute),
+        ),
+      ];
+
   /// Les listes qui ne dépendent que de l'app : les deux onglets de navigation
   /// et les titres téléchargés.
   List<MediaItem>? _staticCategory(String parentMediaId) {
     switch (parentMediaId) {
 
-      // ── Onglet Accueil ──
-      case BrowseIds.home:
-        return const [
-          MediaItem(id: 'ALL_SHUFFLE', title: 'Lecture aléatoire',
-              playable: true),
-          MediaItem(id: 'DISCOVERY_SHUFFLE', title: 'Découverte',
-              playable: true),
-          MediaItem(id: BrowseIds.recent, title: 'Nouveautés',
-              playable: false),
-          MediaItem(id: BrowseIds.popular, title: 'Les plus populaires',
-              playable: false),
-          MediaItem(id: BrowseIds.recentPlays, title: 'Derniers joués',
-              playable: false),
-          MediaItem(id: BrowseIds.bandcamp, title: 'Découvrir sur Bandcamp',
-              playable: false),
-        ];
-
       // ── Onglet Bibliothèque ──
+      //
+      // Tout ce qui relève de la fouille, d'un seul tenant : l'accueil, lui,
+      // ne garde que ce qu'on fait au volant. Artistes et Albums annoncent
+      // une grille — ils ont des images, et une pochette se reconnaît d'un
+      // coup d'œil là où un titre se lit.
       case BrowseIds.library:
         return [
           const MediaItem(id: BrowseIds.artists, title: 'Artistes',
-              playable: false),
+              playable: false, extras: enfantsEnGrille),
           const MediaItem(id: BrowseIds.albums, title: 'Albums',
+              playable: false, extras: enfantsEnGrille),
+          const MediaItem(id: BrowseIds.playlists, title: 'Playlists',
               playable: false),
           const MediaItem(id: BrowseIds.favorites, title: 'Favoris',
-              playable: false),
-          const MediaItem(id: BrowseIds.playlists, title: 'Playlists',
               playable: false),
           const MediaItem(id: BrowseIds.genres, title: 'Genres',
               playable: false),
@@ -2719,6 +2917,16 @@ class GullifyAudioHandler extends BaseAudioHandler
               title: 'Téléchargements',
               playable: false,
             ),
+          // Descendues de l'accueil : ce sont des envies de fouille, pas de
+          // conduite.
+          const MediaItem(id: BrowseIds.popular, title: 'Les plus populaires',
+              playable: false),
+          const MediaItem(id: BrowseIds.recentPlays, title: 'Derniers joués',
+              playable: false),
+          const MediaItem(id: BrowseIds.recent, title: 'Nouveautés',
+              playable: false, extras: enfantsEnGrille),
+          const MediaItem(id: BrowseIds.bandcamp,
+              title: 'Découvrir sur Bandcamp', playable: false),
         ];
 
       // Jouable sans réseau ni session : aucune requête ici.
@@ -2741,6 +2949,12 @@ class GullifyAudioHandler extends BaseAudioHandler
     if (fixed != null) return fixed;
 
     switch (parentMediaId) {
+      // L'accueil passe aussi par ici : c'est par cette porte que le réessai
+      // en arrière-plan le sonde, et qu'il se recomplète tout seul au retour
+      // du réseau.
+      case BrowseIds.home:
+        return _accueilComplet(repo, await _resumePoint());
+
       case BrowseIds.popular:
         final songs = await repo.popularSongs(limit: 100);
         _popularCache = songs;
@@ -2921,6 +3135,13 @@ class GullifyAudioHandler extends BaseAudioHandler
             ),
             duration: e.duration > 0 ? Duration(seconds: e.duration) : null,
             playable: true,
+            // La barre de progression, dessinée par la voiture sous la
+            // vignette : « reprendre, 22 min restantes » se lit d'un coup
+            // d'œil au lieu de se lire tout court.
+            extras: etatDEcoute(
+              termine: e.completed,
+              progression: e.progress ?? 0,
+            ),
           ),
       ];
     }

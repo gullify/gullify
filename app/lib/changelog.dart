@@ -8,6 +8,24 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.76.0', [
+    'Le menu d\'Android Auto est refait. La racine n\'a plus que quatre '
+        'entrées — Accueil, Bibliothèque, Balados, Radios — parce que c\'est '
+        'le nombre que la voiture demande : la cinquième, Favoris, était hors '
+        'cadre et déjà dans Bibliothèque',
+    'L\'accueil n\'est plus un menu vers d\'autres menus mais un seul '
+        'écran à trois sections : ce qu\'on écoutait avec sa barre de '
+        'progression et les derniers joués, trois façons de lancer la musique '
+        'sans rien choisir, puis les nouveautés en pochettes. Un tap au lieu '
+        'de trois, et il paraît même sans session',
+    'Tout ce qui relève de la fouille est passé dans Bibliothèque : les plus '
+        'populaires, les derniers joués, les nouveautés et Bandcamp',
+    'Le champ de recherche de la voiture apparaît enfin : l\'app savait '
+        'répondre depuis longtemps, mais ne l\'avait jamais déclaré',
+    'Les épisodes de balado portent une vraie barre de progression, dessinée '
+        'par la voiture, et albums, artistes et séries s\'affichent en '
+        'grille de pochettes plutôt qu\'en liste grise',
+  ]),
   ReleaseNote('3.75.0', [
     'Le carnet d\'idées sort de son serveur : ce qu\'on y écrit part chez '
         'le développeur de GulliFY, et l\'app le dit en toutes lettres au '
