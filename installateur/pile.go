@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -302,15 +303,40 @@ func (e *Etat) demarreLaPile(dossier string) error {
 // C'est la panne la plus bête et la plus fréquente : un autre serveur web, ou
 // une pile Gullify déjà lancée. Mieux vaut le dire avant de télécharger un
 // gigaoctet d'images.
+// portOccupe : un autre programme écoute-t-il déjà sur ce port ?
+//
+// Le plus sûr est d'essayer d'y écouter soi-même. Mais sous Linux, un compte
+// ordinaire n'a jamais le droit d'écouter sous le port 1024 : le noyau refuse
+// (« permission denied ») AVANT même de regarder si le port est pris. Compter
+// ce refus comme « occupé » faisait dire à l'installateur que 80 et 443
+// étaient pris sur une machine où rien n'y tournait (vu sur GulliOS) — alors
+// que c'est Docker, en root, qui les ouvrira, et qu'il en a le droit.
+//
+// Dans ce cas-là, on frappe à la porte : si quelque chose répond sur ce port,
+// il est pris.
+func portOccupe(port string) bool {
+	ecoute, err := net.Listen("tcp", ":"+port)
+	if err == nil {
+		_ = ecoute.Close()
+		return false
+	}
+	if !errors.Is(err, os.ErrPermission) {
+		return true
+	}
+	connexion, err := net.DialTimeout("tcp", net.JoinHostPort("127.0.0.1", port), 2*time.Second)
+	if err != nil {
+		return false
+	}
+	_ = connexion.Close()
+	return true
+}
+
 func (e *Etat) verifiePorts() error {
 	var occupes []string
 	for _, port := range []string{portHTTP(), portHTTPS()} {
-		ecoute, err := net.Listen("tcp", ":"+port)
-		if err != nil {
+		if portOccupe(port) {
 			occupes = append(occupes, port)
-			continue
 		}
-		_ = ecoute.Close()
 	}
 	if len(occupes) == 0 {
 		return nil
