@@ -18,6 +18,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/_v2.php';
+require_once dirname(__DIR__, 3) . '/src/Compagnon.php';
 
 /**
  * Ce qui fait foi sur « la dernière version du serveur ».
@@ -29,21 +30,19 @@ require_once __DIR__ . '/_v2.php';
  * l'APK, à côté duquel il est publié.
  */
 const MAJ_MANIFESTE = 'https://download.gullify.app/serveur.json';
-/** Au-delà, le service d'à côté est considéré comme absent ou mort. */
-const MAJ_SIGNE_DE_VIE = 120;
 /** Le dépôt d'images est interrogé au plus une fois par heure. */
 const MAJ_CACHE = 3600;
 /** Un journal muet aussi longtemps n'est plus un travail en cours. */
 const MAJ_ABANDON = 900;
 
 $session = v2_auth();
-$dossier = AppConfig::getDataPath() . '/maj';
+$dossier = Compagnon::dossier();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($session['user']['is_admin'])) {
         v2_fail('forbidden', "Seul un administrateur peut agir sur le serveur.", 403);
     }
-    if (!majServicePresent($dossier)) {
+    if (!Compagnon::present()) {
         v2_fail('maj_impossible',
             "Personne n'écoute sur la machine : le compagnon GulliFY n'y tourne pas.", 409);
     }
@@ -54,8 +53,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $corps  = json_decode((string)file_get_contents('php://input'), true);
     $action = (is_array($corps) && ($corps['action'] ?? '') === 'redemarrer') ? 'redemarrer' : 'maj';
 
-    if (!is_dir($dossier)) @mkdir($dossier, 0775, true);
-    if (@file_put_contents($dossier . '/demande', $action) === false) {
+    if (!Compagnon::demande($action)) {
         v2_fail('maj_impossible', "Je n'ai pas pu déposer la demande sur le disque.", 500);
     }
     v2_ok(['demande' => $action]);
@@ -71,9 +69,9 @@ v2_ok([
     'aJour'      => ($disponible === null || $installee === null)
         ? null
         : version_compare($disponible, $installee, '<='),
-    'possible'   => majServicePresent($dossier),
-    'enCours'    => is_file($dossier . '/demande') || majTravaille($dossier),
-    'journal'    => majJournal($dossier),
+    'possible'   => Compagnon::present(),
+    'enCours'    => is_file($dossier . '/demande') || Compagnon::travaille(MAJ_ABANDON),
+    'journal'    => Compagnon::journal(),
 ]);
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -115,33 +113,3 @@ function majVersionPubliee(): ?string {
     return $version;
 }
 
-/** Le service d'à côté donne signe de vie en touchant un fichier. Un fichier
- *  qui date prouve qu'il a existé, pas qu'il tourne : on exige du frais. */
-function majServicePresent(string $dossier): bool {
-    $vie = $dossier . '/present';
-    return is_file($vie) && (time() - (int)@filemtime($vie)) < MAJ_SIGNE_DE_VIE;
-}
-
-/**
- * Une mise à jour est en cours tant que le journal n'a pas dit « fini ».
- *
- * À moins qu'il ne dise plus rien depuis longtemps : un compagnon tué en
- * plein travail laisserait son journal inachevé, et la carte tournerait
- * pour toujours sur une opération que personne ne mène plus.
- */
-function majTravaille(string $dossier): bool {
-    $fichier = $dossier . '/journal';
-    $lignes = majJournal($dossier);
-    if (!$lignes) return false;
-    if (str_starts_with(end($lignes), 'fini')) return false;
-    return (time() - (int)@filemtime($fichier)) < MAJ_ABANDON;
-}
-
-/** @return string[] */
-function majJournal(string $dossier): array {
-    $fichier = $dossier . '/journal';
-    if (!is_file($fichier)) return [];
-    $lignes = preg_split('/\R/', trim((string)@file_get_contents($fichier))) ?: [];
-    $lignes = array_values(array_filter($lignes, static fn($l) => trim($l) !== ''));
-    return array_slice($lignes, -40); // l'app n'en affiche qu'une poignée
-}
