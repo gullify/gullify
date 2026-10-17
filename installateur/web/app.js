@@ -63,7 +63,15 @@ async function rafraichir() {
     // Installé mais pas démarré : c'est un état à part, et la personne doit
     // savoir qu'il ne lui reste qu'un clic — pas croire que ça télécharge
     // encore.
-    if (d.installe && !d.demarre) {
+    // Le mode d'emploi de Docker Desktop ne vaut que pour Windows. Ailleurs
+    // (GulliOS, Linux), le serveur a déjà la bonne explication. La page tourne
+    // dans le navigateur de la machine même : son système est le bon.
+    const windows = /Windows/i.test(navigator.userAgent);
+    if (d.installe && !d.demarre && !windows) {
+      $('#carte-docker').innerHTML =
+        `<h2>Docker est installé</h2><p>${d.explique || ''}</p>`;
+      $('#revoir-docker').hidden = false;
+    } else if (d.installe && !d.demarre) {
       $('#carte-docker').innerHTML =
         '<h2>Docker est installé</h2>' +
         '<p>Il ne reste qu\'à le démarrer : ouvre <strong>Docker Desktop</strong> ' +
