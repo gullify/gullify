@@ -8,6 +8,11 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.79.1', [
+    'Quand le serveur est trop ancien pour choisir son dossier de musique, '
+        'l\'écran le dit et renvoie à sa mise à jour, au lieu d\'afficher '
+        '« bad_response »',
+  ]),
   ReleaseNote('3.79.0', [
     'Le dossier de musique du serveur se choisit depuis l\'app : Paramètres → '
         'Infos du serveur → Dossier de musique. On y parcourt les disques de '

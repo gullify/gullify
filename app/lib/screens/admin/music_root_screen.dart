@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../api/api_client.dart';
 import '../../api/music_root_repository.dart';
 import '../../state/music_root.dart';
 import '../../state/server_update.dart';
@@ -76,6 +77,22 @@ class _MusicRootScreenState extends ConsumerState<MusicRootScreen> {
     }
   }
 
+  /// Un serveur d'avant la 1.3.0 n'a pas cette API : il répond par la page de
+  /// l'app web, en HTTP 200, et l'app recevait « bad_response » — un mot qui
+  /// n'apprend rien à qui doit décider quoi faire.
+  bool _tropAncien(Object e) =>
+      e is ApiException &&
+      (e.code == 'bad_response' || e.statusCode == 404);
+
+  String _explique(Object e) {
+    if (_tropAncien(e)) {
+      return 'Choisir le dossier de musique demande un serveur en 1.3.0 ou '
+          'plus. Mets-le à jour depuis Infos du serveur, puis reviens ici.';
+    }
+    if (e is ApiException && e.code == 'compagnon_absent') return e.message;
+    return '$e';
+  }
+
   @override
   Widget build(BuildContext context) {
     final vue = ref.watch(dossiersServeurProvider(_chemin));
@@ -93,9 +110,11 @@ class _MusicRootScreenState extends ConsumerState<MusicRootScreen> {
       body: vue.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => _Message(
-          icone: Icons.cloud_off,
-          titre: 'Les dossiers ne se lisent pas',
-          texte: '$e',
+          icone: _tropAncien(e) ? Icons.update : Icons.cloud_off,
+          titre: _tropAncien(e)
+              ? 'Ce serveur ne sait pas encore faire ça'
+              : 'Les dossiers ne se lisent pas',
+          texte: _explique(e),
         ),
         data: (v) => _Liste(
           vue: v,

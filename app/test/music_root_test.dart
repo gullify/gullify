@@ -18,8 +18,15 @@ class _FakeClient extends Fake implements ApiClient {
   final List<Map<String, dynamic>> envoyes = [];
   bool refuse = false;
 
+  /// Un serveur d'avant la 1.3.0 : il rend la page de l'app web, pas du JSON.
+  bool vieux = false;
+
   @override
   Future<dynamic> get(String path, {Map<String, dynamic>? query}) async {
+    if (vieux) {
+      throw ApiException('bad_response',
+          'Unexpected response from server (HTTP 200)', statusCode: 200);
+    }
     final chemin = query?['chemin'] as String?;
     vus.add(chemin ?? '(départ)');
     if (chemin == null) {
@@ -84,6 +91,19 @@ Widget _app(Widget child, _FakeClient client) => ProviderScope(
     );
 
 void main() {
+  testWidgets('un serveur trop ancien le dit, au lieu de « bad_response »',
+      (tester) async {
+    // Avant la 1.3.0, l'API n'existe pas : le serveur répond par la page de
+    // l'app web, en HTTP 200, et l'app ne recevait qu'un code technique.
+    final client = _FakeClient()..vieux = true;
+    await tester.pumpWidget(_app(const MusicRootScreen(), client));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Ce serveur ne sait pas encore faire ça'), findsOneWidget);
+    expect(find.textContaining('1.3.0'), findsOneWidget);
+    expect(find.textContaining('bad_response'), findsNothing);
+  });
+
   test('ce que le compagnon raconte se relit sans perdre un champ', () async {
     final vue = await MusicRootRepository(_FakeClient()).parcourir();
 
