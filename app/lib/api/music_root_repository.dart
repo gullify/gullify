@@ -30,6 +30,33 @@ class DossierServeur {
   bool get sondeInconnu => musique < 0;
 }
 
+/// Un compte qui lit sous la racine, et le sous-dossier qu'il y lit.
+///
+/// La racine est commune ; chaque compte y a son dossier — « Maxime » donne
+/// /media/musique/Maxime. Changer de racine ne touche pas à ce dossier : il
+/// faut donc voir, avant de choisir, s'il existe à la nouvelle place.
+class CompteMusique {
+  const CompteMusique({required this.id, required this.nom, this.dossier});
+
+  factory CompteMusique.fromJson(Map<String, dynamic> json) => CompteMusique(
+        id: (json['id'] as num?)?.toInt() ?? 0,
+        nom: json['nom'] as String? ?? '',
+        dossier: json['dossier'] as String?,
+      );
+
+  final int id;
+  final String nom;
+
+  /// « . » = tout le dossier de musique ; null = aucun (le compte ne lit rien).
+  final String? dossier;
+
+  bool get litLaRacine => dossier == '.';
+
+  /// Le chemin complet que ce compte lirait si [racine] devenait la racine.
+  String chemin(String racine) =>
+      dossier == null || litLaRacine ? racine : '$racine/$dossier';
+}
+
 /// Ce qu'on voit d'un dossier : lui, son parent, et ce qu'il contient.
 class VueDossier {
   const VueDossier({
@@ -41,6 +68,7 @@ class VueDossier {
     this.erreur,
     this.musique = 0,
     this.tronque = false,
+    this.comptes = const [],
   });
 
   factory VueDossier.fromJson(Map<String, dynamic> json) => VueDossier(
@@ -54,6 +82,10 @@ class VueDossier {
         dossiers: [
           for (final d in (json['dossiers'] as List?) ?? const [])
             DossierServeur.fromJson(d as Map<String, dynamic>),
+        ],
+        comptes: [
+          for (final c in (json['comptes'] as List?) ?? const [])
+            CompteMusique.fromJson(c as Map<String, dynamic>),
         ],
       );
 
@@ -76,7 +108,24 @@ class VueDossier {
 
   final List<DossierServeur> dossiers;
 
+  /// Les comptes qui lisent sous la racine. Vide avec un serveur d'avant la
+  /// 1.3.1, qui ne les envoyait pas.
+  final List<CompteMusique> comptes;
+
   bool get aDeLaMusique => musique > 0;
+
+  /// Le dossier de [compte] existerait-il si ce dossier-ci devenait la racine ?
+  /// On ne regarde que le premier niveau (« Maxime » de « Maxime/Flac ») :
+  /// c'est tout ce que la liste montre. null = on ne sait pas — la liste est
+  /// écourtée, ou le compte n'a pas de dossier.
+  bool? trouve(CompteMusique compte) {
+    if (compte.litLaRacine) return true;
+    final dossier = compte.dossier;
+    if (dossier == null) return null;
+    final premier = dossier.split('/').first;
+    if (dossiers.any((d) => d.nom == premier)) return true;
+    return tronque ? null : false;
+  }
 }
 
 /// Le dossier de musique du serveur — celui que Docker monte, pas un réglage.
@@ -99,6 +148,12 @@ class MusicRootRepository {
 
   /// Change la racine. Le serveur tombe aussitôt après : c'est le compagnon
   /// qui le relève, et son journal qu'on suit ensuite.
-  Future<void> choisir(String chemin) =>
-      _client.post('musique-racine.php', body: {'chemin': chemin});
+  ///
+  /// [aLaRacine] : les comptes à faire lire tout le dossier — ceux dont le
+  /// sous-dossier n'existe pas à la nouvelle place.
+  Future<void> choisir(String chemin, {List<int> aLaRacine = const []}) =>
+      _client.post('musique-racine.php', body: {
+        'chemin': chemin,
+        if (aLaRacine.isNotEmpty) 'a_la_racine': aLaRacine,
+      });
 }

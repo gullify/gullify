@@ -92,9 +92,10 @@ class MusicDirectories {
   final List<String> directories;
 
   /// Le chemin complet d'un dossier, tel qu'on le retrouve sur la machine.
+  /// « . » est la racine elle-même : le compte lit tout le dossier.
   String chemin(String relative) {
     final d = relative.trim();
-    return d.isEmpty ? hostPath : '$hostPath/$d';
+    return d.isEmpty || d == '.' ? hostPath : '$hostPath/$d';
   }
 }
 

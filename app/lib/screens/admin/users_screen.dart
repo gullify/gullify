@@ -97,7 +97,11 @@ class _UserRow extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            user.musicDirectory ?? 'Aucun dossier de musique',
+            switch (user.musicDirectory) {
+              null => 'Aucun dossier de musique',
+              '.' => 'Tout le dossier de musique',
+              final d => d,
+            },
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(

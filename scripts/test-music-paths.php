@@ -46,11 +46,14 @@ check('le chemin du conteneur', rel('/music/Maxime'), 'Maxime');
 check('une barre oblique de trop', rel('/media/musique//Maxime/'), 'Maxime');
 check('des espaces autour', rel('  Maxime  '), 'Maxime');
 check('un nom avec espace', rel('Vieux disques'), 'Vieux disques');
+check('« . » : tout le dossier', rel('.'), '.');
+check('la racine de la machine : tout le dossier', rel('/media/musique'), '.');
+check('la racine de la machine, barre finale', rel('/media/musique/'), '.');
+check('la racine du conteneur : tout le dossier', rel('/music'), '.');
 
 echo "── Ce qu'on refuse ──────────────────────────────────────────\n";
 check('un chemin hors du dossier monté', rel('/home/maxime/Musique'), null);
-check('la racine elle-même', rel('/media/musique'), null);
-check('la racine du conteneur', rel('/music'), null);
+check('un point déguisé', rel('./Maxime'), null);
 check('une remontée', rel('../etc'), null);
 check('une remontée déguisée', rel('Maxime/../../etc'), null);
 check('le vide', rel('   '), null);
@@ -66,6 +69,8 @@ check('le chemin montré est celui de la machine',
     gullify_display_music_path('Maxime', HOST), '/media/musique/Maxime');
 check('sans dossier, c\'est la racine',
     gullify_display_music_path('', HOST), '/media/musique');
+check('« . » se montre comme la racine',
+    gullify_display_music_path('.', HOST), '/media/musique');
 
 echo "── Les dossiers proposés ────────────────────────────────────\n";
 $tmp = sys_get_temp_dir() . '/gullify-chemins-' . getmypid();

@@ -27,34 +27,66 @@ class _MusicRootScreenState extends ConsumerState<MusicRootScreen> {
   void _ouvre(String chemin) => setState(() => _chemin = chemin);
 
   Future<void> _choisir(String chemin) async {
+    // Chaque compte lit un sous-dossier de la racine : changer de racine sans
+    // le dire, c'était chercher /media/musique/Maxime là où il n'y a qu'un
+    // /media/musique plein de musique.
+    final vue = ref.read(dossiersServeurProvider(_chemin)).value;
+    final manquants = [
+      for (final c in vue?.comptes ?? const <CompteMusique>[])
+        if (vue!.trouve(c) == false) c,
+    ];
+    var aLaRacine = true;
+
     final confirme = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Lire la musique ici ?'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(chemin, style: const TextStyle(fontWeight: FontWeight.w600)),
-            const SizedBox(height: 12),
-            const Text(
-              'Le serveur va redémarrer pour se remonter sur ce dossier — '
-              'quelques secondes pendant lesquelles il ne répondra pas. '
-              'Ensuite, lance une analyse de la bibliothèque pour y '
-              'retrouver tes titres.',
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialog) => AlertDialog(
+          title: const Text('Lire la musique ici ?'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(chemin,
+                  style: const TextStyle(fontWeight: FontWeight.w600)),
+              const SizedBox(height: 12),
+              const Text(
+                'Le serveur va redémarrer pour se remonter sur ce dossier — '
+                'quelques secondes pendant lesquelles il ne répondra pas. '
+                'Ensuite, lance une analyse de la bibliothèque pour y '
+                'retrouver tes titres.',
+              ),
+              if (manquants.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Text(
+                  manquants.length == 1
+                      ? '${manquants.single.nom} lit le dossier '
+                          '« ${manquants.single.dossier} », qui n\'existe pas '
+                          'ici.'
+                      : '${manquants.map((c) => c.nom).join(', ')} lisent '
+                          'des dossiers qui n\'existent pas ici.',
+                ),
+                CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  value: aLaRacine,
+                  onChanged: (v) => setDialog(() => aLaRacine = v ?? false),
+                  title: Text(manquants.length == 1
+                      ? 'Lui faire lire tout ce dossier'
+                      : 'Leur faire lire tout ce dossier'),
+                ),
+              ],
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Annuler'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Changer'),
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Annuler'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Changer'),
-          ),
-        ],
       ),
     );
     if (confirme != true || !mounted) return;
@@ -63,7 +95,10 @@ class _MusicRootScreenState extends ConsumerState<MusicRootScreen> {
     final messenger = ScaffoldMessenger.of(context);
     final navigator = Navigator.of(context);
     try {
-      await ref.read(musicRootRepositoryProvider).choisir(chemin);
+      await ref.read(musicRootRepositoryProvider).choisir(
+            chemin,
+            aLaRacine: [if (aLaRacine) for (final c in manquants) c.id],
+          );
       // Le serveur tombe aussitôt : c'est le journal du compagnon, sur la
       // carte « Mise à jour », qui raconte la suite.
       ref.invalidate(serverUpdateProvider);
@@ -198,6 +233,23 @@ class _Liste extends StatelessWidget {
               ),
             ),
           ),
+        // Ce que chaque compte lirait avec ce dossier pour racine : le sien
+        // en dessous, qui doit exister ici.
+        if (!vue.depart && ici.isNotEmpty && vue.comptes.isNotEmpty) ...[
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+            child: Text(
+              'Avec ce dossier, les comptes liront',
+              style: TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w700,
+                color: scheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+          for (final c in vue.comptes) _LigneCompte(compte: c, vue: vue),
+          const Divider(height: 20),
+        ],
         if (vue.tronque)
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
@@ -227,6 +279,42 @@ class _Liste extends StatelessWidget {
             onTap: () => surDossier(d.chemin),
           ),
       ],
+    );
+  }
+}
+
+class _LigneCompte extends StatelessWidget {
+  const _LigneCompte({required this.compte, required this.vue});
+
+  final CompteMusique compte;
+  final VueDossier vue;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final trouve = vue.trouve(compte);
+    final (icone, couleur, note) = switch (trouve) {
+      true => (Icons.check_circle_outline, scheme.primary, null),
+      false => (
+          Icons.warning_amber_rounded,
+          scheme.error,
+          'Ce dossier n\'existe pas ici',
+        ),
+      null => (
+          Icons.help_outline,
+          scheme.onSurfaceVariant,
+          compte.dossier == null ? 'Aucun dossier : ce compte ne lit rien' : null,
+        ),
+    };
+    return ListTile(
+      dense: true,
+      leading: Icon(icone, color: couleur),
+      title: Text(compte.nom),
+      subtitle: Text(
+        note == null ? compte.chemin(vue.chemin) : '${compte.chemin(vue.chemin)} · $note',
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+      ),
     );
   }
 }

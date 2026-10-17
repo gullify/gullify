@@ -10,6 +10,14 @@
 require_once __DIR__ . '/AppConfig.php';
 
 /**
+ * Le dossier d'un compte qui lit TOUT le dossier de musique. Une bibliothèque
+ * à un seul occupant n'a pas de sous-dossier à son nom : sa musique est à la
+ * racine. Une chaîne vide, elle, veut dire « aucun dossier » — le compte ne
+ * lit rien —, d'où ce point.
+ */
+const GULLIFY_RACINE = '.';
+
+/**
  * Les dossiers proposables, en chemins relatifs à la racine, sur [$depth]
  * niveaux. Un dossier qui en contient d'autres reste proposable lui-même :
  * une bibliothèque peut être le parent comme l'enfant.
@@ -50,7 +58,9 @@ function gullify_music_dirs(
 /**
  * Ramène au relatif ce qu'on a bien voulu saisir : un nom (« Maxime »), un
  * sous-dossier (« Maxime/Flac »), le chemin interne (« /music/Maxime ») ou le
- * vrai chemin de la machine (« /media/music/Maxime »).
+ * vrai chemin de la machine (« /media/music/Maxime »). La racine elle-même —
+ * « . », ou l'un des deux chemins complets — rend GULLIFY_RACINE : le compte
+ * lit alors tout le dossier.
  *
  * Rend null quand le chemin sort du dossier de musique — là, c'est le montage
  * qu'il faut changer, pas le réglage d'un compte.
@@ -67,12 +77,13 @@ function gullify_relative_music_dir(
     while (strpos($path, '//') !== false) $path = str_replace('//', '/', $path);
     $path = rtrim($path, '/');
     if ($path === '') return null;
+    if ($path === GULLIFY_RACINE) return GULLIFY_RACINE;
 
     // Le vrai chemin d'abord : c'est celui qu'on affiche, donc celui qu'on
     // recopie. Les deux racines peuvent être la même (hors Docker).
     foreach ([$host, $base] as $root) {
         if ($root === '' || $root === '/') continue;
-        if ($path === $root) return null;             // la racine elle-même : pas un dossier de compte
+        if ($path === $root) return GULLIFY_RACINE;   // tout le dossier
         if (strpos($path, $root . '/') === 0) {
             $path = substr($path, strlen($root) + 1);
             break;
@@ -97,5 +108,5 @@ function gullify_relative_music_dir(
 function gullify_display_music_path(string $relative, ?string $hostPath = null): string {
     $host = rtrim($hostPath ?? AppConfig::getMusicHostPath(), '/');
     $relative = trim($relative, '/');
-    return $relative === '' ? $host : $host . '/' . $relative;
+    return ($relative === '' || $relative === GULLIFY_RACINE) ? $host : $host . '/' . $relative;
 }

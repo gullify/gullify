@@ -21,6 +21,9 @@ class _FakeClient extends Fake implements ApiClient {
   /// Un serveur d'avant la 1.3.0 : il rend la page de l'app web, pas du JSON.
   bool vieux = false;
 
+  /// Les comptes, tels qu'un serveur 1.3.1 les envoie avec chaque dossier.
+  List<Map<String, dynamic>> comptes = const [];
+
   @override
   Future<dynamic> get(String path, {Map<String, dynamic>? query}) async {
     if (vieux) {
@@ -58,6 +61,7 @@ class _FakeClient extends Fake implements ApiClient {
       'chemin': chemin,
       'parent': '/media',
       'actuelle': '/media/music',
+      'comptes': comptes,
       'musique': 12,
       'dossiers': [
         {'nom': 'Albums', 'chemin': '\$chemin/Albums', 'musique': 7},
@@ -157,6 +161,74 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(client.envoyes.single, {'chemin': '/media/music'});
+  });
+
+  testWidgets('chaque compte voit ce qu\'il lirait, et celui qui ne trouve '
+      'pas son dossier peut passer à la racine', (tester) async {
+    // Le cas de Maxime : la racine change pour /media/musique, mais son
+    // compte lisait « Maxime » — et /media/musique/Maxime n'existe pas.
+    final client = _FakeClient()
+      ..comptes = [
+        {'id': 1, 'nom': 'Maxime', 'dossier': 'Maxime'},
+        {'id': 2, 'nom': 'Jeanne', 'dossier': 'Albums'},
+        {'id': 3, 'nom': 'Léo', 'dossier': '.'},
+      ];
+    await tester.pumpWidget(_app(const MusicRootScreen(), client));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('music'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Avec ce dossier, les comptes liront'), findsOneWidget);
+    expect(find.textContaining('/media/music/Maxime · Ce dossier n\'existe pas'),
+        findsOneWidget);
+    expect(find.text('/media/music/Albums'), findsOneWidget);
+    expect(find.text('/media/music'), findsWidgets);
+
+    await tester.tap(find.text('Lire la musique ici'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('« Maxime », qui n\'existe pas ici'),
+        findsOneWidget);
+    expect(find.text('Lui faire lire tout ce dossier'), findsOneWidget);
+
+    await tester.tap(find.text('Changer'));
+    await tester.pumpAndSettle();
+
+    // Seul le compte perdu passe à la racine ; Jeanne garde « Albums ».
+    expect(client.envoyes.single, {
+      'chemin': '/media/music',
+      'a_la_racine': [1],
+    });
+  });
+
+  testWidgets('on peut garder les dossiers tels quels', (tester) async {
+    final client = _FakeClient()
+      ..comptes = [
+        {'id': 1, 'nom': 'Maxime', 'dossier': 'Maxime'},
+      ];
+    await tester.pumpWidget(_app(const MusicRootScreen(), client));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('music'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Lire la musique ici'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Lui faire lire tout ce dossier'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Changer'));
+    await tester.pumpAndSettle();
+
+    expect(client.envoyes.single, {'chemin': '/media/music'});
+  });
+
+  test('un dossier introuvable dans une liste écourtée, on ne sait pas', () {
+    const compte = CompteMusique(id: 1, nom: 'Maxime', dossier: 'Maxime/Flac');
+    const vue = VueDossier(
+      chemin: '/media/music',
+      actuelle: '/media/music',
+      tronque: true,
+      dossiers: [],
+    );
+    expect(vue.trouve(compte), isNull);
+    expect(compte.chemin('/media/music'), '/media/music/Maxime/Flac');
   });
 
   testWidgets('une liste écourtée le dit, et « pas regardé » n\'est pas '

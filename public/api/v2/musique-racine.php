@@ -2,7 +2,14 @@
 /**
  * Gullify API v2 — Le dossier de musique du serveur
  *   GET  /api/v2/musique-racine.php?chemin=/media   → ce qu'il y a là (admin)
- *   POST /api/v2/musique-racine.php {chemin}        → c'est désormais la racine
+ *   POST /api/v2/musique-racine.php {chemin, a_la_racine?: [id…]}
+ *                                                    → c'est désormais la racine
+ *
+ * Chaque compte lit un dossier SOUS cette racine (users.music_directory) :
+ * « Maxime » donne /media/musique/Maxime. La liste des comptes accompagne donc
+ * chaque dossier parcouru, pour que l'app dise ce que chacun lira — et
+ * a_la_racine remet à « . » (tout le dossier) ceux dont le sous-dossier
+ * n'existe pas dans la nouvelle racine.
  *
  * Choisir où est sa musique, c'est choisir ce que Docker monte — pas un
  * réglage du serveur, mais le dessous de ses pieds. Le conteneur ne voit rien
@@ -42,12 +49,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             . "/media/musique.", 400);
     }
 
+    // Les comptes d'abord : une fois la demande déposée, le serveur peut
+    // tomber d'une seconde à l'autre.
+    $aLaRacine = is_array($corps['a_la_racine'] ?? null) ? $corps['a_la_racine'] : [];
+    $ids = array_values(array_unique(array_filter(
+        array_map('intval', $aLaRacine), static fn(int $id): bool => $id > 0)));
+    if ($ids) {
+        $place = implode(',', array_fill(0, count($ids), '?'));
+        AppConfig::getDB()->prepare(
+            "UPDATE users SET music_directory = ? WHERE id IN ($place)
+               AND COALESCE(storage_type, 'local') = 'local'"
+        )->execute([GULLIFY_RACINE, ...$ids]);
+    }
+
     if (!Compagnon::demande('racine ' . $chemin)) {
         v2_fail('compagnon_muet', "Je n'ai pas pu déposer la demande sur le disque.", 500);
     }
     // Le serveur va tomber et revenir : la réponse part maintenant, et l'app
     // suivra le journal comme elle le fait pour une mise à jour.
-    v2_ok(['demande' => 'racine', 'chemin' => $chemin]);
+    v2_ok(['demande' => 'racine', 'chemin' => $chemin, 'a_la_racine' => $ids]);
 }
 
 $chemin = trim((string)($_GET['chemin'] ?? ''));
@@ -77,4 +97,26 @@ v2_ok([
     ], is_array($vu['dossiers'] ?? null) ? $vu['dossiers'] : []),
     // Là où le serveur lit en ce moment, pour qu'on sache ce qu'on remplace.
     'actuelle' => AppConfig::getMusicHostPath(),
+    'comptes'  => comptes_locaux(),
 ]);
+
+/**
+ * Les comptes qui lisent sous la racine (pas ceux en SFTP, qui lisent
+ * ailleurs), avec leur sous-dossier : « . » pour tout le dossier, null pour
+ * aucun.
+ *
+ * @return list<array{id:int, nom:string, dossier:?string}>
+ */
+function comptes_locaux(): array
+{
+    $lignes = AppConfig::getDB()->query(
+        "SELECT id, username, full_name, music_directory FROM users
+          WHERE is_active = 1 AND COALESCE(storage_type, 'local') = 'local'
+          ORDER BY username"
+    )->fetchAll(PDO::FETCH_ASSOC);
+    return array_map(static fn(array $u): array => [
+        'id'      => (int)$u['id'],
+        'nom'     => trim((string)($u['full_name'] ?? '')) !== '' ? (string)$u['full_name'] : (string)$u['username'],
+        'dossier' => trim((string)($u['music_directory'] ?? '')) !== '' ? (string)$u['music_directory'] : null,
+    ], $lignes);
+}

@@ -434,6 +434,8 @@ class _AdminUserScreenState extends ConsumerState<AdminUserScreen> {
 /// n'oblige à s'y tenir : on peut écrire le chemin voulu — son nom
 /// (« Maxime »), un sous-dossier (« Maxime/Flac ») ou le chemin complet de la
 /// machine (« /media/musique/Maxime »), que le serveur ramène au relatif.
+/// « . » — « Tout le dossier » dans la liste — lit la racine elle-même : une
+/// bibliothèque à un seul occupant n'a pas de dossier à son nom.
 ///
 /// Ce qui s'affiche est TOUJOURS le vrai chemin de la machine : « /music » est
 /// le nom que le montage Docker lui donne à l'intérieur du conteneur, et il ne
@@ -515,7 +517,8 @@ class _DirectoryPickerState extends State<_DirectoryPicker> {
           controller: widget.controller,
           decoration: InputDecoration(
             labelText: 'Dossier de musique',
-            helperText: 'Le chemin voulu, ou un dossier de la liste',
+            helperText: 'Le chemin voulu, un dossier de la liste, ou « . » '
+                'pour tout le dossier',
             suffixIcon: dossiers.isEmpty
                 ? null
                 : PopupMenuButton<String>(
@@ -524,6 +527,10 @@ class _DirectoryPickerState extends State<_DirectoryPicker> {
                     onSelected: (v) => widget.controller.text = v,
                     itemBuilder: (context) => [
                       const PopupMenuItem(value: '', child: Text('Aucun')),
+                      PopupMenuItem(
+                        value: '.',
+                        child: Text('Tout le dossier (${widget.info.hostPath})'),
+                      ),
                       for (final d in dossiers)
                         PopupMenuItem(value: d, child: Text(d)),
                     ],
@@ -542,14 +549,14 @@ class _DirectoryPickerState extends State<_DirectoryPicker> {
           ),
         ),
         // Dit une fois ce qui, sinon, se découvre en tâtonnant : sortir de
-        // cette racine ne se règle pas ici mais sur la machine, en changeant
-        // le dossier monté (MUSIC_HOST_PATH).
+        // cette racine ne se règle pas ici, mais en changeant la racine
+        // elle-même (Infos du serveur → Dossier de musique).
         Padding(
           padding: const EdgeInsets.only(top: 4, left: 12, right: 12),
           child: Text(
             'Les dossiers vivent sous ${widget.info.hostPath}. Pour aller '
-            'chercher ailleurs sur la machine, change le dossier monté '
-            '(MUSIC_HOST_PATH) et redémarre le serveur.',
+            'chercher ailleurs sur la machine : Infos du serveur → Dossier de '
+            'musique.',
             style: TextStyle(
               fontSize: 11.5,
               height: 1.35,

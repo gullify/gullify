@@ -8,6 +8,15 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.79.2', [
+    'Un compte peut lire tout le dossier de musique : « Tout le dossier » '
+        'dans la liste de sa fiche. Une bibliothèque à un seul occupant n\'a '
+        'pas de dossier à son nom, et on ne pouvait plus revenir à la racine',
+    'Avant de changer la racine, l\'écran Dossier de musique montre ce que '
+        'chaque compte lira — et prévient quand son dossier n\'existe pas à '
+        'la nouvelle place, en proposant de lui faire lire tout le dossier '
+        '(serveur 1.3.1)',
+  ]),
   ReleaseNote('3.79.1', [
     'Quand le serveur est trop ancien pour choisir son dossier de musique, '
         'l\'écran le dit et renvoie à sa mise à jour, au lieu d\'afficher '

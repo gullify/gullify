@@ -144,7 +144,8 @@ try {
             // interne (« /music/Maxime ») comme le vrai chemin de la machine
             // (« /media/music/Maxime ») — c'est celui-là qu'on affiche, donc
             // celui-là qu'on recopie. Tout est ramené au relatif : c'est ce
-            // que le scan et le lecteur savent lire.
+            // que le scan et le lecteur savent lire. « . », ou la racine
+            // elle-même, veut dire tout le dossier de musique.
             $basePath = AppConfig::getMusicBasePath();
             if (!empty($musicDir)) {
                 $musicDir = gullify_relative_music_dir($musicDir);

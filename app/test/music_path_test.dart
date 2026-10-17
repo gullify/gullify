@@ -99,6 +99,15 @@ void main() {
       expect(dirs.hostPath, '/music');
       expect(dirs.chemin('maxime'), '/music/maxime');
     });
+
+    test('« . » est la racine elle-même', () {
+      const dirs = MusicDirectories(
+        basePath: '/music',
+        hostPath: '/media/musique',
+        directories: [],
+      );
+      expect(dirs.chemin('.'), '/media/musique');
+    });
   });
 
   testWidgets('la fiche montre le vrai chemin, pas celui du conteneur',
@@ -113,9 +122,36 @@ void main() {
     expect(find.text('/music/maxime'), findsNothing);
     // Et on dit où ça se change, plutôt que de laisser chercher.
     expect(
-      find.textContaining('MUSIC_HOST_PATH'),
+      find.textContaining('Infos du serveur → Dossier de musique'),
       findsOneWidget,
     );
+  });
+
+  testWidgets('un compte peut lire tout le dossier', (tester) async {
+    // Une bibliothèque à un seul occupant n'a pas de dossier à son nom : il
+    // fallait pouvoir revenir à la racine, que l'API refusait.
+    final admin = _FakeAdmin();
+    await tester.pumpWidget(
+      _host(const AdminUserScreen(user: _maxime), admin),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byIcon(Icons.folder_open));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Tout le dossier (/media/musique)'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('/media/musique'), findsWidgets);
+
+    await tester.scrollUntilVisible(
+      find.text('Enregistrer le dossier'),
+      120,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(find.text('Enregistrer le dossier'));
+    await tester.pumpAndSettle();
+
+    expect(admin.enregistres, ['.']);
   });
 
   testWidgets('le chemin voulu se saisit, et part tel quel au serveur',
