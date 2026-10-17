@@ -72,13 +72,30 @@ class AdminUser {
   }
 }
 
-/// Les dossiers de musique disponibles sur le serveur, et la racine sous
-/// laquelle ils vivent (affichée pour situer un chemin relatif).
+/// Les dossiers de musique disponibles sur le serveur, et les deux racines
+/// sous lesquelles ils vivent : celle du conteneur (`/music`, qui ne mène
+/// nulle part sur la machine) et la vraie, celle qu'on montre.
 class MusicDirectories {
-  const MusicDirectories({required this.basePath, required this.directories});
+  const MusicDirectories({
+    required this.basePath,
+    required this.directories,
+    String? hostPath,
+  }) : hostPath = hostPath ?? basePath;
 
+  /// Ce que le serveur lit — le chemin dans le conteneur.
   final String basePath;
+
+  /// Ce que la machine, elle, appelle ce dossier : `/media/musique` plutôt que
+  /// `/music`. Identique à [basePath] hors Docker.
+  final String hostPath;
+
   final List<String> directories;
+
+  /// Le chemin complet d'un dossier, tel qu'on le retrouve sur la machine.
+  String chemin(String relative) {
+    final d = relative.trim();
+    return d.isEmpty ? hostPath : '$hostPath/$d';
+  }
 }
 
 /// L'administration du serveur : comptes, dossiers de musique, stockage.
@@ -109,6 +126,9 @@ class AdminRepository {
             as Map<String, dynamic>;
     return MusicDirectories(
       basePath: data['base_path'] as String? ?? '',
+      hostPath: (data['host_path'] as String?)?.trim().isNotEmpty == true
+          ? data['host_path'] as String
+          : null,
       directories: [
         for (final d in (data['data'] as List<dynamic>? ?? [])) d.toString(),
       ],

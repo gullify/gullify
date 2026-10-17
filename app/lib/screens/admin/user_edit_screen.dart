@@ -430,8 +430,14 @@ class _AdminUserScreenState extends ConsumerState<AdminUserScreen> {
   }
 }
 
-/// Le dossier de musique, choisi dans ce que le serveur propose — taper un
-/// chemin à la main n'apporte rien et le serveur refuserait une faute.
+/// Le dossier de musique. Le serveur propose ce qu'il voit, mais rien
+/// n'oblige à s'y tenir : on peut écrire le chemin voulu — son nom
+/// (« Maxime »), un sous-dossier (« Maxime/Flac ») ou le chemin complet de la
+/// machine (« /media/musique/Maxime »), que le serveur ramène au relatif.
+///
+/// Ce qui s'affiche est TOUJOURS le vrai chemin de la machine : « /music » est
+/// le nom que le montage Docker lui donne à l'intérieur du conteneur, et il ne
+/// mène nulle part chez soi.
 class _DirectoryField extends ConsumerWidget {
   const _DirectoryField({required this.controller});
 
@@ -455,29 +461,103 @@ class _DirectoryField extends ConsumerWidget {
         controller: controller,
         decoration: const InputDecoration(
           labelText: 'Dossier de musique',
-          helperText: 'Dossiers illisibles — saisis le nom à la main',
+          helperText: 'Dossiers illisibles — saisis le chemin à la main',
         ),
       ),
-      data: (info) => Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          DropdownButtonFormField<String?>(
-            initialValue: info.directories.contains(controller.text)
-                ? controller.text
-                : null,
-            decoration: InputDecoration(
-              labelText: 'Dossier de musique',
-              helperText: 'Sous ${info.basePath}',
-            ),
-            items: [
-              const DropdownMenuItem(value: null, child: Text('Aucun')),
-              for (final d in info.directories)
-                DropdownMenuItem(value: d, child: Text(d)),
-            ],
-            onChanged: (v) => controller.text = v ?? '',
+      data: (info) => _DirectoryPicker(controller: controller, info: info),
+    );
+  }
+}
+
+class _DirectoryPicker extends StatefulWidget {
+  const _DirectoryPicker({required this.controller, required this.info});
+
+  final TextEditingController controller;
+  final MusicDirectories info;
+
+  @override
+  State<_DirectoryPicker> createState() => _DirectoryPickerState();
+}
+
+class _DirectoryPickerState extends State<_DirectoryPicker> {
+  @override
+  void initState() {
+    super.initState();
+    widget.controller.addListener(_onChange);
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(_onChange);
+    super.dispose();
+  }
+
+  void _onChange() => setState(() {});
+
+  /// Ce qu'on montre sous le champ : le chemin tel qu'il existe sur la
+  /// machine. Un chemin déjà absolu est laissé tel quel — c'est peut-être
+  /// celui d'un montage qu'on vient d'ajouter.
+  String get _apercu {
+    final saisi = widget.controller.text.trim();
+    if (saisi.startsWith('/')) return saisi;
+    return widget.info.chemin(saisi);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final dossiers = widget.info.directories;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        TextFormField(
+          controller: widget.controller,
+          decoration: InputDecoration(
+            labelText: 'Dossier de musique',
+            helperText: 'Le chemin voulu, ou un dossier de la liste',
+            suffixIcon: dossiers.isEmpty
+                ? null
+                : PopupMenuButton<String>(
+                    icon: const Icon(Icons.folder_open),
+                    tooltip: 'Dossiers trouvés sur le serveur',
+                    onSelected: (v) => widget.controller.text = v,
+                    itemBuilder: (context) => [
+                      const PopupMenuItem(value: '', child: Text('Aucun')),
+                      for (final d in dossiers)
+                        PopupMenuItem(value: d, child: Text(d)),
+                    ],
+                  ),
           ),
-        ],
-      ),
+        ),
+        Padding(
+          padding: const EdgeInsets.only(top: 8, left: 12),
+          child: Text(
+            _apercu,
+            style: TextStyle(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w600,
+              color: scheme.onSurfaceVariant,
+            ),
+          ),
+        ),
+        // Dit une fois ce qui, sinon, se découvre en tâtonnant : sortir de
+        // cette racine ne se règle pas ici mais sur la machine, en changeant
+        // le dossier monté (MUSIC_HOST_PATH).
+        Padding(
+          padding: const EdgeInsets.only(top: 4, left: 12, right: 12),
+          child: Text(
+            'Les dossiers vivent sous ${widget.info.hostPath}. Pour aller '
+            'chercher ailleurs sur la machine, change le dossier monté '
+            '(MUSIC_HOST_PATH) et redémarre le serveur.',
+            style: TextStyle(
+              fontSize: 11.5,
+              height: 1.35,
+              color: scheme.onSurfaceVariant.withValues(alpha: 0.8),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

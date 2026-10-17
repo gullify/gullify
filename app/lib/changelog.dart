@@ -8,6 +8,18 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.78.0', [
+    'La fiche d\'un compte montre le vrai chemin de la machine — '
+        '/media/musique/Maxime — au lieu de /music/Maxime, qui n\'existe que '
+        'dans le conteneur Docker et ne mène nulle part chez soi',
+    'Le dossier de musique ne se choisit plus dans une liste fermée : on y '
+        'écrit le chemin voulu, même complet, et le serveur s\'y retrouve — '
+        'un sous-dossier compris',
+    'L\'écran dit aussi où se change la racine : sur la machine, par le '
+        'dossier monté, pas dans l\'app',
+    'Même correction dans l\'installateur, qui annonçait /music et n\'aurait '
+        'pas su relire un vrai chemin collé dans son champ',
+  ]),
   ReleaseNote('3.77.0', [
     'La fiche d\'un genre lance tout le genre : « Tout lire » dans l\'ordre, '
         'ou le bouton aléatoire à côté. Il n\'y avait que l\'aléatoire, et '
