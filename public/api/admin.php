@@ -4,6 +4,7 @@
  * User management and directory management. Requires is_admin session.
  */
 require_once __DIR__ . '/../../src/AppConfig.php';
+require_once __DIR__ . '/../../src/MusicPaths.php';
 require_once __DIR__ . '/../../src/auth_required.php';
 require_once __DIR__ . '/../../src/Auth.php';
 require_once __DIR__ . '/../../src/Storage/StorageInterface.php';
@@ -62,6 +63,20 @@ try {
             }
             if (!preg_match('/^[a-zA-Z0-9_\-\.]+$/', $username)) {
                 throw new Exception('Nom d\'utilisateur invalide (lettres, chiffres, _ - . uniquement)');
+            }
+            // Le dossier se saisit comme on veut — nom, sous-dossier, ou vrai
+            // chemin de la machine : on le ramène au relatif, seul lisible
+            // depuis le conteneur. Un dossier encore à créer passe (il sera
+            // simplement vide) ; un chemin hors de la racine, non.
+            if ($musicDir !== '') {
+                $musicDir = gullify_relative_music_dir($musicDir);
+                if ($musicDir === null) {
+                    throw new Exception(
+                        'Ce chemin est hors du dossier de musique du serveur. '
+                        . 'Pour en sortir, c\'est le dossier monté sur la '
+                        . 'machine qu\'il faut changer.'
+                    );
+                }
             }
 
             $userId = $auth->createUser($username, $password, $fullName, (bool)$isAdmin, $musicDir ?: null);
@@ -124,11 +139,23 @@ try {
             $musicDir = trim($_POST['music_directory'] ?? '');
             if (!$userId) throw new Exception('user_id requis');
 
-            // Validate that directory exists
+            // Le dossier se choisit librement : on accepte le nom relatif
+            // (« Maxime »), un sous-dossier (« Maxime/Flac »), le chemin
+            // interne (« /music/Maxime ») comme le vrai chemin de la machine
+            // (« /media/music/Maxime ») — c'est celui-là qu'on affiche, donc
+            // celui-là qu'on recopie. Tout est ramené au relatif : c'est ce
+            // que le scan et le lecteur savent lire.
             $basePath = AppConfig::getMusicBasePath();
             if (!empty($musicDir)) {
-                $fullPath = $basePath . '/' . $musicDir;
-                if (!is_dir($fullPath)) {
+                $musicDir = gullify_relative_music_dir($musicDir);
+                if ($musicDir === null) {
+                    throw new Exception(
+                        'Ce chemin est hors du dossier de musique du serveur. '
+                        . 'Pour en sortir, c\'est le dossier monté sur la '
+                        . 'machine qu\'il faut changer.'
+                    );
+                }
+                if (!is_dir($basePath . '/' . $musicDir)) {
                     throw new Exception("Répertoire introuvable: $musicDir");
                 }
             }
@@ -140,16 +167,17 @@ try {
         // ── List available directories ─────────────────────────────
         case 'list_directories':
             $basePath = AppConfig::getMusicBasePath();
-            $dirs = [];
-            if (is_dir($basePath)) {
-                foreach (scandir($basePath) as $entry) {
-                    if ($entry === '.' || $entry === '..') continue;
-                    if (is_dir($basePath . '/' . $entry)) {
-                        $dirs[] = $entry;
-                    }
-                }
-            }
-            echo json_encode(['success' => true, 'data' => $dirs, 'base_path' => $basePath]);
+            // Un seul niveau : plus bas, ce sont les artistes — mille entrées
+            // dans une vraie bibliothèque, et un menu qu'on ne déroule plus.
+            // Qui veut un sous-dossier l'écrit : le champ est libre.
+            $dirs = gullify_music_dirs($basePath);
+            echo json_encode([
+                'success'   => true,
+                'data'      => $dirs,
+                'base_path' => $basePath,
+                // Le chemin que les gens reconnaissent : celui de leur machine.
+                'host_path' => AppConfig::getMusicHostPath(),
+            ]);
             break;
 
         // ── Update SFTP settings ───────────────────────────────────

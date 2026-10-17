@@ -727,7 +727,20 @@ function handleSaveStorage(): void {
         );
         $stmt->execute(['sftp', $host, $port ?: 22, $user, $encryptedPass, $path, $userId]);
     } else {
+        // L'écran montre le vrai chemin de la machine : il faut donc savoir le
+        // relire. Seul le relatif est enregistré — c'est ce que le conteneur
+        // sait lire sous son propre « /music ».
+        require_once __DIR__ . '/../src/MusicPaths.php';
         $musicDir = trim($data['music_directory'] ?? '');
+        if ($musicDir !== '') {
+            $musicDir = gullify_relative_music_dir($musicDir);
+            if ($musicDir === null) {
+                jsonResponse(false,
+                    'Ce dossier est hors de celui monté sur le serveur. '
+                    . 'Changez MUSIC_HOST_PATH dans le .env pour pointer '
+                    . 'ailleurs, puis redémarrez.');
+            }
+        }
         $stmt = $db->prepare('UPDATE users SET storage_type=?, music_directory=? WHERE id=?');
         $stmt->execute(['local', $musicDir ?: null, $userId]);
     }

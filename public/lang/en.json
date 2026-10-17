@@ -448,7 +448,7 @@
     "storage_title": "Music storage",
     "storage_subtitle": "Where are your audio files?",
     "local_storage": "Local storage",
-    "local_desc": "Files are on this server, mounted via Docker volume /music",
+    "local_desc": "Files are on this server, in {path}",
     "sftp_storage": "SFTP / Remote NAS",
     "sftp_desc": "Files are on a NAS or remote server, accessible via SFTP",
     "sftp_host": "SFTP host",

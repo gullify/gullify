@@ -110,6 +110,16 @@ class AppConfig {
     }
 
     /**
+     * Le chemin de la musique sur la machine, celui qu'on montre et qu'on
+     * laisse choisir. À défaut (installation sans Docker, ou .env muet), c'est
+     * le chemin interne : il est alors le vrai.
+     */
+    public static function getMusicHostPath(): string {
+        $host = trim(self::get('music.host_path', ''));
+        return $host === '' ? self::getMusicBasePath() : rtrim($host, '/');
+    }
+
+    /**
      * Get the data directory path (cache, logs, downloads)
      */
     public static function getDataPath(): string {
@@ -209,6 +219,11 @@ class AppConfig {
             'mysql.user' => 'gullify',
             'mysql.password' => 'changeme',
             'music.base_path' => '/music',
+            // Le chemin du dossier de musique SUR LA MACHINE, tel que le
+            // montage Docker le voit (MUSIC_HOST_PATH du .env). Le conteneur,
+            // lui, ne connaît que 'music.base_path' — mais c'est l'autre qu'on
+            // montre aux gens : « /music/Maxime » ne mène nulle part chez eux.
+            'music.host_path' => '',
             'data.path' => dirname(__DIR__) . '/data',
             'app.url' => 'http://localhost:8080',
             'app.debug' => 'false',
@@ -273,6 +288,7 @@ class AppConfig {
             'MYSQL_USER' => 'mysql.user',
             'MYSQL_PASSWORD' => 'mysql.password',
             'MUSIC_BASE_PATH' => 'music.base_path',
+            'MUSIC_HOST_PATH' => 'music.host_path',
             'DATA_PATH' => 'data.path',
             'APP_URL' => 'app.url',
             'APP_DEBUG' => 'app.debug',
@@ -323,6 +339,7 @@ class AppConfig {
             'MYSQL_USER' => 'mysql.user',
             'MYSQL_PASSWORD' => 'mysql.password',
             'MUSIC_BASE_PATH' => 'music.base_path',
+            'MUSIC_HOST_PATH' => 'music.host_path',
             'DATA_PATH' => 'data.path',
             'APP_URL' => 'app.url',
             'APP_DEBUG' => 'app.debug',

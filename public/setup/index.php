@@ -7,6 +7,10 @@ function e(?string $v): string {
     return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
 }
 
+// Le vrai chemin de la machine : « /music » est le nom que Docker lui donne
+// à l'intérieur du conteneur, et il ne mène nulle part chez soi.
+$musicHostPath = AppConfig::getMusicHostPath();
+
 if (AppConfig::isSetupDone()) {
     header('Location: /');
     exit;
@@ -446,7 +450,7 @@ $_langData = file_exists($_langFile) ? file_get_contents($_langFile) : '{}';
                 <div class="storage-icon">🖥️</div>
                 <div>
                     <strong id="s4-local-title">Stockage local</strong>
-                    <p id="s4-local-desc">Les fichiers sont sur ce serveur, montés via le volume Docker <code>/music</code></p>
+                    <p id="s4-local-desc">Les fichiers sont sur ce serveur, dans <code><?= e($musicHostPath) ?></code></p>
                 </div>
             </div>
             <div class="storage-option" id="opt-sftp" onclick="selectStorage('sftp')">
@@ -461,11 +465,11 @@ $_langData = file_exists($_langFile) ? file_get_contents($_langFile) : '{}';
         <!-- Local fields -->
         <div id="local-fields">
             <div class="form-group">
-                <label id="s4-subdir">Sous-dossier dans /music <span style="color:#555">(optionnel)</span></label>
-                <input type="text" id="musicDir" placeholder="ex: maxime  — laisser vide pour utiliser /music directement">
+                <label id="s4-subdir">Sous-dossier dans <?= e($musicHostPath) ?> <span style="color:#555">(optionnel)</span></label>
+                <input type="text" id="musicDir" placeholder="ex: maxime  — laisser vide pour tout prendre">
             </div>
             <div class="status-msg info" id="s4-local-hint">
-                Le dossier <strong>/music</strong> est monté depuis votre machine hôte. Configurez <code>MUSIC_HOST_PATH</code> dans votre <code>.env</code> pour pointer vers votre bibliothèque.
+                <strong><?= e($musicHostPath) ?></strong> est le dossier de votre machine que GulliFY lit (il le voit sous <code>/music</code>, à l'intérieur de Docker). Pour lire ailleurs, changez <code>MUSIC_HOST_PATH</code> dans votre <code>.env</code>, puis redémarrez.
             </div>
         </div>
 
@@ -524,6 +528,7 @@ $_langData = file_exists($_langFile) ? file_get_contents($_langFile) : '{}';
 </div>
 
 <script>
+const MUSIC_HOST_PATH = <?= json_encode($musicHostPath, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>;
 // i18n: inline translations
 window.gullifyLang = <?= $_langData ?>;
 window.t = function(key, fallback) {
@@ -569,7 +574,10 @@ function applySetupI18n() {
         's4-title':      t('setup.storage_title', 'Stockage de la musique'),
         's4-sub':        t('setup.storage_subtitle', 'Où se trouvent vos fichiers audio ?'),
         's4-local-title': t('setup.local_storage', 'Stockage local'),
-        's4-local-desc': t('setup.local_desc', 'Les fichiers sont sur ce serveur, montés via le volume Docker /music'),
+        // Le chemin vient du serveur, la traduction ne fait que lui ménager
+        // une place : « /music » ne veut rien dire hors du conteneur.
+        's4-local-desc': t('setup.local_desc', 'Les fichiers sont sur ce serveur, dans {path}')
+            .replace('{path}', MUSIC_HOST_PATH),
         's4-sftp-title': t('setup.sftp_storage', 'SFTP / NAS distant'),
         's4-sftp-desc':  t('setup.sftp_desc', 'Les fichiers sont sur un NAS ou serveur distant, accessible via SFTP'),
         's4-sftp-host':  t('setup.sftp_host', 'Hôte SFTP'),
