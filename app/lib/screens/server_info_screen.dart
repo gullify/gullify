@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../api/server_info_repository.dart';
 import '../api/update_repository.dart';
@@ -63,6 +64,10 @@ class ServerInfoScreen extends ConsumerWidget {
               ],
               _StorageCard(music: data.music, data: data.data),
               const SizedBox(height: 16),
+              if (ref.watch(isAdminProvider)) ...[
+                const _MusicRootCard(),
+                const SizedBox(height: 16),
+              ],
               _LibraryCard(
                 library: data.library,
                 databaseBytes: data.databaseBytes,
@@ -694,6 +699,45 @@ class _UpdateCardState extends ConsumerState<_UpdateCard> {
       ),
     );
     if (oui == true) await _lancer(action);
+  }
+}
+
+/// Où le serveur prend sa musique — et de quoi en changer.
+///
+/// Le chemin montré est celui de la MACHINE : « /music » n'existe qu'à
+/// l'intérieur du conteneur. En changer, c'est changer ce que Docker monte,
+/// donc remonter la pile — d'où le passage par le compagnon.
+class _MusicRootCard extends ConsumerWidget {
+  const _MusicRootCard();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final scheme = Theme.of(context).colorScheme;
+    return _InfoCard(
+      icon: Icons.folder_special_outlined,
+      title: 'Dossier de musique',
+      children: [
+        _LigneDiscrete(
+          'Le serveur lit sa musique dans un dossier de la machine. '
+          'Pour en changer — un disque externe, une clé — il faut le '
+          'remonter, ce que le compagnon fait pour toi.',
+        ),
+        const SizedBox(height: 12),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: FilledButton.tonalIcon(
+            onPressed: () => context.push('/settings/music-root'),
+            icon: const Icon(Icons.drive_file_move_outline),
+            label: const Text('Choisir le dossier…'),
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Après le changement, lance une analyse de la bibliothèque.',
+          style: TextStyle(fontSize: 11.5, color: scheme.onSurfaceVariant),
+        ),
+      ],
+    );
   }
 }
 

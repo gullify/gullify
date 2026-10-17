@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'screens/admin/music_root_screen.dart';
 import 'screens/admin/user_edit_screen.dart';
 import 'screens/admin/users_screen.dart';
 import 'screens/aa_diagnostic_screen.dart';
@@ -224,6 +225,12 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/settings/server-info',
         builder: (_, _) => const ServerInfoScreen(),
+      ),
+      // Où est la musique sur la machine. Réservé aux administrateurs : c'est
+      // le serveur qui tranche (403), l'app ne fait que cacher l'entrée.
+      GoRoute(
+        path: '/settings/music-root',
+        builder: (_, _) => const MusicRootScreen(),
       ),
       // L'administration des comptes, réservée aux administrateurs : c'est le
       // serveur qui tranche (403), l'app ne fait que cacher l'entrée.

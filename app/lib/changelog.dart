@@ -8,6 +8,17 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.79.0', [
+    'Le dossier de musique du serveur se choisit depuis l\'app : Paramètres → '
+        'Infos du serveur → Dossier de musique. On y parcourt les disques de '
+        'la machine — un disque externe, une clé USB branchée — et le serveur '
+        'se remonte tout seul sur le dossier choisi',
+    'Les dossiers qui contiennent de la musique sont signalés, pour trouver '
+        'sa bibliothèque sans la connaître par cœur',
+    'Le conteneur ne voyant que ce qu\'on lui a monté, c\'est le compagnon '
+        'GulliFY, sur la machine, qui regarde pour lui. Sans compagnon, l\'app '
+        'le dit et renvoie au .env',
+  ]),
   ReleaseNote('3.78.0', [
     'La fiche d\'un compte montre le vrai chemin de la machine — '
         '/media/musique/Maxime — au lieu de /music/Maxime, qui n\'existe que '
