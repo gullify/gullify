@@ -400,14 +400,27 @@ IDEAS_RELAY=https://maxime.gullify.app
 	// Caddy obtient tout seul le certificat de ton adresse, pourvu que le port
 	// 80 lui parvienne depuis l'extérieur. Le bloc « :80 » sert aux appels
 	// locaux (l'installateur, et toi depuis la maison).
+	//
+	// Sur GulliOS, ce Caddy est aussi le proxy de la MAISON : chaque app de la
+	// gamme y dépose sa route dans apps/ (GulliTV sur /tv, GulliSCAN sur
+	// /scan…) et rejoint le réseau Docker « gulli ». Sans app, rien ne change.
 	caddy := `{$APP_DOMAIN:localhost} {
-	reverse_proxy app:80
+	import apps/*.caddy
+	handle {
+		reverse_proxy app:80
+	}
 }
 
 :80 {
-	reverse_proxy app:80
+	import apps/*.caddy
+	handle {
+		reverse_proxy app:80
+	}
 }
 `
+	if err := os.MkdirAll(filepath.Join(dossier, "apps"), 0o755); err != nil {
+		return fmt.Errorf("impossible de créer le dossier des apps : %w", err)
+	}
 	if err := os.WriteFile(filepath.Join(dossier, "Caddyfile"), []byte(caddy), 0o644); err != nil {
 		return fmt.Errorf("impossible d'écrire la configuration du certificat : %w", err)
 	}
@@ -424,8 +437,12 @@ services:
       - APP_DOMAIN=${APP_DOMAIN:-localhost}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./apps:/etc/caddy/apps:ro
       - caddy_data:/data
       - caddy_config:/config
+    networks:
+      - default
+      - gulli
     depends_on:
       - app
     restart: unless-stopped
@@ -478,6 +495,10 @@ volumes:
   gullify_db:
   caddy_data:
   caddy_config:
+
+networks:
+  gulli:
+    name: gulli
 `, portHTTP(), portHTTPS(), portHTTPS(), imageGullify())
 
 	if err := os.WriteFile(filepath.Join(dossier, "docker-compose.yml"), []byte(compose), 0o644); err != nil {
