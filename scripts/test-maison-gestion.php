@@ -260,5 +260,26 @@ ok(is_file("$musique/Artiste/Album/01 - Titre.mp3"), 'la MUSIQUE (fichier) est i
 [$c, $j] = gestion(['supprimer', '99999']);
 ok($c === 1 && !empty($j['erreur']), 'supprimer une personne introuvable : erreur');
 
+// ── Comptes de la maison v1.1 : empreinte ─────────────────────────────────────
+$db->prepare('INSERT INTO users (username, password_hash, full_name, is_admin, music_directory) VALUES (?, ?, ?, 0, ?)')
+    ->execute(['empreinte_essai', password_hash('mon-mot-de-passe', PASSWORD_DEFAULT), 'Empreinte', '.']);
+$idE = (string)$db->lastInsertId();
+[$c, $j] = gestion(['empreinte', $idE]);
+ok($c === 0 && ($j['algo'] ?? '') === 'bcrypt' && array_keys($j) === ['empreinte', 'algo'], 'empreinte : bcrypt');
+ok(password_verify('mon-mot-de-passe', $j['empreinte'] ?? ''), 'empreinte : le hash tel que stocké');
+$db->prepare('UPDATE users SET password_hash = ? WHERE id = ?')->execute([password_hash('x', PASSWORD_ARGON2ID), (int)$idE]);
+[$c, $j] = gestion(['empreinte', $idE]);
+ok($c === 0 && ($j['algo'] ?? '') === 'argon2id', 'empreinte : argon2id accepté');
+$db->prepare('UPDATE users SET password_hash = ? WHERE id = ?')->execute(['md5:abcdef', (int)$idE]);
+[$c, $j] = gestion(['empreinte', $idE]);
+ok($c === 1 && !empty($j['erreur']) && !str_contains($j['erreur'], 'md5'), 'empreinte : format inconnu refusé, sans le recopier');
+$db->prepare('UPDATE users SET password_hash = ?, must_change_password = 1 WHERE id = ?')
+    ->execute([password_hash('temporaire', PASSWORD_DEFAULT), (int)$idE]);
+[$c, $j] = gestion(['empreinte', $idE]);
+ok($c === 1 && !empty($j['erreur']) && !isset($j['empreinte']), 'empreinte : mot de passe temporaire refusé');
+[$c, $j] = gestion(['empreinte', '99999']);
+ok($c === 1 && !empty($j['erreur']), 'empreinte : personne introuvable');
+$db->prepare('DELETE FROM users WHERE id = ?')->execute([(int)$idE]);
+
 echo "\n" . ($total - $echecs) . "/$total essais réussis\n";
 exit($echecs === 0 ? 0 : 1);

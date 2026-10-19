@@ -45,4 +45,7 @@ administrateur. GulliFY n'a pas de « données précieuses orphelines » : rien 
 - Subsonic en mode Comptes : SEUL le mot de passe d'application (`auth.php?action=subsonic`,
   `subsonic_generer` — montré une fois —, `subsonic_revoquer` ; colonne `subsonic_password`) ouvre
   `/rest` ; `u` = nom d'utilisateur GulliFY ou courriel. Écran app : Paramètres → Clients Subsonic.
+- `empreinte <id>` (contrat v1.1, serveur 1.6.0) : `password_hash` tel que stocké, pour l'import dans Comptes à la
+  bascule (jamais affiché ; refusé si `must_change_password` ou format ni bcrypt ni argon2). Essais dans
+  `scripts/test-maison-gestion.php`.
 - Essais : `scripts/test-comptes.php` (faux Comptes `scripts/test-comptes-faux.php`), base jetable.

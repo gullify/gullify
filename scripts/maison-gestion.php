@@ -10,7 +10,7 @@
  * v2 : modifier <id> [nom=…] [courriel=…], desactiver <id>, activer <id>,
  * supprimer <id>, definir <id> (secret sur STDIN), photo <id> (image sur
  * STDIN) | photo <id> --retirer,
- * comptes de la maison : lier <id_local> <compte_id>.
+ * comptes de la maison : lier <id_local> <compte_id>, empreinte <id_local>.
  *
  * Avec les comptes de la maison (COMPTES_URL posé, CONTRAT-COMPTES.md), les
  * mots de passe vivent dans Comptes : reinitialiser, definir et creer
@@ -29,6 +29,11 @@
  * {"erreur": "…"} sinon. Jamais de hash, de jeton ni de mot de passe dans la
  * sortie — sauf le NOUVEAU mot de passe que rendent « reinitialiser » et
  * « creer », une seule fois.
+ *
+ * Seule exception à la règle des hash (comptes de la maison v1.1) :
+ * « empreinte <id> » rend password_hash TEL QUE STOCKÉ, pour que la personne
+ * garde son mot de passe actuel. Ma maison le passe directement à Comptes
+ * (« importer »), sans jamais l'afficher ni l'écrire.
  *
  * Ce que GulliFY n'a pas :
  *   - pas de courriel dans les comptes (on se connecte par nom d'utilisateur) :
@@ -207,7 +212,7 @@ function mg_executer(array $args): array
 {
     $action = $args[0] ?? '';
     $connues = ['resume', 'personnes', 'appareils', 'deconnecter', 'reinitialiser', 'admin', 'debloquer', 'creer',
-                'modifier', 'desactiver', 'activer', 'supprimer', 'definir', 'photo', 'lier'];
+                'modifier', 'desactiver', 'activer', 'supprimer', 'definir', 'photo', 'lier', 'empreinte'];
     if (!in_array($action, $connues, true)) {
         throw new ErreurGestion($action === '' ? 'Aucune action demandée.' : "Action inconnue : $action.");
     }
@@ -405,6 +410,25 @@ function mg_executer(array $args): array
                 @unlink($tmp);
             }
             return ['ok' => true];
+
+        case 'empreinte':
+            $u = mg_personne($db, mg_id($args, 1));
+            if ($u['must_change_password']) {
+                throw new ErreurGestion('Mot de passe temporaire : rien à reprendre.');
+            }
+            $st = $db->prepare('SELECT password_hash FROM users WHERE id = ?');
+            $st->execute([(int)$u['id']]);
+            $hash = (string)$st->fetchColumn();
+            if (preg_match('/^\$2[aby]\$\d\d\$[.\/A-Za-z0-9]{53}$/', $hash)) {
+                $algo = 'bcrypt';
+            } elseif (str_starts_with($hash, '$argon2id$')) {
+                $algo = 'argon2id';
+            } elseif (str_starts_with($hash, '$argon2i$')) {
+                $algo = 'argon2i';
+            } else {
+                throw new ErreurGestion("Ce mot de passe n'est pas dans un format reprenable.");
+            }
+            return ['empreinte' => $hash, 'algo' => $algo];
 
         case 'lier':
             $u = mg_personne($db, mg_id($args, 1));
