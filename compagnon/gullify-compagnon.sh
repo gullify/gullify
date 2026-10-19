@@ -131,6 +131,22 @@ json_chaine() {
   printf '"%s"' "$s"
 }
 
+# Le chemin réel (liens résolus) s'il est un endroit où la musique peut
+# vivre : sous /media/ ou /mnt/, ou ~/Musique, ~/Music. Tout le reste est
+# refusé : la demande vient d'un dossier où le conteneur écrit (0777), et
+# monter « / » ou /etc en écriture dans un conteneur root, c'est donner la
+# machine. Rien n'est écrit si le chemin est refusé (code 1).
+chemin_permis() {
+  local reel
+  case "$1" in *[[:cntrl:]]*) return 1 ;; esac
+  reel="$(realpath -e -- "$1" 2>/dev/null)" || return 1
+  case "$reel" in
+    /media/?*|/mnt/?*|"$HOME/Musique"|"$HOME/Musique/"*|"$HOME/Music"|"$HOME/Music/"*)
+      printf '%s' "$reel" ;;
+    *) return 1 ;;
+  esac
+}
+
 # Les dossiers d'un chemin, en JSON, avec de quoi décider sans ouvrir : le
 # nombre de sous-dossiers, et si on y trouve de la musique en surface.
 lister() {
@@ -145,6 +161,12 @@ lister() {
     return
   fi
 
+  local reel
+  if ! reel="$(chemin_permis "$chemin")"; then
+    repond_erreur "$chemin" "Seuls /media, /mnt et ton dossier Musique peuvent servir."
+    return
+  fi
+  chemin="$reel"
   if [ ! -d "$chemin" ]; then
     repond_erreur "$chemin" "Ce dossier n'existe pas (ou n'est pas lisible d'ici)."
     return
@@ -152,7 +174,8 @@ lister() {
 
   local sortie="{\"chemin\":$(json_chaine "$chemin")"
   local parent="${chemin%/*}"; [ -z "$parent" ] && parent="/"
-  [ "$parent" != "$chemin" ] && sortie="$sortie,\"parent\":$(json_chaine "$parent")"
+  # Pas de « remonter » vers un dossier qu'on refuserait de lister.
+  chemin_permis "$parent" >/dev/null && [ "$parent" != "$chemin" ] && sortie="$sortie,\"parent\":$(json_chaine "$parent")"
   sortie="$sortie,\"musique\":$(compte_musique "$chemin")"
 
   # Un dossier d'artistes en compte des centaines, et sonder chacun d'eux
@@ -207,7 +230,7 @@ repond_depart() {
   # faisait un deuxième écran de départ entièrement vide — tout y était déjà
   # « déjà proposé ».
   vus=""
-  for c in /media/* /media/*/* /mnt/* "$HOME" "$HOME/Musique" "$HOME/Music" \
+  for c in /media/* /media/*/* /mnt/* "$HOME/Musique" "$HOME/Music" \
            "$(racine_actuelle)"; do
     [ -d "$c" ] || continue
     # Un même dossier proposé deux fois (la racine est souvent sous /media)
@@ -245,9 +268,15 @@ repond() {
 # C'est le montage lui-même qui change : réécrire MUSIC_HOST_PATH ne suffit
 # pas, il faut remonter la pile pour que Docker refasse le lien.
 changer_la_racine() {
-  local chemin="$1"
+  local chemin="$1" reel
   : > "$TAMPON"
 
+  if ! reel="$(chemin_permis "$chemin")"; then
+    dit "« $chemin » refusé : la musique doit être sous /media, /mnt ou dans ton dossier Musique."
+    dit "fini"
+    return
+  fi
+  chemin="$reel"
   if [ ! -d "$chemin" ]; then
     dit "« $chemin » n'existe pas sur cette machine."
     dit "fini"
