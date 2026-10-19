@@ -49,6 +49,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             . "/media/musique.", 400);
     }
 
+    // Le compagnon monte ce chemin de l'HÔTE en lecture-écriture dans un
+    // conteneur root : « / » ou « /etc » donnerait la machine entière. On
+    // n'accepte donc qu'un dossier de musique plausible.
+    $chemin = racine_permise($chemin);
+    if ($chemin === null) {
+        v2_fail('chemin_refuse',
+            "Ce dossier ne peut pas servir de racine : choisis un dossier sous "
+            . "/media/ ou /mnt/, ou ~/Musique (/home/<compte>/Musique).", 400);
+    }
+
     // Les comptes d'abord : une fois la demande déposée, le serveur peut
     // tomber d'une seconde à l'autre.
     $aLaRacine = is_array($corps['a_la_racine'] ?? null) ? $corps['a_la_racine'] : [];
@@ -99,6 +109,30 @@ v2_ok([
     'actuelle' => AppConfig::getMusicHostPath(),
     'comptes'  => comptes_locaux(),
 ]);
+
+/**
+ * Normalise un chemin de racine et dit s'il est permis : null s'il est refusé.
+ *
+ * Permis : un dossier SOUS /media/ ou /mnt/ (pas ces dossiers eux-mêmes), ou
+ * /home/<compte>/Musique|Music et ce qu'il contient. Tout « . » ou « .. » est
+ * refusé plutôt que résolu, et les caractères de contrôle aussi.
+ */
+function racine_permise(string $chemin): ?string
+{
+    if ($chemin === '' || $chemin[0] !== '/' || preg_match('/[\x00-\x1f\x7f]/', $chemin)) {
+        return null;
+    }
+    $parts = array_values(array_filter(explode('/', $chemin), static fn(string $p): bool => $p !== ''));
+    foreach ($parts as $p) {
+        if ($p === '.' || $p === '..') {
+            return null;
+        }
+    }
+    $n = count($parts);
+    $ok = ($n >= 2 && ($parts[0] === 'media' || $parts[0] === 'mnt'))
+        || ($n >= 3 && $parts[0] === 'home' && in_array($parts[2], ['Musique', 'Music'], true));
+    return $ok ? '/' . implode('/', $parts) : null;
+}
 
 /**
  * Les comptes qui lisent sous la racine (pas ceux en SFTP, qui lisent

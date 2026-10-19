@@ -16,6 +16,21 @@ set_error_handler(function ($severity, $message, $file, $line) {
 
 require_once __DIR__ . '/../src/AppConfig.php';
 
+// Une fois l'installation terminée (GULLIFY_SETUP_DONE=true, posé par
+// finish_setup), cette API se ferme : elle ne demande aucun mot de passe, et
+// ses actions (add_user, save_storage, create_tables, test_database…)
+// donneraient le serveur à n'importe qui. Ni l'assistant ni l'installateur
+// ne l'appellent après la fin — l'installateur remet le drapeau à false
+// avant de rejouer une installation.
+if (AppConfig::isSetupDone()) {
+    http_response_code(403);
+    echo json_encode([
+        'success' => false,
+        'message' => "L'installation est terminée : l'assistant est fermé.",
+    ], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
 $action = $_GET['action'] ?? $_POST['action'] ?? '';
 
 try {

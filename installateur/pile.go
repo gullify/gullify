@@ -404,7 +404,17 @@ IDEAS_RELAY=https://maxime.gullify.app
 	// Sur GulliOS, ce Caddy est aussi le proxy de la MAISON : chaque app de la
 	// gamme y dépose sa route dans apps/ (GulliTV sur /tv, GulliSCAN sur
 	// /scan…) et rejoint le réseau Docker « gulli ». Sans app, rien ne change.
+	//
+	// Sur le site HTTPS seulement : HSTS (le navigateur ne retentera plus
+	// l'adresse en clair), et on tait le logiciel qui répond (Server,
+	// X-Powered-By). Une suppression « - » est appliquée à la sortie, donc
+	// aussi aux en-têtes venus de PHP et des apps.
 	caddy := `{$APP_DOMAIN:localhost} {
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		-Server
+		-X-Powered-By
+	}
 	import apps/*.caddy
 	handle {
 		reverse_proxy app:80
