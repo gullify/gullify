@@ -60,6 +60,9 @@ if ($method !== 'ping' && $method !== 'getLicense') {
         if ($user && !empty($user['subsonic_password'])) {
             $expected = md5($user['subsonic_password'] . $salt);
             if ($expected === $token) {
+                if (Auth::mustChangePassword($user)) {
+                    subsonicError(50, 'Mot de passe temporaire : choisis-en un nouveau dans GulliFY.', $format);
+                }
                 $authenticatedUser = $user;
             } else {
                 subsonicError(40, 'Wrong username or password.', $format);
@@ -76,6 +79,13 @@ if ($method !== 'ping' && $method !== 'getLicense') {
             $pass = hex2bin(substr($pass, 4));
         }
         $user = $auth->verifyPassword($username, $pass);
+        if ($user && Auth::mustChangePassword($user)) {
+            // Le mot de passe temporaire n'est jamais retenu pour Subsonic.
+            subsonicError(50, 'Mot de passe temporaire : choisis-en un nouveau dans GulliFY.', $format);
+        }
+        if (!$user && $auth->isDisabledAccount($username, $pass)) {
+            subsonicError(40, 'Ce compte est désactivé.', $format);
+        }
         if ($user) {
             $authenticatedUser = $user;
             // Auto-save plaintext password for future token-based auth

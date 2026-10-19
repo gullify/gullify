@@ -26,6 +26,7 @@ session_name('gullify_session');
 session_start();
 
 $authenticated = false;
+$mustChange    = false;
 
 // Extract Bearer token from Authorization header (used by API clients, e.g. Android app)
 $bearerToken = null;
@@ -41,7 +42,9 @@ try {
     if ($bearerToken !== null) {
         // ── API token auth (Android / external clients) ──────────────────────
         $dbSession = $auth->getSession($bearerToken);
-        if ($dbSession) {
+        // Un compte désactivé n'a plus de session qui vaille.
+        if ($dbSession && !empty($dbSession['user_active'])) {
+            $mustChange = !empty($dbSession['user_must_change']);
             $_SESSION['user_id'] = $dbSession['user_id'];
             $auth->updateSessionActivity($bearerToken);
             $authenticated = true;
@@ -52,7 +55,8 @@ try {
         // was garbage-collected (default gc_maxlifetime is only 24 min).
         $sessionId = session_id();
         $dbSession = $auth->getSession($sessionId);
-        if ($dbSession) {
+        if ($dbSession && !empty($dbSession['user_active'])) {
+            $mustChange = !empty($dbSession['user_must_change']);
             if (empty($_SESSION['user_id'])) {
                 $_SESSION['user_id'] = $dbSession['user_id'];
             }
@@ -79,6 +83,18 @@ try {
 
 } catch (Exception $e) {
     error_log('Auth check failed: ' . $e->getMessage());
+}
+
+// Mot de passe temporaire (posé par « Ma maison ») : rien d'autre que son
+// changement, par l'API v2 (auth.php?action=change_password).
+if ($authenticated && $mustChange) {
+    http_response_code(403);
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode([
+        'success' => false, 'error' => 'Choisis un nouveau mot de passe.',
+        'code' => 'changement_requis', 'message' => 'Choisis un nouveau mot de passe.',
+    ], JSON_UNESCAPED_UNICODE);
+    exit;
 }
 
 if (!$authenticated) {

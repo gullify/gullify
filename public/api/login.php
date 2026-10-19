@@ -34,6 +34,11 @@ try {
     $user = $auth->verifyPassword($username, $password);
 
     if (!$user) {
+        if ($auth->isDisabledAccount($username, $password)) {
+            http_response_code(403);
+            echo json_encode(['error' => 'Ce compte est désactivé.', 'code' => 'account_disabled'], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
         http_response_code(401);
         echo json_encode(['error' => 'Invalid credentials']);
         exit;
@@ -51,6 +56,7 @@ try {
         'token'    => $token,
         'username' => $user['username'],
         'user_id'  => (int)$user['id'],
+        'doit_changer' => Auth::mustChangePassword($user),
     ]);
 
 } catch (Exception $e) {

@@ -1,12 +1,23 @@
 <?php
 /**
- * La gestion des comptes par « Ma maison » (GulliOS) — contrat de gestion v1.
+ * La gestion des comptes par « Ma maison » (GulliOS) — contrat de gestion v2.
  *
  *   docker compose -p gullify-serveur exec -T app php /app/scripts/maison-gestion.php <action> [arguments]
  *
  * Actions : resume, personnes, appareils, deconnecter <appareil_id>,
  * reinitialiser <personne_id>, admin <personne_id> oui|non,
- * debloquer <personne_id>, creer <nom> [courriel].
+ * debloquer <personne_id>, creer <nom> [courriel],
+ * v2 : modifier <id> [nom=…] [courriel=…], desactiver <id>, activer <id>,
+ * supprimer <id>, definir <id> (secret sur STDIN), photo <id> (image sur
+ * STDIN) | photo <id> --retirer.
+ *
+ * Les secrets que rendent reinitialiser et creer, et celui que pose definir,
+ * sont TEMPORAIRES : la personne doit en choisir un autre à la connexion
+ * (users.must_change_password, 403 « changement_requis » ailleurs).
+ *
+ * Supprimer : voir la politique dans CLAUDE.md (compte, sessions, listes de
+ * lecture, favoris, historique et index de sa bibliothèque supprimés ; la
+ * musique — les fichiers — n'est jamais touchée).
  *
  * Toujours UN objet JSON sur stdout ; code 0 en cas de succès, 1 et
  * {"erreur": "…"} sinon. Jamais de hash, de jeton ni de mot de passe dans la
@@ -37,6 +48,10 @@ ini_set('log_errors', '0');
 require_once __DIR__ . '/../src/AppConfig.php';
 require_once __DIR__ . '/../src/Auth.php';
 require_once __DIR__ . '/../src/MusicPaths.php';
+require_once __DIR__ . '/../src/Avatar.php';
+
+/** Taille maximale d'une photo reçue sur STDIN. */
+const MG_PHOTO_MAX = 5 * 1024 * 1024;
 
 /** Une session sans activité depuis plus longtemps est morte (cookie de 30 jours, voir auth_required.php). */
 const MG_SESSION_MAX = 2592000;
@@ -94,7 +109,7 @@ function mg_id(array $args, int $i, string $quoi = 'personne_id'): string
 function mg_personne(PDO $db, string $id): array
 {
     if (!ctype_digit($id)) throw new ErreurGestion('Cette personne est introuvable.');
-    $st = $db->prepare('SELECT id, username, full_name, is_admin, is_active FROM users WHERE id = ?');
+    $st = $db->prepare('SELECT id, username, full_name, is_admin, is_active, must_change_password FROM users WHERE id = ?');
     $st->execute([(int)$id]);
     $u = $st->fetch(PDO::FETCH_ASSOC);
     if (!$u) throw new ErreurGestion('Cette personne est introuvable.');
@@ -145,10 +160,64 @@ function mg_revoquer_tout(PDO $db, int $userId): void
     }
 }
 
+/** Refuse si $u est le dernier administrateur actif. */
+function mg_pas_dernier_admin(PDO $db, array $u, string $message): void
+{
+    if (!$u['is_admin'] || !$u['is_active']) return;
+    $st = $db->prepare('SELECT COUNT(*) FROM users WHERE is_admin = 1 AND is_active = 1 AND id <> ?');
+    $st->execute([(int)$u['id']]);
+    if ((int)$st->fetchColumn() === 0) throw new ErreurGestion($message);
+}
+
+/** Une ligne lue sur STDIN (le secret de « definir »), sans le saut de ligne. */
+function mg_ligne_stdin(): string
+{
+    $l = fgets(STDIN);
+    return $l === false ? '' : rtrim($l, "\r\n");
+}
+
+/** Le propriétaire du dossier de données : les fichiers écrits par root lui reviennent. */
+function mg_rendre(string $chemin): void
+{
+    if (function_exists('posix_getuid') && posix_getuid() === 0) {
+        $st = @stat(AppConfig::getDataPath());
+        if ($st) {
+            @chown($chemin, $st['uid']);
+            @chgrp($chemin, $st['gid']);
+        }
+    }
+}
+
+/**
+ * Les tables où une personne a des données à elle, par nom d'utilisateur.
+ * Certaines naissent à la première utilisation : absentes, on les saute.
+ * Les lignes d'albums, titres, statistiques de titres d'un index tombent en
+ * cascade avec ses artistes — ce sont des lignes de base, pas des fichiers.
+ */
+const MG_DONNEES_PERSONNELLES = [
+    'playlists' => 'user',          // + playlist_songs en cascade
+    'favorites' => 'user',
+    'favorite_artists' => 'user',
+    'favorite_albums' => 'user',
+    'play_history' => 'user',
+    'notifications' => 'user',
+    'custom_genres' => 'user',
+    'radio_custom_stations' => 'user',
+    'radio_user_state' => 'user',
+    'radio_user_prefs' => 'user',
+    'radio_folders' => 'user',
+    'podcast_subscriptions' => 'user',
+    'podcast_progress' => 'user',
+    'song_shares' => 'owner_user',
+    'library_stats' => 'user',
+    'artists' => 'user',            // l'INDEX de sa bibliothèque (+ albums, songs en cascade)
+];
+
 function mg_executer(array $args): array
 {
     $action = $args[0] ?? '';
-    $connues = ['resume', 'personnes', 'appareils', 'deconnecter', 'reinitialiser', 'admin', 'debloquer', 'creer'];
+    $connues = ['resume', 'personnes', 'appareils', 'deconnecter', 'reinitialiser', 'admin', 'debloquer', 'creer',
+                'modifier', 'desactiver', 'activer', 'supprimer', 'definir', 'photo'];
     if (!in_array($action, $connues, true)) {
         throw new ErreurGestion($action === '' ? 'Aucune action demandée.' : "Action inconnue : $action.");
     }
@@ -170,6 +239,7 @@ function mg_executer(array $args): array
         case 'resume':
             $version = @file_get_contents(__DIR__ . '/../VERSION');
             return [
+                'contrat'     => 2,
                 'version'     => $version === false ? null : trim($version),
                 'personnes'   => (int)$db->query('SELECT COUNT(*) FROM users')->fetchColumn(),
                 'appareils'   => (int)$db->query("SELECT COUNT(*) FROM sessions WHERE $actives")->fetchColumn(),
@@ -178,7 +248,8 @@ function mg_executer(array $args): array
 
         case 'personnes':
             $rows = $db->query(
-                'SELECT id, username, full_name, is_admin, is_active, UNIX_TIMESTAMP(created_at) AS cree
+                'SELECT id, username, full_name, is_admin, is_active, must_change_password,
+                        UNIX_TIMESTAMP(created_at) AS cree, UNIX_TIMESTAMP(last_login) AS connexion
                  FROM users ORDER BY id'
             )->fetchAll(PDO::FETCH_ASSOC);
             return ['personnes' => array_map(fn($u) => [
@@ -190,6 +261,9 @@ function mg_executer(array $args): array
                 'actif'         => (bool)$u['is_active'],
                 'bloque_jusqua' => null,
                 'cree'          => mg_date($u['cree']),
+                'doit_changer'  => (bool)$u['must_change_password'],
+                'derniere_connexion' => mg_date($u['connexion']),
+                'photo'         => Avatar::exists((int)$u['id']),
             ], $rows)];
 
         case 'appareils':
@@ -229,9 +303,109 @@ function mg_executer(array $args): array
             $secret = mg_mot_de_passe();
             $db->beginTransaction();
             (new Auth())->updatePassword((int)$u['id'], $secret);
+            $db->prepare('UPDATE users SET must_change_password = 1 WHERE id = ?')->execute([(int)$u['id']]);
             mg_revoquer_tout($db, (int)$u['id']);
             $db->commit();
             return ['ok' => true, 'secret' => $secret, 'type' => 'mot_de_passe'];
+
+        case 'definir':
+            $u = mg_personne($db, mg_id($args, 1));
+            $secret = mg_ligne_stdin();
+            if (mb_strlen($secret) < 8) {
+                throw new ErreurGestion('Le mot de passe doit faire au moins 8 caractères.');
+            }
+            $db->beginTransaction();
+            (new Auth())->updatePassword((int)$u['id'], $secret);
+            $db->prepare('UPDATE users SET must_change_password = 1 WHERE id = ?')->execute([(int)$u['id']]);
+            mg_revoquer_tout($db, (int)$u['id']);
+            $db->commit();
+            return ['ok' => true];
+
+        case 'modifier':
+            $u = mg_personne($db, mg_id($args, 1));
+            $nom = null;
+            foreach (array_slice($args, 2) as $a) {
+                if (str_starts_with($a, 'nom=')) {
+                    $nom = trim(substr($a, 4));
+                } elseif (str_starts_with($a, 'courriel=')) {
+                    throw new ErreurGestion("GulliFY n'a pas de courriel : on s'y connecte par nom d'utilisateur.");
+                } else {
+                    throw new ErreurGestion("Argument inconnu : $a (attendu : nom=…).");
+                }
+            }
+            if ($nom === null) throw new ErreurGestion('Rien à modifier (attendu : nom=…).');
+            if ($nom === '') throw new ErreurGestion('Le nom ne peut pas être vide.');
+            if (mb_strlen($nom) > 100) throw new ErreurGestion('Ce nom est trop long (100 caractères au plus).');
+            // Seul le nom AFFICHÉ change : le nom d'utilisateur sert à se
+            // connecter et range ses favoris, listes et historique.
+            $db->prepare('UPDATE users SET full_name = ? WHERE id = ?')->execute([$nom, (int)$u['id']]);
+            return ['ok' => true];
+
+        case 'desactiver':
+            $u = mg_personne($db, mg_id($args, 1));
+            mg_pas_dernier_admin($db, $u, "C'est le dernier administrateur actif de GulliFY : nomme quelqu'un d'autre avant de le désactiver.");
+            $db->beginTransaction();
+            $db->prepare('UPDATE users SET is_active = 0 WHERE id = ?')->execute([(int)$u['id']]);
+            mg_revoquer_tout($db, (int)$u['id']);
+            $db->commit();
+            return ['ok' => true];
+
+        case 'activer':
+            $u = mg_personne($db, mg_id($args, 1));
+            $db->prepare('UPDATE users SET is_active = 1 WHERE id = ?')->execute([(int)$u['id']]);
+            return ['ok' => true];
+
+        case 'supprimer':
+            $u = mg_personne($db, mg_id($args, 1));
+            if ($u['is_admin']) {
+                $st = $db->prepare('SELECT COUNT(*) FROM users WHERE is_admin = 1 AND is_active = 1 AND id <> ?');
+                $st->execute([(int)$u['id']]);
+                if ((int)$st->fetchColumn() === 0) {
+                    throw new ErreurGestion("C'est le dernier administrateur de GulliFY : nomme quelqu'un d'autre avant de supprimer ce compte.");
+                }
+            }
+            $tables = $db->query('SHOW TABLES')->fetchAll(PDO::FETCH_COLUMN);
+            $db->beginTransaction();
+            foreach (MG_DONNEES_PERSONNELLES as $table => $colonne) {
+                if (in_array($table, $tables, true)) {
+                    $db->prepare("DELETE FROM `$table` WHERE `$colonne` = ?")->execute([$u['username']]);
+                }
+            }
+            // Les sessions tombent en cascade avec le compte.
+            $db->prepare('DELETE FROM users WHERE id = ?')->execute([(int)$u['id']]);
+            $db->commit();
+            Avatar::remove((int)$u['id']);
+            return ['ok' => true];
+
+        case 'photo':
+            $u = mg_personne($db, mg_id($args, 1));
+            if (($args[2] ?? '') === '--retirer') {
+                Avatar::remove((int)$u['id']);
+                return ['ok' => true];
+            }
+            if (isset($args[2])) throw new ErreurGestion("Argument inconnu : {$args[2]} (attendu : --retirer).");
+            $image = stream_get_contents(STDIN, MG_PHOTO_MAX + 1);
+            if ($image === false || $image === '') throw new ErreurGestion("Aucune image reçue.");
+            if (strlen($image) > MG_PHOTO_MAX) throw new ErreurGestion('Cette image est trop lourde (5 Mo au plus).');
+            // Le VRAI type, lu dans le contenu — jamais une extension annoncée.
+            $info = @getimagesizefromstring($image);
+            $mime = is_array($info) ? ($info['mime'] ?? '') : '';
+            if (!in_array($mime, ['image/jpeg', 'image/png', 'image/webp'], true)) {
+                throw new ErreurGestion("Ce fichier n'est pas une image JPEG, PNG ou WebP.");
+            }
+            $tmp = tempnam(sys_get_temp_dir(), 'photo');
+            try {
+                file_put_contents($tmp, $image);
+                $dirExistait = is_dir(Avatar::dir());
+                Avatar::store((int)$u['id'], $tmp, $mime);
+                if (!$dirExistait) mg_rendre(Avatar::dir());
+                mg_rendre(Avatar::path((int)$u['id']));
+            } catch (RuntimeException $e) {
+                throw new ErreurGestion("Cette image n'a pas pu être lue.");
+            } finally {
+                @unlink($tmp);
+            }
+            return ['ok' => true];
 
         case 'admin':
             $u = mg_personne($db, mg_id($args, 1));
@@ -258,6 +432,7 @@ function mg_executer(array $args): array
             // Un compte de la maison lit tout le dossier de musique.
             (new Auth())->createUser($identifiant, $secret, $nom, false, GULLIFY_RACINE);
             $id = $db->lastInsertId();
+            $db->prepare('UPDATE users SET must_change_password = 1 WHERE id = ?')->execute([(int)$id]);
             return ['ok' => true, 'id' => (string)$id, 'identifiant' => $identifiant,
                     'secret' => $secret, 'type' => 'mot_de_passe'];
     }

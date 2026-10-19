@@ -89,6 +89,9 @@ class AppConfig {
             'sftp_user'     => "ALTER TABLE users ADD COLUMN sftp_user VARCHAR(100) NULL AFTER sftp_port",
             'sftp_password' => "ALTER TABLE users ADD COLUMN sftp_password VARCHAR(512) NULL AFTER sftp_user",
             'sftp_path'     => "ALTER TABLE users ADD COLUMN sftp_path VARCHAR(255) NULL AFTER sftp_password",
+            // Mot de passe temporaire posé par « Ma maison » : la personne doit
+            // en choisir un autre avant de se servir de l'app.
+            'must_change_password' => "ALTER TABLE users ADD COLUMN must_change_password TINYINT(1) NOT NULL DEFAULT 0",
         ];
 
         foreach ($columns as $col => $sql) {

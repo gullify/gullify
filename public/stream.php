@@ -57,7 +57,8 @@ function streamAutorise(): bool {
         return false;
     }
     try {
-        return !empty((new Auth())->getSession($jeton));
+        // Compte désactivé ou mot de passe à changer : pas de lecture.
+        return Auth::sessionUsable((new Auth())->getSession($jeton));
     } catch (Throwable $e) {
         error_log('stream.php : vérification du jeton impossible — ' . $e->getMessage());
         return false;

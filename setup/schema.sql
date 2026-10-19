@@ -17,7 +17,8 @@ CREATE TABLE IF NOT EXISTS users (
     sftp_password VARCHAR(512) NULL,  -- AES-256-CBC encrypted
     sftp_path VARCHAR(255) NULL,       -- Remote base path
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    last_login DATETIME NULL
+    last_login DATETIME NULL,
+    must_change_password TINYINT(1) NOT NULL DEFAULT 0  -- mot de passe temporaire (Ma maison)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Sessions

@@ -41,6 +41,48 @@ class Auth {
         return false;
     }
 
+    /**
+     * Le bon mot de passe d'un compte DÉSACTIVÉ : la connexion le dit
+     * clairement (« compte désactivé ») au lieu de « identifiants incorrects ».
+     * Seulement avec le bon mot de passe — sans quoi on apprendrait à n'importe
+     * qui quels comptes existent.
+     */
+    public function isDisabledAccount(string $username, string $password): bool {
+        $stmt = $this->db->prepare("SELECT password_hash FROM users WHERE username = ? AND is_active = 0");
+        $stmt->execute([$username]);
+        $hash = $stmt->fetchColumn();
+        return is_string($hash) && password_verify($password, $hash);
+    }
+
+    /** Le mot de passe est temporaire (posé par « Ma maison ») : à changer avant tout. */
+    public static function mustChangePassword(array $user): bool {
+        return !empty($user['must_change_password']);
+    }
+
+    /**
+     * La personne change elle-même son mot de passe temporaire (ou non) :
+     * le drapeau tombe, le mot de passe Subsonic gardé (l'ancien) est oublié,
+     * et toutes ses autres sessions sont fermées — sauf $keepSessionId.
+     */
+    public function changeOwnPassword(int $userId, string $newPassword, ?string $keepSessionId): void {
+        $this->db->beginTransaction();
+        try {
+            $this->db->prepare("UPDATE users SET password_hash = ?, must_change_password = 0 WHERE id = ?")
+                ->execute([password_hash($newPassword, PASSWORD_DEFAULT), $userId]);
+            try {
+                $this->db->prepare("UPDATE users SET subsonic_password = NULL WHERE id = ?")->execute([$userId]);
+            } catch (PDOException $e) {
+                // colonne absente : aucun client Subsonic ne s'est jamais connecté
+            }
+            $this->db->prepare("DELETE FROM sessions WHERE user_id = ? AND id <> ?")
+                ->execute([$userId, (string)$keepSessionId]);
+            $this->db->commit();
+        } catch (Throwable $e) {
+            $this->db->rollBack();
+            throw $e;
+        }
+    }
+
     public function updateLastLogin(int $userId): bool {
         $stmt = $this->db->prepare("UPDATE users SET last_login = NOW() WHERE id = ?");
         return $stmt->execute([$userId]);
@@ -104,10 +146,23 @@ class Auth {
         return $stmt->execute([$sessionId, $userId, $ipAddress, $userAgent]);
     }
 
+    /**
+     * La session, avec l'état du compte : `user_active` (désactivé → la
+     * session ne vaut plus rien) et `user_must_change` (mot de passe
+     * temporaire → seul le changement est permis). Voir sessionUsable().
+     */
     public function getSession(string $sessionId): array|false {
-        $stmt = $this->db->prepare("SELECT * FROM sessions WHERE id = ?");
+        $stmt = $this->db->prepare(
+            "SELECT s.*, u.is_active AS user_active, u.must_change_password AS user_must_change
+             FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.id = ?"
+        );
         $stmt->execute([$sessionId]);
         return $stmt->fetch(PDO::FETCH_ASSOC);
+    }
+
+    /** Une session qui ouvre l'app : compte actif, mot de passe définitif. */
+    public static function sessionUsable(array|false $session): bool {
+        return $session !== false && !empty($session['user_active']) && empty($session['user_must_change']);
     }
 
     public function updateSessionActivity(string $sessionId): bool {

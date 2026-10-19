@@ -72,6 +72,11 @@ function v2_auth(): array {
             if ($sess) {
                 $user = $auth->getUserById((int)$sess['user_id']);
                 if ($user) {
+                    // Mot de passe temporaire : seuls « me », la déconnexion et
+                    // le changement passent (auth.php les autorise).
+                    if (Auth::mustChangePassword($user) && empty($GLOBALS['v2_changement_permis'])) {
+                        v2_fail('changement_requis', 'Choisis un nouveau mot de passe.', 403);
+                    }
                     $auth->updateSessionActivity($token);
                     return $cached = ['user' => $user, 'token' => $token, 'auth' => $auth];
                 }
