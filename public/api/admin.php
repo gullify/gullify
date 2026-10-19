@@ -43,6 +43,7 @@ try {
 
         // ── Create user ────────────────────────────────────────────
         case 'create_user':
+            if (Comptes::actif()) throw new Exception(Comptes::MESSAGE_GERE);
             $username    = trim($_POST['username'] ?? '');
             $password    = $_POST['password'] ?? '';
             $fullName    = trim($_POST['full_name'] ?? '');
@@ -124,6 +125,7 @@ try {
 
         // ── Update password ────────────────────────────────────────
         case 'update_password':
+            if (Comptes::actif()) throw new Exception(Comptes::MESSAGE_GERE);
             $userId   = intval($_POST['user_id'] ?? 0);
             $password = $_POST['password'] ?? '';
             if (!$userId) throw new Exception('user_id requis');

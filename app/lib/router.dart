@@ -51,6 +51,7 @@ import 'screens/settings_screen.dart';
 import 'screens/shell_screen.dart';
 import 'screens/splash_screen.dart';
 import 'screens/stats_screen.dart';
+import 'screens/subsonic_screen.dart';
 import 'screens/tv/tv_bandcamp.dart';
 import 'screens/tv/tv_kit.dart';
 import 'screens/tv/tv_collection_screens.dart';
@@ -230,6 +231,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/settings/server-info',
         builder: (_, _) => const ServerInfoScreen(),
+      ),
+      GoRoute(
+        path: '/settings/subsonic',
+        builder: (_, _) => const SubsonicScreen(),
       ),
       // Où est la musique sur la machine. Réservé aux administrateurs : c'est
       // le serveur qui tranche (403), l'app ne fait que cacher l'entrée.

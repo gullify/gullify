@@ -9,7 +9,13 @@
  * debloquer <personne_id>, creer <nom> [courriel],
  * v2 : modifier <id> [nom=…] [courriel=…], desactiver <id>, activer <id>,
  * supprimer <id>, definir <id> (secret sur STDIN), photo <id> (image sur
- * STDIN) | photo <id> --retirer.
+ * STDIN) | photo <id> --retirer,
+ * comptes de la maison : lier <id_local> <compte_id>.
+ *
+ * Avec les comptes de la maison (COMPTES_URL posé, CONTRAT-COMPTES.md), les
+ * mots de passe vivent dans Comptes : reinitialiser, definir et creer
+ * répondent une erreur claire ; les comptes naissent à leur première
+ * connexion, ou sont reliés par « lier ». `personnes` rend `compte_id`.
  *
  * Les secrets que rendent reinitialiser et creer, et celui que pose definir,
  * sont TEMPORAIRES : la personne doit en choisir un autre à la connexion
@@ -128,23 +134,7 @@ function mg_mot_de_passe(): string
 /** Un nom d'utilisateur valide (lettres, chiffres, _ - .) et libre, tiré du nom. */
 function mg_nom_utilisateur(PDO $db, string $nom): string
 {
-    $base = $nom;
-    if (!preg_match('/^[a-zA-Z0-9_\-\.]+$/', $base)) {
-        $t = @iconv('UTF-8', 'ASCII//TRANSLIT', $nom);
-        $base = strtolower($t !== false ? $t : $nom);
-        $base = preg_replace('/[^a-z0-9_\-\.]+/', '.', $base);
-        $base = trim(preg_replace('/\.{2,}/', '.', $base), '.-_');
-    }
-    $base = substr($base, 0, 45);
-    if ($base === '') $base = 'compte';
-
-    $st = $db->prepare('SELECT 1 FROM users WHERE username = ?');
-    $candidat = $base;
-    for ($n = 2; ; $n++) {
-        $st->execute([$candidat]);
-        if ($st->fetchColumn() === false) return $candidat;
-        $candidat = $base . $n;
-    }
+    return Comptes::nomUtilisateurLibre($db, $nom);
 }
 
 function mg_revoquer_tout(PDO $db, int $userId): void
@@ -217,9 +207,17 @@ function mg_executer(array $args): array
 {
     $action = $args[0] ?? '';
     $connues = ['resume', 'personnes', 'appareils', 'deconnecter', 'reinitialiser', 'admin', 'debloquer', 'creer',
-                'modifier', 'desactiver', 'activer', 'supprimer', 'definir', 'photo'];
+                'modifier', 'desactiver', 'activer', 'supprimer', 'definir', 'photo', 'lier'];
     if (!in_array($action, $connues, true)) {
         throw new ErreurGestion($action === '' ? 'Aucune action demandée.' : "Action inconnue : $action.");
+    }
+
+    // Comptes de la maison : les mots de passe ne sont plus ceux de GulliFY.
+    if (Comptes::actif() && in_array($action, ['reinitialiser', 'definir', 'creer'], true)) {
+        throw new ErreurGestion(Comptes::MESSAGE_GERE);
+    }
+    if (!Comptes::actif() && $action === 'lier') {
+        throw new ErreurGestion("Cette maison n'utilise pas encore les comptes de la maison (COMPTES_URL absent).");
     }
 
     // Avant la base : débloquer ne la touche pas.
@@ -248,7 +246,7 @@ function mg_executer(array $args): array
 
         case 'personnes':
             $rows = $db->query(
-                'SELECT id, username, full_name, is_admin, is_active, must_change_password,
+                'SELECT id, username, full_name, is_admin, is_active, must_change_password, compte_id, email,
                         UNIX_TIMESTAMP(created_at) AS cree, UNIX_TIMESTAMP(last_login) AS connexion
                  FROM users ORDER BY id'
             )->fetchAll(PDO::FETCH_ASSOC);
@@ -256,7 +254,8 @@ function mg_executer(array $args): array
                 'id'            => (string)$u['id'],
                 'nom'           => trim((string)$u['full_name']) !== '' ? $u['full_name'] : $u['username'],
                 'identifiant'   => $u['username'],
-                'courriel'      => null,
+                'courriel'      => $u['email'] ?? null,
+                'compte_id'     => $u['compte_id'] === null ? null : (string)$u['compte_id'],
                 'admin'         => (bool)$u['is_admin'],
                 'actif'         => (bool)$u['is_active'],
                 'bloque_jusqua' => null,
@@ -405,6 +404,24 @@ function mg_executer(array $args): array
             } finally {
                 @unlink($tmp);
             }
+            return ['ok' => true];
+
+        case 'lier':
+            $u = mg_personne($db, mg_id($args, 1));
+            $compteId = mg_id($args, 2, 'compte_id');
+            if (strlen($compteId) > 64 || !preg_match('/^[A-Za-z0-9_\-]+$/', $compteId)) {
+                throw new ErreurGestion('Cet identifiant de compte est invalide.');
+            }
+            $st = $db->prepare('SELECT id FROM users WHERE compte_id = ?');
+            $st->execute([$compteId]);
+            $deja = $st->fetchColumn();
+            if ($deja !== false && (int)$deja !== (int)$u['id']) {
+                throw new ErreurGestion('Ce compte de la maison est déjà relié à un autre compte GulliFY.');
+            }
+            // Le mot de passe Subsonic retenu jusque-là est l'ancien mot de
+            // passe GulliFY : il tombe, place au mot de passe d'application.
+            $db->prepare('UPDATE users SET compte_id = ?, subsonic_password = NULL WHERE id = ?')
+                ->execute([$compteId, (int)$u['id']]);
             return ['ok' => true];
 
         case 'admin':

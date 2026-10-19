@@ -18,7 +18,10 @@ CREATE TABLE IF NOT EXISTS users (
     sftp_path VARCHAR(255) NULL,       -- Remote base path
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     last_login DATETIME NULL,
-    must_change_password TINYINT(1) NOT NULL DEFAULT 0  -- mot de passe temporaire (Ma maison)
+    must_change_password TINYINT(1) NOT NULL DEFAULT 0,  -- mot de passe temporaire (Ma maison)
+    compte_id VARCHAR(64) NULL UNIQUE,  -- compte de la maison (Comptes), si la maison a basculé
+    email VARCHAR(255) NULL,            -- recopié depuis Comptes
+    subsonic_password VARCHAR(255) DEFAULT NULL  -- mot de passe Subsonic (en clair : le protocole l'exige)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Sessions

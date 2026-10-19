@@ -30,3 +30,19 @@ radio, abonnements et progression de podcasts, liens de partage, et l'INDEX de s
 (`artists`/`albums`/`songs`/`library_stats` à son nom — reconstruit par un scan, comme le fait déjà
 un rescan complet). La MUSIQUE (les fichiers) n'est JAMAIS touchée. Refusé pour le dernier
 administrateur. GulliFY n'a pas de « données précieuses orphelines » : rien d'autre n'est refusé.
+
+## Comptes de la maison (`~/gullios/CONTRAT-COMPTES.md`, serveur 1.5.0, app 3.81.0)
+- Double mode, côté SERVEUR seulement : `COMPTES_URL` (+ `COMPTES_JETON`) absent du `.env` → tout
+  comme avant. Présent → `auth.php?action=login` prend `{courriel, password}` et passe par Comptes
+  (`src/Comptes.php`) ; la connexion par nom d'utilisateur est refusée partout (`Auth::verifyPassword`).
+  `ping.php` dit au client le mode : `connexion: courriel | nom_utilisateur`.
+- Compte local trouvé par `users.compte_id` (+ `email` recopié), créé à la 1re connexion : non admin,
+  `music_directory = '.'`, nom d'utilisateur tiré du nom, mot de passe local aléatoire inutilisé.
+  Photo de Comptes recopiée si `photo: true` (jamais retirée localement).
+- `change_password` → POST `/changer` (10 car.), lève `must_change_password`, ferme les autres sessions.
+- Gestion : `lier <id> <compte_id>` (efface l'ancien mot de passe Subsonic retenu), `personnes` rend
+  `compte_id` et `courriel` ; `creer` / `reinitialiser` / `definir` → erreur « gérés par les comptes ».
+- Subsonic en mode Comptes : SEUL le mot de passe d'application (`auth.php?action=subsonic`,
+  `subsonic_generer` — montré une fois —, `subsonic_revoquer` ; colonne `subsonic_password`) ouvre
+  `/rest` ; `u` = nom d'utilisateur GulliFY ou courriel. Écran app : Paramètres → Clients Subsonic.
+- Essais : `scripts/test-comptes.php` (faux Comptes `scripts/test-comptes-faux.php`), base jetable.

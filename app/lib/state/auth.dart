@@ -247,13 +247,21 @@ class AuthController extends Notifier<AuthState> {
     state = const AuthState(status: AuthStatus.needsServer);
   }
 
-  Future<void> login(String username, String password) async {
+  /// [courriel] : la maison a basculé sur ses comptes communs (voir
+  /// [comptesMaisonProvider]) — l'identifiant est alors le courriel.
+  Future<void> login(
+    String username,
+    String password, {
+    bool courriel = false,
+  }) async {
     final serverUrl = state.serverUrl!;
     final client = ApiClient(serverUrl: serverUrl);
     final data = await client.post(
       'auth.php',
       query: {'action': 'login'},
-      body: {'username': username, 'password': password},
+      body: courriel
+          ? {'courriel': username, 'password': password}
+          : {'username': username, 'password': password},
     ) as Map<String, dynamic>;
 
     final token = data['token'] as String;
@@ -341,6 +349,24 @@ class AuthController extends Notifier<AuthState> {
 
 final authProvider =
     NotifierProvider<AuthController, AuthState>(AuthController.new);
+
+/// La maison a basculé sur ses comptes communs (GulliOS, « Comptes ») : on se
+/// connecte par courriel + mot de passe de la maison (10 caractères au moins),
+/// et les clients Subsonic utilisent un mot de passe d'application. Le serveur
+/// le dit dans ping.php (`connexion: courriel`) ; un serveur plus ancien ne dit
+/// rien → connexion par nom d'utilisateur, comme avant.
+final comptesMaisonProvider = FutureProvider<bool>((ref) async {
+  final url = ref.watch(authProvider.select((s) => s.serverUrl));
+  if (url == null || url.isEmpty) return false;
+  try {
+    final data = await ApiClient(serverUrl: url)
+        .get('ping.php')
+        .timeout(const Duration(seconds: 10));
+    return data is Map && data['connexion'] == 'courriel';
+  } catch (_) {
+    return false;
+  }
+});
 
 /// Authenticated API client. Only valid when status == authenticated.
 final apiClientProvider = Provider<ApiClient>((ref) {

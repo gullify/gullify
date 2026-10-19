@@ -56,7 +56,7 @@ if ($method !== 'ping' && $method !== 'getLicense') {
         // Subsonic requires the plaintext password to verify tokens.
         // We store it in the `subsonic_password` column (auto-created).
         ensureSubsonicPasswordColumn();
-        $user = $auth->getUserByUsername($username);
+        $user = subsonicUser($auth, $username);
         if ($user && !empty($user['subsonic_password'])) {
             $expected = md5($user['subsonic_password'] . $salt);
             if ($expected === $token) {
@@ -68,7 +68,9 @@ if ($method !== 'ping' && $method !== 'getLicense') {
                 subsonicError(40, 'Wrong username or password.', $format);
             }
         } elseif ($user) {
-            subsonicError(40, 'Subsonic password not set. Go to Gullify Settings to enable Subsonic access.', $format);
+            subsonicError(40, Comptes::actif()
+                ? 'Crée un mot de passe d\'application Subsonic dans les réglages de GulliFY.'
+                : 'Subsonic password not set. Go to Gullify Settings to enable Subsonic access.', $format);
         } else {
             subsonicError(40, 'Wrong username or password.', $format);
         }
@@ -76,8 +78,22 @@ if ($method !== 'ping' && $method !== 'getLicense') {
         // Password can be plaintext or hex-encoded with enc: prefix
         $pass = $password;
         if (str_starts_with($pass, 'enc:')) {
-            $pass = hex2bin(substr($pass, 4));
+            $pass = (string)@hex2bin(substr($pass, 4));
         }
+        if (Comptes::actif()) {
+            // Comptes de la maison : seul le mot de passe d'application
+            // Subsonic (réglages du compte GulliFY) ouvre la porte — jamais
+            // celui de la maison, et rien n'est retenu au passage.
+            ensureSubsonicPasswordColumn();
+            $user = subsonicUser($auth, $username);
+            if (!$user || empty($user['subsonic_password']) || !hash_equals((string)$user['subsonic_password'], $pass)) {
+                subsonicError(40, 'Wrong username or password.', $format);
+            }
+            if (Auth::mustChangePassword($user)) {
+                subsonicError(50, 'Mot de passe temporaire : choisis-en un nouveau dans GulliFY.', $format);
+            }
+            $authenticatedUser = $user;
+        } else {
         $user = $auth->verifyPassword($username, $pass);
         if ($user && Auth::mustChangePassword($user)) {
             // Le mot de passe temporaire n'est jamais retenu pour Subsonic.
@@ -98,9 +114,24 @@ if ($method !== 'ping' && $method !== 'getLicense') {
         } else {
             subsonicError(40, 'Wrong username or password.', $format);
         }
+        }
     } else {
         subsonicError(10, 'Required parameter is missing: authentication.', $format);
     }
+}
+
+/**
+ * Le compte nommé par `u` : son nom d'utilisateur GulliFY ou, avec les comptes
+ * de la maison, son courriel (celui qu'on connaît le mieux).
+ */
+function subsonicUser(Auth $auth, string $username): array|false {
+    $user = $auth->getUserByUsername($username);
+    if (!$user && Comptes::actif() && str_contains($username, '@')) {
+        $st = AppConfig::getDB()->prepare('SELECT * FROM users WHERE email = ? AND compte_id IS NOT NULL AND is_active = 1');
+        $st->execute([strtolower(trim($username))]);
+        $user = $st->fetch(PDO::FETCH_ASSOC);
+    }
+    return $user;
 }
 
 // ── Auto-migration helper ────────────────────────────────────────────────────

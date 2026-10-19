@@ -92,6 +92,12 @@ class AppConfig {
             // Mot de passe temporaire posé par « Ma maison » : la personne doit
             // en choisir un autre avant de se servir de l'app.
             'must_change_password' => "ALTER TABLE users ADD COLUMN must_change_password TINYINT(1) NOT NULL DEFAULT 0",
+            // Comptes de la maison (CONTRAT-COMPTES.md) : le compte de Comptes
+            // auquel ce compte local est relié, et son courriel recopié.
+            'compte_id'     => "ALTER TABLE users ADD COLUMN compte_id VARCHAR(64) NULL UNIQUE",
+            'email'         => "ALTER TABLE users ADD COLUMN email VARCHAR(255) NULL",
+            // Mot de passe d'application Subsonic (en clair : le protocole l'exige).
+            'subsonic_password' => "ALTER TABLE users ADD COLUMN subsonic_password VARCHAR(255) DEFAULT NULL",
         ];
 
         foreach ($columns as $col => $sql) {
@@ -323,6 +329,10 @@ class AppConfig {
             'IDEAS_RELAY'        => 'ideas.relay',
             'IDEAS_INBOX_OWNER'  => 'ideas.inbox_owner',
             'MAIL_LOG'           => 'mail.log',
+            // Les comptes de la maison (GulliOS, CONTRAT-COMPTES.md) : présents,
+            // on se connecte par courriel via le service Comptes (src/Comptes.php).
+            'COMPTES_URL'        => 'comptes.url',
+            'COMPTES_JETON'      => 'comptes.jeton',
         ];
 
         foreach ($envMap as $envKey => $configKey) {
@@ -374,6 +384,10 @@ class AppConfig {
             'IDEAS_RELAY'        => 'ideas.relay',
             'IDEAS_INBOX_OWNER'  => 'ideas.inbox_owner',
             'MAIL_LOG'           => 'mail.log',
+            // Les comptes de la maison (GulliOS, CONTRAT-COMPTES.md) : présents,
+            // on se connecte par courriel via le service Comptes (src/Comptes.php).
+            'COMPTES_URL'        => 'comptes.url',
+            'COMPTES_JETON'      => 'comptes.jeton',
         ];
 
         if (isset($map[$key])) {

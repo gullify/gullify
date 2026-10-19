@@ -69,6 +69,16 @@ class SettingsScreen extends ConsumerWidget {
             trailing: const Icon(Icons.chevron_right),
             onTap: () => context.push('/settings/server-info'),
           ),
+          // Comptes de la maison : les clients Subsonic ne peuvent pas
+          // utiliser le mot de passe de la maison.
+          if (ref.watch(comptesMaisonProvider).value ?? false)
+            ListTile(
+              leading: const Icon(Icons.key_outlined),
+              title: const Text('Clients Subsonic'),
+              subtitle: const Text("Mot de passe d'application"),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => context.push('/settings/subsonic'),
+            ),
           ListTile(
             leading: const Icon(Icons.swap_horiz),
             title: const Text('Changer de serveur'),

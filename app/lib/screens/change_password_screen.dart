@@ -35,11 +35,12 @@ class _ChangePasswordScreenState extends ConsumerState<ChangePasswordScreen> {
   Future<void> _valider() async {
     final ancien = _ancien.text;
     final nouveau = _nouveau.text;
+    final min = _minimum;
     String? erreur;
     if (ancien.isEmpty) {
       erreur = 'Entre le mot de passe que tu as reçu.';
-    } else if (nouveau.length < 8) {
-      erreur = 'Le nouveau mot de passe doit faire au moins 8 caractères.';
+    } else if (nouveau.length < min) {
+      erreur = 'Le nouveau mot de passe doit faire au moins $min caractères.';
     } else if (nouveau != _confirmation.text) {
       erreur = 'Les deux mots de passe ne sont pas pareils.';
     } else if (nouveau == ancien) {
@@ -68,6 +69,10 @@ class _ChangePasswordScreenState extends ConsumerState<ChangePasswordScreen> {
     }
   }
 
+  /// Comptes de la maison : 10 caractères au moins ; sinon 8, comme avant.
+  int get _minimum =>
+      (ref.read(comptesMaisonProvider).value ?? false) ? 10 : 8;
+
   InputDecoration _champ(String label) => InputDecoration(
         labelText: label,
         prefixIcon: const Icon(Icons.lock_outline),
@@ -80,6 +85,7 @@ class _ChangePasswordScreenState extends ConsumerState<ChangePasswordScreen> {
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(authProvider).user;
+    ref.watch(comptesMaisonProvider);
     final theme = Theme.of(context);
     return Scaffold(
       body: Center(
@@ -118,7 +124,9 @@ class _ChangePasswordScreenState extends ConsumerState<ChangePasswordScreen> {
                     controller: _nouveau,
                     obscureText: _obscure,
                     autocorrect: false,
-                    decoration: _champ('Nouveau mot de passe (8 caractères au moins)'),
+                    decoration: _champ(
+                      'Nouveau mot de passe ($_minimum caractères au moins)',
+                    ),
                   ),
                   const SizedBox(height: 16),
                   TextField(

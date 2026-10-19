@@ -4,6 +4,7 @@
  * Manages users and sessions via MySQL.
  */
 require_once __DIR__ . '/AppConfig.php';
+require_once __DIR__ . '/Comptes.php';
 
 class Auth {
     private $db;
@@ -34,6 +35,9 @@ class Auth {
     }
 
     public function verifyPassword(string $username, string $password): array|false {
+        // Comptes de la maison : plus de connexion par nom d'utilisateur
+        // (web, API, Subsonic) — le mot de passe local est aléatoire et inutilisé.
+        if (Comptes::actif()) return false;
         $user = $this->getUserByUsername($username);
         if ($user && password_verify($password, $user['password_hash'])) {
             return $user;
@@ -48,6 +52,7 @@ class Auth {
      * qui quels comptes existent.
      */
     public function isDisabledAccount(string $username, string $password): bool {
+        if (Comptes::actif()) return false;
         $stmt = $this->db->prepare("SELECT password_hash FROM users WHERE username = ? AND is_active = 0");
         $stmt->execute([$username]);
         $hash = $stmt->fetchColumn();

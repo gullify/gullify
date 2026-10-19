@@ -8,6 +8,13 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.81.0', [
+    'Comptes de la maison : quand la maison est passée à ses comptes communs, '
+        'on se connecte avec son courriel et le mot de passe de la maison '
+        '(10 caractères au moins pour un nouveau) (serveur 1.5.0)',
+    'Paramètres → Clients Subsonic : un mot de passe d\'application pour '
+        'DSub, Symfonium et les autres, montré une seule fois et révocable',
+  ]),
   ReleaseNote('3.80.0', [
     'Un mot de passe reçu de la personne qui gère la maison est temporaire : '
         'à la connexion, l\'app demande d\'en choisir un nouveau avant tout '

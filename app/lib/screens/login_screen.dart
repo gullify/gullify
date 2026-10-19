@@ -27,6 +27,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   Future<void> _login() async {
+    final courriel = ref.read(comptesMaisonProvider).value ?? false;
     final username = _userController.text.trim();
     final password = _passController.text;
     if (username.isEmpty || password.isEmpty) return;
@@ -35,11 +36,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       _error = null;
     });
     try {
-      await ref.read(authProvider.notifier).login(username, password);
+      await ref
+          .read(authProvider.notifier)
+          .login(username, password, courriel: courriel);
     } on ApiException catch (e) {
       setState(
         () => _error = e.code == 'invalid_credentials'
-            ? 'Identifiants invalides'
+            ? (courriel
+                ? 'Courriel ou mot de passe incorrect'
+                : 'Identifiants invalides')
             : e.message,
       );
     } catch (_) {
@@ -52,6 +57,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     final serverUrl = ref.watch(authProvider).serverUrl ?? '';
+    // Comptes de la maison : courriel + mot de passe de la maison.
+    final courriel = ref.watch(comptesMaisonProvider).value ?? false;
     return Scaffold(
       body: Center(
         child: ConstrainedBox(
@@ -84,9 +91,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 TextField(
                   controller: _userController,
                   autocorrect: false,
-                  decoration: const InputDecoration(
-                    labelText: "Nom d'utilisateur",
-                    prefixIcon: Icon(Icons.person_outline),
+                  keyboardType: courriel
+                      ? TextInputType.emailAddress
+                      : TextInputType.text,
+                  autofillHints: [
+                    courriel ? AutofillHints.email : AutofillHints.username,
+                  ],
+                  decoration: InputDecoration(
+                    labelText: courriel ? 'Courriel' : "Nom d'utilisateur",
+                    prefixIcon: Icon(
+                      courriel ? Icons.alternate_email : Icons.person_outline,
+                    ),
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -94,7 +109,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   controller: _passController,
                   obscureText: _obscure,
                   decoration: InputDecoration(
-                    labelText: 'Mot de passe',
+                    labelText:
+                        courriel ? 'Mot de passe de la maison' : 'Mot de passe',
                     prefixIcon: const Icon(Icons.lock_outline),
                     suffixIcon: IconButton(
                       icon: Icon(
