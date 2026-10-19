@@ -7,6 +7,7 @@ import 'screens/admin/user_edit_screen.dart';
 import 'screens/admin/users_screen.dart';
 import 'screens/aa_diagnostic_screen.dart';
 import 'screens/bandcamp_discover_screen.dart';
+import 'screens/change_password_screen.dart';
 import 'screens/playback_diagnostic_screen.dart';
 import 'screens/alarm_ring_screen.dart';
 import 'screens/alarm_screen.dart';
@@ -106,6 +107,10 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/local/artist/:id',
         builder: (_, state) =>
             LocalArtistScreen(artistId: int.parse(state.pathParameters['id']!)),
+      ),
+      GoRoute(
+        path: '/changer-mot-de-passe',
+        builder: (_, _) => const ChangePasswordScreen(),
       ),
       GoRoute(
         path: '/login',
@@ -420,8 +425,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       // demande ni session ni réseau. Le renvoyer vers l'écran de connexion à
       // 7 h du matin serait le pire moment pour demander un mot de passe.
       if (loc == '/alarm') return null;
-      final onAuthScreen =
-          loc == '/splash' || loc == '/server' || loc == '/login';
+      final onAuthScreen = loc == '/splash' ||
+          loc == '/server' ||
+          loc == '/login' ||
+          loc == '/changer-mot-de-passe';
       switch (status) {
         case AuthStatus.unknown:
           return loc == '/splash' ? null : '/splash';
@@ -429,6 +436,9 @@ final routerProvider = Provider<GoRouter>((ref) {
           return loc == '/server' ? null : '/server';
         case AuthStatus.needsLogin:
           return loc == '/login' ? null : '/login';
+        case AuthStatus.mustChangePassword:
+          // Rien d'autre tant que le mot de passe temporaire n'est pas changé.
+          return loc == '/changer-mot-de-passe' ? null : '/changer-mot-de-passe';
         case AuthStatus.local:
           // Le dossier local et ce qui ne demande rien au serveur : le
           // lecteur, les réglages de lecture, les titres déjà descendus sur le

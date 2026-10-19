@@ -8,6 +8,12 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.80.0', [
+    'Un mot de passe reçu de la personne qui gère la maison est temporaire : '
+        'à la connexion, l\'app demande d\'en choisir un nouveau avant tout '
+        'le reste (serveur 1.4.0)',
+    'Un compte désactivé le dit clairement à la connexion',
+  ]),
   ReleaseNote('3.79.2', [
     'Un compte peut lire tout le dossier de musique : « Tout le dossier » '
         'dans la liste de sa fiche. Une bibliothèque à un seul occupant n\'a '

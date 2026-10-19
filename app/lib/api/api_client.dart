@@ -47,6 +47,10 @@ class ApiClient {
   final Dio _dio;
   String? _token;
 
+  /// Appelé quand le serveur répond 403 « changement_requis » : le mot de
+  /// passe est temporaire, l'app doit montrer l'écran de changement.
+  static void Function()? onChangementRequis;
+
   String serverUrl() =>
       _dio.options.baseUrl.replaceFirst(RegExp(r'/api/v2/$'), '');
 
@@ -108,6 +112,7 @@ class ApiClient {
     final code = err is Map ? (err['code'] as String? ?? 'unknown') : 'unknown';
     final message =
         err is Map ? (err['message'] as String? ?? 'Unknown error') : 'Unknown error';
+    if (code == 'changement_requis') onChangementRequis?.call();
     throw ApiException(code, message, statusCode: r.statusCode);
   }
 

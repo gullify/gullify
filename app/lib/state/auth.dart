@@ -22,6 +22,11 @@ enum AuthStatus {
 
   /// Pas de serveur : l'app tourne sur un dossier du téléphone (idée #114).
   local,
+
+  /// Connecté avec un mot de passe TEMPORAIRE (posé par « Ma maison ») :
+  /// l'app est bloquée sur « Choisis ton nouveau mot de passe » jusqu'au
+  /// changement. Le serveur répond 403 « changement_requis » à tout le reste.
+  mustChangePassword,
 }
 
 class AuthState {
@@ -60,9 +65,23 @@ class AuthState {
 class AuthController extends Notifier<AuthState> {
   @override
   AuthState build() {
+    // Un 403 « changement_requis » venu de n'importe quel appel (mot de
+    // passe réinitialisé par « Ma maison » pendant que l'app tournait).
+    ApiClient.onChangementRequis = _changementRequis;
     _restore();
     return const AuthState();
   }
+
+  void _changementRequis() {
+    if (state.status == AuthStatus.authenticated) {
+      state = state.copyWith(status: AuthStatus.mustChangePassword);
+    }
+  }
+
+  /// Le serveur dit « doit_changer » (connexion) ou « doitChanger » (me).
+  static bool _doitChanger(Map<String, dynamic> data) =>
+      data['doit_changer'] == true ||
+      (data['user'] is Map && (data['user'] as Map)['doitChanger'] == true);
 
   /// Quoi qu'il arrive, le splash doit avancer : toute erreur inattendue
   /// (stockage sécurisé, réseau, réponse malformée, timeout) retombe sur
@@ -132,7 +151,9 @@ class AuthController extends Notifier<AuthState> {
         ),
       );
       state = AuthState(
-        status: AuthStatus.authenticated,
+        status: _doitChanger(data)
+            ? AuthStatus.mustChangePassword
+            : AuthStatus.authenticated,
         serverUrl: serverUrl,
         token: token,
         user: user,
@@ -242,11 +263,30 @@ class AuthController extends Notifier<AuthState> {
     );
     await _storage.write(key: _kToken, value: token);
     state = AuthState(
-      status: AuthStatus.authenticated,
+      status: _doitChanger(data)
+          ? AuthStatus.mustChangePassword
+          : AuthStatus.authenticated,
       serverUrl: serverUrl,
       token: token,
       user: user,
     );
+  }
+
+  /// Remplace le mot de passe (temporaire ou non) par celui que la personne
+  /// choisit. Le jeton courant reste valable ; le serveur ferme les autres.
+  Future<void> changePassword(String oldPassword, String newPassword) async {
+    final s = state;
+    final client = ApiClient(serverUrl: s.serverUrl!, token: s.token);
+    final data = await client.post(
+      'auth.php',
+      query: {'action': 'change_password'},
+      body: {'old_password': oldPassword, 'new_password': newPassword},
+    ) as Map<String, dynamic>;
+    final user = _withAbsoluteAvatar(
+      client,
+      User.fromJson(data['user'] as Map<String, dynamic>),
+    );
+    state = s.copyWith(status: AuthStatus.authenticated, user: user);
   }
 
   /// Le serveur renvoie `avatarUrl` relatif (`serve_avatar.php?…`) —
