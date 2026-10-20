@@ -241,6 +241,7 @@ class AppConfig {
             // Service d'inscription : éteint partout sauf sur le serveur central.
             'role' => 'personnel',
             'registry.domain' => '',
+            'registry.gullios_cle' => '',
             'registry.dns' => 'fictif',
             'registry.ionos_key' => '',
             'mail.driver' => 'journal',
@@ -315,6 +316,7 @@ class AppConfig {
             'REGISTRY_DOMAIN'    => 'registry.domain',
             'REGISTRY_DNS'       => 'registry.dns',
             'IONOS_API_KEY'      => 'registry.ionos_key',
+            'GULLIOS_REGISTRE_CLE' => 'registry.gullios_cle',
             'MAIL_DRIVER'        => 'mail.driver',
             'MAIL_FROM'          => 'mail.from',
             'MAIL_SMTP_HOST'     => 'mail.smtp_host',
@@ -370,6 +372,7 @@ class AppConfig {
             'REGISTRY_DOMAIN'    => 'registry.domain',
             'REGISTRY_DNS'       => 'registry.dns',
             'IONOS_API_KEY'      => 'registry.ionos_key',
+            'GULLIOS_REGISTRE_CLE' => 'registry.gullios_cle',
             'MAIL_DRIVER'        => 'mail.driver',
             'MAIL_FROM'          => 'mail.from',
             'MAIL_SMTP_HOST'     => 'mail.smtp_host',
