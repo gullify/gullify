@@ -20,8 +20,8 @@ if (!RegistreMaisons::actif()) {
 
 try {
     $table = new TableRecettes();
-    $entete = $_SERVER['HTTP_AUTHORIZATION'] ?? '';
-    $maison = preg_match('/^Bearer\s+(\S+)$/', $entete, $m) ? $table->maisonDuJeton($m[1]) : null;
+    $jeton = v2_bearer();
+    $maison = $jeton !== null ? $table->maisonDuJeton($jeton) : null;
     if ($maison === null) {
         v2_fail('jeton', 'Jeton de la table absent ou refusé.', 401);
     }
