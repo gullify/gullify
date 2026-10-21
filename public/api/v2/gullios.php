@@ -6,6 +6,7 @@
  *   POST ?action=inscrire       message {nom, quand, cle, version, canal, aide}
  *   POST ?action=signe          message {nom, quand, version, canal, aide}      → {dev, designee}
  *   POST ?action=devenir-dev    message {nom, quand, code}                      → {dev, designee}
+ *   POST ?action=jeton-table    message {nom, quand, app}                       → {jeton}  (table commune)
  *   Réservé aux maisons Dev :
  *   POST ?action=maisons        message {nom, quand}                            → [maisons]
  *   POST ?action=designer       message {nom, quand, cible}                     → {code, jours}
@@ -16,6 +17,7 @@
  */
 require_once __DIR__ . '/_v2.php';
 require_once __DIR__ . '/../../../src/RegistreMaisons.php';
+require_once __DIR__ . '/../../../src/TableRecettes.php';
 
 if (!RegistreMaisons::actif()) {
     v2_fail('registre_absent', 'Ce serveur ne tient pas le registre des maisons.', 404);
@@ -42,6 +44,11 @@ try {
             v2_ok($registre->signeDeVie($m));
         case 'devenir-dev':
             v2_ok($registre->devenirDev($m, $maison));
+        case 'jeton-table':
+            if (($m['app'] ?? '') !== 'gullieats') {
+                v2_fail('app', 'App inconnue pour la table commune.', 400);
+            }
+            v2_ok(['jeton' => (new TableRecettes())->nouveauJeton($m['nom'], 'gullieats')]);
         case 'maisons':
             $dev();
             v2_ok($registre->liste());
