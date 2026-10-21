@@ -7,17 +7,20 @@
  *   POST ?action=signe          message {nom, quand, version, canal, aide}      → {dev, designee}
  *   POST ?action=devenir-dev    message {nom, quand, code}                      → {dev, designee}
  *   POST ?action=jeton-table    message {nom, quand, app}                       → {jeton}  (table commune)
+ *   POST ?action=mesures        message {nom, quand, echantillons: [{t, v, smart?, sauvegarde?}]} → {recus}
  *   Réservé aux maisons Dev :
  *   POST ?action=maisons        message {nom, quand}                            → [maisons]
  *   POST ?action=designer       message {nom, quand, cible}                     → {code, jours}
  *   POST ?action=annuler        message {nom, quand, cible}
  *   POST ?action=billet         message {nom, quand, cible, personne}           → {billet, adresse}
+ *   POST ?action=historique     message {nom, quand, cible, periode}            → l'historique (MesuresMaisons)
  *
  * 404 partout où le registre n'est pas configuré (les serveurs installés chez les gens).
  */
 require_once __DIR__ . '/_v2.php';
 require_once __DIR__ . '/../../../src/RegistreMaisons.php';
 require_once __DIR__ . '/../../../src/TableRecettes.php';
+require_once __DIR__ . '/../../../src/MesuresMaisons.php';
 
 if (!RegistreMaisons::actif()) {
     v2_fail('registre_absent', 'Ce serveur ne tient pas le registre des maisons.', 404);
@@ -49,6 +52,17 @@ try {
                 v2_fail('app', 'App inconnue pour la table commune.', 400);
             }
             v2_ok(['jeton' => (new TableRecettes())->nouveauJeton($m['nom'], 'gullieats')]);
+        case 'mesures':
+            if (!$maison || !is_array($m['echantillons'] ?? null)) {
+                v2_fail('mesures', 'Échantillons manquants.', 400);
+            }
+            v2_ok(['recus' => (new MesuresMaisons())->recevoir($m['nom'], $m['echantillons'])]);
+        case 'historique':
+            $dev();
+            if (!preg_match('/^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/', $cible)) {
+                v2_fail('cible', 'Maison invalide.', 400);
+            }
+            v2_ok((new MesuresMaisons())->historique($cible, (string)($m['periode'] ?? '24h')));
         case 'maisons':
             $dev();
             v2_ok($registre->liste());
