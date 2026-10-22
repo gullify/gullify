@@ -19,6 +19,7 @@ import '../widgets/glass_box.dart';
 import '../widgets/glass_kit.dart';
 import '../widgets/song_menu.dart';
 import '../widgets/song_tile.dart';
+import 'maisons_amies_screen.dart';
 
 /// Onglet « Recherche » : champ en verre, et trois sources au choix —
 /// « Bibliothèque » (recherche locale), « YouTube » et « Bandcamp » (albums,
@@ -308,6 +309,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 ),
               ),
               const _OtherUsersSection(),
+              // Maisons amies (3.83.0) : les personnes qui partagent leur musique.
+              const AmiesRecherche(),
               _NewReleasesSection(onDownload: _confirmAlbumDownload),
               _ArtistReleasesSection(onDownload: _confirmAlbumDownload),
             ] else ...[
@@ -415,11 +418,17 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       error: (e, _) => [_MessageRow('Erreur : $e')],
       data: (r) {
         if (r.isEmpty) {
-          return const [_MessageRow('Aucun résultat dans votre bibliothèque')];
+          return [
+            if (_kind == _Kind.all) AmiesRecherche(filtre: _controller.text),
+            const _MessageRow('Aucun résultat dans votre bibliothèque'),
+          ];
         }
         // En mode « Tout », on sépare les trois familles par un intertitre.
         final headers = _kind == _Kind.all;
-        final rows = <Widget>[];
+        final rows = <Widget>[
+          // Une personne d'une maison amie dont le nom correspond (3.83.0).
+          if (headers) AmiesRecherche(filtre: _controller.text),
+        ];
 
         if (_showArtists && r.artists.isNotEmpty) {
           if (headers) rows.add(const _SectionHeader('Artistes'));

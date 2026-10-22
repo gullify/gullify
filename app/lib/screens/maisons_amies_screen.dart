@@ -120,7 +120,7 @@ class _Personnes extends ConsumerWidget {
                       subtitle: Text('${p['titres']} titres · ${p['artistes']} artistes'),
                       trailing: const Icon(Icons.chevron_right),
                       onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                          builder: (_) => _PersonneScreen(maison: maison, personne: p))),
+                          builder: (_) => PersonneAmieScreen(maison: maison, personne: p))),
                     ),
                 ]),
     );
@@ -128,16 +128,16 @@ class _Personnes extends ConsumerWidget {
 }
 
 /// La musique d'une personne : ses artistes, et une recherche.
-class _PersonneScreen extends StatefulWidget {
-  const _PersonneScreen({required this.maison, required this.personne});
+class PersonneAmieScreen extends StatefulWidget {
+  const PersonneAmieScreen({super.key, required this.maison, required this.personne});
   final MaisonAmie maison;
   final Map<String, dynamic> personne;
 
   @override
-  State<_PersonneScreen> createState() => _PersonneScreenState();
+  State<PersonneAmieScreen> createState() => PersonneAmieScreenState();
 }
 
-class _PersonneScreenState extends State<_PersonneScreen> {
+class PersonneAmieScreenState extends State<PersonneAmieScreen> {
   final List<Map<String, dynamic>> _artistes = [];
   Map<String, dynamic>? _resultats;
   int _total = 0;
@@ -443,13 +443,59 @@ class _PartageAmiesTileState extends ConsumerState<PartageAmiesTile> {
         value: _partage ?? false,
         onChanged: _partage == null ? null : _changer,
       ),
-      ListTile(
-        leading: const Icon(Icons.home_work_outlined),
-        title: const Text('Autres maisons'),
-        subtitle: const Text('La musique que partagent les maisons amies'),
-        trailing: const Icon(Icons.chevron_right),
-        onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const MaisonsAmiesScreen())),
+    ]);
+  }
+}
+
+/// Toutes les personnes qui partagent, dans toutes les maisons amies en ligne
+/// (pour l'onglet Recherche). Vide sans maison amie : rien ne s'affiche.
+final personnesDesAmiesProvider =
+    FutureProvider.autoDispose<List<(MaisonAmie, Map<String, dynamic>)>>((ref) async {
+  final maisons = await ref.watch(maisonsAmiesProvider.future);
+  final listes = await Future.wait([for (final m in maisons) ref.watch(personnesAmiesProvider(m).future)]);
+  return [
+    for (var i = 0; i < maisons.length; i++)
+      for (final p in listes[i] ?? const <Map<String, dynamic>>[]) (maisons[i], p),
+  ];
+});
+
+/// Onglet Recherche (3.83.0) : les personnes des maisons amies, comme les
+/// utilisateurs dans YouTube Music. Sans [filtre] (champ vide) : toutes, sous
+/// « Autres maisons » ; avec : celles dont le nom contient le texte cherché.
+class AmiesRecherche extends ConsumerWidget {
+  const AmiesRecherche({super.key, this.filtre});
+  final String? filtre;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final tout = ref.watch(personnesDesAmiesProvider).value ?? const [];
+    final f = filtre?.trim().toLowerCase();
+    final liste = f == null || f.isEmpty
+        ? tout
+        : [for (final x in tout) if ((x.$2['nom'] as String? ?? '').toLowerCase().contains(f)) x];
+    if (liste.isEmpty) return const SizedBox.shrink();
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Padding(
+        padding: const EdgeInsets.fromLTRB(20, 18, 20, 2),
+        child: Text(filtre == null ? 'Autres maisons' : 'Personnes',
+            style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w800, letterSpacing: -0.3)),
       ),
+      if (filtre == null)
+        const Padding(
+          padding: EdgeInsets.fromLTRB(20, 0, 20, 6),
+          child: Text('La musique que partagent les maisons amies',
+              style: TextStyle(fontSize: 12.5, color: Color(0xFF8A8F98))),
+        ),
+      for (final (m, p) in liste)
+        ListTile(
+          contentPadding: const EdgeInsets.symmetric(horizontal: 20),
+          leading: const CircleAvatar(child: Icon(Icons.person)),
+          title: Text(p['nom'] as String? ?? ''),
+          subtitle: Text('chez ${m.nom} · ${p['titres']} titres'),
+          trailing: const Icon(Icons.chevron_right, color: Color(0xFFB6BAC1)),
+          onTap: () => Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => PersonneAmieScreen(maison: m, personne: p))),
+        ),
     ]);
   }
 }

@@ -8,6 +8,11 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.83.0', [
+    'Maisons amies : la musique des autres maisons se trouve dans l\'onglet '
+        'Recherche — « Autres maisons » quand le champ est vide, et les '
+        'personnes dont le nom correspond en tête des résultats',
+  ]),
   ReleaseNote('3.82.0', [
     'Maisons amies : Paramètres → Bibliothèque → « Partager ma musique avec '
         'les maisons amies », et « Autres maisons » pour écouter la musique '
