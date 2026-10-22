@@ -732,7 +732,8 @@ class GullifyAudioHandler extends BaseAudioHandler
     final elapsed = DateTime.now().difference(_trackedSince);
     final played = _lastPosition <= elapsed ? _lastPosition : elapsed;
     _trackedSongId = null;
-    if (songId == null || played < const Duration(seconds: 5)) return;
+    // Id négatif : dossier local ou maison amie, inconnu de notre serveur.
+    if (songId == null || songId < 0 || played < const Duration(seconds: 5)) return;
     // Un titre croisé avec le suivant (idée #76) est déclaré fini alors qu'il
     // lui reste la durée du fondu à jouer : sans cette marge, un fondu enchaîné
     // long ferait passer chaque écoute complète pour une écoute abandonnée.
@@ -788,6 +789,8 @@ class GullifyAudioHandler extends BaseAudioHandler
   /// Le basculement explicite, lui, emmène toute la file en karaoké — voir
   /// setKaraoke().
   String _sourceUri(Song s) {
+    // Un titre d'une maison amie : lu chez elle, rien d'autre à chercher.
+    if (s.streamUrl != null) return s.streamUrl!;
     final local = _fileFor(s.id);
     if (local != null) return Uri.file(local).toString();
     if (_karaoke) {
@@ -1041,9 +1044,12 @@ class GullifyAudioHandler extends BaseAudioHandler
         // l'artiste (idée #64). Absents des compilations sans album connu.
         extras: {
           'songId': s.id,
-          'filePath': s.filePath,
-          if (s.albumId != null) 'albumId': s.albumId,
-          if (s.artistId != null) 'artistId': s.artistId,
+          // Maison amie : ni chemin (paroles, karaoké, tampon d'avance), ni
+          // album/artiste à ouvrir — ils n'existent pas sur notre serveur.
+          if (s.streamUrl == null) 'filePath': s.filePath,
+          if (s.streamUrl == null && s.albumId != null) 'albumId': s.albumId,
+          if (s.streamUrl == null && s.artistId != null) 'artistId': s.artistId,
+          if (s.streamUrl != null) 'remote': true,
         },
       );
 

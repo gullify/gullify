@@ -98,6 +98,8 @@ class AppConfig {
             'email'         => "ALTER TABLE users ADD COLUMN email VARCHAR(255) NULL",
             // Mot de passe d'application Subsonic (en clair : le protocole l'exige).
             'subsonic_password' => "ALTER TABLE users ADD COLUMN subsonic_password VARCHAR(255) DEFAULT NULL",
+            // Maisons amies (GulliOS 1.49) : la personne montre sa musique aux maisons amies.
+            'partage_amies' => "ALTER TABLE users ADD COLUMN partage_amies TINYINT(1) NOT NULL DEFAULT 0",
         ];
 
         foreach ($columns as $col => $sql) {

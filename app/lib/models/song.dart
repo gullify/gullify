@@ -16,6 +16,10 @@ abstract class Song with _$Song {
     int? artistId,
     String? artistName,
     String? artworkUrl,
+    // Maisons amies (3.82.0) : un titre d'une AUTRE maison, lu à cette adresse
+    // complète (billet compris). Son id est négatif (voir AmiesRepository) :
+    // ni favoris, ni paroles, ni statistiques d'écoute sur notre serveur.
+    String? streamUrl,
   }) = _Song;
 
   factory Song.fromJson(Map<String, dynamic> json) => _$SongFromJson(json);

@@ -15,7 +15,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$Song {
 
- int get id; String get title; String get filePath; int? get trackNumber; int get duration; int? get albumId; String? get albumName; int? get artistId; String? get artistName; String? get artworkUrl;
+ int get id; String get title; String get filePath; int? get trackNumber; int get duration; int? get albumId; String? get albumName; int? get artistId; String? get artistName; String? get artworkUrl; String? get streamUrl;
 /// Create a copy of Song
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -28,16 +28,16 @@ $SongCopyWith<Song> get copyWith => _$SongCopyWithImpl<Song>(this as Song, _$ide
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is Song&&(identical(other.id, id) || other.id == id)&&(identical(other.title, title) || other.title == title)&&(identical(other.filePath, filePath) || other.filePath == filePath)&&(identical(other.trackNumber, trackNumber) || other.trackNumber == trackNumber)&&(identical(other.duration, duration) || other.duration == duration)&&(identical(other.albumId, albumId) || other.albumId == albumId)&&(identical(other.albumName, albumName) || other.albumName == albumName)&&(identical(other.artistId, artistId) || other.artistId == artistId)&&(identical(other.artistName, artistName) || other.artistName == artistName)&&(identical(other.artworkUrl, artworkUrl) || other.artworkUrl == artworkUrl));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is Song&&(identical(other.id, id) || other.id == id)&&(identical(other.title, title) || other.title == title)&&(identical(other.filePath, filePath) || other.filePath == filePath)&&(identical(other.trackNumber, trackNumber) || other.trackNumber == trackNumber)&&(identical(other.duration, duration) || other.duration == duration)&&(identical(other.albumId, albumId) || other.albumId == albumId)&&(identical(other.albumName, albumName) || other.albumName == albumName)&&(identical(other.artistId, artistId) || other.artistId == artistId)&&(identical(other.artistName, artistName) || other.artistName == artistName)&&(identical(other.artworkUrl, artworkUrl) || other.artworkUrl == artworkUrl)&&(identical(other.streamUrl, streamUrl) || other.streamUrl == streamUrl));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,title,filePath,trackNumber,duration,albumId,albumName,artistId,artistName,artworkUrl);
+int get hashCode => Object.hash(runtimeType,id,title,filePath,trackNumber,duration,albumId,albumName,artistId,artistName,artworkUrl,streamUrl);
 
 @override
 String toString() {
-  return 'Song(id: $id, title: $title, filePath: $filePath, trackNumber: $trackNumber, duration: $duration, albumId: $albumId, albumName: $albumName, artistId: $artistId, artistName: $artistName, artworkUrl: $artworkUrl)';
+  return 'Song(id: $id, title: $title, filePath: $filePath, trackNumber: $trackNumber, duration: $duration, albumId: $albumId, albumName: $albumName, artistId: $artistId, artistName: $artistName, artworkUrl: $artworkUrl, streamUrl: $streamUrl)';
 }
 
 
@@ -48,7 +48,7 @@ abstract mixin class $SongCopyWith<$Res>  {
   factory $SongCopyWith(Song value, $Res Function(Song) _then) = _$SongCopyWithImpl;
 @useResult
 $Res call({
- int id, String title, String filePath, int? trackNumber, int duration, int? albumId, String? albumName, int? artistId, String? artistName, String? artworkUrl
+ int id, String title, String filePath, int? trackNumber, int duration, int? albumId, String? albumName, int? artistId, String? artistName, String? artworkUrl, String? streamUrl
 });
 
 
@@ -65,7 +65,7 @@ class _$SongCopyWithImpl<$Res>
 
 /// Create a copy of Song
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? title = null,Object? filePath = null,Object? trackNumber = freezed,Object? duration = null,Object? albumId = freezed,Object? albumName = freezed,Object? artistId = freezed,Object? artistName = freezed,Object? artworkUrl = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? title = null,Object? filePath = null,Object? trackNumber = freezed,Object? duration = null,Object? albumId = freezed,Object? albumName = freezed,Object? artistId = freezed,Object? artistName = freezed,Object? artworkUrl = freezed,Object? streamUrl = freezed,}) {
   return _then(_self.copyWith(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as int,title: null == title ? _self.title : title // ignore: cast_nullable_to_non_nullable
@@ -77,6 +77,7 @@ as int?,albumName: freezed == albumName ? _self.albumName : albumName // ignore:
 as String?,artistId: freezed == artistId ? _self.artistId : artistId // ignore: cast_nullable_to_non_nullable
 as int?,artistName: freezed == artistName ? _self.artistName : artistName // ignore: cast_nullable_to_non_nullable
 as String?,artworkUrl: freezed == artworkUrl ? _self.artworkUrl : artworkUrl // ignore: cast_nullable_to_non_nullable
+as String?,streamUrl: freezed == streamUrl ? _self.streamUrl : streamUrl // ignore: cast_nullable_to_non_nullable
 as String?,
   ));
 }
@@ -162,10 +163,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( int id,  String title,  String filePath,  int? trackNumber,  int duration,  int? albumId,  String? albumName,  int? artistId,  String? artistName,  String? artworkUrl)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( int id,  String title,  String filePath,  int? trackNumber,  int duration,  int? albumId,  String? albumName,  int? artistId,  String? artistName,  String? artworkUrl,  String? streamUrl)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _Song() when $default != null:
-return $default(_that.id,_that.title,_that.filePath,_that.trackNumber,_that.duration,_that.albumId,_that.albumName,_that.artistId,_that.artistName,_that.artworkUrl);case _:
+return $default(_that.id,_that.title,_that.filePath,_that.trackNumber,_that.duration,_that.albumId,_that.albumName,_that.artistId,_that.artistName,_that.artworkUrl,_that.streamUrl);case _:
   return orElse();
 
 }
@@ -183,10 +184,10 @@ return $default(_that.id,_that.title,_that.filePath,_that.trackNumber,_that.dura
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( int id,  String title,  String filePath,  int? trackNumber,  int duration,  int? albumId,  String? albumName,  int? artistId,  String? artistName,  String? artworkUrl)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( int id,  String title,  String filePath,  int? trackNumber,  int duration,  int? albumId,  String? albumName,  int? artistId,  String? artistName,  String? artworkUrl,  String? streamUrl)  $default,) {final _that = this;
 switch (_that) {
 case _Song():
-return $default(_that.id,_that.title,_that.filePath,_that.trackNumber,_that.duration,_that.albumId,_that.albumName,_that.artistId,_that.artistName,_that.artworkUrl);case _:
+return $default(_that.id,_that.title,_that.filePath,_that.trackNumber,_that.duration,_that.albumId,_that.albumName,_that.artistId,_that.artistName,_that.artworkUrl,_that.streamUrl);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -203,10 +204,10 @@ return $default(_that.id,_that.title,_that.filePath,_that.trackNumber,_that.dura
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( int id,  String title,  String filePath,  int? trackNumber,  int duration,  int? albumId,  String? albumName,  int? artistId,  String? artistName,  String? artworkUrl)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( int id,  String title,  String filePath,  int? trackNumber,  int duration,  int? albumId,  String? albumName,  int? artistId,  String? artistName,  String? artworkUrl,  String? streamUrl)?  $default,) {final _that = this;
 switch (_that) {
 case _Song() when $default != null:
-return $default(_that.id,_that.title,_that.filePath,_that.trackNumber,_that.duration,_that.albumId,_that.albumName,_that.artistId,_that.artistName,_that.artworkUrl);case _:
+return $default(_that.id,_that.title,_that.filePath,_that.trackNumber,_that.duration,_that.albumId,_that.albumName,_that.artistId,_that.artistName,_that.artworkUrl,_that.streamUrl);case _:
   return null;
 
 }
@@ -218,7 +219,7 @@ return $default(_that.id,_that.title,_that.filePath,_that.trackNumber,_that.dura
 @JsonSerializable()
 
 class _Song implements Song {
-  const _Song({required this.id, required this.title, required this.filePath, this.trackNumber, this.duration = 0, this.albumId, this.albumName, this.artistId, this.artistName, this.artworkUrl});
+  const _Song({required this.id, required this.title, required this.filePath, this.trackNumber, this.duration = 0, this.albumId, this.albumName, this.artistId, this.artistName, this.artworkUrl, this.streamUrl});
   factory _Song.fromJson(Map<String, dynamic> json) => _$SongFromJson(json);
 
 @override final  int id;
@@ -231,6 +232,7 @@ class _Song implements Song {
 @override final  int? artistId;
 @override final  String? artistName;
 @override final  String? artworkUrl;
+@override final  String? streamUrl;
 
 /// Create a copy of Song
 /// with the given fields replaced by the non-null parameter values.
@@ -245,16 +247,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _Song&&(identical(other.id, id) || other.id == id)&&(identical(other.title, title) || other.title == title)&&(identical(other.filePath, filePath) || other.filePath == filePath)&&(identical(other.trackNumber, trackNumber) || other.trackNumber == trackNumber)&&(identical(other.duration, duration) || other.duration == duration)&&(identical(other.albumId, albumId) || other.albumId == albumId)&&(identical(other.albumName, albumName) || other.albumName == albumName)&&(identical(other.artistId, artistId) || other.artistId == artistId)&&(identical(other.artistName, artistName) || other.artistName == artistName)&&(identical(other.artworkUrl, artworkUrl) || other.artworkUrl == artworkUrl));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _Song&&(identical(other.id, id) || other.id == id)&&(identical(other.title, title) || other.title == title)&&(identical(other.filePath, filePath) || other.filePath == filePath)&&(identical(other.trackNumber, trackNumber) || other.trackNumber == trackNumber)&&(identical(other.duration, duration) || other.duration == duration)&&(identical(other.albumId, albumId) || other.albumId == albumId)&&(identical(other.albumName, albumName) || other.albumName == albumName)&&(identical(other.artistId, artistId) || other.artistId == artistId)&&(identical(other.artistName, artistName) || other.artistName == artistName)&&(identical(other.artworkUrl, artworkUrl) || other.artworkUrl == artworkUrl)&&(identical(other.streamUrl, streamUrl) || other.streamUrl == streamUrl));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,title,filePath,trackNumber,duration,albumId,albumName,artistId,artistName,artworkUrl);
+int get hashCode => Object.hash(runtimeType,id,title,filePath,trackNumber,duration,albumId,albumName,artistId,artistName,artworkUrl,streamUrl);
 
 @override
 String toString() {
-  return 'Song(id: $id, title: $title, filePath: $filePath, trackNumber: $trackNumber, duration: $duration, albumId: $albumId, albumName: $albumName, artistId: $artistId, artistName: $artistName, artworkUrl: $artworkUrl)';
+  return 'Song(id: $id, title: $title, filePath: $filePath, trackNumber: $trackNumber, duration: $duration, albumId: $albumId, albumName: $albumName, artistId: $artistId, artistName: $artistName, artworkUrl: $artworkUrl, streamUrl: $streamUrl)';
 }
 
 
@@ -265,7 +267,7 @@ abstract mixin class _$SongCopyWith<$Res> implements $SongCopyWith<$Res> {
   factory _$SongCopyWith(_Song value, $Res Function(_Song) _then) = __$SongCopyWithImpl;
 @override @useResult
 $Res call({
- int id, String title, String filePath, int? trackNumber, int duration, int? albumId, String? albumName, int? artistId, String? artistName, String? artworkUrl
+ int id, String title, String filePath, int? trackNumber, int duration, int? albumId, String? albumName, int? artistId, String? artistName, String? artworkUrl, String? streamUrl
 });
 
 
@@ -282,7 +284,7 @@ class __$SongCopyWithImpl<$Res>
 
 /// Create a copy of Song
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? title = null,Object? filePath = null,Object? trackNumber = freezed,Object? duration = null,Object? albumId = freezed,Object? albumName = freezed,Object? artistId = freezed,Object? artistName = freezed,Object? artworkUrl = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? title = null,Object? filePath = null,Object? trackNumber = freezed,Object? duration = null,Object? albumId = freezed,Object? albumName = freezed,Object? artistId = freezed,Object? artistName = freezed,Object? artworkUrl = freezed,Object? streamUrl = freezed,}) {
   return _then(_Song(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as int,title: null == title ? _self.title : title // ignore: cast_nullable_to_non_nullable
@@ -294,6 +296,7 @@ as int?,albumName: freezed == albumName ? _self.albumName : albumName // ignore:
 as String?,artistId: freezed == artistId ? _self.artistId : artistId // ignore: cast_nullable_to_non_nullable
 as int?,artistName: freezed == artistName ? _self.artistName : artistName // ignore: cast_nullable_to_non_nullable
 as String?,artworkUrl: freezed == artworkUrl ? _self.artworkUrl : artworkUrl // ignore: cast_nullable_to_non_nullable
+as String?,streamUrl: freezed == streamUrl ? _self.streamUrl : streamUrl // ignore: cast_nullable_to_non_nullable
 as String?,
   ));
 }

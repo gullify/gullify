@@ -26,6 +26,7 @@ import '../widgets/retro_chrome.dart';
 import '../widgets/retro_lcd.dart';
 import '../widgets/update_dialog.dart';
 import '../widgets/wordmark.dart';
+import 'maisons_amies_screen.dart';
 
 /// La version réellement installée, demandée au système.
 ///
@@ -123,6 +124,8 @@ class SettingsScreen extends ConsumerWidget {
           if (alarmSupported) const _AlarmTile(),
           const Divider(),
           const _SectionHeader('Bibliothèque'),
+          // Maisons amies (3.82.0) : seulement sur une maison GulliOS qui en a.
+          const PartageAmiesTile(),
           ListTile(
             leading: const Icon(Icons.label_outline),
             title: const Text('Gérer les genres'),

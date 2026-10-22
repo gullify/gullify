@@ -21,7 +21,8 @@ CREATE TABLE IF NOT EXISTS users (
     must_change_password TINYINT(1) NOT NULL DEFAULT 0,  -- mot de passe temporaire (Ma maison)
     compte_id VARCHAR(64) NULL UNIQUE,  -- compte de la maison (Comptes), si la maison a basculé
     email VARCHAR(255) NULL,            -- recopié depuis Comptes
-    subsonic_password VARCHAR(255) DEFAULT NULL  -- mot de passe Subsonic (en clair : le protocole l'exige)
+    subsonic_password VARCHAR(255) DEFAULT NULL,  -- mot de passe Subsonic (en clair : le protocole l'exige)
+    partage_amies TINYINT(1) NOT NULL DEFAULT 0   -- musique montrée aux maisons amies (GulliOS 1.49)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Sessions

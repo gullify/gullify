@@ -15,6 +15,7 @@ require_once __DIR__ . '/../src/Storage/LocalStorage.php';
 require_once __DIR__ . '/../src/Storage/SFTPStorage.php';
 require_once __DIR__ . '/../src/Storage/StorageFactory.php';
 require_once __DIR__ . '/../src/Karaoke.php';
+require_once __DIR__ . '/../src/MaisonsAmies.php';
 
 ini_set('max_execution_time', 0);
 
@@ -54,6 +55,12 @@ function streamAutorise(): bool {
         : ($_GET['token'] ?? $_COOKIE['gullify_session'] ?? null);
 
     if (!is_string($jeton) || $jeton === '') {
+        // Une maison amie (GulliOS 1.49) : son billet, signé par l'atelier, dans l'adresse. Le titre
+        // doit encore appartenir à une personne qui partage sa musique (vérifié plus bas).
+        if (MaisonsAmies::billetValable($_GET['billet'] ?? null) !== null) {
+            $GLOBALS['stream_par_amie'] = true;
+            return true;
+        }
         return false;
     }
     try {
@@ -110,6 +117,15 @@ try {
 }
 
 $username = $row['user'] ?? null;
+
+if (!empty($GLOBALS['stream_par_amie'])) {
+    $partage = $username ? AppConfig::getDB()->prepare('SELECT 1 FROM users WHERE username = ? AND partage_amies = 1 AND is_active = 1') : null;
+    $partage?->execute([$username]);
+    if (!$partage || !$partage->fetchColumn()) {
+        header('HTTP/1.0 403 Forbidden');
+        exit('Non partagé');
+    }
+}
 
 // ── Resolve storage backend ───────────────────────────────────────────────────
 if ($username) {

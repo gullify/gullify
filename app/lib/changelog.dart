@@ -8,6 +8,12 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.82.0', [
+    'Maisons amies : Paramètres → Bibliothèque → « Partager ma musique avec '
+        'les maisons amies », et « Autres maisons » pour écouter la musique '
+        'qu\'elles partagent (lue chez elles, sans copie) (serveur 1.8.0, '
+        'GulliOS 1.49)',
+  ]),
   ReleaseNote('3.81.0', [
     'Comptes de la maison : quand la maison est passée à ses comptes communs, '
         'on se connecte avec son courriel et le mot de passe de la maison '
