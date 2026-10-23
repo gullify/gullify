@@ -203,7 +203,7 @@ func (e *Etat) verifieOuRepareLaBase(dossier string) error {
 	_ = exec.Command(programmeDocker(), "rm", "-f", temporaire).Run()
 
 	demarrer := exec.Command(programmeDocker(), "run", "-d", "--name", temporaire,
-		"-v", volume+":/var/lib/mysql", "mysql:8.0", "--skip-grant-tables")
+		"-v", volume+":/var/lib/mysql", "mysql:8.4", "--skip-grant-tables")
 	if sortie, err := demarrer.CombinedOutput(); err != nil {
 		return fmt.Errorf("impossible d'ouvrir la base pour la réparer : %s", strings.TrimSpace(string(sortie)))
 	}
@@ -479,7 +479,7 @@ services:
     restart: unless-stopped
 
   db:
-    image: mysql:8.0
+    image: mysql:8.4
     environment:
       - MYSQL_DATABASE=gullify
       - MYSQL_USER=gullify
