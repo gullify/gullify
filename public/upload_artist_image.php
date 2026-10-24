@@ -66,15 +66,12 @@ try {
         $newHeight = (int)($originalHeight * $ratio);
         $resized   = imagecreatetruecolor($newWidth, $newHeight);
         imagecopyresampled($resized, $image, 0, 0, 0, 0, $newWidth, $newHeight, $originalWidth, $originalHeight);
-        imagedestroy($image);
         $image = $resized;
     }
 
     ob_start();
     imagejpeg($image, null, 92);
     $jpegData = ob_get_clean();
-    imagedestroy($image);
-
     // Persist as a file in data/cache/artwork (mirrors how albums are stored).
     // Drop the legacy base64 column to avoid storing two copies.
     $cacheDir = AppConfig::getDataPath() . '/cache/artwork';

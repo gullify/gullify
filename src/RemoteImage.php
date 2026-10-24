@@ -56,40 +56,35 @@ class RemoteImage
         $src = @imagecreatefromstring($bin);
         if (!$src) return false;
 
-        try {
-            $w = imagesx($src);
-            $h = imagesy($src);
-            if ($w < 1 || $h < 1) return false;
+        $w = imagesx($src);
+        $h = imagesy($src);
+        if ($w < 1 || $h < 1) return false;
 
-            $ratio = min(1, self::MAX_SIDE / max($w, $h));
-            $nw = max(1, (int)round($w * $ratio));
-            $nh = max(1, (int)round($h * $ratio));
+        $ratio = min(1, self::MAX_SIDE / max($w, $h));
+        $nw = max(1, (int)round($w * $ratio));
+        $nh = max(1, (int)round($h * $ratio));
 
-            // Fond blanc : un PNG transparent aplati en JPEG virerait au noir.
-            $dst = imagecreatetruecolor($nw, $nh);
-            imagefilledrectangle($dst, 0, 0, $nw, $nh, imagecolorallocate($dst, 255, 255, 255));
-            imagecopyresampled($dst, $src, 0, 0, 0, 0, $nw, $nh, $w, $h);
-            ob_start();
-            imagejpeg($dst, null, 90);
-            $jpeg = ob_get_clean();
-            imagedestroy($dst);
-            if ($jpeg === false || $jpeg === '') return false;
+        // Fond blanc : un PNG transparent aplati en JPEG virerait au noir.
+        $dst = imagecreatetruecolor($nw, $nh);
+        imagefilledrectangle($dst, 0, 0, $nw, $nh, imagecolorallocate($dst, 255, 255, 255));
+        imagecopyresampled($dst, $src, 0, 0, 0, 0, $nw, $nh, $w, $h);
+        ob_start();
+        imagejpeg($dst, null, 90);
+        $jpeg = ob_get_clean();
+        if ($jpeg === false || $jpeg === '') return false;
 
-            $dir = dirname($file);
-            if (!is_dir($dir)) @mkdir($dir, 0775, true);
-            // Écriture en deux temps : une requête qui sert l'image pendant ce
-            // temps-là voit l'ancienne ou la nouvelle, jamais une moitié.
-            $tmp = $file . '.tmp' . getmypid();
-            if (@file_put_contents($tmp, $jpeg) === false) return false;
-            @chmod($tmp, 0644);
-            if (!@rename($tmp, $file)) {
-                @unlink($tmp);
-                return false;
-            }
-            return true;
-        } finally {
-            imagedestroy($src);
+        $dir = dirname($file);
+        if (!is_dir($dir)) @mkdir($dir, 0775, true);
+        // Écriture en deux temps : une requête qui sert l'image pendant ce
+        // temps-là voit l'ancienne ou la nouvelle, jamais une moitié.
+        $tmp = $file . '.tmp' . getmypid();
+        if (@file_put_contents($tmp, $jpeg) === false) return false;
+        @chmod($tmp, 0644);
+        if (!@rename($tmp, $file)) {
+            @unlink($tmp);
+            return false;
         }
+        return true;
     }
 
     /**

@@ -136,6 +136,12 @@ try {
                 $fullImgPath = $artistPath . '/' . $f;
                 if ($storage->fileExists($fullImgPath)) {
                     $data = $storage->readFile($fullImgPath);
+                    // Une vignette (les vieux artist.jpg font 120 px) : la page de
+                    // l'artiste (fetch=1) préfère aller chercher la vraie image.
+                    if (($_GET['fetch'] ?? '') === '1' && !ArtistImage::assezGrande($data)
+                        && ($web = ArtistImage::ensure((int)$artistId, (string)$artist['name'])) !== null) {
+                        serveBinary($web);
+                    }
                     if (!is_dir($cachePath)) mkdir($cachePath, 0775, true);
                     @file_put_contents($cachedFile, $data);
                     serveBinary($data);
@@ -259,7 +265,7 @@ function squareCrop($bin, $size) {
     if (!$src) return null;
     $w = imagesx($src);
     $h = imagesy($src);
-    if ($w < 1 || $h < 1) { imagedestroy($src); return null; }
+    if ($w < 1 || $h < 1) return null;
     $side = min($w, $h);
     $sx = (int)(($w - $side) / 2);
     $sy = (int)(($h - $side) / 2);
@@ -272,7 +278,5 @@ function squareCrop($bin, $size) {
     ob_start();
     imagejpeg($dst, null, 88);
     $out = ob_get_clean();
-    imagedestroy($src);
-    imagedestroy($dst);
     return ($out !== false && $out !== '') ? $out : null;
 }

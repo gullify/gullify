@@ -66,8 +66,6 @@ class Avatar
         $size = 256;
         $dst = imagecreatetruecolor($size, $size);
         imagecopyresampled($dst, $im, 0, 0, $sx, $sy, $size, $size, $side, $side);
-        imagedestroy($im);
-
         $dir = self::dir();
         if (!is_dir($dir)) {
             @mkdir($dir, 0775, true);
@@ -76,8 +74,6 @@ class Avatar
         ob_start();
         imagejpeg($dst, null, 88);
         $bin = ob_get_clean();
-        imagedestroy($dst);
-
         if ($bin === false || @file_put_contents(self::path($userId), $bin) === false) {
             throw new RuntimeException("Impossible d'écrire l'image");
         }

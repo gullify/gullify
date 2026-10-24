@@ -46,7 +46,7 @@ RUN sed -i 's|/var/www/html|/app/public|g' /etc/apache2/sites-available/000-defa
 RUN a2enmod headers
 
 # php.ini overrides
-RUN printf "upload_max_filesize=50M\npost_max_size=50M\nmemory_limit=256M\nmax_execution_time=3600\n" \
+RUN printf "upload_max_filesize=50M\npost_max_size=50M\nmemory_limit=256M\nmax_execution_time=3600\ndisplay_errors=Off\nlog_errors=On\n" \
     > /usr/local/etc/php/conf.d/gullify.ini
 
 # Data directories

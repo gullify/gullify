@@ -5,6 +5,7 @@
  */
 require_once __DIR__ . '/AppConfig.php';
 require_once __DIR__ . '/Storage/StorageFactory.php';
+require_once __DIR__ . '/ArtistImage.php';
 
 class ArtworkManager {
     private $db;
@@ -107,14 +108,17 @@ class ArtworkManager {
                 }
             }
         }
+        $localTrouvee = (bool)$imageData;
 
-        // 2. Web search fallback
-        if (!$imageData) {
-            $imageUrl = $this->searchWeb($artist['name'], 'artist');
-            if ($imageUrl) {
-                $imageData = @file_get_contents($imageUrl);
+        // 2. Web search fallback — aussi quand l'image du dossier est une vignette :
+        // les artist.jpg écrits jadis faisaient 120 px (vignette YouTube Music),
+        // et une maison neuve rebâtissait tout son cache à partir d'eux.
+        if (!ArtistImage::assezGrande($imageData)) {
+            $web = ArtistImage::fetch($artist['name']);
+            if ($web !== null) {
+                $imageData = $web['data'];
                 // Save to local folder
-                if ($imageData && $storage->getType() === 'local' && $storage->isDir($artistDir)) {
+                if (!$localTrouvee && $storage->getType() === 'local' && $storage->isDir($artistDir)) {
                     @file_put_contents($artistDir . '/artist.jpg', $imageData);
                 }
             }
@@ -276,7 +280,6 @@ class ArtworkManager {
             imagealphablending($tmp, false); imagesavealpha($tmp, true);
             imagecopyresampled($tmp, $src, 0, 0, $srcX, $srcY, $newWidth, $newHeight, $srcWidth, $srcHeight);
             $result = imagejpeg($tmp, $targetPath, 85);
-            imagedestroy($src); imagedestroy($tmp);
             return $result;
         } catch (Exception $e) { return false; }
     }

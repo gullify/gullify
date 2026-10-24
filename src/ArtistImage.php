@@ -202,6 +202,13 @@ class ArtistImage
         'artiste inconnu', 'inconnu', 'va', 'compilation', 'compilations',
     ];
 
+    /** Assez grande pour l'en-tête d'une fiche (~1300 px réels) sans flou criant. */
+    public static function assezGrande(?string $bin, int $min = 600): bool
+    {
+        $t = $bin ? @getimagesizefromstring($bin) : false;
+        return $t !== false && (int)$t[0] >= $min;
+    }
+
     public static function fetch(string $name): ?array
     {
         $name = trim($name);

@@ -124,7 +124,6 @@ function recadreCarre(string $fichier): bool
     // — le centre sort pixel pour pixel, seul le JPEG se regénère.
     $tmp = $fichier . '.tmp';
     $ok = imagejpeg($dst, $tmp, 92);
-    imagedestroy($src); imagedestroy($dst);
     if (!$ok) { @unlink($tmp); return false; }
     return @rename($tmp, $fichier);
 }

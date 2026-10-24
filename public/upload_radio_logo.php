@@ -119,7 +119,6 @@ try {
         imagesavealpha($rs, true);
         imagefilledrectangle($rs, 0, 0, $nw, $nh, imagecolorallocatealpha($rs, 0, 0, 0, 127));
         imagecopyresampled($rs, $im, 0, 0, 0, 0, $nw, $nh, $w, $h);
-        imagedestroy($im);
         $im = $rs;
     }
 
@@ -127,8 +126,6 @@ try {
     ob_start();
     imagepng($im, null, 6);
     $bin = ob_get_clean();
-    imagedestroy($im);
-
     $dir = AppConfig::getDataPath() . '/cache/radio_logos';
     if (!is_dir($dir)) @mkdir($dir, 0775, true);
 
