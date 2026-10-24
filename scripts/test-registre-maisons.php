@@ -59,7 +59,7 @@ $publiees['maison'] = cle('maison');
 $publiees['le251'] = cle('le251');
 $e = $registre->inscrire($registre->ouvrir(corps('maison', ['cle' => cle('maison'), 'version' => '1.31',
                                                                    'canal' => 'beta', 'aide' => true]), true)[0]);
-verifier($e === ['dev' => false, 'designee' => false], 'maison inscrite, ni Dev ni désignée');
+verifier($e === ['dev' => false, 'designee' => false, 'devs' => []], 'maison inscrite, ni Dev ni désignée');
 $registre->inscrire($registre->ouvrir(corps('le251', ['cle' => cle('le251'), 'canal' => 'stable', 'aide' => true]), true)[0]);
 
 // Signatures
@@ -74,6 +74,7 @@ refuse(fn() => $registre->ouvrir(['message' => $vieux, 'signature' => base64_enc
 verifier($registre->fixerDev('maison', true), 'maison passée Dev par l\'atelier');
 [$m, $x] = $registre->ouvrir(corps('maison', []));
 verifier((bool)$x['dev'], 'maison est Dev');
+verifier($registre->etat('le251')['devs'] === ['maison'], '1.70 : toute maison reçoit la liste des maisons Dev');
 $liste = $registre->liste();
 verifier(count($liste) === 2 && $liste[0]['nom'] === 'le251', 'liste des maisons');
 

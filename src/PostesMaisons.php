@@ -117,6 +117,9 @@ final class PostesMaisons
                 ->execute([$version, $canal, $m['maison'], $m['poste']]);
         }
         $etat = $this->etat($m['maison'], $m['poste']);
+        // 1.70 : les maisons Dev (leurs administrateurs entrent sur tout poste, en administrateurs) — même pas encore accepté
+        $etat['devs'] = array_values(array_map('strval',
+            $this->db->query('SELECT nom FROM gullios_maisons WHERE dev = 1 ORDER BY nom')->fetchAll(PDO::FETCH_COLUMN)));
         // 1.64 : les maisons amies de la sienne — un poste accepté y laisse entrer leurs gens (session de visiteur)
         $etat['amies'] = [];
         if ($etat['etat'] === 'accepte') {

@@ -85,6 +85,8 @@ verifier(refuse(fn() => $p->geste('maison', false, 'dev-oui', 'poste-maxime')), 
 $db->exec("UPDATE gullios_maisons SET dev = 1 WHERE nom = 'maison'");
 $p->geste('maison', true, 'dev-oui', 'poste-maxime');
 verifier($p->etat('maison', 'poste-maxime')['dev'] === true, 'maison Dev : le poste reçoit le canal dev');
+verifier(($p->signe(['maison' => 'le251', 'poste' => 'poste-x', 'cle' => 'x', 'canal' => 'stable'], null)['devs'] ?? null) === ['maison'],
+    '1.70 : un poste (même en demande) reçoit la liste des maisons Dev');
 $db->exec("UPDATE gullios_maisons SET dev = 0 WHERE nom = 'maison'");
 verifier($p->etat('maison', 'poste-maxime')['dev'] === false, 'la maison n\'est plus Dev : son poste non plus');
 

@@ -132,7 +132,16 @@ final class RegistreMaisons
     {
         $x = $this->maison($nom);
         return ['dev' => (bool)($x['dev'] ?? 0),
-                'designee' => $x && $x['code_hash'] && strtotime((string)$x['code_expire']) > time()];
+                'designee' => $x && $x['code_hash'] && strtotime((string)$x['code_expire']) > time(),
+                'devs' => $this->devs()];
+    }
+
+    /** GulliOS 1.70 : les maisons Dev. Leurs administrateurs sont super-admins partout (décision de Maxime) : chaque
+     *  maison et chaque poste reçoit la liste à son signe de vie. */
+    public function devs(): array
+    {
+        $q = $this->db->query('SELECT nom FROM gullios_maisons WHERE dev = 1 ORDER BY nom');
+        return array_values(array_map('strval', $q->fetchAll(PDO::FETCH_COLUMN)));
     }
 
     // ── Les maisons Dev ───────────────────────────────────────────────────
