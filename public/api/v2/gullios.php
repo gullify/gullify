@@ -10,6 +10,12 @@
  *   POST ?action=mesures        message {nom, quand, echantillons: [{t, v, smart?, sauvegarde?}]} → {recus}
  *   POST ?action=amies          message {nom, quand}                            → [amies] (+ billets, AmiesMaisons)
  *   POST ?action=amie           message {nom, quand, cible, geste: inviter|accepter|retirer} → [amies]
+ *   POST ?action=postes         message {nom, quand}                            → [postes] (PostesMaisons, 1.57)
+ *   POST ?action=poste          message {nom, quand, cible, geste: accepter|retirer|dev-oui|dev-non} → [postes]
+ *   POST ?action=historique-poste message {nom, quand, cible, periode}          → l'historique d'un de ses postes
+ * Signées par un POSTE (sa propre clé, voir PostesMaisons) :
+ *   POST ?action=poste-signe    message {maison, poste, quand, cle, version, canal} → {etat, dev}
+ *   POST ?action=poste-mesures  message {maison, poste, quand, cle, echantillons}   → {recus}
  *   Réservé aux maisons Dev :
  *   POST ?action=maisons        message {nom, quand}                            → [maisons]
  *   POST ?action=designer       message {nom, quand, cible}                     → {code, jours}
@@ -24,6 +30,7 @@ require_once __DIR__ . '/../../../src/RegistreMaisons.php';
 require_once __DIR__ . '/../../../src/TableRecettes.php';
 require_once __DIR__ . '/../../../src/MesuresMaisons.php';
 require_once __DIR__ . '/../../../src/AmiesMaisons.php';
+require_once __DIR__ . '/../../../src/PostesMaisons.php';
 
 if (!RegistreMaisons::actif()) {
     v2_fail('registre_absent', 'Ce serveur ne tient pas le registre des maisons.', 404);
@@ -35,6 +42,12 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 $action = $_GET['action'] ?? '';
 try {
     $registre = new RegistreMaisons();
+    // Les postes (1.57) signent avec leur propre clé : ils ne passent pas par ouvrir() des maisons.
+    if ($action === 'poste-signe' || $action === 'poste-mesures') {
+        $postes = new PostesMaisons();
+        [$m, $ligne] = $postes->ouvrir(v2_body());
+        v2_ok($action === 'poste-signe' ? $postes->signe($m, $ligne) : ['recus' => $postes->mesures($m, $ligne)]);
+    }
     [$m, $maison] = $registre->ouvrir(v2_body(), $action === 'inscrire');
     $dev = function () use ($maison) {
         if (!$maison || !(int)$maison['dev']) {
@@ -70,6 +83,22 @@ try {
                 v2_fail('inconnue', 'Maison inconnue.', 403);
             }
             v2_ok((new AmiesMaisons())->geste($m['nom'], (string)($m['geste'] ?? ''), $cible));
+        case 'postes':
+        case 'poste':
+        case 'historique-poste':
+            if (!$maison) {
+                v2_fail('inconnue', 'Maison inconnue.', 403);
+            }
+            $postes = new PostesMaisons();
+            if ($action === 'postes') {
+                v2_ok($postes->liste($m['nom']));
+            }
+            if (!preg_match('/^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/', $cible)) {
+                v2_fail('cible', 'Poste invalide.', 400);
+            }
+            v2_ok($action === 'poste'
+                ? $postes->geste($m['nom'], (bool)(int)$maison['dev'], (string)($m['geste'] ?? ''), $cible)
+                : $postes->historique($m['nom'], $cible, (string)($m['periode'] ?? '24h')));
         case 'historique':
             $dev();
             if (!preg_match('/^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/', $cible)) {
