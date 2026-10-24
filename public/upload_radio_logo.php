@@ -42,7 +42,6 @@ function fetchExternalImage(string $url): array {
     $bin  = curl_exec($ch);
     $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     $ct   = (string)curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
-    curl_close($ch);
     if ($code >= 400 || !$bin) {
         throw new Exception("Téléchargement échoué (HTTP $code)");
     }

@@ -145,7 +145,6 @@ final class IonosDns implements DnsProvider
             $reponse = curl_exec($ch);
             $code = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
             $erreur = curl_error($ch);
-            curl_close($ch);
 
             // Réseau coupé ou panne de leur côté : on redonne sa chance, une
             // seconde de plus à chaque fois. Nos écritures sont idempotentes

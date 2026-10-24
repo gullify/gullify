@@ -231,7 +231,6 @@ function vid_proxy(string $url): never {
         },
     ]);
     curl_exec($ch);
-    curl_close($ch);
     exit;
 }
 

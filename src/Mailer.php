@@ -123,7 +123,6 @@ final class Mailer
         ]);
         $reponse = curl_exec($ch);
         $code = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
-        curl_close($ch);
 
         if ($reponse === false || $code >= 300) {
             throw new RuntimeException("Le service d'envoi a refusé le courriel ($code)");

@@ -405,7 +405,6 @@ class Podcasts
                 }
                 $out[$url] = ($code >= 200 && $code < 300) ? $body : '';
                 curl_multi_remove_handle($multi, $ch);
-                curl_close($ch);
             }
             curl_multi_close($multi);
         }
@@ -962,7 +961,6 @@ class Podcasts
         $status = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
         $final  = (string) curl_getinfo($ch, CURLINFO_EFFECTIVE_URL);
         $error  = curl_error($ch);
-        curl_close($ch);
 
         if ($final !== '' && $final !== $url && !self::isHttpUrl($final)) {
             error_log("Podcasts: redirection refusée vers $final");

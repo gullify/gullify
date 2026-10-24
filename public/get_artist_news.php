@@ -167,7 +167,6 @@ function httpGet(string $url, int $timeout = 8): string|false {
             CURLOPT_HTTPHEADER     => ['Accept: application/rss+xml, application/xml, text/xml, */*'],
         ]);
         $result = curl_exec($ch);
-        curl_close($ch);
         return $result ?: false;
     }
 

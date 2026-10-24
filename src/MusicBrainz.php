@@ -149,7 +149,6 @@ class MusicBrainz
             ]);
             $body   = curl_exec($ch);
             $status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            curl_close($ch);
 
             if ($status === 200 && $body) return json_decode($body, true) ?: null;
             // 503 = cadence refusée, 0 = réseau : ça vaut la peine de réessayer.

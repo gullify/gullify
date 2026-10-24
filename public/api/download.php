@@ -551,7 +551,6 @@ function streamPreview($directUrl) {
     header('Accept-Ranges: bytes');
     header('Cache-Control: no-store');
     curl_exec($ch);
-    curl_close($ch);
 }
 
 try {

@@ -290,6 +290,5 @@ function chords_http_get(string $url, int $timeout = 12): ?string {
     ]);
     $body   = curl_exec($ch);
     $status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
     return ($status === 200 && is_string($body) && $body !== '') ? $body : null;
 }

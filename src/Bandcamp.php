@@ -512,7 +512,6 @@ class Bandcamp
         $raw    = curl_exec($ch);
         $status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         $error  = curl_error($ch);
-        curl_close($ch);
 
         if ($status !== 200 || !is_string($raw) || $raw === '') {
             error_log("Bandcamp: $url → HTTP $status" . ($error ? " ($error)" : ''));

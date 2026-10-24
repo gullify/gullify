@@ -61,7 +61,6 @@ try {
     $body   = curl_exec($ch);
     $status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     $err    = curl_error($ch);
-    curl_close($ch);
 
     if ($status !== 200 || !$body) fail("Deezer search failed (HTTP $status): $err", 502);
 
@@ -91,7 +90,6 @@ try {
     ]);
     $imgData = curl_exec($ch);
     $imgCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
 
     if ($imgCode !== 200 || !$imgData || strlen($imgData) < 200) {
         fail("Téléchargement de l'image a échoué (HTTP $imgCode)", 502);

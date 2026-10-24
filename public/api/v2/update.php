@@ -102,7 +102,6 @@ function majVersionPubliee(): ?string {
     ]);
     $corps = curl_exec($ch);
     $code  = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
     if ($code !== 200 || !is_string($corps)) return null;
 
     $version = json_decode($corps, true)['version'] ?? null;

@@ -133,7 +133,6 @@ class RadioStreamResolver
         curl_exec($ch);
         $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         $ct   = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
-        curl_close($ch);
         if ($code >= 400 || !$ct) return null;
         // Strip parameters (charset, etc.)
         if (str_contains($ct, ';')) $ct = trim(substr($ct, 0, strpos($ct, ';')));
@@ -158,7 +157,6 @@ class RadioStreamResolver
             },
         ]);
         @curl_exec($ch);
-        curl_close($ch);
         return $buf !== '' ? $buf : null;
     }
 

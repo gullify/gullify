@@ -101,7 +101,6 @@ try {
         ]);
         $body   = curl_exec($ch);
         $status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
 
         if ($status === 200 && $body) {
             $data = json_decode($body, true);

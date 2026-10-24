@@ -67,7 +67,6 @@ function http(string $methode, string $chemin, ?array $json = null, ?string $jet
     curl_setopt_array($c, [CURLOPT_CUSTOMREQUEST => $methode, CURLOPT_RETURNTRANSFER => true, CURLOPT_HTTPHEADER => $h]);
     $corps = curl_exec($c);
     $statut = curl_getinfo($c, CURLINFO_HTTP_CODE);
-    curl_close($c);
     $j = json_decode((string)$corps, true);
     return [$statut, is_array($j) ? $j : (string)$corps];
 }

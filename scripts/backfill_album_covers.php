@@ -269,7 +269,6 @@ function httpGet(string $url, int $timeout): ?string
     ]);
     $body = curl_exec($ch);
     $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
     if ($body === false || $code >= 400) return null;
     return $body;
 }

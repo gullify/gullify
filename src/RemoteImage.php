@@ -147,7 +147,6 @@ class RemoteImage
         if ($maxBytes > 0) curl_setopt($ch, CURLOPT_MAXFILESIZE, $maxBytes);
         $body = curl_exec($ch);
         $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
         return ($code === 200 && is_string($body) && $body !== '') ? $body : null;
     }
 }

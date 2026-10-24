@@ -99,7 +99,6 @@ final class IdeasRelay
         ]);
         $corps = curl_exec($ch);
         $code  = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
 
         return $code === 200
             && is_string($corps)
