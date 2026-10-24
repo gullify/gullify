@@ -213,9 +213,9 @@ void main() {
       expect(sections.contains(null), isFalse);
       // L'ordre des sections, et le fait qu'elles ne s'entrelacent pas.
       expect(sections.toSet().toList(), [
-        GullifyAudioHandler.sectionReprendre,
         GullifyAudioHandler.sectionRoute,
         GullifyAudioHandler.sectionNouveautes,
+        GullifyAudioHandler.sectionReprendre,
       ]);
       for (final titre in sections.toSet()) {
         final premiers = sections.indexOf(titre);
@@ -253,20 +253,24 @@ void main() {
       expect(nouveautes.first.artUri, isNotNull);
     });
 
-    test('ce qu\'on écoutait vient en tête, avec sa progression', () async {
+    test('ce qu\'on écoutait ouvre l\'historique, avec sa progression', () async {
       final handler = _handler(
         repo: _Repository(),
         resumeDir: await _derniereEcoute(position: const Duration(minutes: 1)),
       );
 
       final home = await handler.getChildren(BrowseIds.home);
+      // Les actions rapides en haut, l'historique dessous.
+      expect(home.first.id, 'ALL_SHUFFLE');
+      final reprise = home.firstWhere(
+          (i) => _section(i) == GullifyAudioHandler.sectionReprendre);
 
-      expect(home.first.id, BrowseIds.resume);
-      expect(home.first.title, 'Paquetville');
-      expect(home.first.playable, isTrue);
+      expect(reprise.id, BrowseIds.resume);
+      expect(reprise.title, 'Paquetville');
+      expect(reprise.playable, isTrue);
       // 60 s sur 200 : la voiture dessine la barre elle-même.
       expect(
-        home.first.extras?[
+        reprise.extras?[
             'androidx.media.MediaItem.Extras.COMPLETION_PERCENTAGE'],
         closeTo(0.3, 0.001),
       );
@@ -325,7 +329,8 @@ void main() {
 
       expect(home.map((i) => i.title), contains('Lecture aléatoire'));
       expect(home.map((i) => i.title), isNot(contains('Réessayer')));
-      expect(home.first.id, BrowseIds.resume);
+      expect(home.first.id, 'ALL_SHUFFLE');
+      expect(home.last.id, BrowseIds.resume);
     });
 
     test('serveur muet : l\'accueil ne se vide pas non plus', () async {

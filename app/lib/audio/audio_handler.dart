@@ -2768,8 +2768,9 @@ class GullifyAudioHandler extends BaseAudioHandler
 
   // ── L'accueil : un écran, trois sections ─────────────────────────────────
   //
-  // « Reprendre » se lit sur le disque, « Pour la route » ne demande rien, et
-  // « Nouveautés » vient du serveur. Les trois arrivent dans cet ordre, et
+  // « Pour la route » ne demande rien, « Nouveautés » vient du serveur et
+  // « Reprendre » se lit sur le disque. Les trois arrivent dans cet ordre —
+  // les actions rapides en haut, l'historique dessous (demande de Maxime) —, et
   // chaque élément porte le nom de sa section : la voiture en fait alors un
   // seul écran. C'est ce qui remplace l'accueil d'avant, qui était un menu
   // vers d'autres menus — trois taps avant la moindre note.
@@ -2800,8 +2801,8 @@ class GullifyAudioHandler extends BaseAudioHandler
     // se recomplète de lui-même.
     _scheduleReload(BrowseIds.home);
     return [
-      if (point != null) _repriseItem(point),
       ..._pourLaRoute(),
+      if (point != null) _repriseItem(point),
     ];
   }
 
@@ -2821,10 +2822,19 @@ class GullifyAudioHandler extends BaseAudioHandler
         if (s.id != point?.song.id) (i, s),
     ];
     // Trois lignes au plus pour la section : la reprise y prend sa place, et
-    // ce qui suit remplit le reste. Plus haut, l'écran se met à défiler avant
-    // d'avoir montré les raccourcis.
+    // ce qui suit remplit le reste.
     final places = point != null ? 2 : 3;
     return [
+      ..._pourLaRoute(),
+      for (final a in nouveautes.take(6))
+        MediaItem(
+          id: BrowseIds.album(a.id),
+          title: a.name,
+          artist: a.artistName,
+          artUri: _artUri(a.artworkUrl),
+          playable: false,
+          extras: _dansLaSection(sectionNouveautes),
+        ),
       if (point != null) _repriseItem(point),
       for (final (i, s) in sansLaReprise.take(places))
         MediaItem(
@@ -2836,16 +2846,6 @@ class GullifyAudioHandler extends BaseAudioHandler
           artUri: _artUri(s.artworkUrl),
           playable: true,
           extras: _dansLaSection(sectionReprendre),
-        ),
-      ..._pourLaRoute(),
-      for (final a in nouveautes.take(6))
-        MediaItem(
-          id: BrowseIds.album(a.id),
-          title: a.name,
-          artist: a.artistName,
-          artUri: _artUri(a.artworkUrl),
-          playable: false,
-          extras: _dansLaSection(sectionNouveautes),
         ),
     ];
   }

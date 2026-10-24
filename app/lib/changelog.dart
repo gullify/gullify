@@ -8,6 +8,12 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.84.0', [
+    'Android Auto : l\'accueil remet les actions rapides en haut (Lecture '
+        'aléatoire, Découverte, Favoris en vrac), puis les Nouveautés, et '
+        'ce qu\'on écoutait dessous',
+    'Pochettes et photos d\'artiste : réparées côté serveur (1.9.1)',
+  ]),
   ReleaseNote('3.83.0', [
     'Maisons amies : la musique des autres maisons se trouve dans l\'onglet '
         'Recherche — « Autres maisons » quand le champ est vide, et les '
