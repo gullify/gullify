@@ -69,6 +69,7 @@ preg_match('/code=([a-f0-9]{32})/', (string)file_get_contents('/tmp/courriels.lo
 $fqdn = $r->confirmer($m[1]);
 verifie('le nom entier est rendu', $fqdn === 'chez-papa.gullify.app');
 verifie('le DNS pointe sur l\'IP de la réservation', $dns->lookupA('chez-papa.gullify.app') === '1.2.3.4');
+verifie('et ses sous-domaines aussi (*.chez-papa, Immich)', $dns->lookupA('*.chez-papa.gullify.app') === '1.2.3.4');
 refuse('le même code, une seconde fois', fn() => $r->confirmer($m[1]));
 
 echo "\n— Le jeton —\n";
@@ -88,6 +89,7 @@ $sans = $r->majIp($jeton, '1.2.3.4');
 verifie('même adresse : on ne touche pas au DNS', $sans['changed'] === false);
 $avec = $r->majIp($jeton, '24.48.72.96');
 verifie('adresse changée : le DNS suit', $avec['changed'] === true && $dns->lookupA('chez-papa.gullify.app') === '24.48.72.96');
+verifie('les sous-domaines suivent aussi', $dns->lookupA('*.chez-papa.gullify.app') === '24.48.72.96');
 
 echo "\n— La limite par connexion —\n";
 $r->reserver('maison-un', 'un@exemple.ca', '7.7.7.7');
@@ -129,6 +131,7 @@ verifie('le nouveau, lui, fonctionne', $r->majIp($jeton, '66.66.66.66')['changed
 echo "\n— Révoquer —\n";
 $r->revoquer('chez-papa', 'essai');
 verifie('le DNS est retiré', $dns->lookupA('chez-papa.gullify.app') === null);
+verifie('les sous-domaines aussi', $dns->lookupA('*.chez-papa.gullify.app') === null);
 verifie('le nom reste bloqué', $r->refusDuNom('chez-papa') !== null);
 refuse('le jeton ne vaut plus rien', fn() => $r->majIp($jeton, '1.1.1.1'));
 

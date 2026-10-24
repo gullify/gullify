@@ -361,7 +361,7 @@ final class Registry
 
         $jeton = bin2hex(random_bytes(24));
         $fqdn = $ligne['name'] . '.' . $this->domaine;
-        $id = $this->dns->upsertA($fqdn, (string)$ligne['claim_ip']);
+        $id = $this->poserDns($fqdn, (string)$ligne['claim_ip']);
 
         $maj = $this->db->prepare(
             "UPDATE registry_servers
@@ -449,7 +449,7 @@ final class Registry
         $change = ((string)$ligne['ip']) !== $ip;
 
         if ($change) {
-            $id = $this->dns->upsertA($fqdn, $ip);
+            $id = $this->poserDns($fqdn, $ip);
             $this->db->prepare('UPDATE registry_servers SET ip = ?, dns_record_id = ?, last_seen = NOW() WHERE id = ?')
                 ->execute([$ip, $id, $ligne['id']]);
         } else {
@@ -514,7 +514,7 @@ final class Registry
             $fqdn = $ligne['name'] . '.' . $this->domaine;
 
             if ($silence >= self::JOURS_AVANT_EXPIRATION) {
-                $this->dns->deleteA($fqdn);
+                $this->retirerDns($fqdn);
                 $this->db->prepare("UPDATE registry_servers SET state = 'expired' WHERE id = ?")
                     ->execute([$ligne['id']]);
                 $this->noter('expire', (string)$ligne['name'], (int)$silence . ' jours de silence', '');
@@ -546,12 +546,32 @@ final class Registry
     /** Coupe un sous-domaine : le DNS disparaît, le nom reste bloqué. */
     public function revoquer(string $nom, string $motif): void
     {
-        $this->dns->deleteA($nom . '.' . $this->domaine);
+        $this->retirerDns($nom . '.' . $this->domaine);
         $this->db->prepare("UPDATE registry_servers SET state = 'revoked' WHERE name = ?")->execute([$nom]);
         $this->noter('revoque', $nom, $motif, '');
     }
 
     // ── Plomberie ─────────────────────────────────────────────────────────
+
+    /**
+     * Le nom de la maison, et « *.nom » à la même adresse (GulliOS 1.50) : une app
+     * qui ne sait pas vivre sous un préfixe (Immich) prend son sous-domaine,
+     * photos.nom.gullify.app, sans que personne touche au DNS. Le joker de la
+     * zone (*.gullify.app) n'y suffit pas : il s'arrête dès que « nom » existe.
+     * Rend l'identifiant de l'enregistrement du nom lui-même.
+     */
+    public function poserDns(string $fqdn, string $ip): string
+    {
+        $id = $this->dns->upsertA($fqdn, $ip);
+        $this->dns->upsertA('*.' . $fqdn, $ip);
+        return $id;
+    }
+
+    private function retirerDns(string $fqdn): void
+    {
+        $this->dns->deleteA($fqdn);
+        $this->dns->deleteA('*.' . $fqdn);
+    }
 
     private function ilYA(int $secondes): string
     {
