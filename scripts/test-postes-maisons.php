@@ -65,6 +65,11 @@ verifier($liste[0]['etat'] === 'accepte', 'la maison accepte');
 verifier(refuse(fn() => $p->ouvrir(message($s1, [...$base, 'cle' => $c1]))), 'accepté : une autre clé ne passe plus');
 [$m, $l] = $p->ouvrir(message($s2, [...$base, 'cle' => $c2]));
 verifier($p->signe($m, $l)['etat'] === 'accepte', 'accepté : son signe de vie le dit');
+$db->exec('CREATE TABLE IF NOT EXISTS gullios_amies (a VARCHAR(63), b VARCHAR(63), de VARCHAR(63), etat VARCHAR(20))');
+$db->exec("DELETE FROM gullios_amies");
+$db->exec("INSERT INTO gullios_amies VALUES ('le251', 'maison', 'le251', 'amie'), ('maison', 'chalet', 'maison', 'invitee')");
+[$m, $l] = $p->ouvrir(message($s2, [...$base, 'cle' => $c2]));
+verifier($p->signe($m, $l)['amies'] === ['le251'], 'accepté : il reçoit les maisons amies de sa maison (pas les invitations)');
 
 $t = time() - 120;
 $n = $p->mesures(...$p->ouvrir(message($s2, [...$base, 'cle' => $c2, 'echantillons' => [

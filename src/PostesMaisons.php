@@ -116,7 +116,19 @@ final class PostesMaisons
             $this->db->prepare('UPDATE gullios_postes SET version = ?, canal = ?, vue_le = NOW() WHERE maison = ? AND poste = ?')
                 ->execute([$version, $canal, $m['maison'], $m['poste']]);
         }
-        return $this->etat($m['maison'], $m['poste']);
+        $etat = $this->etat($m['maison'], $m['poste']);
+        // 1.64 : les maisons amies de la sienne — un poste accepté y laisse entrer leurs gens (session de visiteur)
+        $etat['amies'] = [];
+        if ($etat['etat'] === 'accepte') {
+            try {
+                $q = $this->db->prepare("SELECT IF(a = ?, b, a) FROM gullios_amies WHERE (a = ? OR b = ?) AND etat = 'amie'");
+                $q->execute([$m['maison'], $m['maison'], $m['maison']]);
+                $etat['amies'] = array_values(array_map('strval', $q->fetchAll(PDO::FETCH_COLUMN)));
+            } catch (PDOException $e) {
+                // pas encore d'annuaire des amies
+            }
+        }
+        return $etat;
     }
 
     /** {etat: demande|accepte, dev} — le canal dev seulement si la maison est Dev elle aussi. */
