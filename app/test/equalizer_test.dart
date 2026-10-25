@@ -85,13 +85,13 @@ void main() {
       ..debugAttach(EqualizerParameters.fromMap(_payload));
     await tester.pumpWidget(_wrap(eq));
 
-    await tester.tap(find.text('Basses +'));
+    await tester.tap(find.text('Chaleureux'));
     await tester.pumpAndSettle();
 
     final gains = [for (final b in eq.parameters!.bands) b.gain];
-    // Courbe « Basses + » : grave poussé, aigus laissés à plat.
+    // Courbe « Chaleureux » : grave un peu relevé, aigu légèrement baissé.
     expect(gains.first, greaterThan(gains.last));
-    expect(gains.first, closeTo(6.0, 0.01));
-    expect(gains.last, closeTo(0.0, 0.01));
+    expect(gains.first, closeTo(3.0, 0.01));
+    expect(gains.last, lessThanOrEqualTo(0.0)); // l'aigu n'est jamais relevé par ce profil
   });
 }
