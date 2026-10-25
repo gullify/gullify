@@ -9,7 +9,7 @@ import 'package:flutter/foundation.dart';
 /// Seulement : la version, la plateforme, la CLASSE de l'erreur et les premières lignes de la pile.
 /// Jamais le message de l'erreur : il peut contenir une adresse de flux ou un jeton.
 /// L'envoi est en arrière-plan, sans attente, et un échec n'en provoque jamais un autre.
-const _versionApp = '3.84.1';
+const _versionApp = '3.85.0';
 const _adresse = 'https://gullify.app/api/v2/rapport.php?app=gullify';
 
 final _envoi = Dio(BaseOptions(

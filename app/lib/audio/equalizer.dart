@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -102,6 +103,17 @@ class GullifyEqualizer extends ChangeNotifier {
   EqualizerParameters? get parameters => _parameters;
 
   bool get enabled => _enabled;
+
+  /// Volume à retirer pour que l'égaliseur ne fasse pas saturer le son (1.0 = rien à retirer).
+  /// Une bande remontée de N dB pousse le signal de N dB : on baisse donc le volume du plus grand
+  /// relèvement, comme on baisse le pré-gain d'un égaliseur de studio. Sans cela, un préréglage
+  /// « Basses + » écrête sur les morceaux déjà forts.
+  double get headroomGain {
+    final params = _parameters;
+    if (!_enabled || params == null) return 1.0;
+    final plusFort = params.bands.fold<double>(0, (m, b) => math.max(m, b.gain));
+    return plusFort <= 0 ? 1.0 : math.pow(10, -plusFort / 20).toDouble();
+  }
 
   /// L'appareil a refusé l'effet : aucun réglage possible.
   bool get unavailable => _unavailable;

@@ -236,6 +236,8 @@ class GullifyAudioHandler extends BaseAudioHandler
     // cours : on le suit pour que la bascule s'entende tout de suite, plutôt
     // que d'attendre le titre suivant.
     fade.addListener(() => _applyNormalization());
+    // Une bande de l'égaliseur qui bouge change la compensation : le volume suit tout de suite.
+    equalizer.addListener(() => _applyNormalization());
     _listen();
     _watchAudioSession();
   }
@@ -1522,9 +1524,11 @@ class GullifyAudioHandler extends BaseAudioHandler
   /// poser à plein le ferait passer au-dessus de toute une file normalisée,
   /// c'est-à-dire produirait exactement le saut qu'on corrige.
   double _volumeForSong(int? songId) {
-    if (!fade.normalizes) return 1;
-    final level = songId == null ? null : _edges[songId]?.level;
-    return trackVolumeFor(level) ?? _trackVolume;
+    // La compensation de l'égaliseur (headroomGain) s'ajoute, normalisation ou non.
+    final base = fade.normalizes
+        ? (trackVolumeFor(songId == null ? null : _edges[songId]?.level) ?? _trackVolume)
+        : 1.0;
+    return base * equalizer.headroomGain;
   }
 
   /// Rend au titre en cours le volume que sa gravure lui vaut. Sert deux fois :

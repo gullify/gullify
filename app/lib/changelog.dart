@@ -8,6 +8,10 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.85.0', [
+    'Égaliseur : des préréglages plus sobres, et une baisse automatique du volume quand on relève une bande, pour que le son ne sature plus.',
+    'Le volume se règle tout de suite quand on touche à l\'égaliseur.',
+  ]),
   ReleaseNote('3.84.1', [
     'Les plantages de l\'app remontent à l\'atelier, pour être corrigés plus vite (le message d\'erreur n\'est jamais envoyé).',
   ]),

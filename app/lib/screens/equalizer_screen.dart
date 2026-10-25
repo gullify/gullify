@@ -13,14 +13,15 @@ const _presetFreqs = [60.0, 230.0, 910.0, 3600.0, 14000.0];
 
 const _presets = <String, List<double>>{
   'Plat': [0, 0, 0, 0, 0],
-  'Rock': [5, 3, -1, 3, 5],
-  'Pop': [-1, 2, 5, 1, -2],
-  'Jazz': [4, 2, -2, 2, 5],
-  'Classique': [5, 3, -2, 4, 4],
-  'Dance': [6, 0, 2, 4, 1],
-  'Basses +': [6, 4, 1, 0, 0],
-  'Aigus +': [0, 0, 1, 4, 6],
-  'Vocal': [-2, 1, 5, 3, -1],
+  'Rock': [4, 2, -1, 2, 3],
+  'Pop': [-1, 1, 3, 1, -1],
+  'Jazz': [2, 1, -1, 1, 3],
+  'Classique': [3, 2, -1, 2, 2],
+  'Dance': [4, 0, 1, 2, 2],
+  'Basses +': [4, 2, 0, 0, 0],
+  'Aigus +': [0, 0, 1, 2, 4],
+  'Vocal': [-2, 0, 3, 2, -1],
+  'Casque': [2, 1, 0, 1, 2],
 };
 
 double _interpolate(double hz, List<double> curve) {
