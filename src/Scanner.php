@@ -119,11 +119,6 @@ class Scanner {
         if (!$this->columnExists('songs', 'artist_id')) {
             $this->db->exec("ALTER TABLE songs ADD COLUMN artist_id INT NULL");
         }
-        // Sonie (EBU R128) : mesurée par scripts/analyser-sonie.php. loudness_hash = l'empreinte du fichier
-        // au moment de la mesure ; si le fichier change, la mesure est refaite.
-        if (!$this->columnExists('songs', 'loudness_lufs')) {
-            $this->db->exec("ALTER TABLE songs ADD COLUMN loudness_lufs DECIMAL(5,2) NULL, ADD COLUMN loudness_hash VARCHAR(32) NULL");
-        }
 
         // Un fichier = une ligne. Tant que l'index d'unicité manque, on fusionne
         // les doublons déjà en base puis on le pose (voir LibraryDedupe).
