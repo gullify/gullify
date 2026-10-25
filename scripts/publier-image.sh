@@ -53,9 +53,9 @@ docker compose build --build-arg CACHEBUST="$(date +%s)" app
 echo "Publication de $DEPOT:$VERSION"
 docker login "${DEPOT%%/*}" -u gullify --password-stdin < "$MDP_FICHIER"
 docker tag gullify-app "$DEPOT:$VERSION"
-docker tag gullify-app "$DEPOT:latest"
+docker tag gullify-app "$DEPOT:beta"
 docker push "$DEPOT:$VERSION"
-docker push "$DEPOT:latest"
+docker push "$DEPOT:beta"
 docker logout "${DEPOT%%/*}"
 
 # Le manifeste : c'est LUI que les serveurs interrogent pour savoir s'ils sont
