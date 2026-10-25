@@ -11,6 +11,7 @@ import 'state/alarm.dart';
 import 'state/app_theme.dart';
 import 'state/auth.dart';
 import 'state/player.dart';
+import 'state/rapports.dart';
 import 'state/tv.dart';
 import 'state/tv_log.dart';
 import 'theme.dart';
@@ -22,6 +23,8 @@ import 'widgets/retro_chrome.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Les plantages arrivent à l'atelier (sans le message d'erreur, voir state/rapports.dart).
+  installerRapportsPlantage();
   final audioHandler = await initAudioHandler();
   // Ne bloque jamais le premier affichage : l'égaliseur relit ses réglages en
   // arrière-plan et une erreur de plugin ne doit pas geler le démarrage.

@@ -8,6 +8,9 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.84.1', [
+    'Les plantages de l\'app remontent à l\'atelier, pour être corrigés plus vite (le message d\'erreur n\'est jamais envoyé).',
+  ]),
   ReleaseNote('3.84.0', [
     'Android Auto : l\'accueil remet les actions rapides en haut (Lecture '
         'aléatoire, Découverte, Favoris en vrac), puis les Nouveautés, et '
