@@ -8,6 +8,9 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.85.1', [
+    'Égaliseur : des profils nommés selon leur effet (Neutre, Chaleureux, Présence, Brillant, Voix claire, Casque), sans jamais dépasser +4 dB.',
+  ]),
   ReleaseNote('3.85.0', [
     'Égaliseur : des préréglages plus sobres, et une baisse automatique du volume quand on relève une bande, pour que le son ne sature plus.',
     'Le volume se règle tout de suite quand on touche à l\'égaliseur.',
