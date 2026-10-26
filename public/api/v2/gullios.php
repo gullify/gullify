@@ -31,6 +31,7 @@ require_once __DIR__ . '/../../../src/TableRecettes.php';
 require_once __DIR__ . '/../../../src/MesuresMaisons.php';
 require_once __DIR__ . '/../../../src/AmiesMaisons.php';
 require_once __DIR__ . '/../../../src/PostesMaisons.php';
+require_once __DIR__ . '/../../../src/Registry.php';
 
 if (!RegistreMaisons::actif()) {
     v2_fail('registre_absent', 'Ce serveur ne tient pas le registre des maisons.', 404);
@@ -55,6 +56,20 @@ try {
         }
     };
     $cible = strtolower((string)($m['cible'] ?? ''));
+
+    // L'adresse publique de la maison suit celle d'où arrive son message signé (signe de vie : 1 h ; mesures :
+    // 5 min). Avant, c'était l'affaire de l'ancien installateur (Registry::majIp), que GulliOS n'appelle pas :
+    // après la panne du 2026-10-26, la box revenue avec une autre IP, le nom pointait toujours l'ancienne.
+    if ($maison && ($action === 'signe' || $action === 'mesures')) {
+        $xff = explode(',', (string)($_SERVER['HTTP_X_FORWARDED_FOR'] ?? ''));
+        try {
+            if (Registry::actif() && (new Registry())->suivreIp((string)$maison['nom'], trim($xff[0]))) {
+                error_log('registre : nouvelle adresse pour ' . $maison['nom']);
+            }
+        } catch (Throwable $e) {
+            error_log('registre : suivi d\'adresse de ' . $maison['nom'] . ' : ' . $e->getMessage());
+        }
+    }
 
     switch ($action) {
         case 'inscrire':

@@ -460,6 +460,32 @@ final class Registry
         return ['fqdn' => $fqdn, 'ip' => $ip, 'changed' => $change];
     }
 
+    /**
+     * GulliOS : la maison signe ses messages (RegistreMaisons) au lieu de montrer un jeton, et son nom est
+     * le même ici. Même suivi que majIp() : le DNS n'est touché que si l'adresse a changé (une panne de
+     * courant, et la box revient avec une autre). Rend vrai si le DNS a été changé.
+     */
+    public function suivreIp(string $nom, string $ip): bool
+    {
+        if (!filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4 | FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) {
+            return false;
+        }
+        $q = $this->db->prepare("SELECT id, name, ip FROM registry_servers WHERE name = ? AND state = 'active'");
+        $q->execute([$nom]);
+        $ligne = $q->fetch(PDO::FETCH_ASSOC);
+        if (!$ligne) {
+            return false;
+        }
+        if ((string)$ligne['ip'] === $ip) {
+            $this->db->prepare('UPDATE registry_servers SET last_seen = NOW() WHERE id = ?')->execute([$ligne['id']]);
+            return false;
+        }
+        $id = $this->poserDns($ligne['name'] . '.' . $this->domaine, $ip);
+        $this->db->prepare('UPDATE registry_servers SET ip = ?, dns_record_id = ?, last_seen = NOW() WHERE id = ?')
+            ->execute([$ip, $id, $ligne['id']]);
+        return true;
+    }
+
     // ── Ce qui se passe mal ───────────────────────────────────────────────
 
     /**
