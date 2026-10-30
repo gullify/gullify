@@ -160,7 +160,7 @@ final class PostesMaisons
     /** Les postes d'une maison, demandes comprises, avec leurs dernières mesures (la dernière heure). */
     public function liste(string $maison): array
     {
-        $q = $this->db->prepare('SELECT poste, etat, dev, version, canal, demande_le, vue_le FROM gullios_postes
+        $q = $this->db->prepare('SELECT poste, etat, dev, version, canal, cle, demande_le, vue_le FROM gullios_postes
                                  WHERE maison = ? ORDER BY etat = \'accepte\', poste');
         $q->execute([$maison]);
         new MesuresMaisons($this->db);  // ses tables, si aucune mesure n'est encore arrivée
@@ -176,7 +176,11 @@ final class PostesMaisons
                 }
             }
             $rendu[] = ['nom' => $x['poste'], 'etat' => $x['etat'], 'dev' => (bool)$x['dev'], 'version' => $x['version'],
-                        'canal' => $x['canal'], 'demande_le' => gmdate('c', strtotime((string)$x['demande_le'])),
+                        'canal' => $x['canal'],
+                        // GulliOS 1.109 : la clé publique d'un poste accepté, pour que la maison reconnaisse son lien
+                        // (bureau à distance d'un poste)
+                        'cle' => $x['etat'] === 'accepte' ? $x['cle'] : null,
+                        'demande_le' => gmdate('c', strtotime((string)$x['demande_le'])),
                         'vue_il_y_a' => $x['vue_le'] ? max(0, time() - strtotime((string)$x['vue_le'])) : null,
                         'courbes' => $courbes];
         }
