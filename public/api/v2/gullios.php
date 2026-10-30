@@ -13,6 +13,8 @@
  *   POST ?action=postes         message {nom, quand}                            → [postes] (PostesMaisons, 1.57)
  *   POST ?action=poste          message {nom, quand, cible, geste: accepter|retirer|dev-oui|dev-non} → [postes]
  *   POST ?action=historique-poste message {nom, quand, cible, periode}          → l'historique d'un de ses postes
+ *   POST ?action=ordres         message {nom, quand, images: {image: [digest]}}  → {ordres: [{id, geste, app}]}
+ *   POST ?action=ordre-fait     message {nom, quand, id, ok, sortie}            → {rendu}   (OrdresMaisons, 1.107)
  * Signées par un POSTE (sa propre clé, voir PostesMaisons) :
  *   POST ?action=poste-signe    message {maison, poste, quand, cle, version, canal} → {etat, dev}
  *   POST ?action=poste-mesures  message {maison, poste, quand, cle, echantillons}   → {recus}
@@ -31,6 +33,7 @@ require_once __DIR__ . '/../../../src/TableRecettes.php';
 require_once __DIR__ . '/../../../src/MesuresMaisons.php';
 require_once __DIR__ . '/../../../src/AmiesMaisons.php';
 require_once __DIR__ . '/../../../src/PostesMaisons.php';
+require_once __DIR__ . '/../../../src/OrdresMaisons.php';
 require_once __DIR__ . '/../../../src/Registry.php';
 
 if (!RegistreMaisons::actif()) {
@@ -88,6 +91,15 @@ try {
                 v2_fail('mesures', 'Échantillons manquants.', 400);
             }
             v2_ok(['recus' => (new MesuresMaisons())->recevoir($m['nom'], $m['echantillons'])]);
+        case 'ordres':
+        case 'ordre-fait':
+            if (!$maison) {
+                v2_fail('inconnue', 'Maison inconnue.', 403);
+            }
+            $ordres = new OrdresMaisons();
+            v2_ok($action === 'ordres'
+                ? ['ordres' => $ordres->relever($m['nom'], is_array($m['images'] ?? null) ? $m['images'] : [])]
+                : $ordres->rendre($m['nom'], (int)($m['id'] ?? 0), !empty($m['ok']), (string)($m['sortie'] ?? '')));
         case 'amies':
             if (!$maison) {
                 v2_fail('inconnue', 'Maison inconnue.', 403);
