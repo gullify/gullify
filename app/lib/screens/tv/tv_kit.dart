@@ -787,9 +787,8 @@ class _TvEqBarsState extends State<TvEqBars>
 
   @override
   Widget build(BuildContext context) {
-    // Un téléviseur reste allumé des heures : si l'utilisateur a demandé
-    // moins d'animation, on ne fait pas battre des barres indéfiniment.
-    final still = MediaQuery.disableAnimationsOf(context);
+    // Les barres battent toujours, quel que soit le réglage d'animations du
+    // téléviseur (demande de Maxime : il veut l'animation).
     return SizedBox(
       height: widget.height,
       child: AnimatedBuilder(
@@ -802,10 +801,8 @@ class _TvEqBarsState extends State<TvEqBars>
               if (i > 0) const SizedBox(width: 4),
               Container(
                 width: 5,
-                height: still
-                    ? widget.height * 0.55
-                    : widget.height *
-                          (0.3 + 0.7 * ((_c.value + i * 0.25) % 1.0)),
+                height:
+                    widget.height * (0.3 + 0.7 * ((_c.value + i * 0.25) % 1.0)),
                 decoration: BoxDecoration(
                   color: widget.color,
                   borderRadius: BorderRadius.circular(3),

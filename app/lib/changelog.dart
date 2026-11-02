@@ -8,6 +8,9 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.87.3', [
+    'Google TV : les barres d\'égaliseur battent toujours, même quand le téléviseur est réglé pour réduire les animations.',
+  ]),
   ReleaseNote('3.87.2', [
     'Tes artistes : les bulles flottent toujours, même quand le téléphone est réglé pour réduire les animations.',
   ]),
