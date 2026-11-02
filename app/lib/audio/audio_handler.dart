@@ -3124,7 +3124,7 @@ class GullifyAudioHandler extends BaseAudioHandler
     ),
     MediaItem(
       id: 'FAV_SHUFFLE',
-      title: 'Favoris en vrac',
+      title: 'Favoris',
       playable: true,
       extras: _dansLaSection(sectionRoute),
     ),

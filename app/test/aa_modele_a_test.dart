@@ -357,7 +357,7 @@ void main() {
       expect(route.map((i) => i.title), [
         'Lecture aléatoire',
         'Découverte',
-        'Favoris en vrac',
+        'Favoris',
       ]);
       expect(route.every((i) => i.playable == true), isTrue);
     });

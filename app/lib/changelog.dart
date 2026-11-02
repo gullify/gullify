@@ -8,6 +8,9 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.86.2', [
+    'Android Auto : le raccourci « Favoris en vrac » s\'appelle maintenant « Favoris ».',
+  ]),
   ReleaseNote('3.86.1', [
     'Android Auto : une section « Pour toi » sur l\'accueil, avant les Nouveautés — le mix du moment, tes mix et les Découvertes de la semaine, chacun se lance d\'un toucher, et la lecture automatique continue au bout.',
   ]),
