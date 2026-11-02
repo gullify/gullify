@@ -84,7 +84,18 @@ Future<_Faux> _pump(WidgetTester tester) async {
   );
   await tester.pump();
   await tester.pump();
+  // Les bulles éclosent l'une après l'autre : on les laisse arriver.
+  for (var i = 0; i < 10; i++) {
+    await tester.pump(const Duration(milliseconds: 50));
+  }
   return faux;
+}
+
+/// Laisse la physique des bulles avancer (une image toutes les 50 ms).
+Future<void> _laisser(WidgetTester tester, [int ms = 1500]) async {
+  for (var t = 0; t < ms; t += 50) {
+    await tester.pump(const Duration(milliseconds: 50));
+  }
 }
 
 void main() {
@@ -117,6 +128,8 @@ void main() {
     expect(faux.autourDe, ['nofx']);
     expect(find.text('Pennywise'), findsOneWidget);
     expect(find.text('Reset'), findsOneWidget);
+    // Les nouvelles bulles vont prendre leur place.
+    await _laisser(tester);
     // Adorer ensuite ne refait pas éclore.
     await tester.tap(find.text('NOFX'));
     await tester.pump(const Duration(milliseconds: 400));
@@ -137,13 +150,18 @@ void main() {
     expect(faux.choix['beaudommage'], 1);
     // De retour aux bulles : il y est, aimé, en tête.
     await tester.enterText(find.byType(TextField), '');
-    await tester.pump(const Duration(milliseconds: 500));
+    await _laisser(tester);
     expect(find.bySemanticsLabel('Beau Dommage, aimé'), findsOneWidget);
   });
 
   testWidgets(
     '« Terminé » recalcule le profil quand on a changé quelque chose',
     (tester) async {
+      // « Réduire les animations » : les bulles ne flottent plus, le champ
+      // finit par s'endormir et pumpAndSettle peut aboutir.
+      tester.platformDispatcher.accessibilityFeaturesTestValue =
+          const FakeAccessibilityFeatures(disableAnimations: true);
+      addTearDown(tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
       final faux = await _pump(tester);
       await tester.tap(find.text('Reset'));
       await tester.pump(const Duration(milliseconds: 400));
@@ -151,8 +169,8 @@ void main() {
       await tester.pump(const Duration(milliseconds: 400));
       await tester.pump(const Duration(milliseconds: 400));
       expect(faux.analyses, 1);
-    await tester.pumpAndSettle();
-    expect(find.text('page goûts'), findsOneWidget);
+      await tester.pumpAndSettle();
+      expect(find.text('page goûts'), findsOneWidget);
     },
   );
 }

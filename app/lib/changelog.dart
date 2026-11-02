@@ -8,6 +8,9 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.87.1', [
+    'Tes artistes : de vraies bulles vivantes — elles éclosent, flottent, gonflent avec un rebond quand tu les aimes et poussent leurs voisines ; des cœurs jaillissent (une onde en plus pour « j\'adore »), et les artistes proches sortent de la bulle aimée. Avec « réduire les animations », elles restent sages.',
+  ]),
   ReleaseNote('3.87.0', [
     'Tes goûts → Tes artistes : des bulles à la Spotify. Un toucher pour aimer, deux pour adorer, trois pour retirer ; aimer un artiste fait éclore ses proches à côté (serveur 1.12.0).',
     'On peut chercher et aimer un artiste qu\'on n\'a pas : ses voisins dans ta bibliothèque en profitent dans tes mix, ta lecture automatique et tes découvertes, et « À découvrir ailleurs » part de lui.',

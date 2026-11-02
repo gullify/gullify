@@ -9,6 +9,7 @@ import '../api/pour_toi_repository.dart';
 import '../state/library.dart';
 import '../state/pour_toi.dart';
 import '../widgets/artwork.dart';
+import '../widgets/champ_de_bulles.dart';
 import '../widgets/pour_toi_actions.dart';
 
 /// « Tes artistes », à la manière des bulles de Spotify : un toucher pour
@@ -34,8 +35,8 @@ class _ArtistesBullesScreenState extends ConsumerState<ArtistesBullesScreen> {
   Timer? _attente;
   final _champ = TextEditingController();
 
-  /// Les bulles qui viennent d'éclore, pour les faire apparaître en douceur.
-  final _neuves = <String>{};
+  /// Les bulles qui viennent d'éclore → celle d'où elles sortent.
+  final _origines = <String, String>{};
 
   PourToiRepository get _repo => ref.read(pourToiRepositoryProvider);
 
@@ -148,7 +149,9 @@ class _ArtistesBullesScreenState extends ConsumerState<ArtistesBullesScreen> {
         ];
         final i = liste.indexWhere((x) => x.cle == b.cle);
         liste.insertAll(i < 0 ? liste.length : i + 1, ajout);
-        _neuves.addAll(ajout.map((x) => x.cle));
+        for (final n in ajout) {
+          _origines[n.cle] = b.cle;
+        }
       });
     } catch (_) {
       // Rien n'éclot : la bulle reste aimée, c'est l'essentiel.
@@ -359,25 +362,19 @@ class _ArtistesBullesScreenState extends ConsumerState<ArtistesBullesScreen> {
                         12,
                         MediaQuery.paddingOf(context).bottom + 24,
                       ),
-                      child: Wrap(
-                        alignment: WrapAlignment.center,
-                        spacing: 6,
-                        runSpacing: 14,
-                        children: [
-                          for (final b in montrees)
-                            BulleArtiste(
-                              key: ValueKey(b.cle),
-                              bulle: b,
-                              neuve: _neuves.contains(b.cle),
-                              onTap: () => _poser(
-                                b,
-                                _resultats != null && b.niveau == 0
-                                    ? 1
-                                    : (b.niveau + 1) % 3,
-                              ),
-                              onLongPress: () => _menu(b),
-                            ),
-                        ],
+                      // Recherche et bulles : deux champs à part, pour que
+                      // chacun garde ses bulles en place.
+                      child: ChampDeBulles(
+                        key: ValueKey(_resultats != null),
+                        bulles: montrees,
+                        origines: _origines,
+                        onTap: (b) => _poser(
+                          b,
+                          _resultats != null && b.niveau == 0
+                              ? 1
+                              : (b.niveau + 1) % 3,
+                        ),
+                        onLongPress: _menu,
                       ),
                     ),
             ),
@@ -385,168 +382,5 @@ class _ArtistesBullesScreenState extends ConsumerState<ArtistesBullesScreen> {
         ),
       ),
     );
-  }
-}
-
-/// Une bulle : la photo en rond, qui grossit quand on l'aime et plus encore
-/// quand on l'adore, avec un cœur (un ou deux) pour le dire sans couleur.
-class BulleArtiste extends StatelessWidget {
-  const BulleArtiste({
-    super.key,
-    required this.bulle,
-    required this.onTap,
-    this.onLongPress,
-    this.neuve = false,
-  });
-
-  final Bulle bulle;
-  final VoidCallback onTap;
-  final VoidCallback? onLongPress;
-
-  /// Vient d'éclore : elle apparaît en grandissant.
-  final bool neuve;
-
-  static double tailleDe(int niveau) => switch (niveau) {
-    2 => 104,
-    1 => 92,
-    _ => 80,
-  };
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final b = bulle;
-    final taille = tailleDe(b.niveau);
-    final etat = switch (b.niveau) {
-      2 => 'adoré',
-      1 => 'aimé',
-      _ => 'pas choisi',
-    };
-    Widget bulleWidget = SizedBox(
-      width: 112,
-      child: Semantics(
-        button: true,
-        label: '${b.nom}, $etat',
-        hint: 'Touche pour changer, garde le doigt pour plus de choix',
-        excludeSemantics: true,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: onTap,
-          onLongPress: onLongPress,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                SizedBox(
-                  width: 108,
-                  height: 108,
-                  child: Center(
-                    child: Stack(
-                      clipBehavior: Clip.none,
-                      children: [
-                        AnimatedContainer(
-                          duration: const Duration(milliseconds: 220),
-                          curve: Curves.easeOutBack,
-                          width: taille,
-                          height: taille,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: b.niveau > 0
-                                  ? scheme.primary
-                                  : scheme.outlineVariant,
-                              width: b.niveau == 2
-                                  ? 4
-                                  : (b.niveau == 1 ? 3 : 1),
-                            ),
-                          ),
-                          padding: const EdgeInsets.all(3),
-                          child: ClipOval(
-                            child: Artwork(
-                              url: b.image,
-                              size: taille,
-                              borderRadius: taille / 2,
-                              icon: Icons.person,
-                            ),
-                          ),
-                        ),
-                        if (b.niveau > 0)
-                          Positioned(
-                            right: -2,
-                            bottom: -2,
-                            child: DecoratedBox(
-                              decoration: BoxDecoration(
-                                color: scheme.primary,
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: scheme.surface,
-                                  width: 2,
-                                ),
-                              ),
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 5,
-                                  vertical: 3,
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    for (var i = 0; i < b.niveau; i++)
-                                      Icon(
-                                        Icons.favorite,
-                                        size: 14,
-                                        color: scheme.onPrimary,
-                                      ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  b.nom,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 13,
-                    height: 1.15,
-                    fontWeight: b.niveau > 0
-                        ? FontWeight.w800
-                        : FontWeight.w600,
-                  ),
-                ),
-                if (!b.dansBibliotheque)
-                  Text(
-                    'pas dans ta biblio',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: scheme.onSurfaceVariant,
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-    if (neuve) {
-      bulleWidget = TweenAnimationBuilder<double>(
-        tween: Tween(begin: 0.4, end: 1),
-        duration: const Duration(milliseconds: 320),
-        curve: Curves.easeOutBack,
-        builder: (context, v, child) => Opacity(
-          opacity: v.clamp(0, 1),
-          child: Transform.scale(scale: v, child: child),
-        ),
-        child: bulleWidget,
-      );
-    }
-    return bulleWidget;
   }
 }
