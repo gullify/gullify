@@ -182,6 +182,7 @@ class BrowseIds {
   /// esperluettes — et ces identifiants-ci voyagent dans un protocole qui les
   /// traite comme des mots. On les encode donc, plutôt que d'espérer.
   static String podcastShow(String feedUrl) => 'PODCAST_${encode(feedUrl)}';
+
   ///
   /// Le point sépare les deux : l'alphabet de base64url contient le tiret ET
   /// le tiret bas, donc découper à l'un d'eux tomberait un jour au milieu
@@ -192,8 +193,8 @@ class BrowseIds {
   static String encode(String valeur) =>
       base64Url.encode(utf8.encode(valeur)).replaceAll('=', '');
   static String decode(String valeur) => utf8.decode(
-        base64Url.decode(valeur.padRight((valeur.length + 3) ~/ 4 * 4, '=')),
-      );
+    base64Url.decode(valeur.padRight((valeur.length + 3) ~/ 4 * 4, '=')),
+  );
 
   /// Item « Réessayer » proposé quand une catégorie n'a pas pu se charger.
   static String retry(String parentId) => 'RETRY_$parentId';
@@ -257,101 +258,118 @@ class GullifyAudioHandler extends BaseAudioHandler
       unawaited(sub.cancel());
     }
     _subs.clear();
-    _subs.add(_player.playbackEventStream.listen(
-      _broadcastState,
-      // Une erreur du lecteur (flux coupé en veille, source injoignable…) est
-      // la cause typique d'un arrêt écran éteint : on la journalise.
-      onError: (Object e, StackTrace _) =>
-          logPlayback('ERREUR lecteur : $e'),
-    ));
+    _subs.add(
+      _player.playbackEventStream.listen(
+        _broadcastState,
+        // Une erreur du lecteur (flux coupé en veille, source injoignable…) est
+        // la cause typique d'un arrêt écran éteint : on la journalise.
+        onError: (Object e, StackTrace _) => logPlayback('ERREUR lecteur : $e'),
+      ),
+    );
     // Changement d'état « joue / ne joue pas ». Capte AUSSI les pauses
     // spontanées (perte de focus audio, coupure système) qui ne passent pas
     // par notre pause() — exactement le symptôme à diagnostiquer en veille.
-    _subs.add(_player.playerStateStream.listen((s) {
-      if (s.playing == _lastLoggedPlaying) return;
-      _lastLoggedPlaying = s.playing;
-      // (Le verrou réseau qui garde la Wi-Fi et le CPU actifs écran éteint est
-      // tenu par le lecteur lui-même — voir tuned_player.dart, où tous les
-      // lecteurs de l'app le prennent désormais.)
-      // Le titre courant permet de savoir quelle piste s'est arrêtée (utile
-      // quand l'arrêt suit un changement de source ou une piste précise).
-      final title = mediaItem.value?.title;
-      final suffix = title != null ? ' : « $title »' : '';
-      logPlayback(s.playing
-          ? '▶ lecture$suffix'
-          : '⏸ pause à ${_fmtPos(_player.position)}$suffix');
-      // On s'arrête ici : c'est de là qu'Android Auto devra reprendre.
-      if (!s.playing) _rememberPosition();
-    }));
+    _subs.add(
+      _player.playerStateStream.listen((s) {
+        if (s.playing == _lastLoggedPlaying) return;
+        _lastLoggedPlaying = s.playing;
+        // (Le verrou réseau qui garde la Wi-Fi et le CPU actifs écran éteint est
+        // tenu par le lecteur lui-même — voir tuned_player.dart, où tous les
+        // lecteurs de l'app le prennent désormais.)
+        // Le titre courant permet de savoir quelle piste s'est arrêtée (utile
+        // quand l'arrêt suit un changement de source ou une piste précise).
+        final title = mediaItem.value?.title;
+        final suffix = title != null ? ' : « $title »' : '';
+        logPlayback(
+          s.playing
+              ? '▶ lecture$suffix'
+              : '⏸ pause à ${_fmtPos(_player.position)}$suffix',
+        );
+        // On s'arrête ici : c'est de là qu'Android Auto devra reprendre.
+        if (!s.playing) _rememberPosition();
+      }),
+    );
     // Transitions du cycle de lecture (mise en tampon = stall réseau, etc.).
-    _subs.add(_player.processingStateStream.listen((s) {
-      if (s != _lastLoggedProcessing) {
-        _lastLoggedProcessing = s;
-        logPlayback('état : ${_processingLabel(s)}');
-      }
-    }));
+    _subs.add(
+      _player.processingStateStream.listen((s) {
+        if (s != _lastLoggedProcessing) {
+          _lastLoggedProcessing = s;
+          logPlayback('état : ${_processingLabel(s)}');
+        }
+      }),
+    );
     // La session audio n'existe qu'une fois la lecture lancée (ExoPlayer la
     // génère en tâche de fond) : c'est le seul moment où l'égaliseur peut
     // s'accrocher. Une nouvelle session = un nouvel effet à recréer — dont
     // celle du lecteur qui prend l'antenne à chaque fondu enchaîné.
     if (equalizerSupported) {
-      _subs.add(_player.androidAudioSessionIdStream.listen((id) {
-        if (id == null) return;
-        logPlayback('égaliseur : session audio $id');
-        equalizer.attachSession(id);
-      }));
-    }
-    _subs.add(_player.currentIndexStream.listen((index) {
-      final q = queue.value;
-      if (index == null || index < 0 || index >= q.length) return;
-      // setAudioSources can emit the same index more than once.
-      if (index == _queueIndex && identical(q, _trackedQueue)) return;
-      _queueIndex = index;
-      _trackedQueue = q;
-      _fadeInNewTrack();
-      _flushPlay();
-      _startTracking(q[index]);
-      // Bientôt au bout de la file : la lecture automatique prend le relais.
-      unawaited(_maybeAutoplay());
-      // Ce qu'Android Auto proposera de reprendre, c'est le titre qui commence
-      // (idée #103).
-      unawaited(resume.rememberCurrent(q[index].extras?['songId'] as int?));
-      _prefetchKaraoke(index);
-      // Les bords du titre qui commence et de celui qui suit : demandés
-      // maintenant, ils seront là bien avant le croisement (idée #79).
-      _fetchEdges();
-      // Le tampon prend l'avance suivante, et ce qui est déjà descendu passe
-      // sur son fichier (idée #90).
-      _primeBuffer();
-      unawaited(_adoptBuffered());
-      mediaItem.add(q[index]);
-      // Rafraîchit le cœur (favori) pour la nouvelle piste courante.
-      playbackState.add(
-        playbackState.value.copyWith(
-          controls: _controls(playbackState.value.playing),
-        ),
+      _subs.add(
+        _player.androidAudioSessionIdStream.listen((id) {
+          if (id == null) return;
+          logPlayback('égaliseur : session audio $id');
+          equalizer.attachSession(id);
+        }),
       );
-    }));
-    _subs.add(_player.positionStream.listen((pos) {
-      if (_trackedSongId != null) _lastPosition = pos;
-      _watchTrackFade(pos);
-    }));
+    }
+    _subs.add(
+      _player.currentIndexStream.listen((index) {
+        final q = queue.value;
+        if (index == null || index < 0 || index >= q.length) return;
+        // setAudioSources can emit the same index more than once.
+        if (index == _queueIndex && identical(q, _trackedQueue)) return;
+        _queueIndex = index;
+        _trackedQueue = q;
+        _fadeInNewTrack();
+        _flushPlay();
+        _startTracking(q[index]);
+        // Bientôt au bout de la file : la lecture automatique prend le relais.
+        unawaited(_maybeAutoplay());
+        // Ce qu'Android Auto proposera de reprendre, c'est le titre qui commence
+        // (idée #103).
+        unawaited(resume.rememberCurrent(q[index].extras?['songId'] as int?));
+        _prefetchKaraoke(index);
+        // Les bords du titre qui commence et de celui qui suit : demandés
+        // maintenant, ils seront là bien avant le croisement (idée #79).
+        _fetchEdges();
+        // Le tampon prend l'avance suivante, et ce qui est déjà descendu passe
+        // sur son fichier (idée #90).
+        _primeBuffer();
+        unawaited(_adoptBuffered());
+        mediaItem.add(q[index]);
+        // Rafraîchit le cœur (favori) pour la nouvelle piste courante.
+        playbackState.add(
+          playbackState.value.copyWith(
+            controls: _controls(playbackState.value.playing),
+          ),
+        );
+      }),
+    );
+    _subs.add(
+      _player.positionStream.listen((pos) {
+        if (_trackedSongId != null) _lastPosition = pos;
+        _watchTrackFade(pos);
+      }),
+    );
     // La durée d'un flux qu'on ne connaît pas d'avance (la pré-écoute d'un titre
     // YouTube : le serveur la découvre en le transcodant) n'arrive qu'une fois
     // le titre chargé. On complète alors sa fiche, sans quoi le scrubber du
     // lecteur et la barre de la recherche n'auraient jamais de fin. Une radio
     // n'en a pas non plus, mais elle est en direct : le lecteur ne rend rien.
-    _subs.add(_player.durationStream.listen((duration) {
-      final item = mediaItem.value;
-      if (duration == null || item == null || item.duration != null) return;
-      mediaItem.add(item.copyWith(duration: duration));
-    }));
-    _subs.add(_player.processingStateStream.listen((s) {
-      if (s == ProcessingState.completed) {
-        _lastPosition = _trackedDuration;
-        stop();
-      }
-    }));
+    _subs.add(
+      _player.durationStream.listen((duration) {
+        final item = mediaItem.value;
+        if (duration == null || item == null || item.duration != null) return;
+        mediaItem.add(item.copyWith(duration: duration));
+      }),
+    );
+    _subs.add(
+      _player.processingStateStream.listen((s) {
+        if (s == ProcessingState.completed) {
+          _lastPosition = _trackedDuration;
+          stop();
+        }
+      }),
+    );
   }
 
   /// Ce qui écoute le lecteur courant, et rien d'autre. Vidé et rebranché à
@@ -465,12 +483,12 @@ class GullifyAudioHandler extends BaseAudioHandler
   }
 
   static String _processingLabel(ProcessingState s) => switch (s) {
-        ProcessingState.idle => 'inactif',
-        ProcessingState.loading => 'chargement',
-        ProcessingState.buffering => 'mise en tampon (réseau ?)',
-        ProcessingState.ready => 'prêt',
-        ProcessingState.completed => 'piste terminée',
-      };
+    ProcessingState.idle => 'inactif',
+    ProcessingState.loading => 'chargement',
+    ProcessingState.buffering => 'mise en tampon (réseau ?)',
+    ProcessingState.ready => 'prêt',
+    ProcessingState.completed => 'piste terminée',
+  };
 
   /// Instantané de l'état courant du lecteur, pour l'en-tête du diagnostic :
   /// le journal ne montre que les *changements*, pas l'état à l'instant t. Sans
@@ -512,9 +530,11 @@ class GullifyAudioHandler extends BaseAudioHandler
           AudioInterruptionType.pause => 'pause',
           AudioInterruptionType.unknown => 'inconnue',
         };
-        logPlayback(e.begin
-            ? 'interruption audio — début ($type)'
-            : 'interruption audio — fin ($type)');
+        logPlayback(
+          e.begin
+              ? 'interruption audio — début ($type)'
+              : 'interruption audio — fin ($type)',
+        );
       });
       session.becomingNoisyEventStream.listen(
         (_) => logPlayback('sortie audio débranchée (casque/BT)'),
@@ -535,8 +555,8 @@ class GullifyAudioHandler extends BaseAudioHandler
 
   /// Note où en est la piste courante pour la reprise Android Auto (idée #103).
   void _rememberPosition() => unawaited(
-        resume.rememberPosition(_player.position, songId: _currentSongId),
-      );
+    resume.rememberPosition(_player.position, songId: _currentSongId),
+  );
 
   // Catégories du browse tree dont un chargement réseau a échoué (hors
   // ligne) : un réessai est en cours en arrière-plan. Évite de lancer
@@ -641,8 +661,10 @@ class GullifyAudioHandler extends BaseAudioHandler
     localArtists = artists;
     if (!_modeResolved.isCompleted) _modeResolved.complete();
     if (changed) {
-      logAA('dossier local : ${songs.length} titres '
-          '(mode ${mode ? "local" : "serveur"})');
+      logAA(
+        'dossier local : ${songs.length} titres '
+        '(mode ${mode ? "local" : "serveur"})',
+      );
       _notifyChildrenChanged(BrowseIds.root);
     }
   }
@@ -669,8 +691,10 @@ class GullifyAudioHandler extends BaseAudioHandler
   /// du serveur se joue depuis son fichier, personne n'a besoin d'un réseau
   /// pour l'entendre. Le dossier local, lui, se parcourt à part — mêler les
   /// deux listes ferait deux fois le même titre sous deux noms.
-  List<Song> get downloads =>
-      [for (final s in offlineSongs) if (offlinePaths.containsKey(s.id)) s];
+  List<Song> get downloads => [
+    for (final s in offlineSongs)
+      if (offlinePaths.containsKey(s.id)) s,
+  ];
 
   /// Ids des favoris, tenus à jour par audioHandlerBinderProvider. Sert à
   /// afficher le cœur plein ou vide dans la notification / Android Auto.
@@ -712,11 +736,11 @@ class GullifyAudioHandler extends BaseAudioHandler
   );
 
   List<MediaControl> _controls(bool playing) => [
-        MediaControl.skipToPrevious,
-        if (playing) MediaControl.pause else MediaControl.play,
-        MediaControl.skipToNext,
-        _currentIsFavorite ? _unfavoriteControl : _favoriteControl,
-      ];
+    MediaControl.skipToPrevious,
+    if (playing) MediaControl.pause else MediaControl.play,
+    MediaControl.skipToNext,
+    _currentIsFavorite ? _unfavoriteControl : _favoriteControl,
+  ];
 
   AudioPlayer get player => _player;
 
@@ -790,7 +814,8 @@ class GullifyAudioHandler extends BaseAudioHandler
     // Le croisement intelligent (idée #79) peut partir plus tôt encore —
     // fade.crossfadeReach dit de combien, au pire.
     final tolerance = const Duration(seconds: 5) + fade.crossfadeReach;
-    final completed = _trackedDuration > Duration.zero &&
+    final completed =
+        _trackedDuration > Duration.zero &&
         played >= _trackedDuration - tolerance;
     repository
         ?.trackPlay(
@@ -819,10 +844,9 @@ class GullifyAudioHandler extends BaseAudioHandler
     final uri = Uri.tryParse(url);
     if (uri == null) return null;
     if (!uri.path.endsWith('serve_image.php')) return uri;
-    return uri.replace(queryParameters: {
-      ...uri.queryParameters,
-      'size': '$_sysArtSize',
-    });
+    return uri.replace(
+      queryParameters: {...uri.queryParameters, 'size': '$_sysArtSize'},
+    );
   }
 
   /// Mode karaoké (idée #63) : le serveur sert la version voix atténuée des
@@ -846,7 +870,10 @@ class GullifyAudioHandler extends BaseAudioHandler
     final local = _fileFor(s.id);
     if (local != null) return Uri.file(local).toString();
     if (_karaoke) {
-      final karaokeUrl = repository?.streamUrlForPath(s.filePath, karaoke: true);
+      final karaokeUrl = repository?.streamUrlForPath(
+        s.filePath,
+        karaoke: true,
+      );
       if (karaokeUrl != null) return karaokeUrl;
     }
     // Le tampon d'avance (idée #90) : le titre est déjà descendu, on ne
@@ -868,13 +895,14 @@ class GullifyAudioHandler extends BaseAudioHandler
     final songId = item.extras?['songId'] as int?;
     // Le fichier du titre : celui du téléchargement, sinon celui du tampon
     // d'avance (idée #90) s'il est descendu et toujours là.
-    final local =
-        songId == null ? null : _fileFor(songId) ?? buffer.pathFor(songId);
+    final local = songId == null
+        ? null
+        : _fileFor(songId) ?? buffer.pathFor(songId);
     final url = karaoke
         ? repo.streamUrlForPath(path, karaoke: true)
         : (local != null
-            ? Uri.file(local).toString()
-            : repo.streamUrlForPath(path));
+              ? Uri.file(local).toString()
+              : repo.streamUrlForPath(path));
     return url == item.id ? item : item.copyWith(id: url);
   }
 
@@ -1014,11 +1042,13 @@ class GullifyAudioHandler extends BaseAudioHandler
       final path = q[i].extras?['filePath'] as String?;
       if (songId == null || path == null) continue;
       if (_fileFor(songId) != null) continue;
-      wanted.add(BufferRequest(
-        songId: songId,
-        url: repo.streamUrlForPath(path),
-        ext: _fileExt(path),
-      ));
+      wanted.add(
+        BufferRequest(
+          songId: songId,
+          url: repo.streamUrlForPath(path),
+          ext: _fileExt(path),
+        ),
+      );
     }
     buffer.prime(wanted, keep: keep);
   }
@@ -1086,24 +1116,24 @@ class GullifyAudioHandler extends BaseAudioHandler
   }
 
   MediaItem _toMediaItem(Song s) => MediaItem(
-        id: _sourceUri(s),
-        title: s.title,
-        artist: s.artistName,
-        album: s.albumName,
-        duration: Duration(seconds: s.duration),
-        artUri: _artUri(s.artworkUrl),
-        // albumId/artistId : le lecteur y renvoie d'un toucher sur l'album ou
-        // l'artiste (idée #64). Absents des compilations sans album connu.
-        extras: {
-          'songId': s.id,
-          // Maison amie : ni chemin (paroles, karaoké, tampon d'avance), ni
-          // album/artiste à ouvrir — ils n'existent pas sur notre serveur.
-          if (s.streamUrl == null) 'filePath': s.filePath,
-          if (s.streamUrl == null && s.albumId != null) 'albumId': s.albumId,
-          if (s.streamUrl == null && s.artistId != null) 'artistId': s.artistId,
-          if (s.streamUrl != null) 'remote': true,
-        },
-      );
+    id: _sourceUri(s),
+    title: s.title,
+    artist: s.artistName,
+    album: s.albumName,
+    duration: Duration(seconds: s.duration),
+    artUri: _artUri(s.artworkUrl),
+    // albumId/artistId : le lecteur y renvoie d'un toucher sur l'album ou
+    // l'artiste (idée #64). Absents des compilations sans album connu.
+    extras: {
+      'songId': s.id,
+      // Maison amie : ni chemin (paroles, karaoké, tampon d'avance), ni
+      // album/artiste à ouvrir — ils n'existent pas sur notre serveur.
+      if (s.streamUrl == null) 'filePath': s.filePath,
+      if (s.streamUrl == null && s.albumId != null) 'albumId': s.albumId,
+      if (s.streamUrl == null && s.artistId != null) 'artistId': s.artistId,
+      if (s.streamUrl != null) 'remote': true,
+    },
+  );
 
   /// Vrai pendant le remplacement de la file : just_audio repasse alors par
   /// `idle`, qu'il ne faut pas relayer (Android Auto lit STATE_NONE comme
@@ -1120,11 +1150,15 @@ class GullifyAudioHandler extends BaseAudioHandler
     // Hors session (voiture sans réseau), un titre non téléchargé n'a aucune
     // source : mieux vaut l'écarter que de bâtir une file qui échoue dès la
     // première piste. En temps normal rien n'est écarté.
-    final playable = [for (final s in songs) if (_sourceUri(s).isNotEmpty) s];
+    final playable = [
+      for (final s in songs)
+        if (_sourceUri(s).isNotEmpty) s,
+    ];
     if (playable.isEmpty) return;
     if (playable.length != songs.length) {
-      final target =
-          startIndex >= 0 && startIndex < songs.length ? songs[startIndex] : null;
+      final target = startIndex >= 0 && startIndex < songs.length
+          ? songs[startIndex]
+          : null;
       final moved = target == null ? -1 : playable.indexOf(target);
       startIndex = moved < 0 ? 0 : moved;
       songs = playable;
@@ -1202,8 +1236,11 @@ class GullifyAudioHandler extends BaseAudioHandler
     // recherche doit passer en « chargement » au doigt levé, et non à la
     // première note. `currentIndexStream` la réannoncera à l'identique.
     mediaItem.add(item);
-    playbackState.add(playbackState.value
-        .copyWith(processingState: AudioProcessingState.loading));
+    playbackState.add(
+      playbackState.value.copyWith(
+        processingState: AudioProcessingState.loading,
+      ),
+    );
     await _player.setAudioSources([AudioSource.uri(Uri.parse(url))]);
     await play();
   }
@@ -1224,26 +1261,22 @@ class GullifyAudioHandler extends BaseAudioHandler
   }) async {
     final bandcamp = repo ?? bandcampRepository;
     if (bandcamp == null || tracks.isEmpty) return;
-    await restoreQueue(
-      [for (final t in tracks) bandcampMediaItem(t, bandcamp.trackUrl(t))],
-      index: startIndex,
-    );
+    await restoreQueue([
+      for (final t in tracks) bandcampMediaItem(t, bandcamp.trackUrl(t)),
+    ], index: startIndex);
   }
 
   /// La fiche d'un titre Bandcamp dans la file.
   @visibleForTesting
   MediaItem bandcampMediaItem(BcTrack t, String url) => MediaItem(
-        id: url,
-        title: t.title,
-        artist: t.artist,
-        album: t.album.isEmpty ? 'Bandcamp' : t.album,
-        duration: t.duration > 0 ? Duration(seconds: t.duration) : null,
-        artUri: _artUri(t.thumbnail.isEmpty ? null : t.thumbnail),
-        extras: {
-          kBandcampTrack: t.previewId,
-          'bcUrl': t.url,
-        },
-      );
+    id: url,
+    title: t.title,
+    artist: t.artist,
+    album: t.album.isEmpty ? 'Bandcamp' : t.album,
+    duration: t.duration > 0 ? Duration(seconds: t.duration) : null,
+    artUri: _artUri(t.thumbnail.isEmpty ? null : t.thumbnail),
+    extras: {kBandcampTrack: t.previewId, 'bcUrl': t.url},
+  );
 
   /// Joue les épisodes d'un podcast (idée #112), à partir de [startIndex].
   ///
@@ -1294,15 +1327,11 @@ class GullifyAudioHandler extends BaseAudioHandler
 
     final podcasts = podcastsRepository;
     var episodes = _episodesCache[feedUrl];
-    var titre = _showsCache
-            ?.where((s) => s.feedUrl == feedUrl)
-            .firstOrNull
-            ?.title ??
+    var titre =
+        _showsCache?.where((s) => s.feedUrl == feedUrl).firstOrNull?.title ??
         '';
-    var image = _showsCache
-            ?.where((s) => s.feedUrl == feedUrl)
-            .firstOrNull
-            ?.image ??
+    var image =
+        _showsCache?.where((s) => s.feedUrl == feedUrl).firstOrNull?.image ??
         '';
 
     if (episodes == null) {
@@ -1367,10 +1396,7 @@ class GullifyAudioHandler extends BaseAudioHandler
       album: 'Podcast',
       duration: e.duration > 0 ? Duration(seconds: e.duration) : null,
       artUri: _artUri(art.isEmpty ? null : art),
-      extras: {
-        kPodcastEpisode: e.guid,
-        kPodcastFeed: feedUrl,
-      },
+      extras: {kPodcastEpisode: e.guid, kPodcastFeed: feedUrl},
     );
   }
 
@@ -1443,7 +1469,8 @@ class GullifyAudioHandler extends BaseAudioHandler
   Future<void> playNext(Song song) async {
     final item = _toMediaItem(song);
     final index = (_player.currentIndex ?? -1) + 1;
-    final q = [...queue.value]..insert(index.clamp(0, queue.value.length), item);
+    final q = [...queue.value]
+      ..insert(index.clamp(0, queue.value.length), item);
     queue.add(q);
     await _player.insertAudioSource(
       index.clamp(0, q.length - 1),
@@ -1515,9 +1542,9 @@ class GullifyAudioHandler extends BaseAudioHandler
       if (songs.isEmpty) return;
       final items = songs.map(_toMediaItem).toList();
       queue.add([...now, ...items]);
-      await _player.addAudioSources(
-        [for (final item in items) AudioSource.uri(Uri.parse(item.id))],
-      );
+      await _player.addAudioSources([
+        for (final item in items) AudioSource.uri(Uri.parse(item.id)),
+      ]);
       logPlayback('lecture automatique : ${items.length} titres ajoutés');
       _primeBuffer();
     } catch (e) {
@@ -1577,7 +1604,7 @@ class GullifyAudioHandler extends BaseAudioHandler
   /// Renvoie de quoi revenir en arrière : la file et l'endroit où elle en
   /// était, à repasser à [restoreQueue].
   Future<({List<MediaItem> queue, int index, Duration position})>
-      dismiss() async {
+  dismiss() async {
     final closed = (
       queue: queue.value,
       index: _player.currentIndex ?? 0,
@@ -1651,7 +1678,8 @@ class GullifyAudioHandler extends BaseAudioHandler
   double _volumeForSong(int? songId) {
     // La compensation de l'égaliseur (headroomGain) s'ajoute, normalisation ou non.
     final base = fade.normalizes
-        ? (trackVolumeFor(songId == null ? null : _edges[songId]?.level) ?? _trackVolume)
+        ? (trackVolumeFor(songId == null ? null : _edges[songId]?.level) ??
+              _trackVolume)
         : 1.0;
     return base * equalizer.headroomGain;
   }
@@ -1900,24 +1928,28 @@ class GullifyAudioHandler extends BaseAudioHandler
       if (_edgesAsked.add(id)) wanted.add(id);
     }
     if (wanted.isEmpty) return;
-    unawaited(repo.songTransitions(wanted).then(
-      (found) {
-        // Un titre absent de la réponse est un titre que le serveur ne sait
-        // pas analyser : on le note pour ne plus le redemander.
-        for (final id in wanted) {
-          _edges[id] = found[id];
-        }
-        _edgesAsked.removeAll(wanted);
-        // La mesure du titre en cours peut arriver après sa première note :
-        // on lui pose alors son volume, tant qu'on est encore dans son entrée
-        // en matière (idée #108).
-        _applyNormalization(onlyEarly: true);
-      },
-      onError: (Object e) {
-        // Hors ligne, ou serveur muet : on réessaiera à la piste suivante.
-        _edgesAsked.removeAll(wanted);
-      },
-    ));
+    unawaited(
+      repo
+          .songTransitions(wanted)
+          .then(
+            (found) {
+              // Un titre absent de la réponse est un titre que le serveur ne sait
+              // pas analyser : on le note pour ne plus le redemander.
+              for (final id in wanted) {
+                _edges[id] = found[id];
+              }
+              _edgesAsked.removeAll(wanted);
+              // La mesure du titre en cours peut arriver après sa première note :
+              // on lui pose alors son volume, tant qu'on est encore dans son entrée
+              // en matière (idée #108).
+              _applyNormalization(onlyEarly: true);
+            },
+            onError: (Object e) {
+              // Hors ligne, ou serveur muet : on réessaiera à la piste suivante.
+              _edgesAsked.removeAll(wanted);
+            },
+          ),
+    );
   }
 
   /// La forme du croisement pour la piste en cours. Le calcul est synchrone —
@@ -2022,9 +2054,11 @@ class GullifyAudioHandler extends BaseAudioHandler
       await incoming.setVolume(0);
       // play() de just_audio ne se résout qu'à l'arrêt du son : ne pas
       // l'attendre, sinon le croisement ne commence jamais.
-      unawaited(incoming.play().catchError((Object e) {
-        logPlayback('fondu enchaîné : lecture impossible ($e)');
-      }));
+      unawaited(
+        incoming.play().catchError((Object e) {
+          logPlayback('fondu enchaîné : lecture impossible ($e)');
+        }),
+      );
 
       // Le titre entrant prend l'antenne : c'est lui qu'on annonce, et c'est
       // sa position que le lecteur affiche.
@@ -2233,8 +2267,7 @@ class GullifyAudioHandler extends BaseAudioHandler
     await _player.setLoopMode(switch (repeatMode) {
       AudioServiceRepeatMode.one => LoopMode.one,
       AudioServiceRepeatMode.all ||
-      AudioServiceRepeatMode.group =>
-        LoopMode.all,
+      AudioServiceRepeatMode.group => LoopMode.all,
       AudioServiceRepeatMode.none => LoopMode.off,
     });
     playbackState.add(playbackState.value.copyWith(repeatMode: repeatMode));
@@ -2275,13 +2308,13 @@ class GullifyAudioHandler extends BaseAudioHandler
 
   static const sectionReprendre = 'Reprendre';
   static const sectionRoute = 'Pour la route';
+  static const sectionPourToi = 'Pour toi';
   static const sectionNouveautes = 'Nouveautés';
 
   static Map<String, dynamic> _dansLaSection(
     String titre, [
     Map<String, dynamic> autres = const {},
-  ]) =>
-      {titreDeSection: titre, ...autres};
+  ]) => {titreDeSection: titre, ...autres};
 
   /// L'état d'écoute d'un élément, tel que la voiture le dessine : une barre
   /// de progression sous la vignette, ou la mention « écouté ».
@@ -2316,31 +2349,26 @@ class GullifyAudioHandler extends BaseAudioHandler
     String prefix, {
     String playLabel = 'Tout lire',
     String shuffleLabel = 'Lecture aléatoire',
-  }) =>
-      [
-        MediaItem(id: '${prefix}_PLAY', title: playLabel, playable: true),
-        MediaItem(
-          id: '${prefix}_SHUFFLE',
-          title: shuffleLabel,
-          playable: true,
-        ),
-      ];
+  }) => [
+    MediaItem(id: '${prefix}_PLAY', title: playLabel, playable: true),
+    MediaItem(id: '${prefix}_SHUFFLE', title: shuffleLabel, playable: true),
+  ];
 
   // Les pochettes/images s'affichent sur les tuiles de navigation (albums,
   // artistes). Sur les listes de pistes complètes (album, playlist, favoris,
   // populaires, derniers joués), on n'ajoute PAS de pochette par piste : c'est
   // redondant (même album) et lourd à charger sur de longues listes en voiture.
   List<MediaItem> _trackItems(String prefix, List<Song> songs) => [
-        for (final (i, s) in songs.indexed)
-          MediaItem(
-            id: '${prefix}_TRACK_$i',
-            title: s.title,
-            artist: s.artistName,
-            album: s.albumName,
-            duration: Duration(seconds: s.duration),
-            playable: true,
-          ),
-      ];
+    for (final (i, s) in songs.indexed)
+      MediaItem(
+        id: '${prefix}_TRACK_$i',
+        title: s.title,
+        artist: s.artistName,
+        album: s.albumName,
+        duration: Duration(seconds: s.duration),
+        playable: true,
+      ),
+  ];
 
   /// Au lancement par Android Auto (téléphone verrouillé), la restauration
   /// de session prend quelques secondes : on attend le repository plutôt
@@ -2351,7 +2379,8 @@ class GullifyAudioHandler extends BaseAudioHandler
     // répondre sans elle (des téléchargements), on abrège : mieux vaut une
     // liste jouable tout de suite qu'un écran vide au bout d'une demi-minute.
     const step = Duration(milliseconds: 250);
-    final steps = (timeout ?? const Duration(seconds: 25)).inMilliseconds ~/
+    final steps =
+        (timeout ?? const Duration(seconds: 25)).inMilliseconds ~/
         step.inMilliseconds;
     for (var i = 0; i < steps && repository == null; i++) {
       await Future<void>.delayed(step);
@@ -2448,7 +2477,8 @@ class GullifyAudioHandler extends BaseAudioHandler
     final point = await resume.load();
     if (point == null) return null;
     final live = _player.position;
-    final playing = queue.value.isNotEmpty &&
+    final playing =
+        queue.value.isNotEmpty &&
         mediaItem.value?.extras?['songId'] == point.song.id;
     return playing && live > Duration.zero ? point.at(live) : point;
   }
@@ -2496,10 +2526,12 @@ class GullifyAudioHandler extends BaseAudioHandler
     // Un titre téléchargé se joue sans réseau ni session ; les autres ont
     // besoin du dépôt, qui met quelques secondes à revenir au démarrage.
     if (_fileFor(point.song.id) == null) {
-      playbackState.add(playbackState.value.copyWith(
-        processingState: AudioProcessingState.loading,
-        playing: false,
-      ));
+      playbackState.add(
+        playbackState.value.copyWith(
+          processingState: AudioProcessingState.loading,
+          playing: false,
+        ),
+      );
       // En mode local, ce qui manque n'est pas une session mais le dossier :
       // l'attendre, plutôt que d'attendre un serveur qui ne viendra pas
       // (idée #115).
@@ -2507,16 +2539,20 @@ class GullifyAudioHandler extends BaseAudioHandler
       if (localMode) {
         if (_fileFor(point.song.id) == null) {
           logAA('reprise : ce titre n\'est pas dans le dossier');
-          playbackState.add(playbackState.value.copyWith(
-            processingState: AudioProcessingState.idle,
-          ));
+          playbackState.add(
+            playbackState.value.copyWith(
+              processingState: AudioProcessingState.idle,
+            ),
+          );
           return;
         }
       } else if (await _awaitRepository() == null) {
         logAA('reprise : pas de session');
-        playbackState.add(playbackState.value.copyWith(
-          processingState: AudioProcessingState.idle,
-        ));
+        playbackState.add(
+          playbackState.value.copyWith(
+            processingState: AudioProcessingState.idle,
+          ),
+        );
         return;
       }
     }
@@ -2538,12 +2574,23 @@ class GullifyAudioHandler extends BaseAudioHandler
       // probablement invisible, et déjà présente dans Bibliothèque.
       case BrowseIds.root:
         return const [
-          MediaItem(id: BrowseIds.home, title: 'Accueil', playable: false,
-              extras: enfantsEnGrille),
-          MediaItem(id: BrowseIds.library, title: 'Bibliothèque',
-              playable: false),
-          MediaItem(id: BrowseIds.podcasts, title: 'Balados', playable: false,
-              extras: enfantsEnGrille),
+          MediaItem(
+            id: BrowseIds.home,
+            title: 'Accueil',
+            playable: false,
+            extras: enfantsEnGrille,
+          ),
+          MediaItem(
+            id: BrowseIds.library,
+            title: 'Bibliothèque',
+            playable: false,
+          ),
+          MediaItem(
+            id: BrowseIds.podcasts,
+            title: 'Balados',
+            playable: false,
+            extras: enfantsEnGrille,
+          ),
           MediaItem(id: BrowseIds.radios, title: 'Radios', playable: false),
         ];
       case BrowseIds.library:
@@ -2655,46 +2702,46 @@ class GullifyAudioHandler extends BaseAudioHandler
   /// Titres — dossier local et titres descendus sont tous des fichiers du
   /// téléphone.
   List<MediaItem> _localRoot() => [
-        if (localSongs.isNotEmpty) ...[
-          const MediaItem(
-            id: 'LOCAL_ALL_SHUFFLE',
-            title: 'Lecture aléatoire',
-            playable: true,
-          ),
-          const MediaItem(
-            id: BrowseIds.localArtists,
-            title: 'Artistes',
-            playable: false,
-            extras: enfantsEnGrille,
-          ),
-          const MediaItem(
-            id: BrowseIds.localAlbums,
-            title: 'Albums',
-            playable: false,
-            extras: enfantsEnGrille,
-          ),
-          const MediaItem(
-            id: BrowseIds.localSongs,
-            title: 'Titres',
-            playable: false,
-          ),
-        ],
-        // Dossier vide mais des titres descendus : ils sont tout ce qu'il y a
-        // à écouter, ils prennent la racine.
-        if (localSongs.isEmpty && downloads.isNotEmpty)
-          const MediaItem(
-            id: BrowseIds.downloads,
-            title: 'Téléchargements',
-            playable: false,
-          ),
-        if (localSongs.isEmpty && downloads.isEmpty)
-          const MediaItem(
-            id: 'LOCAL_EMPTY',
-            title: 'Dossier local vide',
-            artist: 'Ouvre Gullify sur le téléphone pour parcourir le dossier',
-            playable: false,
-          ),
-      ];
+    if (localSongs.isNotEmpty) ...[
+      const MediaItem(
+        id: 'LOCAL_ALL_SHUFFLE',
+        title: 'Lecture aléatoire',
+        playable: true,
+      ),
+      const MediaItem(
+        id: BrowseIds.localArtists,
+        title: 'Artistes',
+        playable: false,
+        extras: enfantsEnGrille,
+      ),
+      const MediaItem(
+        id: BrowseIds.localAlbums,
+        title: 'Albums',
+        playable: false,
+        extras: enfantsEnGrille,
+      ),
+      const MediaItem(
+        id: BrowseIds.localSongs,
+        title: 'Titres',
+        playable: false,
+      ),
+    ],
+    // Dossier vide mais des titres descendus : ils sont tout ce qu'il y a
+    // à écouter, ils prennent la racine.
+    if (localSongs.isEmpty && downloads.isNotEmpty)
+      const MediaItem(
+        id: BrowseIds.downloads,
+        title: 'Téléchargements',
+        playable: false,
+      ),
+    if (localSongs.isEmpty && downloads.isEmpty)
+      const MediaItem(
+        id: 'LOCAL_EMPTY',
+        title: 'Dossier local vide',
+        artist: 'Ouvre Gullify sur le téléphone pour parcourir le dossier',
+        playable: false,
+      ),
+  ];
 
   LocalBrowseAlbum? _localAlbumOf(String mediaId) {
     final m = RegExp(r'^LOCAL_ALBUM_(\d+)$').firstMatch(mediaId);
@@ -2833,8 +2880,11 @@ class GullifyAudioHandler extends BaseAudioHandler
   /// l'écran qu'il a — y compris vide.
   void _notifyChildrenChanged(String parentMediaId) {
     // ignore: deprecated_member_use
-    unawaited(AudioServiceBackground.notifyChildrenChanged(parentMediaId)
-        .catchError((Object e) => logAA('notifyChildrenChanged: $e')));
+    unawaited(
+      AudioServiceBackground.notifyChildrenChanged(
+        parentMediaId,
+      ).catchError((Object e) => logAA('notifyChildrenChanged: $e')),
+    );
   }
 
   /// Un chargement de catégorie a échoué (hors ligne). On réessaie en
@@ -2853,8 +2903,9 @@ class GullifyAudioHandler extends BaseAudioHandler
       // seule à la première barre de signal retrouvée. L'attente plafonne à une
       // minute, et la boucle s'arrête à la réussite (ou au bout de ~2 h).
       for (var i = 0; i < _maxReloadAttempts; i++) {
-        await Future<void>.delayed(reloadDelays[
-            i < reloadDelays.length ? i : reloadDelays.length - 1]);
+        await Future<void>.delayed(
+          reloadDelays[i < reloadDelays.length ? i : reloadDelays.length - 1],
+        );
         var repo = repository;
         if (repo == null) {
           // Session jamais restaurée (démarrage sans réseau) : sans ça, la
@@ -2899,10 +2950,11 @@ class GullifyAudioHandler extends BaseAudioHandler
 
   static const _maxReloadAttempts = 120;
 
-  // ── L'accueil : un écran, trois sections ─────────────────────────────────
+  // ── L'accueil : un écran, quatre sections ────────────────────────────────
   //
-  // « Pour la route » ne demande rien, « Nouveautés » vient du serveur et
-  // « Reprendre » se lit sur le disque. Les trois arrivent dans cet ordre —
+  // « Pour la route » ne demande rien, « Pour toi » (mix, découvertes) et
+  // « Nouveautés » viennent du serveur, « Reprendre » se lit sur le disque.
+  // Les quatre arrivent dans cet ordre —
   // les actions rapides en haut, l'historique dessous (demande de Maxime) —, et
   // chaque élément porte le nom de sa section : la voiture en fait alors un
   // seul écran. C'est ce qui remplace l'accueil d'avant, qui était un menu
@@ -2933,10 +2985,7 @@ class GullifyAudioHandler extends BaseAudioHandler
     // raccourcis — le temps d'y toucher, la session est souvent revenue — et
     // se recomplète de lui-même.
     _scheduleReload(BrowseIds.home);
-    return [
-      ..._pourLaRoute(),
-      if (point != null) _repriseItem(point),
-    ];
+    return [..._pourLaRoute(), if (point != null) _repriseItem(point)];
   }
 
   Future<List<MediaItem>> _accueilComplet(
@@ -2948,6 +2997,12 @@ class GullifyAudioHandler extends BaseAudioHandler
     final derniers = await repo.recentSongs(limit: 50);
     _recentPlaysCache = derniers;
     final nouveautes = await repo.recentAlbums();
+    // Pour toi : un serveur d'avant (sans pour-toi.php) ou une analyse pas
+    // encore faite ne doit jamais faire tomber l'accueil.
+    final pourToi = await _pourToiItems().catchError((Object e) {
+      logAA('pour toi indisponible ($e)');
+      return const <MediaItem>[];
+    });
     // Le titre qu'on reprend est presque toujours le dernier joué : sans ça,
     // la même chanson ouvrirait l'écran deux fois de suite.
     final sansLaReprise = [
@@ -2959,6 +3014,7 @@ class GullifyAudioHandler extends BaseAudioHandler
     final places = point != null ? 2 : 3;
     return [
       ..._pourLaRoute(),
+      ...pourToi,
       for (final a in nouveautes.take(6))
         MediaItem(
           id: BrowseIds.album(a.id),
@@ -2983,6 +3039,55 @@ class GullifyAudioHandler extends BaseAudioHandler
     ];
   }
 
+  /// La section « Pour toi » de la voiture : le mix du moment, les mix
+  /// quotidiens, les Découvertes de la semaine — chacun se lance d'un toucher
+  /// (rien à parcourir au volant), et la lecture automatique prend le relais
+  /// au bout. Cinq au plus : En boucle, Perles oubliées et les artistes
+  /// d'ailleurs restent dans l'app.
+  Future<List<MediaItem>> _pourToiItems() async {
+    final repo = pourToiRepository;
+    if (repo == null) return const [];
+    final accueil = await repo.accueil().timeout(const Duration(seconds: 8));
+    const ordre = {'moment': 0, 'mix': 1, 'decouvertes': 2};
+    final rayons = [
+      for (final r in accueil.rayons)
+        if (ordre.containsKey(r.type) && r.nombre > 0) r,
+    ]..sort((a, b) => ordre[a.type]!.compareTo(ordre[b.type]!));
+    // Les Découvertes gardent leur place même avec six mix.
+    final decouvertes = rayons.where((r) => r.type == 'decouvertes');
+    final autres = rayons
+        .where((r) => r.type != 'decouvertes')
+        .take(decouvertes.isEmpty ? 5 : 4);
+    return [
+      for (final r in [...autres, ...decouvertes])
+        MediaItem(
+          id: 'POURTOI_${r.id}',
+          title: r.titre,
+          artist: r.sousTitre,
+          artUri: _artUri(r.apercu.isEmpty ? null : r.apercu.first),
+          playable: true,
+          extras: _dansLaSection(sectionPourToi),
+        ),
+    ];
+  }
+
+  /// Joue un rayon « Pour toi » choisi dans la voiture.
+  Future<void> _playPourToi(String mediaId) async {
+    final id = int.tryParse(mediaId.substring('POURTOI_'.length));
+    final repo = pourToiRepository;
+    final detail = (id == null || repo == null) ? null : await repo.rayon(id);
+    if (detail == null || detail.titres.isEmpty) {
+      logAA('→ rayon Pour toi vide ou renouvelé');
+      playbackState.add(
+        playbackState.value.copyWith(
+          processingState: AudioProcessingState.idle,
+        ),
+      );
+      return;
+    }
+    await playRecos(detail.titres);
+  }
+
   /// Ce qu'on écoutait, en tête de l'accueil, avec sa barre de progression.
   MediaItem _repriseItem(ResumePoint point) {
     final s = point.song;
@@ -3005,31 +3110,30 @@ class GullifyAudioHandler extends BaseAudioHandler
   /// demandent le serveur au moment de jouer — mais elles restent affichées
   /// sans lui : la session se restaure pendant qu'on lit l'écran.
   List<MediaItem> _pourLaRoute() => [
-        MediaItem(
-          id: 'ALL_SHUFFLE',
-          title: 'Lecture aléatoire',
-          playable: true,
-          extras: _dansLaSection(sectionRoute),
-        ),
-        MediaItem(
-          id: 'DISCOVERY_SHUFFLE',
-          title: 'Découverte',
-          playable: true,
-          extras: _dansLaSection(sectionRoute),
-        ),
-        MediaItem(
-          id: 'FAV_SHUFFLE',
-          title: 'Favoris en vrac',
-          playable: true,
-          extras: _dansLaSection(sectionRoute),
-        ),
-      ];
+    MediaItem(
+      id: 'ALL_SHUFFLE',
+      title: 'Lecture aléatoire',
+      playable: true,
+      extras: _dansLaSection(sectionRoute),
+    ),
+    MediaItem(
+      id: 'DISCOVERY_SHUFFLE',
+      title: 'Découverte',
+      playable: true,
+      extras: _dansLaSection(sectionRoute),
+    ),
+    MediaItem(
+      id: 'FAV_SHUFFLE',
+      title: 'Favoris en vrac',
+      playable: true,
+      extras: _dansLaSection(sectionRoute),
+    ),
+  ];
 
   /// Les listes qui ne dépendent que de l'app : les deux onglets de navigation
   /// et les titres téléchargés.
   List<MediaItem>? _staticCategory(String parentMediaId) {
     switch (parentMediaId) {
-
       // ── Onglet Bibliothèque ──
       //
       // Tout ce qui relève de la fouille, d'un seul tenant : l'accueil, lui,
@@ -3038,16 +3142,33 @@ class GullifyAudioHandler extends BaseAudioHandler
       // coup d'œil là où un titre se lit.
       case BrowseIds.library:
         return [
-          const MediaItem(id: BrowseIds.artists, title: 'Artistes',
-              playable: false, extras: enfantsEnGrille),
-          const MediaItem(id: BrowseIds.albums, title: 'Albums',
-              playable: false, extras: enfantsEnGrille),
-          const MediaItem(id: BrowseIds.playlists, title: 'Playlists',
-              playable: false),
-          const MediaItem(id: BrowseIds.favorites, title: 'Favoris',
-              playable: false),
-          const MediaItem(id: BrowseIds.genres, title: 'Genres',
-              playable: false),
+          const MediaItem(
+            id: BrowseIds.artists,
+            title: 'Artistes',
+            playable: false,
+            extras: enfantsEnGrille,
+          ),
+          const MediaItem(
+            id: BrowseIds.albums,
+            title: 'Albums',
+            playable: false,
+            extras: enfantsEnGrille,
+          ),
+          const MediaItem(
+            id: BrowseIds.playlists,
+            title: 'Playlists',
+            playable: false,
+          ),
+          const MediaItem(
+            id: BrowseIds.favorites,
+            title: 'Favoris',
+            playable: false,
+          ),
+          const MediaItem(
+            id: BrowseIds.genres,
+            title: 'Genres',
+            playable: false,
+          ),
           // Seule entrée qui ne demande rien au réseau : elle n'a de sens que
           // s'il y a des titres téléchargés sur le téléphone.
           if (downloads.isNotEmpty)
@@ -3058,14 +3179,27 @@ class GullifyAudioHandler extends BaseAudioHandler
             ),
           // Descendues de l'accueil : ce sont des envies de fouille, pas de
           // conduite.
-          const MediaItem(id: BrowseIds.popular, title: 'Les plus populaires',
-              playable: false),
-          const MediaItem(id: BrowseIds.recentPlays, title: 'Derniers joués',
-              playable: false),
-          const MediaItem(id: BrowseIds.recent, title: 'Nouveautés',
-              playable: false, extras: enfantsEnGrille),
-          const MediaItem(id: BrowseIds.bandcamp,
-              title: 'Découvrir sur Bandcamp', playable: false),
+          const MediaItem(
+            id: BrowseIds.popular,
+            title: 'Les plus populaires',
+            playable: false,
+          ),
+          const MediaItem(
+            id: BrowseIds.recentPlays,
+            title: 'Derniers joués',
+            playable: false,
+          ),
+          const MediaItem(
+            id: BrowseIds.recent,
+            title: 'Nouveautés',
+            playable: false,
+            extras: enfantsEnGrille,
+          ),
+          const MediaItem(
+            id: BrowseIds.bandcamp,
+            title: 'Découvrir sur Bandcamp',
+            playable: false,
+          ),
         ];
 
       // Jouable sans réseau ni session : aucune requête ici.
@@ -3254,7 +3388,9 @@ class GullifyAudioHandler extends BaseAudioHandler
     }
 
     if (parentMediaId.startsWith('PODCAST_')) {
-      final feedUrl = BrowseIds.decode(parentMediaId.substring('PODCAST_'.length));
+      final feedUrl = BrowseIds.decode(
+        parentMediaId.substring('PODCAST_'.length),
+      );
       final podcasts = podcastsRepository;
       if (podcasts == null) throw StateError('balados non liés');
       final feed = await podcasts.episodes(feedUrl, limit: 50);
@@ -3424,9 +3560,11 @@ class GullifyAudioHandler extends BaseAudioHandler
     final bandcamp = bandcampRepository;
     if (parts.length != 3 || parts[0].isEmpty || bandcamp == null) {
       logAA('→ liste Bandcamp illisible ou non liée');
-      playbackState.add(playbackState.value.copyWith(
-        processingState: AudioProcessingState.idle,
-      ));
+      playbackState.add(
+        playbackState.value.copyWith(
+          processingState: AudioProcessingState.idle,
+        ),
+      );
       return;
     }
     final page = await bandcamp.discover(
@@ -3436,9 +3574,11 @@ class GullifyAudioHandler extends BaseAudioHandler
     );
     logAA('Bandcamp ${parts.join(' / ')} : ${page.tracks.length} titres');
     if (page.tracks.isEmpty) {
-      playbackState.add(playbackState.value.copyWith(
-        processingState: AudioProcessingState.idle,
-      ));
+      playbackState.add(
+        playbackState.value.copyWith(
+          processingState: AudioProcessingState.idle,
+        ),
+      );
       return;
     }
     await playBandcamp(page.tracks, repo: bandcamp);
@@ -3474,8 +3614,7 @@ class GullifyAudioHandler extends BaseAudioHandler
   Future<void> prepareFromMediaId(
     String mediaId, [
     Map<String, dynamic>? extras,
-  ]) =>
-      playFromMediaId(mediaId, extras);
+  ]) => playFromMediaId(mediaId, extras);
 
   /// Android Auto peut demander le détail d'un item avant de le jouer;
   /// le défaut (null) fait échouer la sélection.
@@ -3487,16 +3626,16 @@ class GullifyAudioHandler extends BaseAudioHandler
       return (await _resumeRoot()).where((i) => i.id == mediaId).firstOrNull;
     }
     // Un titre du dossier local non plus (idée #115).
-    final localTrack =
-        RegExp(r'^LOCAL_(?:ALL|ALBUM_(\d+)|SEARCH)_TRACK_(\d+)$')
-            .firstMatch(mediaId);
+    final localTrack = RegExp(
+      r'^LOCAL_(?:ALL|ALBUM_(\d+)|SEARCH)_TRACK_(\d+)$',
+    ).firstMatch(mediaId);
     if (localTrack != null) {
       final songs = localTrack.group(1) != null
           ? _localAlbumOf('LOCAL_ALBUM_${localTrack.group(1)}')?.songs ??
-              const <Song>[]
+                const <Song>[]
           : mediaId.startsWith('LOCAL_SEARCH')
-              ? _localSearchCache
-              : localSongs;
+          ? _localSearchCache
+          : localSongs;
       final index = int.parse(localTrack.group(2)!);
       if (index < 0 || index >= songs.length) return null;
       return _toMediaItem(songs[index]).copyWith(id: mediaId);
@@ -3509,8 +3648,7 @@ class GullifyAudioHandler extends BaseAudioHandler
       if (index < 0 || index >= songs.length) return null;
       return _toMediaItem(songs[index]).copyWith(id: mediaId);
     }
-    final m =
-        RegExp(r'^(?:ALBUM_(\d+)|FAV)_TRACK_(\d+)$').firstMatch(mediaId);
+    final m = RegExp(r'^(?:ALBUM_(\d+)|FAV)_TRACK_(\d+)$').firstMatch(mediaId);
     if (m != null) {
       final repo = await _awaitRepository();
       if (repo == null) return null;
@@ -3554,9 +3692,11 @@ class GullifyAudioHandler extends BaseAudioHandler
       final found = searchLocal(query);
       logAA('→ ${found.length} titres du dossier local');
       if (found.isEmpty) {
-        playbackState.add(playbackState.value.copyWith(
-          processingState: AudioProcessingState.idle,
-        ));
+        playbackState.add(
+          playbackState.value.copyWith(
+            processingState: AudioProcessingState.idle,
+          ),
+        );
         return;
       }
       _localSearchCache = found;
@@ -3571,10 +3711,12 @@ class GullifyAudioHandler extends BaseAudioHandler
       await _playSearchedDownloads(query);
       return;
     }
-    playbackState.add(playbackState.value.copyWith(
-      processingState: AudioProcessingState.loading,
-      playing: false,
-    ));
+    playbackState.add(
+      playbackState.value.copyWith(
+        processingState: AudioProcessingState.loading,
+        playing: false,
+      ),
+    );
     try {
       final r = await repo.search(query);
       if (r.artists.isNotEmpty) {
@@ -3600,9 +3742,11 @@ class GullifyAudioHandler extends BaseAudioHandler
   Future<void> _playSearchedDownloads(String query) async {
     final found = _searchDownloads(query);
     if (found.isEmpty) {
-      playbackState.add(playbackState.value.copyWith(
-        processingState: AudioProcessingState.idle,
-      ));
+      playbackState.add(
+        playbackState.value.copyWith(
+          processingState: AudioProcessingState.idle,
+        ),
+      );
       return;
     }
     logAA('→ ${found.length} titres téléchargés joués');
@@ -3616,15 +3760,21 @@ class GullifyAudioHandler extends BaseAudioHandler
   Future<void> _youtubeFallback(LibraryRepository repo, String query) async {
     final yt = ytRepository;
     if (yt == null) {
-      playbackState.add(playbackState.value
-          .copyWith(processingState: AudioProcessingState.idle));
+      playbackState.add(
+        playbackState.value.copyWith(
+          processingState: AudioProcessingState.idle,
+        ),
+      );
       return;
     }
     try {
       final songs = await yt.searchSongs(query);
       if (songs.isEmpty) {
-        playbackState.add(playbackState.value
-            .copyWith(processingState: AudioProcessingState.idle));
+        playbackState.add(
+          playbackState.value.copyWith(
+            processingState: AudioProcessingState.idle,
+          ),
+        );
         return;
       }
       final pick = songs.first;
@@ -3645,8 +3795,11 @@ class GullifyAudioHandler extends BaseAudioHandler
         }
       }
       if (!done) {
-        playbackState.add(playbackState.value
-            .copyWith(processingState: AudioProcessingState.idle));
+        playbackState.add(
+          playbackState.value.copyWith(
+            processingState: AudioProcessingState.idle,
+          ),
+        );
         return;
       }
       // Le titre est maintenant dans la bibliothèque : on le retrouve et joue.
@@ -3656,12 +3809,18 @@ class GullifyAudioHandler extends BaseAudioHandler
       } else if (after.artists.isNotEmpty) {
         await playSongs(await _artistSongs(repo, after.artists.first.id));
       } else {
-        playbackState.add(playbackState.value
-            .copyWith(processingState: AudioProcessingState.idle));
+        playbackState.add(
+          playbackState.value.copyWith(
+            processingState: AudioProcessingState.idle,
+          ),
+        );
       }
     } catch (_) {
-      playbackState.add(playbackState.value
-          .copyWith(processingState: AudioProcessingState.idle));
+      playbackState.add(
+        playbackState.value.copyWith(
+          processingState: AudioProcessingState.idle,
+        ),
+      );
     }
   }
 
@@ -3669,8 +3828,7 @@ class GullifyAudioHandler extends BaseAudioHandler
   Future<void> prepareFromSearch(
     String query, [
     Map<String, dynamic>? extras,
-  ]) =>
-      playFromSearch(query, extras);
+  ]) => playFromSearch(query, extras);
 
   /// Recherche navigable Android Auto : active le bouton recherche (vocal ou
   /// clavier) et renvoie titres (jouables), albums et artistes (navigables).
@@ -3780,10 +3938,12 @@ class GullifyAudioHandler extends BaseAudioHandler
     // Android Auto attend une réaction immédiate de la session, sinon il
     // affiche « impossible de lire la sélection ». On publie l'état de
     // chargement avant tout aller-réseau.
-    playbackState.add(playbackState.value.copyWith(
-      processingState: AudioProcessingState.loading,
-      playing: false,
-    ));
+    playbackState.add(
+      playbackState.value.copyWith(
+        processingState: AudioProcessingState.loading,
+        playing: false,
+      ),
+    );
 
     final m = RegExp(
       r'^(ALBUM_(\d+)|ARTIST_(\d+)|PLAYLIST_(\d+)'
@@ -3794,7 +3954,8 @@ class GullifyAudioHandler extends BaseAudioHandler
     try {
       if (mediaId.startsWith('RADIO_')) {
         final id = mediaId.substring('RADIO_'.length);
-        final stations = _stationsCache ?? await radioRepository?.stations() ?? [];
+        final stations =
+            _stationsCache ?? await radioRepository?.stations() ?? [];
         final s = stations.where((s) => s.id == id).firstOrNull;
         if (s != null) {
           await playRadio(url: s.streamUrl, title: s.name, logo: s.logo);
@@ -3815,6 +3976,11 @@ class GullifyAudioHandler extends BaseAudioHandler
         return;
       }
 
+      if (mediaId.startsWith('POURTOI_')) {
+        await _playPourToi(mediaId);
+        return;
+      }
+
       // « Tout lire » / « Lecture aléatoire » d'un genre. Traité à part : un
       // nom de genre peut contenir n'importe quoi (espaces, tirets bas), il
       // ne se découpe pas à l'expression régulière des autres catégories.
@@ -3824,9 +3990,11 @@ class GullifyAudioHandler extends BaseAudioHandler
           // Sans ça l'état reste sur « chargement » : dans la voiture, c'est
           // un écran qui tourne sans fin plutôt qu'un échec avouable.
           logAA('→ genre sans titre jouable');
-          playbackState.add(playbackState.value.copyWith(
-            processingState: AudioProcessingState.idle,
-          ));
+          playbackState.add(
+            playbackState.value.copyWith(
+              processingState: AudioProcessingState.idle,
+            ),
+          );
           return;
         }
         await playSongs(songs);
@@ -3856,8 +4024,12 @@ class GullifyAudioHandler extends BaseAudioHandler
         songs = await _artistSongs(repo, int.parse(m.group(3)!));
       } else if (m.group(4) != null) {
         final pid = int.parse(m.group(4)!);
-        songs = _playlistSongsCache[pid] ??
-            [for (final e in (await playlistRepository?.songs(pid) ?? [])) e.song];
+        songs =
+            _playlistSongsCache[pid] ??
+            [
+              for (final e in (await playlistRepository?.songs(pid) ?? []))
+                e.song,
+            ];
       } else if (prefix == 'RECENT') {
         // Toutes les chansons des ~10 albums les plus récents.
         final albums = await repo.recentAlbums();
@@ -3899,9 +4071,11 @@ class GullifyAudioHandler extends BaseAudioHandler
       // Retombe sur idle pour qu'Android Auto ne reste pas bloqué en
       // chargement si le serveur ne répond pas.
       logAA('ERREUR lecture : $e');
-      playbackState.add(playbackState.value.copyWith(
-        processingState: AudioProcessingState.idle,
-      ));
+      playbackState.add(
+        playbackState.value.copyWith(
+          processingState: AudioProcessingState.idle,
+        ),
+      );
     }
   }
 
@@ -3945,8 +4119,10 @@ class GullifyAudioHandler extends BaseAudioHandler
   }
 
   @override
-  Future<dynamic> customAction(String name,
-      [Map<String, dynamic>? extras]) async {
+  Future<dynamic> customAction(
+    String name, [
+    Map<String, dynamic>? extras,
+  ]) async {
     if (name == 'toggleFavorite') {
       final id = _currentSongId;
       if (id == null) return;

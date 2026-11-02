@@ -8,6 +8,9 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.86.1', [
+    'Android Auto : une section « Pour toi » sur l\'accueil, avant les Nouveautés — le mix du moment, tes mix et les Découvertes de la semaine, chacun se lance d\'un toucher, et la lecture automatique continue au bout.',
+  ]),
   ReleaseNote('3.86.0', [
     'Pour toi : sur l\'accueil, tes mix (regroupés par style), les Découvertes de la semaine, En boucle, les Perles oubliées, le mix du moment (matin, après-midi, soir, nuit) et des artistes à découvrir hors de ta bibliothèque — calculés chaque nuit d\'après ce que tu finis, sautes et aimes (serveur 1.11.0).',
     'Lecture automatique : au bout de la file, la musique continue avec des titres proches de ce qui vient de jouer. Elle apprend ce qui te réussit, et un artiste sauté deux fois disparaît pour la soirée.',
