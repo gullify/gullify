@@ -15,8 +15,8 @@ import 'artwork.dart';
 ///  - les bulles se repoussent quand elles se touchent : une bulle qui gonfle
 ///    écarte ses voisines ;
 ///  - le rayon suit lui aussi un ressort, d'où le rebond quand on aime ;
-///  - au repos, elles flottent doucement (désactivé avec « réduire les
-///    animations ») ;
+///  - au repos, elles flottent doucement, toujours — quel que soit le
+///    réglage d'animations du téléphone (demande de Maxime) ;
 ///  - aimer fait jaillir des cœurs, adorer en plus une onde ;
 ///  - les bulles qui éclosent sortent de celle qu'on vient d'aimer.
 ///
@@ -89,7 +89,6 @@ class _ChampDeBullesState extends State<ChampDeBulles>
   double _t = 0;
   double _largeur = 0;
   double _hauteur = 200;
-  bool _flotter = true;
 
   static const _rangee = 150.0;
   static const _haut = 72.0;
@@ -98,12 +97,6 @@ class _ChampDeBullesState extends State<ChampDeBulles>
   void dispose() {
     _ticker.dispose();
     super.dispose();
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    _flotter = !(MediaQuery.maybeDisableAnimationsOf(context) ?? false);
   }
 
   @override
@@ -220,11 +213,9 @@ class _ChampDeBullesState extends State<ChampDeBulles>
 
     final niveaux = {for (final b in widget.bulles) b.cle: b.niveau};
     final corps = _corps.values.toList();
-    var energie = 0.0;
     for (final c in corps) {
       if (c.apparition > 0) {
         c.apparition -= dt;
-        energie += 1;
         continue;
       }
       // Rayon : ressort amorti (le rebond).
@@ -236,8 +227,6 @@ class _ChampDeBullesState extends State<ChampDeBulles>
       c.vy += ((c.ay - c.y) * 22 - c.vy * 7) * dt;
       c.x += c.vx * dt;
       c.y += c.vy * dt;
-      energie +=
-          c.vx.abs() + c.vy.abs() + c.vr.abs() + (cible - c.r).abs() * 10;
     }
     // Les bulles se repoussent quand elles se touchent.
     for (var i = 0; i < corps.length; i++) {
@@ -272,8 +261,6 @@ class _ChampDeBullesState extends State<ChampDeBulles>
     _particules.removeWhere((p) => p.age >= _Particule.vie);
 
     setState(() {});
-    // Plus rien ne bouge (et on ne flotte pas) : on laisse dormir.
-    if (!_flotter && energie < 2 && _particules.isEmpty) _ticker.stop();
   }
 
   @override
@@ -310,7 +297,7 @@ class _ChampDeBullesState extends State<ChampDeBulles>
   }
 
   Widget _bulle(Bulle b, _Corps c, ColorScheme scheme) {
-    final flotte = _flotter ? sin(_t * 1.4 + c.phase) * 3.0 : 0.0;
+    final flotte = sin(_t * 1.4 + c.phase) * 3.0;
     final r = c.r;
     const largeurEtiquette = 112.0;
     final etat = switch (b.niveau) {

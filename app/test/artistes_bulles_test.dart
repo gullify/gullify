@@ -107,6 +107,8 @@ void main() {
     await tester.pump(const Duration(milliseconds: 400));
     expect(faux.choix['nofx'], 1);
     expect(find.bySemanticsLabel('NOFX, aimé'), findsOneWidget);
+    // Ses proches éclosent et vont se poser : on attend qu'ils libèrent la place.
+    await _laisser(tester);
 
     await tester.tap(nofx);
     await tester.pump(const Duration(milliseconds: 400));
@@ -157,11 +159,6 @@ void main() {
   testWidgets(
     '« Terminé » recalcule le profil quand on a changé quelque chose',
     (tester) async {
-      // « Réduire les animations » : les bulles ne flottent plus, le champ
-      // finit par s'endormir et pumpAndSettle peut aboutir.
-      tester.platformDispatcher.accessibilityFeaturesTestValue =
-          const FakeAccessibilityFeatures(disableAnimations: true);
-      addTearDown(tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
       final faux = await _pump(tester);
       await tester.tap(find.text('Reset'));
       await tester.pump(const Duration(milliseconds: 400));
@@ -169,7 +166,8 @@ void main() {
       await tester.pump(const Duration(milliseconds: 400));
       await tester.pump(const Duration(milliseconds: 400));
       expect(faux.analyses, 1);
-      await tester.pumpAndSettle();
+      // Les bulles flottent sans fin : pas de pumpAndSettle, on avance le temps.
+      await _laisser(tester);
       expect(find.text('page goûts'), findsOneWidget);
     },
   );

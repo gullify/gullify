@@ -8,6 +8,9 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.87.2', [
+    'Tes artistes : les bulles flottent toujours, même quand le téléphone est réglé pour réduire les animations.',
+  ]),
   ReleaseNote('3.87.1', [
     'Tes artistes : de vraies bulles vivantes — elles éclosent, flottent, gonflent avec un rebond quand tu les aimes et poussent leurs voisines ; des cœurs jaillissent (une onde en plus pour « j\'adore »), et les artistes proches sortent de la bulle aimée. Avec « réduire les animations », elles restent sages.',
   ]),
