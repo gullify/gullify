@@ -12,11 +12,17 @@
  *   POST ?action=rejeter    {type: song|artist, id}      « Pas pour moi »
  *   POST ?action=retablir   {type: song|artist, id}
  *   POST ?action=analyser                      → refait le profil et les rayons maintenant
+ *   GET  ?action=bulles                        → « Tes artistes » : bulles de départ
+ *   GET  ?action=bulles&autour=<clé>&nom=…&deja=k1,k2  → ce qui éclot à côté d'une bulle aimée
+ *   GET  ?action=chercher_artiste&q=…          → bibliothèque puis monde (Last.fm / YouTube Music)
+ *   POST ?action=choisir    {nom, niveau: 0|1|2, image?}   0 retirer, 1 aimer, 2 adorer
+ *   (une bulle : {cle, nom, image, artistId|null, niveau})
  */
 require_once __DIR__ . '/_v2.php';
 require_once __DIR__ . '/../../../src/Gouts.php';
 require_once __DIR__ . '/../../../src/GoutsRadio.php';
 require_once __DIR__ . '/../../../src/GoutsRayons.php';
+require_once __DIR__ . '/../../../src/GoutsBulles.php';
 
 $ctx    = v2_auth();
 $user   = (string)$ctx['user']['username'];
@@ -67,6 +73,10 @@ function pt_assurer_analyse(PDO $db, string $user, bool $forcer = false): void
         GoutsRayons::construire($db, $user, false);
         $db->prepare('INSERT INTO gouts_reglages (user, analyse_le) VALUES (?, NOW()) ON DUPLICATE KEY UPDATE analyse_le = NOW()')
            ->execute([$user]);
+    } catch (Throwable $e) {
+        // Bibliothèque jamais scannée (colonnes posées par le premier scan),
+        // base en travaux… : l'accueil répond avec ce qu'il a, sans 500.
+        error_log('Pour toi, analyse à la volée : ' . $e->getMessage());
     } finally {
         flock($verrou, LOCK_UN);
     }
@@ -208,6 +218,29 @@ try {
                 $db->prepare('DELETE FROM gouts_rejets WHERE user = ? AND type = ? AND cible_id = ?')->execute([$user, $type, $id]);
             }
             v2_ok(['type' => $type, 'id' => $id, 'rejete' => $action === 'rejeter']);
+        }
+
+        case 'bulles': {
+            $autour = (string)($_GET['autour'] ?? '');
+            if ($autour !== '') {
+                $deja = array_slice(array_filter(explode(',', (string)($_GET['deja'] ?? ''))), 0, 400);
+                v2_ok(['bulles' => GoutsBulles::autour($db, $user, $autour, (string)($_GET['nom'] ?? ''), $deja,
+                    max(1, min(12, (int)($_GET['n'] ?? 6))))]);
+            }
+            v2_ok(['bulles' => GoutsBulles::depart($db, $user)]);
+        }
+
+        case 'chercher_artiste':
+            v2_ok(['bulles' => GoutsBulles::chercher($db, $user, (string)($_GET['q'] ?? ''))]);
+
+        case 'choisir': {
+            $b = v2_body() + $_POST;
+            try {
+                v2_ok(GoutsBulles::choisir($db, $user, (string)($b['nom'] ?? ''), (int)($b['niveau'] ?? 1),
+                    isset($b['image']) && is_string($b['image']) ? $b['image'] : null));
+            } catch (InvalidArgumentException $e) {
+                v2_fail('nom_requis', $e->getMessage(), 400);
+            }
         }
 
         case 'analyser':

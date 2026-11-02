@@ -214,6 +214,7 @@ const MG_DONNEES_PERSONNELLES = [
     'gouts_bandits' => 'user',
     'gouts_sauts' => 'user',
     'gouts_reglages' => 'user',
+    'gouts_choix' => 'user',
     'artists' => 'user',          // l'INDEX de sa bibliothèque (+ albums, songs en cascade)
 ];
 

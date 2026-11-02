@@ -152,6 +152,11 @@ class GoutsPortrait
         $q->execute([$user]);
         [$nArtistes, $nEnrichis] = array_map('intval', $q->fetch(PDO::FETCH_NUM));
 
+        $choix = [];
+        foreach (Gouts::choix($db, $user) as $cle => $c) {
+            $choix[] = ['cle' => $cle, 'nom' => $c['nom'], 'niveau' => $c['niveau']];
+        }
+
         $portrait = $reg['portrait'] ?: self::portraitMaison($etiquettes, $artistes, $profil, $nouveaux);
 
         return [
@@ -172,6 +177,8 @@ class GoutsPortrait
             'reussite' => $reussite,
             'appris' => $appris,
             'aventure' => round((float)$reg['aventure'], 2),
+            // « Tes artistes » : les bulles choisies (1 aime, 2 adore).
+            'choix' => $choix,
             'rejets' => $rejets,
             'sources' => [
                 'monde' => GoutsSources::source(),

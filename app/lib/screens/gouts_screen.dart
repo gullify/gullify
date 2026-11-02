@@ -86,6 +86,8 @@ class _Contenu extends StatelessWidget {
           const _Titre('Ton ADN musical'),
           _Etiquettes(p: p),
         ],
+        const _Titre('Tes artistes'),
+        _TesArtistes(p: p),
         if (p.artistes.isNotEmpty) ...[
           const _Titre('Tes repères'),
           _Artistes(p: p),
@@ -242,6 +244,71 @@ class _Etiquettes extends StatelessWidget {
                 ),
               ),
             ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Ce qu'on a dit aimer (les bulles), et la porte vers elles.
+class _TesArtistes extends ConsumerWidget {
+  const _TesArtistes({required this.p});
+
+  final GoutsProfil p;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final scheme = Theme.of(context).colorScheme;
+    final choix = p.choix;
+    final adores = choix.where((c) => c.niveau >= 2).length;
+    final aimes = choix.length - adores;
+    return _Carte(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            choix.isEmpty
+                ? 'Dis à GulliFY qui tu aimes : tes mix, ta lecture '
+                    'automatique et tes découvertes partent de là.'
+                : [
+                    if (adores > 0) '$adores adoré${adores > 1 ? 's' : ''}',
+                    if (aimes > 0) '$aimes aimé${aimes > 1 ? 's' : ''}',
+                  ].join(' · '),
+            style: TextStyle(fontSize: 13.5, color: scheme.onSurfaceVariant),
+          ),
+          if (choix.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                for (final c in choix.take(12))
+                  Chip(
+                    avatar: Icon(
+                      c.niveau >= 2 ? Icons.favorite : Icons.favorite_border,
+                      size: 16,
+                      color: scheme.primary,
+                    ),
+                    label: Text(c.nom),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                if (choix.length > 12)
+                  Chip(
+                    label: Text('+${choix.length - 12}'),
+                    visualDensity: VisualDensity.compact,
+                  ),
+              ],
+            ),
+          ],
+          const SizedBox(height: 12),
+          FilledButton.tonalIcon(
+            onPressed: () async {
+              await context.push('/gouts/artistes');
+              ref.invalidate(goutsProfilProvider);
+            },
+            icon: const Icon(Icons.bubble_chart_outlined),
+            label: Text(choix.isEmpty ? 'Choisir mes artistes' : 'Modifier'),
+          ),
         ],
       ),
     );

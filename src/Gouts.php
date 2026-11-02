@@ -77,6 +77,11 @@ class Gouts
             user VARCHAR(50) NOT NULL, type VARCHAR(10) NOT NULL, cible_id INT NOT NULL,
             cree_le DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (user, type, cible_id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+        "CREATE TABLE IF NOT EXISTS gouts_choix (
+            user VARCHAR(50) NOT NULL, cle VARCHAR(191) NOT NULL, nom VARCHAR(255) NOT NULL,
+            niveau TINYINT NOT NULL DEFAULT 1, image VARCHAR(500) NULL,
+            cree_le DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (user, cle)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
         "CREATE TABLE IF NOT EXISTS gouts_bandits (
             user VARCHAR(50) NOT NULL, bras VARCHAR(20) NOT NULL,
             succes FLOAT NOT NULL DEFAULT 1, echecs FLOAT NOT NULL DEFAULT 1, PRIMARY KEY (user, bras)
@@ -95,7 +100,7 @@ class Gouts
     /** Les tables de goûts propres à une personne (suppression de compte). */
     public const TABLES_PERSONNE = [
         'gouts_profil', 'gouts_titres', 'gouts_voisins', 'gouts_rayons',
-        'gouts_rejets', 'gouts_bandits', 'gouts_sauts', 'gouts_reglages',
+        'gouts_rejets', 'gouts_bandits', 'gouts_sauts', 'gouts_reglages', 'gouts_choix',
     ];
 
     private static bool $tablesOk = false;
@@ -309,11 +314,41 @@ class Gouts
             $infos[(int)$r['id']] = ['nom' => $r['name'], 'cle' => self::cle($r['name']),
                                       'genre' => self::genreCle((string)$r['genre'])];
         }
+        // « Tes artistes » (les bulles) : aimer pèse comme un favori, adorer
+        // deux fois plus. Un artiste hors de la bibliothèque passe son goût à
+        // ses voisins qui, eux, y sont.
+        $parCle = [];
+        foreach ($infos as $id => $i) $parCle[$i['cle']] = $id;
+        $choix = self::choix($db, $user);
+        $exterieurs = [];
+        foreach ($choix as $cle => $c) {
+            $poids = $c['niveau'] >= 2 ? 9.0 : 4.5;
+            if (isset($parCle[$cle])) {
+                $id = $parCle[$cle];
+                $artistes[$id] ??= ['raw' => 0.0, 'ecoutes' => 0, 'sauts' => 0];
+                $artistes[$id]['raw'] += $poids;
+            } else {
+                $exterieurs[$cle] = $c['niveau'] >= 2 ? 0.9 : 0.6;
+            }
+        }
+        if ($exterieurs !== []) {
+            $in = implode(',', array_fill(0, count($exterieurs), '?'));
+            $q = $db->prepare("SELECT cle, voisin_cle, score FROM artistes_similaires WHERE cle IN ($in)");
+            $q->execute(array_keys($exterieurs));
+            while ($r = $q->fetch(PDO::FETCH_ASSOC)) {
+                $id = $parCle[$r['voisin_cle']] ?? null;
+                if ($id === null) continue;
+                $artistes[$id] ??= ['raw' => 0.0, 'ecoutes' => 0, 'sauts' => 0];
+                $artistes[$id]['raw'] += 6.0 * $exterieurs[$r['cle']] * (float)$r['score'];
+            }
+        }
+
         // Un artiste sans fiche (supprimé depuis) n'a plus rien à dire.
         $artistes = array_intersect_key($artistes, $infos);
 
         // Étiquettes connues (Last.fm, MusicBrainz) par clé d'artiste.
         $tagsParCle = self::tagsDe($db, array_column($infos, 'cle'));
+        $tagsExterieurs = self::tagsDe($db, array_keys($exterieurs));
 
         // ── 4. Étiquettes et genres : les affinités des artistes, réparties ─
         $tags = [];
@@ -327,6 +362,9 @@ class Gouts
                 $tags[$tag] = ($tags[$tag] ?? 0) + $aff * $p;
             }
             if ($info['genre'] !== '') $genres[$info['genre']] = ($genres[$info['genre']] ?? 0) + $aff;
+        }
+        foreach ($exterieurs as $cle => $aff) {
+            foreach ($tagsExterieurs[$cle] ?? [] as $tag => $p) $tags[$tag] = ($tags[$tag] ?? 0) + $aff * $p;
         }
 
         // ── 5. Écriture (remplacement complet, en une transaction) ──────────
@@ -595,6 +633,18 @@ class Gouts
         $q->execute([$user]);
         $v = $q->fetchColumn();
         return $v === false || $v === null ? 0 : max(-840, min(840, (int)$v));
+    }
+
+    /** « Tes artistes » : clé => [nom, niveau (1 aime, 2 adore), image]. */
+    public static function choix(PDO $db, string $user): array
+    {
+        $q = $db->prepare('SELECT cle, nom, niveau, image FROM gouts_choix WHERE user = ? ORDER BY niveau DESC, cree_le DESC');
+        $q->execute([$user]);
+        $out = [];
+        while ($r = $q->fetch(PDO::FETCH_ASSOC)) {
+            $out[$r['cle']] = ['nom' => $r['nom'], 'niveau' => (int)$r['niveau'], 'image' => $r['image']];
+        }
+        return $out;
     }
 
     public static function aventure(PDO $db, string $user): float

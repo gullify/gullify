@@ -427,24 +427,33 @@ class GoutsRayons
 
     private static function ailleurs(PDO $db, string $user, array $affArt, array $noms, bool $reseau = true): ?array
     {
-        $aimes = array_filter($affArt, fn($s, $a) => $s > 0.1 && isset($noms[$a]), ARRAY_FILTER_USE_BOTH);
-        if ($aimes === []) return null;
         $cleVersId = [];
         foreach ($noms as $id => $nom) $cleVersId[Gouts::cle($nom)] = $id;
-        $parCle = [];
-        foreach ($aimes as $a => $s) $parCle[Gouts::cle($noms[$a])] = $a;
-        $in = implode(',', array_fill(0, count($parCle), '?'));
+        // Les sources : les artistes aimés de la bibliothèque, et ceux choisis
+        // dans « Tes artistes » hors bibliothèque (déjà connus de la personne :
+        // on ne les lui propose pas, on part d'eux).
+        $sources = []; // clé => [poids, nom]
+        foreach ($affArt as $a => $s) {
+            if ($s > 0.1 && isset($noms[$a])) $sources[Gouts::cle($noms[$a])] = [$s, $noms[$a]];
+        }
+        $choix = Gouts::choix($db, $user);
+        foreach ($choix as $cle => $c) {
+            if (!isset($cleVersId[$cle])) $sources[$cle] = [$c['niveau'] >= 2 ? 0.9 : 0.6, $c['nom']];
+        }
+        if ($sources === []) return null;
+        $in = implode(',', array_fill(0, count($sources), '?'));
         $q = $db->prepare("SELECT cle, voisin_cle, voisin_nom, score, image FROM artistes_similaires WHERE cle IN ($in)");
-        $q->execute(array_keys($parCle));
+        $q->execute(array_keys($sources));
         $cands = [];
         while ($r = $q->fetch(PDO::FETCH_ASSOC)) {
             if (isset($cleVersId[$r['voisin_cle']])) continue; // déjà dans la bibliothèque
-            $a = $parCle[$r['cle']];
+            if (isset($choix[$r['voisin_cle']])) continue;     // déjà choisi
+            [$poids, $nomSource] = $sources[$r['cle']];
             $c = &$cands[$r['voisin_cle']];
             $c ??= ['nom' => $r['voisin_nom'], 'score' => 0.0, 'parce' => [], 'image' => null];
-            $contrib = $aimes[$a] * (float)$r['score'];
+            $contrib = $poids * (float)$r['score'];
             $c['score'] += $contrib;
-            $c['parce'][$noms[$a]] = $contrib;
+            $c['parce'][$nomSource] = $contrib;
             $c['image'] ??= $r['image'];
             unset($c);
         }

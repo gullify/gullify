@@ -249,6 +249,38 @@ class GoutsSources
         }
     }
 
+    /**
+     * Cherche des artistes dans le monde (« Tes artistes » : on peut aimer un
+     * artiste qu'on n'a pas). Last.fm s'il y a une clé, sinon YouTube Music.
+     *
+     * @return array<array{nom:string, image:?string}>
+     */
+    public static function chercherArtistes(string $q, int $n = 8): array
+    {
+        $out = [];
+        try {
+            if (self::source() === 'lastfm') {
+                $j = self::lastfm('artist.search', ['artist' => $q, 'limit' => $n]);
+                foreach ($j['results']['artistmatches']['artist'] ?? [] as $a) {
+                    if (!empty($a['name'])) $out[] = ['nom' => (string)$a['name'], 'image' => null];
+                }
+            } else {
+                $py = file_exists('/opt/ytdlp/bin/python3') ? '/opt/ytdlp/bin/python3' : 'python3';
+                $script = AppConfig::getPythonPath() . '/ytmusic_search.py';
+                $raw = shell_exec('timeout 20 ' . $py . ' ' . escapeshellarg($script) . ' artist ' . escapeshellarg($q) . ' ' . (int)$n . ' 2>/dev/null');
+                $j = $raw ? json_decode($raw, true) : null;
+                foreach (($j['results'] ?? []) as $a) {
+                    if (is_array($a) && !empty($a['name'])) {
+                        $out[] = ['nom' => (string)$a['name'], 'image' => ($a['thumbnail'] ?? '') ?: null];
+                    }
+                }
+            }
+        } catch (Throwable $e) {
+            // Rien du monde : la bibliothèque répond seule.
+        }
+        return array_slice($out, 0, $n);
+    }
+
     /** Photo d'un artiste hors bibliothèque, par YouTube Music (rayon « Ailleurs »). */
     public static function imageArtiste(string $nom): ?string
     {

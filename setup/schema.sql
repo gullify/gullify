@@ -328,6 +328,18 @@ CREATE TABLE IF NOT EXISTS gouts_rejets (
     PRIMARY KEY (user, type, cible_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- « Tes artistes » : les bulles touchées (1 = aime, 2 = adore), dans la
+-- bibliothèque ou non (clé = Gouts::cle du nom).
+CREATE TABLE IF NOT EXISTS gouts_choix (
+    user VARCHAR(50) NOT NULL,
+    cle VARCHAR(191) NOT NULL,
+    nom VARCHAR(255) NOT NULL,
+    niveau TINYINT NOT NULL DEFAULT 1,
+    image VARCHAR(500) NULL,
+    cree_le DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user, cle)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- Ce que la lecture automatique a appris : quelle source de suggestions
 -- réussit à cette personne (Thompson : succès et échecs par bras).
 CREATE TABLE IF NOT EXISTS gouts_bandits (

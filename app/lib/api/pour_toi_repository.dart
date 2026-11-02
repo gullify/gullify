@@ -158,6 +158,44 @@ class GoutsProfil {
 
   Map<String, dynamic> get sources =>
       (json['sources'] as Map?)?.cast<String, dynamic>() ?? const {};
+
+  /// « Tes artistes » : les bulles touchées (1 aime, 2 adore).
+  List<({String nom, int niveau})> get choix => [
+        for (final c in json['choix'] as List? ?? const [])
+          (
+            nom: (c as Map)['nom'] as String? ?? '',
+            niveau: (c['niveau'] as num?)?.toInt() ?? 1,
+          ),
+      ];
+}
+
+/// Une bulle de « Tes artistes » : un artiste de la bibliothèque
+/// ([artistId] connu) ou d'ailleurs, et ce qu'on en pense — 0 rien,
+/// 1 j'aime, 2 j'adore.
+class Bulle {
+  const Bulle({
+    required this.cle,
+    required this.nom,
+    this.image,
+    this.artistId,
+    this.niveau = 0,
+  });
+
+  final String cle;
+  final String nom;
+  final String? image;
+  final int? artistId;
+  final int niveau;
+
+  bool get dansBibliotheque => artistId != null;
+
+  Bulle avecNiveau(int n) => Bulle(
+        cle: cle,
+        nom: nom,
+        image: image,
+        artistId: artistId,
+        niveau: n,
+      );
 }
 
 /// Pour toi (serveur 1.11.0, `api/v2/pour-toi.php`) : les rayons calculés la
@@ -289,6 +327,55 @@ class PourToiRepository {
 
   Future<void> analyser() =>
       _client.post('pour-toi.php', query: {'action': 'analyser'});
+
+  Bulle _bulle(Map<String, dynamic> j) => Bulle(
+        cle: j['cle'] as String? ?? '',
+        nom: j['nom'] as String? ?? '',
+        image: _library.absoluteUrl(j['image'] as String?),
+        artistId: (j['artistId'] as num?)?.toInt(),
+        niveau: (j['niveau'] as num?)?.toInt() ?? 0,
+      );
+
+  List<Bulle> _bulles(dynamic data) => [
+        for (final b in (data as Map?)?['bulles'] as List? ?? const [])
+          _bulle((b as Map).cast<String, dynamic>()),
+      ];
+
+  /// « Tes artistes » : les bulles de départ.
+  Future<List<Bulle>> bulles() async => _bulles(
+        await _client.get('pour-toi.php', query: {'action': 'bulles'}),
+      );
+
+  /// Ce qui éclot à côté d'une bulle qu'on vient d'aimer ([deja] : les clés
+  /// déjà à l'écran, pour ne rien montrer deux fois).
+  Future<List<Bulle>> autour(Bulle b, Iterable<String> deja) async => _bulles(
+        await _client.get('pour-toi.php', query: {
+          'action': 'bulles',
+          'autour': b.cle,
+          'nom': b.nom,
+          'deja': deja.take(300).join(','),
+        }),
+      );
+
+  Future<List<Bulle>> chercherArtiste(String texte) async => _bulles(
+        await _client.get(
+          'pour-toi.php',
+          query: {'action': 'chercher_artiste', 'q': texte},
+        ),
+      );
+
+  /// 0 retirer, 1 aimer, 2 adorer.
+  Future<void> choisir(Bulle b, int niveau) => _client.post(
+        'pour-toi.php',
+        query: {'action': 'choisir'},
+        body: {
+          'nom': b.nom,
+          'niveau': niveau,
+          // La photo d'un artiste d'ailleurs ; celle d'un artiste de la
+          // bibliothèque se recalcule côté serveur.
+          if (!b.dansBibliotheque && b.image != null) 'image': b.image,
+        },
+      );
 }
 
 /// Mélange une liste recommandée pour la lancer : les listes « Pour toi »

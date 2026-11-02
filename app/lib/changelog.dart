@@ -8,6 +8,11 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.87.0', [
+    'Tes goûts → Tes artistes : des bulles à la Spotify. Un toucher pour aimer, deux pour adorer, trois pour retirer ; aimer un artiste fait éclore ses proches à côté (serveur 1.12.0).',
+    'On peut chercher et aimer un artiste qu\'on n\'a pas : ses voisins dans ta bibliothèque en profitent dans tes mix, ta lecture automatique et tes découvertes, et « À découvrir ailleurs » part de lui.',
+    'Garder le doigt sur une bulle : ouvrir l\'artiste, le retirer, ou « Pas pour moi ».',
+  ]),
   ReleaseNote('3.86.3', [
     'Pour toi : les mix, les Découvertes et le mix du moment partent toujours en aléatoire, avec un nouveau tirage à chaque fois (dans l\'app comme dans Android Auto) — fini les mêmes premières chansons à chaque court trajet. Toucher un titre le joue d\'abord, le reste mélangé derrière.',
   ]),

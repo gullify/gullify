@@ -42,6 +42,10 @@ function ok(bool $cond, string $quoi): void
 
 $db = AppConfig::getDB();
 Gouts::assurerTables($db);
+// Colonnes que le premier scan pose (src/Scanner.php) : une base neuve ne les a pas.
+foreach (['track_artist VARCHAR(255) NULL', 'artist_id INT NULL'] as $col) {
+    try { $db->exec("ALTER TABLE songs ADD COLUMN $col"); } catch (PDOException $e) { /* déjà là */ }
+}
 $U = 'essai_gouts';
 
 function nettoyer(PDO $db, string $u): void
@@ -233,6 +237,45 @@ $m = $q->fetch(PDO::FETCH_ASSOC);
 ok($m && str_contains($m['titre'], 'Skate punk'), 'mix nommé d\'après son étiquette : « ' . ($m['titre'] ?? '') . ' »');
 $h = GoutsRayons::hydrater($db, $U, json_decode($m['contenu'], true)['titres'], 'mix:1');
 ok($h && isset($h[0]['filePath'], $h[0]['artistName']) && $h[0]['origin'] === 'mix:1', 'titres hydratés avec origine');
+
+echo "Tes artistes (bulles)\n";
+require_once __DIR__ . '/../src/GoutsBulles.php';
+// Un artiste hors bibliothèque, déjà décrit : ses voisins sont E et F.
+$sim->execute([Gouts::cle('EssaiGouts Externe'), Gouts::cle('EssaiGouts E'), 'EssaiGouts E', 0.9]);
+$sim->execute([Gouts::cle('EssaiGouts Externe'), Gouts::cle('EssaiGouts F'), 'EssaiGouts F', 0.8]);
+$sim->execute([Gouts::cle('EssaiGouts Externe'), Gouts::cle('EssaiGouts Loin'), 'EssaiGouts Loin', 0.7]);
+$avantG = Gouts::affinitesArtistes($db, $U)[$artistes['G']] ?? 0;
+$avantF = Gouts::affinitesArtistes($db, $U)[$artistes['F']] ?? 0;
+$r1 = GoutsBulles::choisir($db, $U, 'EssaiGouts G', 2, null);
+$r2 = GoutsBulles::choisir($db, $U, 'EssaiGouts Externe', 1, 'https://exemple.test/x.jpg');
+ok($r1['niveau'] === 2 && $r2['niveau'] === 1, 'aimer et adorer');
+Gouts::analyserProfil($db, $U);
+$aff = Gouts::affinitesArtistes($db, $U);
+ok(($aff[$artistes['G']] ?? 0) > $avantG + 0.5, 'G adoré (jamais écouté) : affinité forte');
+ok(($aff[$artistes['F']] ?? 0) > $avantF, 'F gagne par l\'artiste externe aimé');
+$dep = GoutsBulles::depart($db, $U);
+ok($dep[0]['niveau'] === 2 && $dep[0]['artistId'] === $artistes['G'], 'bulles : les choisies d\'abord, adorée en tête');
+$ext = array_values(array_filter($dep, fn($b) => $b['cle'] === Gouts::cle('EssaiGouts Externe')));
+ok($ext && $ext[0]['artistId'] === null && $ext[0]['image'] === 'https://exemple.test/x.jpg', 'bulle externe : sans fiche, avec sa photo');
+$aut = GoutsBulles::autour($db, $U, Gouts::cle('EssaiGouts Externe'), 'EssaiGouts Externe', [Gouts::cle('EssaiGouts E')], 6);
+$nomsAut = array_column($aut, 'nom');
+ok(in_array('EssaiGouts F', $nomsAut, true) && !in_array('EssaiGouts E', $nomsAut, true), 'autour : voisins, sans ceux déjà à l\'écran');
+ok($aut[0]['artistId'] !== null && in_array('EssaiGouts Loin', $nomsAut, true), 'autour : la bibliothèque d\'abord, puis ailleurs');
+Gouts::analyserProfil($db, $U);
+GoutsRayons::construire($db, $U, false);
+$q = $db->prepare("SELECT contenu FROM gouts_rayons WHERE user = ? AND type = 'ailleurs'");
+$q->execute([$U]);
+$noms = array_column(json_decode((string)$q->fetchColumn(), true)['artistes'] ?? [], 'nom');
+ok(!in_array('EssaiGouts Externe', $noms, true), 'ailleurs : un artiste déjà choisi n\'y est pas proposé');
+$c = GoutsBulles::chercher($db, $U, 'EssaiGouts');
+ok($c && $c[0]['artistId'] !== null, 'chercher : la bibliothèque d\'abord');
+GoutsBulles::choisir($db, $U, 'EssaiGouts G', 0, null);
+ok(!isset(Gouts::choix($db, $U)[Gouts::cle('EssaiGouts G')]), 'retirer');
+$deja = GoutsBulles::choisir($db, $U, 'EssaiGouts Externe', 2, null);
+ok(Gouts::choix($db, $U)[$deja['cle']]['image'] === 'https://exemple.test/x.jpg', 'adorer après aimer garde la photo');
+$refus = false;
+try { GoutsBulles::choisir($db, $U, '   ', 1, null); } catch (InvalidArgumentException $e) { $refus = true; }
+ok($refus, 'nom vide refusé');
 
 echo "Portrait\n";
 $port = GoutsPortrait::pour($db, $U);
