@@ -10,12 +10,14 @@ import '../state/discover.dart';
 import '../state/library.dart';
 import '../state/notifications.dart';
 import '../state/player.dart';
+import '../state/pour_toi.dart';
 import '../state/stats.dart';
 import '../widgets/album_card.dart';
 import '../widgets/artwork.dart';
 import '../widgets/brand_logo.dart';
 import '../widgets/glass_box.dart';
 import '../widgets/glass_kit.dart';
+import '../widgets/pour_toi_section.dart';
 import '../widgets/retro_lcd.dart';
 import '../widgets/song_menu.dart';
 import '../widgets/song_tile.dart';
@@ -43,6 +45,7 @@ class HomeScreen extends ConsumerWidget {
             ref.invalidate(popularSongsProvider);
             ref.invalidate(statsProvider);
             ref.invalidate(discoverArtistProvider);
+            ref.invalidate(pourToiAccueilProvider);
             return ref.refresh(recentAlbumsProvider.future);
           },
           child: ListView(
@@ -130,6 +133,9 @@ class HomeScreen extends ConsumerWidget {
               // Découvrir (idée #118) : les quatre façons de sortir de sa
               // bibliothèque, réunies sous une seule carte d'accent.
               const _DiscoverBlock(),
+              // Pour toi : mix, découvertes de la semaine, en boucle, artistes
+              // d'ailleurs — calculés la nuit d'après tes écoutes.
+              const PourToiSection(),
               // Nouveautés : titre + bouton aléatoire des nouveautés.
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 14, 20, 2),

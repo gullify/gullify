@@ -111,6 +111,35 @@ class AppConfig {
                 }
             }
         }
+
+        // Écoutes (Pour toi, serveur 1.11.0) : le saut volontaire (bouton
+        // « suivant ») et d'où venait le titre (mix, lecture automatique…),
+        // que le profil de goûts lit pour peser chaque écoute.
+        try {
+            $stmt = $db->prepare(
+                "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+                 WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'play_history'"
+            );
+            $stmt->execute([$dbName]);
+            $existing = array_column($stmt->fetchAll(PDO::FETCH_ASSOC), 'COLUMN_NAME');
+        } catch (PDOException $e) {
+            $existing = [];
+        }
+        if ($existing !== []) {
+            $columns = [
+                'skipped' => "ALTER TABLE play_history ADD COLUMN skipped TINYINT(1) NULL DEFAULT NULL",
+                'origin'  => "ALTER TABLE play_history ADD COLUMN origin VARCHAR(40) NULL",
+            ];
+            foreach ($columns as $col => $sql) {
+                if (!in_array($col, $existing)) {
+                    try {
+                        $db->exec($sql);
+                    } catch (PDOException $e) {
+                        // ignore — e.g. race condition on concurrent boot
+                    }
+                }
+            }
+        }
     }
 
     /**
@@ -240,6 +269,9 @@ class AppConfig {
             'app.debug' => 'false',
             'app.secret' => '',
             'lastfm.api_key' => '',
+            'ia.url' => '',
+            'ia.cle' => '',
+            'ia.modele' => '',
             // Service d'inscription : éteint partout sauf sur le serveur central.
             'role' => 'personnel',
             'registry.domain' => '',
@@ -306,6 +338,11 @@ class AppConfig {
             'APP_DEBUG' => 'app.debug',
             'APP_SECRET' => 'app.secret',
             'LASTFM_API_KEY' => 'lastfm.api_key',
+            // Pour toi : un modèle de langue facultatif (compatible OpenAI) qui
+            // nomme les mix et écrit le portrait. Absent : textes faits maison.
+            'IA_URL' => 'ia.url',
+            'IA_CLE' => 'ia.cle',
+            'IA_MODELE' => 'ia.modele',
             'GULLIFY_ANDROID_URL'     => 'apps.android.url',
             'GULLIFY_ANDROID_VERSION' => 'apps.android.version',
             // Le service d'inscription des serveurs (voir src/Registry.php).
@@ -362,6 +399,11 @@ class AppConfig {
             'APP_DEBUG' => 'app.debug',
             'APP_SECRET' => 'app.secret',
             'LASTFM_API_KEY' => 'lastfm.api_key',
+            // Pour toi : un modèle de langue facultatif (compatible OpenAI) qui
+            // nomme les mix et écrit le portrait. Absent : textes faits maison.
+            'IA_URL' => 'ia.url',
+            'IA_CLE' => 'ia.cle',
+            'IA_MODELE' => 'ia.modele',
             'GULLIFY_ANDROID_URL'     => 'apps.android.url',
             'GULLIFY_ANDROID_VERSION' => 'apps.android.version',
             // Le service d'inscription des serveurs (voir src/Registry.php).

@@ -2,7 +2,9 @@ import 'package:audio_service/audio_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../api/bandcamp_repository.dart';
+import '../api/pour_toi_repository.dart';
 import '../audio/audio_handler.dart';
+import '../audio/autoplay.dart';
 import '../audio/equalizer.dart';
 import '../audio/fade.dart';
 import '../audio/prefetch.dart';
@@ -15,6 +17,7 @@ import 'local_library.dart';
 import 'offline.dart';
 import 'playlists.dart';
 import 'podcasts.dart';
+import 'pour_toi.dart';
 import 'radio.dart';
 import 'yt_downloads.dart';
 
@@ -43,6 +46,11 @@ final playbackBufferProvider = Provider<PlaybackBuffer>(
   (ref) => ref.watch(audioHandlerProvider).buffer,
 );
 
+/// Lecture automatique (Pour toi) — réglable dans Paramètres → Lecture.
+final autoplayProvider = Provider<Autoplay>(
+  (ref) => ref.watch(audioHandlerProvider).autoplay,
+);
+
 /// Keeps the handler's repository in sync with auth (needed by Android Auto)
 /// and its offline map in sync with downloads.
 final audioHandlerBinderProvider = Provider<void>((ref) {
@@ -66,6 +74,12 @@ final audioHandlerBinderProvider = Provider<void>((ref) {
     if (usable) handler.logAA('repository lié');
   } catch (e) {
     handler.logAA('ERREUR liaison repository: $e');
+  }
+  try {
+    handler.pourToiRepository =
+        usable ? ref.watch(pourToiRepositoryProvider) : null;
+  } catch (e) {
+    handler.logAA('ERREUR liaison pour toi: $e');
   }
   try {
     handler.radioRepository = usable ? ref.watch(radioRepositoryProvider) : null;
@@ -187,6 +201,11 @@ class PlayerActions {
 
   Future<void> playSongs(List<Song> songs, {int startIndex = 0}) =>
       _handler.playSongs(songs, startIndex: startIndex);
+
+  /// Une liste recommandée (Pour toi) : chaque titre garde son origine, que
+  /// l'écoute renverra au serveur.
+  Future<void> playRecos(List<RecoSong> recos, {int startIndex = 0}) =>
+      _handler.playRecos(recos, startIndex: startIndex);
 
   Future<void> togglePlayPause() =>
       _handler.playbackState.value.playing ? _handler.pause() : _handler.play();

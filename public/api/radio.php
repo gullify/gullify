@@ -139,8 +139,12 @@ try {
         $duration = $_POST['duration_played'] ?? $_POST['duration'] ?? 0;
         $completed = $_POST['completed'] ?? false;
 
+        // Pour toi : « suivant » pressé et origine du titre (app ≥ 3.86).
+        $skipped = isset($_POST['skipped']) ? (bool)(int)$_POST['skipped'] : null;
+        $origin  = $_POST['origin'] ?? null;
+
         if ($songId) {
-            $result = $db->trackPlay($songId, $user, $duration, $completed, 'radio');
+            $result = $db->trackPlay($songId, $user, $duration, $completed, 'radio', $skipped, $origin);
 
             echo json_encode([
                 'success' => $result,

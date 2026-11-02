@@ -4,6 +4,7 @@
  */
 require_once __DIR__ . '/AppConfig.php';
 require_once __DIR__ . '/TrackArtist.php';
+require_once __DIR__ . '/Gouts.php';
 
 class Database {
     private $db;
@@ -132,15 +133,37 @@ class Database {
         return $stmt->fetchAll();
     }
 
-    public function trackPlay($songId, $user, $duration, $completed, $source = 'player') {
+    /**
+     * @param ?bool   $skipped « suivant » pressé (null : client qui ne le dit pas)
+     * @param ?string $origin  d'où venait le titre (mix:2, auto:voisins…), voir Gouts
+     */
+    public function trackPlay($songId, $user, $duration, $completed, $source = 'player', $skipped = null, $origin = null) {
+        $origin = Gouts::origineValide($origin);
+        // Moins de cinq secondes : un refus, pas une écoute. Il nourrit le
+        // profil de goûts sans gonfler compteurs ni statistiques.
+        if ($skipped && (int)$duration < 5) {
+            try {
+                Gouts::assurerTables($this->db);
+                $this->db->prepare('INSERT INTO gouts_sauts (user, song_id, duree, origin) VALUES (?, ?, ?, ?)')
+                    ->execute([$user, $songId, (int)$duration, $origin]);
+                Gouts::apprendre($this->db, (string)$user, $origin, false, true, (int)$duration);
+                return true;
+            } catch (Exception $e) {
+                error_log("Failed to track skip: " . $e->getMessage());
+                return false;
+            }
+        }
         try {
             $this->db->beginTransaction();
 
             $stmt = $this->db->prepare('
-                INSERT INTO play_history (song_id, user, play_duration, completed, source)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO play_history (song_id, user, play_duration, completed, source, skipped, origin)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
             ');
-            $stmt->execute([$songId, $user, $duration, $completed ? 1 : 0, $source]);
+            $stmt->execute([
+                $songId, $user, $duration, $completed ? 1 : 0, $source,
+                $skipped === null ? null : ($skipped ? 1 : 0), $origin,
+            ]);
 
             $stmt = $this->db->prepare('
                 INSERT INTO song_stats (song_id, play_count, first_played_at, last_played_at, total_play_time, skip_count)
@@ -155,6 +178,7 @@ class Database {
             $stmt->execute([$songId, $duration, $skipIncrement, $duration, $skipIncrement]);
 
             $this->db->commit();
+            Gouts::apprendre($this->db, (string)$user, $origin, (bool)$completed, (bool)$skipped, (int)$duration);
             return true;
         } catch (Exception $e) {
             $this->db->rollBack();

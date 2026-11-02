@@ -15,6 +15,7 @@ import 'package:gullify/screens/home_screen.dart';
 import 'package:gullify/state/discover.dart';
 import 'package:gullify/state/library.dart';
 import 'package:gullify/state/notifications.dart';
+import 'package:gullify/state/pour_toi.dart';
 import 'package:gullify/state/stats.dart';
 import 'package:gullify/theme.dart';
 
@@ -45,10 +46,7 @@ const _stats = ListeningStats(
 /// L'accueil sans réseau : seuls les providers que la page regarde sont
 /// remplacés. `discover` est le tirage de l'artiste voisin — une valeur, rien
 /// du tout, ou une panne de YouTube Music.
-ProviderContainer _container({
-  DiscoverArtist? discover,
-  bool failing = false,
-}) {
+ProviderContainer _container({DiscoverArtist? discover, bool failing = false}) {
   final container = ProviderContainer(
     // Riverpod 3 relance tout seul un provider qui a échoué : la minuterie
     // de cette reprise survit au test et le fait tomber sur « Timer still
@@ -60,6 +58,10 @@ ProviderContainer _container({
       statsProvider.overrideWith((ref) async => _stats),
       notificationsProvider.overrideWith(
         (ref) async => const NotificationsPage(items: [], unread: 0),
+      ),
+      // Un serveur d'avant « Pour toi » : la section se tait.
+      pourToiAccueilProvider.overrideWith(
+        (ref) async => throw Exception('pas de pour-toi.php'),
       ),
       discoverArtistProvider.overrideWith((ref) async {
         if (failing) throw Exception('YouTube Music injoignable');

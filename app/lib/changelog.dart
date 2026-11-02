@@ -8,6 +8,12 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.86.0', [
+    'Pour toi : sur l\'accueil, tes mix (regroupés par style), les Découvertes de la semaine, En boucle, les Perles oubliées, le mix du moment (matin, après-midi, soir, nuit) et des artistes à découvrir hors de ta bibliothèque — calculés chaque nuit d\'après ce que tu finis, sautes et aimes (serveur 1.11.0).',
+    'Lecture automatique : au bout de la file, la musique continue avec des titres proches de ce qui vient de jouer. Elle apprend ce qui te réussit, et un artiste sauté deux fois disparaît pour la soirée.',
+    'Radio de ce titre et « Pas pour moi » dans le menu d\'un titre.',
+    'Tes goûts : ton portrait, ton ADN musical, tes repères, tes habitudes, et le niveau d\'aventure (du familier à l\'inconnu).',
+  ]),
   ReleaseNote('3.85.1', [
     'Égaliseur : des profils nommés selon leur effet (Neutre, Chaleureux, Présence, Brillant, Voix claire, Casque), sans jamais dépasser +4 dB.',
   ]),

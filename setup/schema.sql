@@ -116,6 +116,8 @@ CREATE TABLE IF NOT EXISTS play_history (
     play_duration INT DEFAULT 0,
     completed TINYINT(1) DEFAULT 0,
     source VARCHAR(20) DEFAULT 'player',
+    skipped TINYINT(1) NULL DEFAULT NULL,  -- 1 = « suivant » pressé ; NULL = app d'avant (inconnu)
+    origin VARCHAR(40) NULL,               -- d'où venait le titre : mix:2, auto:voisins, radio… (Pour toi)
     INDEX idx_play_history_user (user),
     INDEX idx_play_history_song (song_id),
     INDEX idx_play_history_date (played_at),
@@ -239,6 +241,123 @@ CREATE TABLE IF NOT EXISTS notifications (
     INDEX idx_notif_user_created (user, created_at DESC),
     INDEX idx_notif_user_read (user, read_at)
 );
+
+-- ── Pour toi (serveur 1.11.0) : profil de goûts et recommandations ──────────
+-- Recalculé la nuit par scripts/analyser-gouts.php (src/Gouts.php). Les mêmes
+-- CREATE vivent dans Gouts::TABLES pour les bases déjà installées.
+
+-- Ce que l'on sait d'un artiste hors de la bibliothèque, partagé par tous :
+-- clé = nom normalisé (Gouts::cle).
+CREATE TABLE IF NOT EXISTS artistes_enrichis (
+    cle VARCHAR(191) PRIMARY KEY,
+    nom VARCHAR(255) NOT NULL,
+    source VARCHAR(20) NULL,
+    trouve TINYINT(1) NOT NULL DEFAULT 0,
+    maj DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS artistes_similaires (
+    cle VARCHAR(191) NOT NULL,
+    voisin_cle VARCHAR(191) NOT NULL,
+    voisin_nom VARCHAR(255) NOT NULL,
+    score FLOAT NOT NULL,
+    image VARCHAR(500) NULL,
+    PRIMARY KEY (cle, voisin_cle),
+    INDEX idx_artsim_voisin (voisin_cle)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS artistes_tags (
+    cle VARCHAR(191) NOT NULL,
+    tag VARCHAR(100) NOT NULL,
+    poids FLOAT NOT NULL,
+    PRIMARY KEY (cle, tag),
+    INDEX idx_arttag_tag (tag)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Le profil d'une personne : affinité par artiste, étiquette, genre (−1 à 1).
+CREATE TABLE IF NOT EXISTS gouts_profil (
+    user VARCHAR(50) NOT NULL,
+    type VARCHAR(10) NOT NULL,
+    cle VARCHAR(191) NOT NULL,
+    score FLOAT NOT NULL,
+    ecoutes INT NOT NULL DEFAULT 0,
+    sauts INT NOT NULL DEFAULT 0,
+    PRIMARY KEY (user, type, cle)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Affinité par titre (écoutes pesées et amorties dans le temps).
+CREATE TABLE IF NOT EXISTS gouts_titres (
+    user VARCHAR(50) NOT NULL,
+    song_id INT NOT NULL,
+    score FLOAT NOT NULL,
+    finis INT NOT NULL DEFAULT 0,
+    sauts INT NOT NULL DEFAULT 0,
+    dernier DATETIME NULL,
+    PRIMARY KEY (user, song_id),
+    INDEX idx_gtitres_song (song_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Les artistes voisins dans SA bibliothèque (ids d'artistes de la personne).
+CREATE TABLE IF NOT EXISTS gouts_voisins (
+    user VARCHAR(50) NOT NULL,
+    artist_id INT NOT NULL,
+    voisin_id INT NOT NULL,
+    score FLOAT NOT NULL,
+    PRIMARY KEY (user, artist_id, voisin_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Les rayons calculés (mix, découvertes, en boucle, ailleurs…).
+CREATE TABLE IF NOT EXISTS gouts_rayons (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user VARCHAR(50) NOT NULL,
+    type VARCHAR(20) NOT NULL,
+    rang INT NOT NULL DEFAULT 0,
+    titre VARCHAR(120) NOT NULL,
+    sous_titre VARCHAR(255) NULL,
+    contenu JSON NOT NULL,
+    cree_le DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_grayons_user (user, type, rang)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- « Pas pour moi » : titre ou artiste écarté des recommandations.
+CREATE TABLE IF NOT EXISTS gouts_rejets (
+    user VARCHAR(50) NOT NULL,
+    type VARCHAR(10) NOT NULL,
+    cible_id INT NOT NULL,
+    cree_le DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user, type, cible_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Ce que la lecture automatique a appris : quelle source de suggestions
+-- réussit à cette personne (Thompson : succès et échecs par bras).
+CREATE TABLE IF NOT EXISTS gouts_bandits (
+    user VARCHAR(50) NOT NULL,
+    bras VARCHAR(20) NOT NULL,
+    succes FLOAT NOT NULL DEFAULT 1,
+    echecs FLOAT NOT NULL DEFAULT 1,
+    PRIMARY KEY (user, bras)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Les sauts de moins de cinq secondes : rien d'une écoute (ils resteraient
+-- hors des statistiques), mais le refus le plus net qui soit.
+CREATE TABLE IF NOT EXISTS gouts_sauts (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    user VARCHAR(50) NOT NULL,
+    song_id INT NOT NULL,
+    duree INT NOT NULL DEFAULT 0,
+    origin VARCHAR(40) NULL,
+    saute_le DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_gsauts_user (user, saute_le)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Réglages : niveau d'aventure, lecture automatique, portrait écrit.
+CREATE TABLE IF NOT EXISTS gouts_reglages (
+    user VARCHAR(50) PRIMARY KEY,
+    aventure FLOAT NOT NULL DEFAULT 0.35,
+    portrait TEXT NULL,
+    decalage SMALLINT NULL,          -- fuseau de l'app, en minutes (Québec : −240 l'été) : le serveur vit en UTC
+    analyse_le DATETIME NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Views
 CREATE OR REPLACE VIEW top_songs AS

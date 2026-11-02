@@ -10,12 +10,14 @@ import '../api/bandcamp_repository.dart';
 import '../api/library_repository.dart';
 import '../api/playlist_repository.dart';
 import '../api/podcasts_repository.dart';
+import '../api/pour_toi_repository.dart';
 import '../api/radio_repository.dart';
 import '../api/yt_downloads_repository.dart';
 import '../models/song.dart';
 import '../state/collection_play.dart';
 import 'equalizer.dart';
 import 'fade.dart';
+import 'autoplay.dart';
 import 'local_mode.dart';
 import 'prefetch.dart';
 import 'resume_store.dart';
@@ -309,6 +311,8 @@ class GullifyAudioHandler extends BaseAudioHandler
       _fadeInNewTrack();
       _flushPlay();
       _startTracking(q[index]);
+      // Bientôt au bout de la file : la lecture automatique prend le relais.
+      unawaited(_maybeAutoplay());
       // Ce qu'Android Auto proposera de reprendre, c'est le titre qui commence
       // (idée #103).
       unawaited(resume.rememberCurrent(q[index].extras?['songId'] as int?));
@@ -385,6 +389,12 @@ class GullifyAudioHandler extends BaseAudioHandler
 
   /// Set after login so the media browser (Android Auto) can list the library.
   LibraryRepository? repository;
+
+  /// Set after login — Pour toi : la suite de la file (lecture automatique).
+  PourToiRepository? pourToiRepository;
+
+  /// Lecture automatique (Pour toi) : réglage, voir autoplay.dart.
+  final autoplay = Autoplay();
 
   /// Set after login — stations web radio pour Android Auto.
   RadioRepository? radioRepository;
@@ -719,7 +729,37 @@ class GullifyAudioHandler extends BaseAudioHandler
   int? _queueIndex;
   List<MediaItem>? _trackedQueue;
 
+  /// D'où vient chaque titre de la file (`mix:2`, `auto:voisins`, `radio:…`) :
+  /// renvoyé avec l'écoute, c'est ce qui apprend au serveur quelles
+  /// recommandations réussissent (Pour toi).
+  final Map<int, String> _origins = {};
+
+  /// « Suivant » pressé (ou un autre titre de la file choisi) pendant le titre
+  /// suivi : l'écoute part au serveur comme un saut, le signal le plus net
+  /// qu'on ait sur ce qu'on n'aime pas.
+  bool _skipRequested = false;
+
+  /// Retient l'origine de titres recommandés avant de les mettre en file.
+  void tagOrigins(Iterable<RecoSong> recos) {
+    for (final r in recos) {
+      final o = r.origin;
+      if (o != null && r.song.id > 0) {
+        _origins[r.song.id] = o;
+      } else {
+        _origins.remove(r.song.id);
+      }
+    }
+  }
+
+  /// Joue une liste recommandée (mix, découvertes, radio d'un titre).
+  Future<void> playRecos(List<RecoSong> recos, {int startIndex = 0}) {
+    _origins.clear();
+    tagOrigins(recos);
+    return playSongs([for (final r in recos) r.song], startIndex: startIndex);
+  }
+
   void _startTracking(MediaItem item) {
+    _skipRequested = false;
     _trackedSongId = item.extras?['songId'] as int?;
     _trackedDuration = item.duration ?? Duration.zero;
     _lastPosition = Duration.zero;
@@ -734,8 +774,16 @@ class GullifyAudioHandler extends BaseAudioHandler
     final elapsed = DateTime.now().difference(_trackedSince);
     final played = _lastPosition <= elapsed ? _lastPosition : elapsed;
     _trackedSongId = null;
+    final skipped = _skipRequested;
+    _skipRequested = false;
     // Id négatif : dossier local ou maison amie, inconnu de notre serveur.
-    if (songId == null || songId < 0 || played < const Duration(seconds: 5)) return;
+    if (songId == null || songId < 0) return;
+    // Sous cinq secondes, seul un saut se dit : le serveur le garde comme un
+    // refus net, hors des statistiques d'écoute.
+    if (played < const Duration(seconds: 5) &&
+        (!skipped || played < const Duration(seconds: 1))) {
+      return;
+    }
     // Un titre croisé avec le suivant (idée #76) est déclaré fini alors qu'il
     // lui reste la durée du fondu à jouer : sans cette marge, un fondu enchaîné
     // long ferait passer chaque écoute complète pour une écoute abandonnée.
@@ -749,6 +797,8 @@ class GullifyAudioHandler extends BaseAudioHandler
           songId: songId,
           seconds: played.inSeconds,
           completed: completed,
+          skipped: skipped && !completed,
+          origin: _origins[songId],
         )
         .catchError((_) {});
   }
@@ -1400,6 +1450,81 @@ class GullifyAudioHandler extends BaseAudioHandler
       AudioSource.uri(Uri.parse(item.id)),
     );
     _primeBuffer();
+  }
+
+  /// Lecture automatique (Pour toi) : quand il ne reste plus que
+  /// [Autoplay.remainingTrigger] titre après celui qui joue, le serveur
+  /// propose la suite — d'après les derniers titres, la séance (un artiste
+  /// sauté tout à l'heure recule) et le profil de goûts — et elle s'ajoute au
+  /// bout de la file. Seulement pour les titres de la bibliothèque, sans
+  /// répétition ni aléatoire (just_audio placerait les nouveaux titres au
+  /// hasard dans l'ordre tiré, parfois derrière celui qui joue).
+  bool _autoplayBusy = false;
+
+  Future<void> _maybeAutoplay() async {
+    final repo = pourToiRepository;
+    if (repo == null || !autoplay.enabled || _autoplayBusy) return;
+    final state = playbackState.value;
+    if (state.repeatMode != AudioServiceRepeatMode.none ||
+        state.shuffleMode != AudioServiceShuffleMode.none) {
+      return;
+    }
+    final q = queue.value;
+    final current = _player.currentIndex;
+    if (current == null || current >= q.length) return;
+    if (q.length - 1 - current > Autoplay.remainingTrigger) return;
+    final extras = q[current].extras ?? const <String, dynamic>{};
+    final id = extras['songId'];
+    if (id is! int || id <= 0 || extras['filePath'] == null) return;
+    if (extras['remote'] == true || localMode) return;
+
+    final graines = <int>[
+      for (final item in q.take(current + 1))
+        if (item.extras?['songId'] case final int s when s > 0) s,
+    ];
+    final exclus = <int>[
+      for (final item in q)
+        if (item.extras?['songId'] case final int s when s > 0) s,
+    ];
+    // Une radio de titre reste une radio : ses suites en portent le nom.
+    final radio = _origins[id]?.startsWith('radio') ?? false;
+    _autoplayBusy = true;
+    try {
+      final recos = await repo.suite(
+        graines: graines.length > 3
+            ? graines.sublist(graines.length - 3)
+            : graines,
+        exclus: exclus,
+        n: Autoplay.batch,
+        radio: radio,
+      );
+      // La file a changé pendant la demande (autre album lancé) : la suite
+      // ne lui va plus.
+      final now = queue.value;
+      if (recos.isEmpty ||
+          now.length != q.length ||
+          now.isEmpty ||
+          now.first.id != q.first.id) {
+        return;
+      }
+      tagOrigins(recos);
+      final songs = [
+        for (final r in recos)
+          if (_sourceUri(r.song).isNotEmpty) r.song,
+      ];
+      if (songs.isEmpty) return;
+      final items = songs.map(_toMediaItem).toList();
+      queue.add([...now, ...items]);
+      await _player.addAudioSources(
+        [for (final item in items) AudioSource.uri(Uri.parse(item.id))],
+      );
+      logPlayback('lecture automatique : ${items.length} titres ajoutés');
+      _primeBuffer();
+    } catch (e) {
+      logPlayback('lecture automatique : $e');
+    } finally {
+      _autoplayBusy = false;
+    }
   }
 
   /// Ajoute en fin de file.
@@ -2069,6 +2194,7 @@ class GullifyAudioHandler extends BaseAudioHandler
 
   @override
   Future<void> skipToNext() async {
+    if (_trackedSongId != null) _skipRequested = true;
     if (_endFading || _outgoingBusy) await _cancelFade();
     await _player.seekToNext();
   }
@@ -2085,6 +2211,9 @@ class GullifyAudioHandler extends BaseAudioHandler
 
   @override
   Future<void> skipToQueueItem(int index) async {
+    if (_trackedSongId != null && index != _player.currentIndex) {
+      _skipRequested = true;
+    }
     if (_endFading || _outgoingBusy) await _cancelFade();
     await _player.seek(Duration.zero, index: index);
     await play();

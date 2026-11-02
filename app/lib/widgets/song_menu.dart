@@ -9,6 +9,7 @@ import '../state/offline.dart';
 import '../state/player.dart';
 import '../state/playlists.dart';
 import 'artwork.dart';
+import 'pour_toi_actions.dart';
 import 'share_sheet.dart';
 
 /// Bottom sheet with actions for a song (favorite, playlists, navigation).
@@ -21,159 +22,207 @@ Future<void> showSongMenu(BuildContext context, Song song) {
         final isFavorite =
             ref.watch(favoriteIdsProvider).value?.contains(song.id) ?? false;
         return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                leading: Artwork(
-                  url: song.artworkUrl,
-                  size: 44,
-                  icon: Icons.music_note,
-                ),
-                title: Text(song.title, maxLines: 1),
-                subtitle:
-                    song.artistName != null ? Text(song.artistName!) : null,
-              ),
-              const Divider(height: 1),
-              ListTile(
-                leading: Icon(
-                  isFavorite ? Icons.favorite : Icons.favorite_border,
-                  color: isFavorite
-                      ? Theme.of(context).colorScheme.primary
+          // Défile si l'écran est court : le menu a grandi (radio, « Pas pour
+          // moi »).
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(
+                  leading: Artwork(
+                    url: song.artworkUrl,
+                    size: 44,
+                    icon: Icons.music_note,
+                  ),
+                  title: Text(song.title, maxLines: 1),
+                  subtitle: song.artistName != null
+                      ? Text(song.artistName!)
                       : null,
                 ),
-                title: Text(
-                  isFavorite ? 'Retirer des favoris' : 'Ajouter aux favoris',
+                const Divider(height: 1),
+                ListTile(
+                  leading: Icon(
+                    isFavorite ? Icons.favorite : Icons.favorite_border,
+                    color: isFavorite
+                        ? Theme.of(context).colorScheme.primary
+                        : null,
+                  ),
+                  title: Text(
+                    isFavorite ? 'Retirer des favoris' : 'Ajouter aux favoris',
+                  ),
+                  onTap: () {
+                    ref.read(favoriteIdsProvider.notifier).toggle(song.id);
+                    Navigator.pop(context);
+                  },
                 ),
-                onTap: () {
-                  ref.read(favoriteIdsProvider.notifier).toggle(song.id);
-                  Navigator.pop(context);
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.playlist_play),
-                title: const Text('Jouer ensuite'),
-                onTap: () {
-                  ref.read(playerActionsProvider).playNext(song);
-                  Navigator.pop(context);
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.queue),
-                title: const Text('Ajouter à la file'),
-                onTap: () {
-                  ref.read(playerActionsProvider).addToQueue(song);
-                  Navigator.pop(context);
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.playlist_add),
-                title: const Text('Ajouter à une playlist'),
-                onTap: () {
-                  Navigator.pop(context);
-                  _showPlaylistPicker(context, song);
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.ios_share_rounded),
-                title: const Text('Partager'),
-                subtitle: const Text('Lien d\'écoute valable 24 h'),
-                onTap: () {
-                  Navigator.pop(context);
-                  showShareSheet(context, ShareTarget.song(song));
-                },
-              ),
-              if (offlineSupported)
-                Builder(builder: (context) {
-                  final downloaded = ref
-                          .watch(offlineProvider)
-                          .value
-                          ?.containsKey(song.id) ??
-                      false;
-                  return ListTile(
-                    leading: Icon(
-                      downloaded
-                          ? Icons.download_done
-                          : Icons.download_outlined,
+                ListTile(
+                  leading: const Icon(Icons.playlist_play),
+                  title: const Text('Jouer ensuite'),
+                  onTap: () {
+                    ref.read(playerActionsProvider).playNext(song);
+                    Navigator.pop(context);
+                  },
+                ),
+                if (pourToiPossible(song))
+                  ListTile(
+                    leading: const Icon(Icons.radio_outlined),
+                    title: const Text('Radio de ce titre'),
+                    subtitle: const Text(
+                      'Des titres qui lui ressemblent, sans fin',
                     ),
-                    title: Text(
-                      downloaded
-                          ? 'Retirer le téléchargement'
-                          : 'Télécharger',
-                    ),
-                    onTap: () async {
-                      Navigator.pop(context);
-                      final offline = ref.read(offlineProvider.notifier);
+                    onTap: () {
                       final messenger = ScaffoldMessenger.of(context);
-                      try {
-                        if (downloaded) {
-                          await offline.remove(song.id);
-                        } else {
-                          await offline.download(song);
-                          messenger.showSnackBar(
-                            const SnackBar(content: Text('Titre téléchargé')),
-                          );
-                        }
-                      } catch (_) {
-                        messenger.showSnackBar(
-                          const SnackBar(content: Text('Échec du téléchargement')),
-                        );
-                      }
+                      Navigator.pop(context);
+                      startSongRadio(messenger, ref, song);
                     },
-                  );
-                }),
-              if (song.albumId != null)
+                  ),
                 ListTile(
-                  leading: const Icon(Icons.album_outlined),
-                  title: const Text("Aller à l'album"),
+                  leading: const Icon(Icons.queue),
+                  title: const Text('Ajouter à la file'),
                   onTap: () {
+                    ref.read(playerActionsProvider).addToQueue(song);
                     Navigator.pop(context);
-                    context.push('/album/${song.albumId}');
                   },
                 ),
-              if (song.artistId != null)
                 ListTile(
-                  leading: const Icon(Icons.person_outline),
-                  title: const Text("Aller à l'artiste"),
+                  leading: const Icon(Icons.playlist_add),
+                  title: const Text('Ajouter à une playlist'),
                   onTap: () {
                     Navigator.pop(context);
-                    context.push('/artist/${song.artistId}');
+                    _showPlaylistPicker(context, song);
                   },
                 ),
-              const Divider(height: 1),
-              ListTile(
-                leading: Icon(Icons.delete_outline,
-                    color: Theme.of(context).colorScheme.error),
-                title: Text(
-                  'Supprimer définitivement',
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ListTile(
+                  leading: const Icon(Icons.ios_share_rounded),
+                  title: const Text('Partager'),
+                  subtitle: const Text('Lien d\'écoute valable 24 h'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    showShareSheet(context, ShareTarget.song(song));
+                  },
                 ),
-                onTap: () async {
-                  final messenger = ScaffoldMessenger.of(context);
-                  Navigator.pop(context);
-                  final ok = await confirmDelete(
-                    context,
-                    'Supprimer « ${song.title} » ?',
-                    'Le fichier et ses données seront effacés du serveur. '
-                        'Action irréversible.',
-                  );
-                  if (ok != true) return;
-                  try {
-                    await ref
-                        .read(libraryRepositoryProvider)
-                        .deleteSongs([song.id]);
-                    invalidateLibrary(ref);
-                    messenger.showSnackBar(
-                      SnackBar(content: Text('« ${song.title} » supprimé')),
+                if (offlineSupported)
+                  Builder(
+                    builder: (context) {
+                      final downloaded =
+                          ref
+                              .watch(offlineProvider)
+                              .value
+                              ?.containsKey(song.id) ??
+                          false;
+                      return ListTile(
+                        leading: Icon(
+                          downloaded
+                              ? Icons.download_done
+                              : Icons.download_outlined,
+                        ),
+                        title: Text(
+                          downloaded
+                              ? 'Retirer le téléchargement'
+                              : 'Télécharger',
+                        ),
+                        onTap: () async {
+                          Navigator.pop(context);
+                          final offline = ref.read(offlineProvider.notifier);
+                          final messenger = ScaffoldMessenger.of(context);
+                          try {
+                            if (downloaded) {
+                              await offline.remove(song.id);
+                            } else {
+                              await offline.download(song);
+                              messenger.showSnackBar(
+                                const SnackBar(
+                                  content: Text('Titre téléchargé'),
+                                ),
+                              );
+                            }
+                          } catch (_) {
+                            messenger.showSnackBar(
+                              const SnackBar(
+                                content: Text('Échec du téléchargement'),
+                              ),
+                            );
+                          }
+                        },
+                      );
+                    },
+                  ),
+                if (song.albumId != null)
+                  ListTile(
+                    leading: const Icon(Icons.album_outlined),
+                    title: const Text("Aller à l'album"),
+                    onTap: () {
+                      Navigator.pop(context);
+                      context.push('/album/${song.albumId}');
+                    },
+                  ),
+                if (song.artistId != null)
+                  ListTile(
+                    leading: const Icon(Icons.person_outline),
+                    title: const Text("Aller à l'artiste"),
+                    onTap: () {
+                      Navigator.pop(context);
+                      context.push('/artist/${song.artistId}');
+                    },
+                  ),
+                if (pourToiPossible(song))
+                  ListTile(
+                    leading: const Icon(Icons.thumb_down_alt_outlined),
+                    title: const Text('Pas pour moi'),
+                    subtitle: const Text(
+                      'Ne plus le proposer dans les mix et suggestions',
+                    ),
+                    onTap: () {
+                      final messenger = ScaffoldMessenger.of(context);
+                      Navigator.pop(context);
+                      rejectFromRecos(
+                        messenger,
+                        ref,
+                        type: 'song',
+                        id: song.id,
+                        label: song.title,
+                      );
+                    },
+                  ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: Icon(
+                    Icons.delete_outline,
+                    color: Theme.of(context).colorScheme.error,
+                  ),
+                  title: Text(
+                    'Supprimer définitivement',
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                  ),
+                  onTap: () async {
+                    final messenger = ScaffoldMessenger.of(context);
+                    Navigator.pop(context);
+                    final ok = await confirmDelete(
+                      context,
+                      'Supprimer « ${song.title} » ?',
+                      'Le fichier et ses données seront effacés du serveur. '
+                          'Action irréversible.',
                     );
-                  } catch (e) {
-                    messenger.showSnackBar(
-                      SnackBar(content: Text('Échec : $e')),
-                    );
-                  }
-                },
-              ),
-            ],
+                    if (ok != true) return;
+                    try {
+                      await ref.read(libraryRepositoryProvider).deleteSongs([
+                        song.id,
+                      ]);
+                      invalidateLibrary(ref);
+                      messenger.showSnackBar(
+                        SnackBar(content: Text('« ${song.title} » supprimé')),
+                      );
+                    } catch (e) {
+                      messenger.showSnackBar(
+                        SnackBar(content: Text('Échec : $e')),
+                      );
+                    }
+                  },
+                ),
+              ],
+            ),
           ),
         );
       },
@@ -186,27 +235,26 @@ Future<bool?> confirmDelete(
   BuildContext context,
   String title,
   String message,
-) =>
-    showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(title),
-        content: Text(message),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Annuler'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(context).colorScheme.error,
-            ),
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Supprimer'),
-          ),
-        ],
+) => showDialog<bool>(
+  context: context,
+  builder: (context) => AlertDialog(
+    title: Text(title),
+    content: Text(message),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.pop(context, false),
+        child: const Text('Annuler'),
       ),
-    );
+      FilledButton(
+        style: FilledButton.styleFrom(
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+        onPressed: () => Navigator.pop(context, true),
+        child: const Text('Supprimer'),
+      ),
+    ],
+  ),
+);
 
 /// Rafraîchit les listes après une suppression.
 void invalidateLibrary(WidgetRef ref) {
@@ -265,8 +313,10 @@ Future<void> _showPlaylistPicker(BuildContext context, Song song) {
                   ListTile(
                     leading: const Icon(Icons.queue_music),
                     title: Text(p.name),
-                    subtitle: Text('${p.songCount} titre'
-                        '${p.songCount > 1 ? 's' : ''}'),
+                    subtitle: Text(
+                      '${p.songCount} titre'
+                      '${p.songCount > 1 ? 's' : ''}',
+                    ),
                     onTap: () => addTo(p.id),
                   ),
               ],

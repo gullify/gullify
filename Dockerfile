@@ -69,6 +69,13 @@ RUN printf 'PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\n1
     > /etc/cron.d/gullify-new-releases \
     && chmod 0644 /etc/cron.d/gullify-new-releases
 
+# Pour toi : profil de goûts, artistes similaires (Last.fm ou YouTube Music),
+# mix et découvertes. À basse priorité. Le conteneur vit en UTC : 8 h 40 UTC,
+# c'est 3 h 40 ou 4 h 40 au Québec — la maison dort, la musique aussi.
+RUN printf 'PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\n40 8 * * * www-data nice -n 19 /usr/local/bin/php /app/scripts/analyser-gouts.php >> /app/data/logs/gouts.log 2>&1\n' \
+    > /etc/cron.d/gullify-gouts \
+    && chmod 0644 /etc/cron.d/gullify-gouts
+
 # Startup script: fix permissions, line endings, update yt-dlp, start cron,
 # then apache. Le script vit dans start.sh à la racine (copié par le COPY
 # ci-dessus) et non dans scripts/ : start.sh lance `dos2unix /app/scripts/*.sh`

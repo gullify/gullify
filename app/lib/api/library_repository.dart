@@ -325,6 +325,13 @@ class LibraryRepository {
     ),
   );
 
+  /// Un titre tel que l'API le rend, pochette datée comme partout ailleurs
+  /// (Pour toi : PourToiRepository passe par ici).
+  Song songFromJson(Map<String, dynamic> j) => _song(j);
+
+  /// Adresse complète d'une image servie par la maison (ou déjà complète).
+  String? absoluteUrl(String? url) => _abs(url);
+
   List<T> _list<T>(dynamic v, T Function(Map<String, dynamic>) map) =>
       (v as List<dynamic>? ?? [])
           .map((e) => map(e as Map<String, dynamic>))
@@ -663,10 +670,15 @@ class LibraryRepository {
   }
 
   /// Report a play to the server (play_history + song_stats).
+  ///
+  /// [skipped] : « suivant » pressé. [origin] : d'où venait le titre (mix,
+  /// lecture automatique…). Les deux nourrissent le profil de goûts (Pour toi).
   Future<void> trackPlay({
     required int songId,
     required int seconds,
     required bool completed,
+    bool skipped = false,
+    String? origin,
   }) async {
     await _client.post(
       'radio.php',
@@ -675,6 +687,8 @@ class LibraryRepository {
         'song_id': songId,
         'duration_played': seconds,
         'completed': completed ? 1 : 0,
+        'skipped': skipped ? 1 : 0,
+        'origin': ?origin,
       },
     );
   }

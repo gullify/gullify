@@ -41,6 +41,8 @@ import 'screens/podcast_show_screen.dart';
 import 'screens/podcasts_screen.dart';
 import 'api/podcasts_repository.dart';
 import 'screens/popular_screen.dart';
+import 'screens/rayon_screen.dart';
+import 'screens/gouts_screen.dart';
 import 'screens/radio_edit_screen.dart';
 import 'screens/radio_screen.dart';
 import 'api/radio_repository.dart';
@@ -282,6 +284,13 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(path: '/stats', builder: (_, _) => const StatsScreen()),
       GoRoute(path: '/popular', builder: (_, _) => const PopularScreen()),
+      // Pour toi : un rayon (mix, découvertes…) et « Tes goûts ».
+      GoRoute(
+        path: '/pour-toi/:id',
+        builder: (_, state) =>
+            RayonScreen(id: int.parse(state.pathParameters['id']!)),
+      ),
+      GoRoute(path: '/gouts', builder: (_, _) => const GoutsScreen()),
       // « Découvrir sur Bandcamp » (idée #111) : genres → sous-genres → liste.
       GoRoute(
         path: '/bandcamp',

@@ -104,6 +104,7 @@ class SettingsScreen extends ConsumerWidget {
           const _SectionHeader('Lecture'),
           const _FadeTile(),
           if (bufferSupported) const _BufferTile(),
+          const _AutoplayTile(),
           if (equalizerSupported)
             ListTile(
               leading: const Icon(Icons.equalizer),
@@ -375,6 +376,28 @@ class _FadeTile extends ConsumerWidget {
         ),
         trailing: const Icon(Icons.chevron_right),
         onTap: () => context.push('/settings/fade'),
+      ),
+    );
+  }
+}
+
+/// Lecture automatique (Pour toi) : au bout de la file, la musique continue.
+class _AutoplayTile extends ConsumerWidget {
+  const _AutoplayTile();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final autoplay = ref.watch(autoplayProvider);
+    return ListenableBuilder(
+      listenable: autoplay,
+      builder: (context, _) => SwitchListTile(
+        secondary: const Icon(Icons.all_inclusive),
+        title: const Text('Lecture automatique'),
+        subtitle: const Text(
+          'Au bout de la file, des titres proches de ce qui vient de jouer',
+        ),
+        value: autoplay.enabled,
+        onChanged: autoplay.setEnabled,
       ),
     );
   }

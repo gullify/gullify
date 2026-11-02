@@ -35,6 +35,8 @@ Future<void> main() async {
   // déjà descendu — la première file d'une session peut ainsi partir de ce qui
   // est encore sur le disque.
   unawaited(audioHandler.buffer.loadSaved().catchError((_) {}));
+  // La lecture automatique (Pour toi) : allumée tant qu'elle n'est pas relue.
+  unawaited(audioHandler.autoplay.loadSaved().catchError((_) {}));
 
   // Téléphone ou téléviseur ? La question se pose une seule fois, ici, avant
   // le premier affichage : le routeur choisit son interface là-dessus, et une

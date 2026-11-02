@@ -26,7 +26,7 @@ Serveur de musique (PHP 8.2 + MySQL, sans framework) et app Flutter `app/` (APK 
 ### Politique de `supprimer`
 Supprimés : le compte, ses sessions (appareils), sa photo, ses listes de lecture, ses favoris (titres,
 artistes, albums), son historique d'écoute, ses notifications, genres perso, radios perso et réglages
-radio, abonnements et progression de podcasts, liens de partage, et l'INDEX de sa bibliothèque en base
+radio, abonnements et progression de podcasts, liens de partage, son profil de goûts « Pour toi » (`gouts_*`), et l'INDEX de sa bibliothèque en base
 (`artists`/`albums`/`songs`/`library_stats` à son nom — reconstruit par un scan, comme le fait déjà
 un rescan complet). La MUSIQUE (les fichiers) n'est JAMAIS touchée. Refusé pour le dernier
 administrateur. GulliFY n'a pas de « données précieuses orphelines » : rien d'autre n'est refusé.

@@ -205,7 +205,16 @@ const MG_DONNEES_PERSONNELLES = [
     'podcast_progress' => 'user',
     'song_shares' => 'owner_user',
     'library_stats' => 'user',
-    'artists' => 'user',            // l'INDEX de sa bibliothèque (+ albums, songs en cascade)
+    // Pour toi : son profil de goûts, ses rayons, ses refus (Gouts::TABLES_PERSONNE)
+    'gouts_profil' => 'user',
+    'gouts_titres' => 'user',
+    'gouts_voisins' => 'user',
+    'gouts_rayons' => 'user',
+    'gouts_rejets' => 'user',
+    'gouts_bandits' => 'user',
+    'gouts_sauts' => 'user',
+    'gouts_reglages' => 'user',
+    'artists' => 'user',          // l'INDEX de sa bibliothèque (+ albums, songs en cascade)
 ];
 
 function mg_executer(array $args): array
