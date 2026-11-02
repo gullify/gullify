@@ -2,11 +2,11 @@
 /**
  * Les rapports de plantage des apps de la maison et de GulliFY (1.0) : un texte brut par POST, rangé dans
  * DATA_PATH/rapports/<app>/AAAA-MM-JJ.txt. Pas de lecture publique : on lit sur l'atelier.
- *   POST /api/v2/rapport.php?app=gullitv|gulliscan|gullieats|gullify   (text/plain, première ligne « <App>-plantage v1 »)
+ *   POST /api/v2/rapport.php?app=gullitv|gulliscan|gullieats|gullify|gullical   (text/plain, première ligne « <App>-plantage v1 »)
  * Lire : docker exec gullify sh -c 'cat /app/data/rapports/<app>/*.txt'
  */
 const TAILLE_MAX = 65536;
-const APPS = ['gullitv', 'gulliscan', 'gullieats', 'gullify'];
+const APPS = ['gullitv', 'gulliscan', 'gullieats', 'gullify', 'gullical'];
 
 header('Cache-Control: no-store');
 header('Content-Type: application/json; charset=utf-8');
