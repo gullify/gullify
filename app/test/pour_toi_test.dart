@@ -1,5 +1,7 @@
 // Pour toi : lecture des réponses de `pour-toi.php` et rendu de la section de
 // l'accueil (rayons, artistes d'ailleurs, ancien serveur muet).
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -7,6 +9,7 @@ import 'package:go_router/go_router.dart';
 import 'package:gullify/api/api_client.dart';
 import 'package:gullify/api/library_repository.dart';
 import 'package:gullify/api/pour_toi_repository.dart';
+import 'package:gullify/models/song.dart';
 import 'package:gullify/state/pour_toi.dart';
 import 'package:gullify/theme.dart';
 import 'package:gullify/widgets/pour_toi_section.dart';
@@ -103,6 +106,40 @@ void main() {
       expect(rien.pourquoi, 'Proche de tes goûts');
     });
 
+    test(
+      'une liste Pour toi se lance mélangée, sans artiste deux fois de suite',
+      () {
+        RecoSong r(int id, String artiste) => RecoSong(
+          song: Song(
+            id: id,
+            title: 't$id',
+            filePath: '$id.mp3',
+            artistName: artiste,
+          ),
+        );
+        final titres = [
+          for (var i = 0; i < 12; i++) r(i, ['A', 'B', 'C'][i % 3]),
+        ];
+        final ordres = <String>{};
+        for (var essai = 0; essai < 20; essai++) {
+          final m = melangerPourLancer(titres, hasard: Random(essai));
+          expect(
+            m.map((x) => x.song.id).toSet(),
+            titres.map((x) => x.song.id).toSet(),
+          );
+          for (var k = 1; k < m.length; k++) {
+            expect(m[k].song.artistName, isNot(m[k - 1].song.artistName));
+          }
+          ordres.add(m.map((x) => x.song.id).join(','));
+        }
+        // Pas deux trajets pareils.
+        expect(ordres.length, greaterThan(15));
+        // Le titre touché joue d'abord.
+        final touche = titres[7];
+        expect(melangerPourLancer(titres, premier: touche).first, touche);
+      },
+    );
+
     test('le profil se lit même incomplet', () {
       const p = GoutsProfil({'portrait': 'Ton cœur penche vers le punk.'});
       expect(p.portrait, startsWith('Ton cœur'));
@@ -186,7 +223,10 @@ void main() {
       expect(find.text('Découvertes de la semaine'), findsOneWidget);
       expect(find.text('Sum 41'), findsOneWidget);
       expect(find.text('Parce que tu aimes Reset'), findsOneWidget);
-      expect(find.bySemanticsLabel('Lire Mix Punk rock'), findsOneWidget);
+      expect(
+        find.bySemanticsLabel('Lire Mix Punk rock en aléatoire'),
+        findsOneWidget,
+      );
 
       await tester.tap(find.text('Mix Punk rock'));
       await tester.pumpAndSettle();

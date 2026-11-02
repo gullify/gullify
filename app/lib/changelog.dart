@@ -8,6 +8,9 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.86.3', [
+    'Pour toi : les mix, les Découvertes et le mix du moment partent toujours en aléatoire, avec un nouveau tirage à chaque fois (dans l\'app comme dans Android Auto) — fini les mêmes premières chansons à chaque court trajet. Toucher un titre le joue d\'abord, le reste mélangé derrière.',
+  ]),
   ReleaseNote('3.86.2', [
     'Android Auto : le raccourci « Favoris en vrac » s\'appelle maintenant « Favoris ».',
   ]),

@@ -21,14 +21,14 @@ import 'package:gullify/models/album.dart';
 import 'package:gullify/models/song.dart';
 
 Song _song(int id, String title, {String artist = 'Les Hay Babies'}) => Song(
-  id: id,
-  title: title,
-  filePath: '/musique/$id.mp3',
-  artistName: artist,
-  albumName: 'Un album',
-  artworkUrl: 'https://exemple.test/art/$id.jpg',
-  duration: 200,
-);
+      id: id,
+      title: title,
+      filePath: '/musique/$id.mp3',
+      artistName: artist,
+      albumName: 'Un album',
+      artworkUrl: 'https://exemple.test/art/$id.jpg',
+      duration: 200,
+    );
 
 /// Un serveur qui répond — ou qui ne répond pas, quand on le décide.
 class _Repository extends LibraryRepository {
@@ -71,10 +71,10 @@ class _Repository extends LibraryRepository {
 /// qui ne va pas dans la voiture (En boucle, les artistes d'ailleurs).
 class _PourToi extends PourToiRepository {
   _PourToi({this.panne = false, this.vide = false})
-    : super(
-        ApiClient(serverUrl: 'https://exemple.test'),
-        LibraryRepository(ApiClient(serverUrl: 'https://exemple.test')),
-      );
+      : super(
+          ApiClient(serverUrl: 'https://exemple.test'),
+          LibraryRepository(ApiClient(serverUrl: 'https://exemple.test')),
+        );
 
   final bool panne;
 
@@ -87,22 +87,14 @@ class _PourToi extends PourToiRepository {
     if (panne) throw ApiException('unknown_action', 'serveur d\'avant');
     return PourToiAccueil(
       rayons: [
-        const Rayon(
-          id: 50,
-          type: 'moment',
-          titre: 'Ton mix du soir',
-          nombre: 40,
-        ),
+        const Rayon(id: 50, type: 'moment', titre: 'Ton mix du soir',
+            nombre: 40),
         for (var i = 1; i <= 6; i++)
           Rayon(id: i, type: 'mix', titre: 'Mix $i', nombre: 40, numero: i),
-        Rayon(
-          id: 60,
-          type: 'decouvertes',
-          titre: 'Découvertes de la semaine',
-          nombre: 30,
-        ),
-        Rayon(id: 70, type: 'boucle', titre: 'En boucle', nombre: 20),
-        Rayon(id: 80, type: 'ailleurs', titre: 'À découvrir ailleurs'),
+        const Rayon(id: 60, type: 'decouvertes',
+            titre: 'Découvertes de la semaine', nombre: 30),
+        const Rayon(id: 70, type: 'boucle', titre: 'En boucle', nombre: 20),
+        const Rayon(id: 80, type: 'ailleurs', titre: 'À découvrir ailleurs'),
       ],
     );
   }
@@ -142,47 +134,48 @@ class _Podcasts extends PodcastsRepository {
     String feedUrl, {
     int limit = 100,
     bool refresh = false,
-  }) async => const PodcastFeed(
-    show: show,
-    episodes: [
-      PodcastEpisode(
-        guid: 'commence',
-        title: 'Épisode du 9 octobre',
-        audioUrl: 'https://radio.ca/1.mp3',
-        description: '',
-        duration: 3600,
-        publishedAt: 0,
-        image: '',
-        number: 0,
-        season: 0,
-        position: 900,
-      ),
-      PodcastEpisode(
-        guid: 'termine',
-        title: 'Épisode du 2 octobre',
-        audioUrl: 'https://radio.ca/2.mp3',
-        description: '',
-        duration: 3600,
-        publishedAt: 0,
-        image: '',
-        number: 0,
-        season: 0,
-        position: 3600,
-        completed: true,
-      ),
-      PodcastEpisode(
-        guid: 'neuf',
-        title: 'Épisode du 25 septembre',
-        audioUrl: 'https://radio.ca/3.mp3',
-        description: '',
-        duration: 3600,
-        publishedAt: 0,
-        image: '',
-        number: 0,
-        season: 0,
-      ),
-    ],
-  );
+  }) async =>
+      const PodcastFeed(
+        show: show,
+        episodes: [
+          PodcastEpisode(
+            guid: 'commence',
+            title: 'Épisode du 9 octobre',
+            audioUrl: 'https://radio.ca/1.mp3',
+            description: '',
+            duration: 3600,
+            publishedAt: 0,
+            image: '',
+            number: 0,
+            season: 0,
+            position: 900,
+          ),
+          PodcastEpisode(
+            guid: 'termine',
+            title: 'Épisode du 2 octobre',
+            audioUrl: 'https://radio.ca/2.mp3',
+            description: '',
+            duration: 3600,
+            publishedAt: 0,
+            image: '',
+            number: 0,
+            season: 0,
+            position: 3600,
+            completed: true,
+          ),
+          PodcastEpisode(
+            guid: 'neuf',
+            title: 'Épisode du 25 septembre',
+            audioUrl: 'https://radio.ca/3.mp3',
+            description: '',
+            duration: 3600,
+            publishedAt: 0,
+            image: '',
+            number: 0,
+            season: 0,
+          ),
+        ],
+      );
 }
 
 Directory _tempDir() {
@@ -230,39 +223,29 @@ void main() {
     test('quatre portes, et Favoris n\'en est plus une', () async {
       final root = await _handler().getChildren(BrowseIds.root);
 
-      expect(root.map((i) => i.title), [
-        'Accueil',
-        'Bibliothèque',
-        'Balados',
-        'Radios',
-      ]);
+      expect(root.map((i) => i.title),
+          ['Accueil', 'Bibliothèque', 'Balados', 'Radios']);
       // Favoris était la cinquième : hors cadre, donc invisible, et de toute
       // façon en double avec Bibliothèque.
       expect(root.map((i) => i.id), isNot(contains(BrowseIds.favorites)));
       expect(root.every((i) => i.playable == false), isTrue);
     });
 
-    test(
-      'Accueil et Balados annoncent une grille pour leurs enfants',
-      () async {
-        final root = await _handler().getChildren(BrowseIds.root);
-        final accueil = root.firstWhere((i) => i.id == BrowseIds.home);
-        final balados = root.firstWhere((i) => i.id == BrowseIds.podcasts);
+    test('Accueil et Balados annoncent une grille pour leurs enfants',
+        () async {
+      final root = await _handler().getChildren(BrowseIds.root);
+      final accueil = root.firstWhere((i) => i.id == BrowseIds.home);
+      final balados = root.firstWhere((i) => i.id == BrowseIds.podcasts);
 
-        for (final item in [accueil, balados]) {
-          expect(
-            item.extras?[AndroidContentStyle.browsableHintKey],
-            AndroidContentStyle.gridItemHintValue,
-          );
-          // Dans le même écran, ce qui se joue reste une liste : c'est ce qui
-          // permet à l'accueil d'aligner des raccourcis au-dessus de pochettes.
-          expect(
-            item.extras?[AndroidContentStyle.playableHintKey],
-            AndroidContentStyle.listItemHintValue,
-          );
-        }
-      },
-    );
+      for (final item in [accueil, balados]) {
+        expect(item.extras?[AndroidContentStyle.browsableHintKey],
+            AndroidContentStyle.gridItemHintValue);
+        // Dans le même écran, ce qui se joue reste une liste : c'est ce qui
+        // permet à l'accueil d'aligner des raccourcis au-dessus de pochettes.
+        expect(item.extras?[AndroidContentStyle.playableHintKey],
+            AndroidContentStyle.listItemHintValue);
+      }
+    });
   });
 
   group('l\'accueil est un écran, plus un menu vers des menus', () {
@@ -287,19 +270,15 @@ void main() {
       for (final titre in sections.toSet()) {
         final premiers = sections.indexOf(titre);
         final derniers = sections.lastIndexOf(titre);
-        expect(
-          derniers - premiers + 1,
-          sections.where((s) => s == titre).length,
-          reason: 'la section « $titre » doit être contiguë',
-        );
+        expect(derniers - premiers + 1,
+            sections.where((s) => s == titre).length,
+            reason: 'la section « $titre » doit être contiguë');
       }
     });
 
     test('Pour toi passe avant les Nouveautés, cinq au plus', () async {
-      final home = await _handler(
-        repo: _Repository(),
-        pourToi: _PourToi(),
-      ).getChildren(BrowseIds.home);
+      final home = await _handler(repo: _Repository(), pourToi: _PourToi())
+          .getChildren(BrowseIds.home);
       final sections = home.map(_section).toSet().toList();
       expect(sections.take(3), [
         GullifyAudioHandler.sectionRoute,
@@ -330,10 +309,8 @@ void main() {
       final handler = _handler(repo: _Repository(), pourToi: pourToi);
       await handler.playFromMediaId('POURTOI_2');
       expect(pourToi.joue, 2);
-      expect(
-        handler.playbackState.value.processingState,
-        AudioProcessingState.idle,
-      );
+      expect(handler.playbackState.value.processingState,
+          AudioProcessingState.idle);
     });
 
     test('un serveur sans Pour toi : l\'accueil reste entier', () async {
@@ -347,67 +324,54 @@ void main() {
     });
 
     test('un seul tap suffit : les raccourcis se jouent', () async {
-      final home = await _handler(
-        repo: _Repository(),
-      ).getChildren(BrowseIds.home);
+      final home = await _handler(repo: _Repository())
+          .getChildren(BrowseIds.home);
       final route = home
           .where((i) => _section(i) == GullifyAudioHandler.sectionRoute)
           .toList();
 
-      expect(route.map((i) => i.title), [
-        'Lecture aléatoire',
-        'Découverte',
-        'Favoris',
-      ]);
+      expect(route.map((i) => i.title),
+          ['Lecture aléatoire', 'Découverte', 'Favoris']);
       expect(route.every((i) => i.playable == true), isTrue);
     });
 
-    test(
-      'les nouveautés sont des pochettes à ouvrir, pas des titres',
-      () async {
-        final home = await _handler(
-          repo: _Repository(),
-        ).getChildren(BrowseIds.home);
-        final nouveautes = home
-            .where((i) => _section(i) == GullifyAudioHandler.sectionNouveautes)
-            .toList();
+    test('les nouveautés sont des pochettes à ouvrir, pas des titres',
+        () async {
+      final home = await _handler(repo: _Repository())
+          .getChildren(BrowseIds.home);
+      final nouveautes = home
+          .where((i) => _section(i) == GullifyAudioHandler.sectionNouveautes)
+          .toList();
 
-        // Six au plus : au-delà, la section chasse le reste de l'écran.
-        expect(nouveautes, hasLength(6));
-        expect(nouveautes.every((i) => i.playable == false), isTrue);
-        expect(nouveautes.first.id, BrowseIds.album(1));
-        expect(nouveautes.first.artUri, isNotNull);
-      },
-    );
+      // Six au plus : au-delà, la section chasse le reste de l'écran.
+      expect(nouveautes, hasLength(6));
+      expect(nouveautes.every((i) => i.playable == false), isTrue);
+      expect(nouveautes.first.id, BrowseIds.album(1));
+      expect(nouveautes.first.artUri, isNotNull);
+    });
 
-    test(
-      'ce qu\'on écoutait ouvre l\'historique, avec sa progression',
-      () async {
-        final handler = _handler(
-          repo: _Repository(),
-          resumeDir: await _derniereEcoute(
-            position: const Duration(minutes: 1),
-          ),
-        );
+    test('ce qu\'on écoutait ouvre l\'historique, avec sa progression', () async {
+      final handler = _handler(
+        repo: _Repository(),
+        resumeDir: await _derniereEcoute(position: const Duration(minutes: 1)),
+      );
 
-        final home = await handler.getChildren(BrowseIds.home);
-        // Les actions rapides en haut, l'historique dessous.
-        expect(home.first.id, 'ALL_SHUFFLE');
-        final reprise = home.firstWhere(
-          (i) => _section(i) == GullifyAudioHandler.sectionReprendre,
-        );
+      final home = await handler.getChildren(BrowseIds.home);
+      // Les actions rapides en haut, l'historique dessous.
+      expect(home.first.id, 'ALL_SHUFFLE');
+      final reprise = home.firstWhere(
+          (i) => _section(i) == GullifyAudioHandler.sectionReprendre);
 
-        expect(reprise.id, BrowseIds.resume);
-        expect(reprise.title, 'Paquetville');
-        expect(reprise.playable, isTrue);
-        // 60 s sur 200 : la voiture dessine la barre elle-même.
-        expect(
-          reprise
-              .extras?['androidx.media.MediaItem.Extras.COMPLETION_PERCENTAGE'],
-          closeTo(0.3, 0.001),
-        );
-      },
-    );
+      expect(reprise.id, BrowseIds.resume);
+      expect(reprise.title, 'Paquetville');
+      expect(reprise.playable, isTrue);
+      // 60 s sur 200 : la voiture dessine la barre elle-même.
+      expect(
+        reprise.extras?[
+            'androidx.media.MediaItem.Extras.COMPLETION_PERCENTAGE'],
+        closeTo(0.3, 0.001),
+      );
+    });
 
     test('la reprise ne compte pas deux fois', () async {
       // Le titre qu'on reprend est presque toujours aussi le dernier joué.
@@ -424,11 +388,8 @@ void main() {
       expect(reprendre.first.id, BrowseIds.resume);
       expect(reprendre.where((i) => i.title == 'Paquetville'), hasLength(1));
       // Trois lignes malgré tout : la reprise, puis les joués suivants.
-      expect(reprendre.map((i) => i.title), [
-        'Paquetville',
-        'Jolie Louise',
-        'Full Moon',
-      ]);
+      expect(reprendre.map((i) => i.title),
+          ['Paquetville', 'Jolie Louise', 'Full Moon']);
     });
 
     test('les derniers joués partagent l\'espace d\'identifiants de leur '
@@ -442,16 +403,12 @@ void main() {
       final recents = home
           .where((i) => _section(i) == GullifyAudioHandler.sectionReprendre)
           .toList();
-      expect(recents.map((i) => i.id), [
-        'RECENTPLAYS_TRACK_0',
-        'RECENTPLAYS_TRACK_1',
-        'RECENTPLAYS_TRACK_2',
-      ]);
+      expect(recents.map((i) => i.id),
+          ['RECENTPLAYS_TRACK_0', 'RECENTPLAYS_TRACK_1', 'RECENTPLAYS_TRACK_2']);
 
       final categorie = await handler.getChildren(BrowseIds.recentPlays);
-      final pistes = categorie
-          .where((i) => i.id.startsWith('RECENTPLAYS_TRACK_'))
-          .toList();
+      final pistes =
+          categorie.where((i) => i.id.startsWith('RECENTPLAYS_TRACK_')).toList();
       for (final item in recents) {
         expect(pistes.firstWhere((p) => p.id == item.id).title, item.title);
       }
@@ -479,10 +436,8 @@ void main() {
 
       expect(home, isNotEmpty);
       expect(home.map((i) => i.title), contains('Découverte'));
-      expect(
-        home.map((i) => _section(i)),
-        isNot(contains(GullifyAudioHandler.sectionNouveautes)),
-      );
+      expect(home.map((i) => _section(i)),
+          isNot(contains(GullifyAudioHandler.sectionNouveautes)));
     });
   });
 
@@ -491,25 +446,21 @@ void main() {
       final tabs = await _handler().getChildren(BrowseIds.library);
       final ids = tabs.map((i) => i.id).toList();
 
-      expect(
-        ids,
-        containsAll([
-          BrowseIds.artists,
-          BrowseIds.albums,
-          BrowseIds.playlists,
-          BrowseIds.favorites,
-          BrowseIds.genres,
-          BrowseIds.popular,
-          BrowseIds.recentPlays,
-          BrowseIds.recent,
-          BrowseIds.bandcamp,
-        ]),
-      );
+      expect(ids, containsAll([
+        BrowseIds.artists,
+        BrowseIds.albums,
+        BrowseIds.playlists,
+        BrowseIds.favorites,
+        BrowseIds.genres,
+        BrowseIds.popular,
+        BrowseIds.recentPlays,
+        BrowseIds.recent,
+        BrowseIds.bandcamp,
+      ]));
       // Artistes et Albums ont des images : ils annoncent une grille.
       for (final id in [BrowseIds.artists, BrowseIds.albums]) {
         expect(
-          tabs
-              .firstWhere((i) => i.id == id)
+          tabs.firstWhere((i) => i.id == id)
               .extras?[AndroidContentStyle.browsableHintKey],
           AndroidContentStyle.gridItemHintValue,
         );
@@ -521,12 +472,12 @@ void main() {
     test('commencé, terminé, jamais touché', () async {
       final handler = _handler(repo: _Repository(), podcasts: true);
 
-      final episodes = await handler.getChildren(
-        BrowseIds.podcastShow(_Podcasts.feed),
-      );
+      final episodes = await handler
+          .getChildren(BrowseIds.podcastShow(_Podcasts.feed));
 
       const statut = 'androidx.media.MediaItem.Extras.COMPLETION_STATUS';
-      const pourcent = 'androidx.media.MediaItem.Extras.COMPLETION_PERCENTAGE';
+      const pourcent =
+          'androidx.media.MediaItem.Extras.COMPLETION_PERCENTAGE';
 
       expect(episodes.map((i) => i.extras?[statut]), [1, 2, 0]);
       // 900 s sur 3600 : un quart.
@@ -551,12 +502,8 @@ void main() {
       handler.offlinePaths = {12: '/telechargements/b.mp3'};
 
       final root = await handler.getChildren(BrowseIds.root);
-      expect(root.map((i) => i.title), [
-        'Lecture aléatoire',
-        'Artistes',
-        'Albums',
-        'Titres',
-      ]);
+      expect(root.map((i) => i.title),
+          ['Lecture aléatoire', 'Artistes', 'Albums', 'Titres']);
 
       // Rien n'est perdu : ce qui est descendu reste à un tap de plus.
       final titres = await handler.getChildren(BrowseIds.localSongs);
@@ -565,18 +512,16 @@ void main() {
       expect(descendus.any((i) => i.title == 'Descendu'), isTrue);
     });
 
-    test(
-      'dossier vide mais des titres descendus : ils prennent la racine',
-      () async {
-        final handler = _handler();
-        handler.setLocalLibrary(mode: true);
-        handler.offlineSongs = [_song(12, 'Descendu')];
-        handler.offlinePaths = {12: '/telechargements/b.mp3'};
-        handler.localLibraryWait = Duration.zero;
+    test('dossier vide mais des titres descendus : ils prennent la racine',
+        () async {
+      final handler = _handler();
+      handler.setLocalLibrary(mode: true);
+      handler.offlineSongs = [_song(12, 'Descendu')];
+      handler.offlinePaths = {12: '/telechargements/b.mp3'};
+      handler.localLibraryWait = Duration.zero;
 
-        final root = await handler.getChildren(BrowseIds.root);
-        expect(root.map((i) => i.title), ['Téléchargements']);
-      },
-    );
+      final root = await handler.getChildren(BrowseIds.root);
+      expect(root.map((i) => i.title), ['Téléchargements']);
+    });
   });
 }

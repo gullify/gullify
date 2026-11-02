@@ -130,7 +130,9 @@ class _RayonCardState extends ConsumerState<RayonCard> {
     try {
       final detail = await ref.read(rayonProvider(widget.rayon.id).future);
       if (detail.titres.isEmpty) return;
-      await ref.read(playerActionsProvider).playRecos(detail.titres);
+      await ref
+          .read(playerActionsProvider)
+          .playRecos(melangerPourLancer(detail.titres));
     } catch (e) {
       messenger.showSnackBar(SnackBar(content: Text('Échec : $e')));
     } finally {
@@ -191,7 +193,7 @@ class _RayonCardState extends ConsumerState<RayonCard> {
                               : Icon(
                                   Icons.play_arrow_rounded,
                                   color: scheme.onPrimary,
-                                  semanticLabel: 'Lire ${r.titre}',
+                                  semanticLabel: 'Lire ${r.titre} en aléatoire',
                                 ),
                         ),
                       ),

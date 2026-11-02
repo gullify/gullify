@@ -101,30 +101,16 @@ class _Contenu extends ConsumerWidget {
             ],
           ),
         ),
+        // Les listes « Pour toi » partent toujours en aléatoire : un seul
+        // bouton, un nouveau tirage à chaque fois.
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-          child: Row(
-            children: [
-              Expanded(
-                child: FilledButton.icon(
-                  onPressed: titres.isEmpty
-                      ? null
-                      : () => actions.playRecos(titres),
-                  icon: const Icon(Icons.play_arrow_rounded),
-                  label: const Text('Tout lire'),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: titres.isEmpty
-                      ? null
-                      : () => actions.playRecos([...titres]..shuffle()),
-                  icon: const Icon(Icons.shuffle),
-                  label: const Text('Aléatoire'),
-                ),
-              ),
-            ],
+          child: FilledButton.icon(
+            onPressed: titres.isEmpty
+                ? null
+                : () => actions.playRecos(melangerPourLancer(titres)),
+            icon: const Icon(Icons.shuffle),
+            label: const Text('Lecture aléatoire'),
           ),
         ),
         for (final (i, t) in titres.indexed)
@@ -133,7 +119,10 @@ class _Contenu extends ConsumerWidget {
             subtitle: t.raison == null
                 ? null
                 : '${t.song.artistName ?? ''} · ${t.raison}',
-            onTap: () => actions.playRecos(titres, startIndex: i),
+            // Le titre touché d'abord, le reste mélangé derrière.
+            onTap: () => actions.playRecos(
+              melangerPourLancer(titres, premier: titres[i]),
+            ),
             onLongPress: () => showSongMenu(context, t.song),
           ),
       ],

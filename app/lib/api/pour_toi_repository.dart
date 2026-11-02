@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import '../models/song.dart';
 import 'api_client.dart';
 import 'library_repository.dart';
@@ -287,4 +289,47 @@ class PourToiRepository {
 
   Future<void> analyser() =>
       _client.post('pour-toi.php', query: {'action': 'analyser'});
+}
+
+/// Mélange une liste recommandée pour la lancer : les listes « Pour toi »
+/// partent TOUJOURS en aléatoire (demande de Maxime) — sur un court trajet,
+/// partir dans l'ordre, c'est réentendre chaque fois les mêmes premiers
+/// titres. Un nouveau tirage à chaque lancement, sans deux titres du même
+/// artiste à la suite quand on peut l'éviter.
+///
+/// [premier] : le titre touché dans la liste, qui joue d'abord ; le reste
+/// est mélangé derrière lui.
+List<RecoSong> melangerPourLancer(
+  List<RecoSong> titres, {
+  RecoSong? premier,
+  Random? hasard,
+}) {
+  final reste = [...titres]..shuffle(hasard ?? Random());
+  final out = <RecoSong>[];
+  if (premier != null) {
+    reste.remove(premier);
+    out.add(premier);
+  }
+  String? artiste(RecoSong r) => r.song.artistName?.toLowerCase();
+  final compte = <String?, int>{};
+  for (final r in reste) {
+    compte[artiste(r)] = (compte[artiste(r)] ?? 0) + 1;
+  }
+  while (reste.isNotEmpty) {
+    final dernier = out.isEmpty ? null : artiste(out.last);
+    // Un artiste qui tient plus de la moitié de ce qui reste doit passer
+    // maintenant, sinon la fin de liste n'aurait plus que lui.
+    final presse = compte.entries
+        .where((e) => e.key != dernier && e.value * 2 > reste.length)
+        .map((e) => e.key)
+        .firstOrNull;
+    var i = presse != null
+        ? reste.indexWhere((r) => artiste(r) == presse)
+        : reste.indexWhere((r) => out.isEmpty || artiste(r) != dernier);
+    if (i < 0) i = 0;
+    final r = reste.removeAt(i);
+    compte[artiste(r)] = compte[artiste(r)]! - 1;
+    out.add(r);
+  }
+  return out;
 }
