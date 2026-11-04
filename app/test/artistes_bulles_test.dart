@@ -85,8 +85,9 @@ Future<_Faux> _pump(WidgetTester tester) async {
   );
   await tester.pump();
   await tester.pump();
-  // Les bulles éclosent l'une après l'autre : on les laisse arriver.
-  for (var i = 0; i < 10; i++) {
+  // Les bulles éclosent l'une après l'autre, les satellites sortent ensuite
+  // de leur astre : on les laisse arriver.
+  for (var i = 0; i < 24; i++) {
     await tester.pump(const Duration(milliseconds: 50));
   }
   return faux;

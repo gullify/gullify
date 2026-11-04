@@ -7,22 +7,28 @@ import '../api/pour_toi_repository.dart';
 import 'artwork.dart';
 
 /// Le champ de bulles de « Tes artistes » : des bulles vivantes, à la manière
-/// de l'accueil d'Apple Music et de Spotify.
+/// de l'accueil d'Apple Music et de Spotify, rangées en petits systèmes
+/// solaires.
 ///
-/// Une petite simulation physique, image par image :
-///  - chaque bulle est rappelée vers sa place (un nid d'abeilles un peu
-///    désordonné) par un ressort amorti ;
-///  - les bulles se repoussent quand elles se touchent : une bulle qui gonfle
-///    écarte ses voisines ;
-///  - le rayon suit lui aussi un ressort, d'où le rebond quand on aime ;
-///  - au repos, elles flottent doucement, toujours — quel que soit le
-///    réglage d'animations du téléphone (demande de Maxime) ;
-///  - aimer fait jaillir des cœurs, adorer en plus une onde ;
-///  - les bulles qui éclosent sortent de celle qu'on vient d'aimer ;
-///  - un réseau, comme des neurones : un fil relie chaque bulle à ses
-///    proches (Bulle.liens, et la bulle d'où elle a éclos), un léger ressort
-///    les rapproche, et un influx court le long des fils qui partent d'un
-///    artiste choisi.
+///  - chaque artiste choisi est un astre : une grosse bulle, d'autant plus
+///    grosse qu'il a de connexions (Bulle.liens, et les bulles qui en ont
+///    éclos) ;
+///  - ses proches sont de petits satellites qui tournent lentement autour de
+///    lui, reliés par un rayon court — un seul fil chacun, vers son astre :
+///    pas de toile à démêler (demande de Maxime, après le « réseau
+///    neuronal » de la 3.88.0, trop spaghetti) ;
+///  - un satellite relié à plusieurs astres grossit un peu ; un satellite
+///    qu'on aime devient à son tour un astre ;
+///  - les bulles sans lien (écoutées, d'ailleurs) se rangent entre les
+///    systèmes.
+///
+/// Une petite simulation physique, image par image : chaque bulle est
+/// rappelée vers sa place par un ressort amorti, les bulles se repoussent
+/// quand elles se touchent, le rayon suit lui aussi un ressort (le rebond
+/// quand on aime), elles flottent toujours — quel que soit le réglage
+/// d'animations du téléphone (demande de Maxime) —, aimer fait jaillir des
+/// cœurs (adorer, une onde en plus) et les bulles qui éclosent sortent de
+/// celle qu'on vient d'aimer.
 ///
 /// Le champ calcule sa propre hauteur : le placer dans un défilement.
 class ChampDeBulles extends StatefulWidget {
@@ -41,13 +47,6 @@ class ChampDeBulles extends StatefulWidget {
   /// Bulles qui viennent d'éclore → clé de la bulle d'où elles sortent.
   final Map<String, String> origines;
 
-  /// Rayon d'une bulle selon ce qu'on en pense.
-  static double rayonDe(int niveau) => switch (niveau) {
-    2 => 54,
-    1 => 46,
-    _ => 38,
-  };
-
   @override
   State<ChampDeBulles> createState() => _ChampDeBullesState();
 }
@@ -59,6 +58,7 @@ class _Corps {
   double x, y, vx = 0, vy = 0;
   double r, vr = 0;
   double ax = 0, ay = 0; // la place visée
+  double cible = 30; // le rayon visé
   final double phase; // pour flotter chacune à son rythme
   double apparition = 0; // délai avant d'éclore (secondes)
 }
@@ -93,10 +93,20 @@ class _ChampDeBullesState extends State<ChampDeBulles>
   double _t = 0;
   double _largeur = 0;
   double _hauteur = 200;
-  List<(String, String)> _fils = const [];
 
-  static const _rangee = 150.0;
-  static const _haut = 72.0;
+  /// Satellite → son astre.
+  var _astreDe = <String, String>{};
+
+  /// Astre → ses satellites, dans l'ordre de la liste.
+  var _satellites = <String, List<String>>{};
+
+  /// Le rayon visé de chaque bulle.
+  var _rayons = <String, double>{};
+
+  static const _etiquette = 18.0; // la place du nom sous une bulle
+  static const _rayonSatellite = 22.0;
+  static const _sousLeNom = 40.0; // le nom d'un astre, sous lui
+  static const _nom = 44.0; // le nom d'une bulle seule (deux lignes)
 
   @override
   void dispose() {
@@ -122,30 +132,159 @@ class _ChampDeBullesState extends State<ChampDeBulles>
     }
   }
 
-  /// La place de chaque bulle : un nid d'abeilles, légèrement désordonné
-  /// (le désordre dépend du nom : il ne change pas d'une image à l'autre).
-  void _placer(double largeur) {
-    final colonnes = max(2, (largeur / 120).floor());
-    final cellule = largeur / colonnes;
-    for (final (i, b) in widget.bulles.indexed) {
-      final rangee = i ~/ colonnes;
-      final colonne = i % colonnes;
-      final h = b.cle.hashCode;
-      final decalage = rangee.isOdd ? cellule * 0.22 : -cellule * 0.22;
-      final c = _corps[b.cle]!;
-      c.ax = (cellule * (colonne + 0.5) + decalage + ((h % 17) - 8)).clamp(
-        c.r + 4,
-        largeur - c.r - 4,
-      );
-      c.ay = _haut + rangee * _rangee + (((h >> 5) % 21) - 10);
+  /// Qui est astre, qui tourne autour de qui, et la taille de chacun.
+  void _organiser() {
+    final presentes = {for (final b in widget.bulles) b.cle};
+    final voisins = <String, Set<String>>{};
+    void relier(String a, String b) {
+      if (a == b || !presentes.contains(a) || !presentes.contains(b)) return;
+      voisins.putIfAbsent(a, () => {}).add(b);
+      voisins.putIfAbsent(b, () => {}).add(a);
     }
-    final rangees = (widget.bulles.length / colonnes).ceil();
-    _hauteur = _haut + rangees * _rangee + 10;
+
+    for (final b in widget.bulles) {
+      for (final l in b.liens) {
+        relier(b.cle, l);
+      }
+    }
+    widget.origines.forEach((enfant, mere) => relier(mere, enfant));
+
+    final astres = {
+      for (final b in widget.bulles)
+        if (b.niveau > 0) b.cle,
+    };
+    final rang = {for (final (i, b) in widget.bulles.indexed) b.cle: i};
+    final astreDe = <String, String>{};
+    final satellites = <String, List<String>>{};
+    for (final b in widget.bulles) {
+      if (astres.contains(b.cle)) continue;
+      // Sa bulle mère d'abord ; sinon le premier astre de la liste qui lui
+      // est proche.
+      final mere = widget.origines[b.cle];
+      String? astre = mere != null && astres.contains(mere) ? mere : null;
+      if (astre == null) {
+        final candidats = [
+          for (final v in voisins[b.cle] ?? const <String>{})
+            if (astres.contains(v)) v,
+        ]..sort((a, c) => rang[a]!.compareTo(rang[c]!));
+        if (candidats.isNotEmpty) astre = candidats.first;
+      }
+      if (astre == null) continue;
+      astreDe[b.cle] = astre;
+      satellites.putIfAbsent(astre, () => []).add(b.cle);
+    }
+
+    final rayons = <String, double>{};
+    for (final b in widget.bulles) {
+      final degre = (voisins[b.cle] ?? const <String>{}).length;
+      rayons[b.cle] = astres.contains(b.cle)
+          ? (b.niveau >= 2 ? 50.0 : 42.0) + min(degre, 6) * 2.5
+          : astreDe.containsKey(b.cle)
+          ? _rayonSatellite + min(max(degre - 1, 0), 3) * 3.0
+          : 32.0;
+    }
+    _astreDe = astreDe;
+    _satellites = satellites;
+    _rayons = rayons;
+  }
+
+  /// Les orbites d'un astre : combien de satellites sur chacune, et à quelle
+  /// distance du centre.
+  List<(int, double)> _orbites(double rayonAstre, int n) {
+    final out = <(int, double)>[];
+    var rho = rayonAstre + _rayonSatellite + 22;
+    var reste = n;
+    while (reste > 0) {
+      final place = max(3, (2 * pi * rho / (_rayonSatellite * 2 + 16)).floor());
+      final ici = min(place, reste);
+      out.add((ici, rho));
+      reste -= ici;
+      rho += _rayonSatellite * 2 + 26;
+    }
+    return out;
+  }
+
+  /// La place de chaque bulle : les systèmes (et les bulles seules) rangés
+  /// en étagères, l'espace qui reste réparti entre eux ; les satellites sur
+  /// leurs orbites, qui tournent lentement.
+  void _placer(double largeur) {
+    // Ce qui occupe une place dans les étagères : astres et bulles seules,
+    // avec leur demi-largeur, ce qui dépasse au-dessus du centre et ce qui
+    // dépasse en dessous (le nom, et l'orbite étirée vers le bas).
+    final elements = <(String, double, double, double)>[];
+    for (final b in widget.bulles) {
+      if (_astreDe.containsKey(b.cle)) continue;
+      final r = _rayons[b.cle] ?? 32;
+      final sats = _satellites[b.cle] ?? const [];
+      final orbites = _orbites(r, sats.length);
+      if (orbites.isEmpty) {
+        final nom = b.dansBibliotheque ? _nom : _nom + 14;
+        elements.add((b.cle, max(r, 56) + 2, r + 4, r + nom));
+      } else {
+        final rho = orbites.last.$2;
+        elements.add((
+          b.cle,
+          min(rho + 42, largeur / 2),
+          rho + _rayonSatellite + 4,
+          rho + _sousLeNom + _rayonSatellite + _etiquette,
+        ));
+      }
+    }
+
+    var haut = 8.0;
+    var i = 0;
+    while (i < elements.length) {
+      // Une étagère : autant d'éléments que la largeur en tient.
+      final rangee = [elements[i++]];
+      var pris = rangee.first.$2 * 2;
+      while (i < elements.length && pris + elements[i].$2 * 2 <= largeur) {
+        pris += elements[i].$2 * 2;
+        rangee.add(elements[i++]);
+      }
+      final dessus = rangee.map((e) => e.$3).reduce(max);
+      final dessous = rangee.map((e) => e.$4).reduce(max);
+      final jeu = (largeur - pris) / (rangee.length + 1);
+      var x = jeu;
+      for (final (cle, demi, _, _) in rangee) {
+        final c = _corps[cle]!;
+        final h = cle.hashCode;
+        c.ax = x + demi + ((h % 13) - 6);
+        c.ay = haut + dessus + (((h >> 5) % 9) - 4);
+        x += demi * 2 + jeu;
+      }
+      haut += dessus + dessous;
+    }
+    _hauteur = haut + 16;
+
+    // Les satellites : sur leurs orbites, autour de la place de leur astre.
+    for (final MapEntry(key: astre, value: sats) in _satellites.entries) {
+      final centre = _corps[astre];
+      if (centre == null) continue;
+      final depart = (astre.hashCode % 628) / 100;
+      var k = 0;
+      for (final (j, (n, rho)) in _orbites(
+        _rayons[astre] ?? 42,
+        sats.length,
+      ).indexed) {
+        // Une orbite sur deux tourne dans l'autre sens.
+        final tour = depart + _t * (j.isEven ? 0.12 : -0.09) + j * 0.4;
+        for (var s = 0; s < n; s++) {
+          final c = _corps[sats[k++]];
+          if (c == null) continue;
+          final a = tour + 2 * pi * s / n;
+          // Une orbite un peu plus basse et plus haute que large : en
+          // passant dessous, le satellite laisse la place au nom de l'astre.
+          c.ax = centre.ax + cos(a) * rho;
+          c.ay = centre.ay + _sousLeNom / 2 + sin(a) * (rho + _sousLeNom / 2);
+        }
+      }
+    }
   }
 
   /// Les corps suivent la liste : ceux qui arrivent naissent (à leur place
-  /// au premier affichage, chacun son tour ; dans la bulle mère s'ils
-  /// éclosent), ceux qui partent disparaissent.
+  /// au premier affichage, chacun son tour, les satellites sortant de leur
+  /// astre ; dans la bulle mère s'ils éclosent), ceux qui partent
+  /// disparaissent.
   void _synchroniser(double largeur) {
     final premierAffichage = _corps.isEmpty;
     final presentes = <String>{};
@@ -157,7 +296,7 @@ class _ChampDeBullesState extends State<ChampDeBulles>
       final c = _Corps(
         b.cle,
         mere?.x ?? largeur / 2,
-        mere?.y ?? _haut,
+        mere?.y ?? 80,
         0,
         _hasard.nextDouble() * pi * 2,
       );
@@ -175,31 +314,18 @@ class _ChampDeBullesState extends State<ChampDeBulles>
     _placer(largeur);
     if (premierAffichage) {
       for (final c in _corps.values) {
-        c.x = c.ax;
-        c.y = c.ay + 30;
+        final astre = _corps[_astreDe[c.cle]];
+        if (astre != null) {
+          // Le satellite sort de son astre, un peu après lui.
+          c.x = astre.ax;
+          c.y = astre.ay;
+          c.apparition = astre.apparition + 0.25;
+        } else {
+          c.x = c.ax;
+          c.y = c.ay + 30;
+        }
       }
     }
-  }
-
-  /// Les fils du réseau entre bulles présentes, chaque paire une fois.
-  List<(String, String)> _relier() {
-    final presentes = {for (final b in widget.bulles) b.cle};
-    final vues = <String>{};
-    final out = <(String, String)>[];
-    void relier(String a, String b) {
-      if (a == b || !presentes.contains(a) || !presentes.contains(b)) return;
-      if (vues.add(a.compareTo(b) < 0 ? '$a\u0000$b' : '$b\u0000$a')) {
-        out.add((a, b));
-      }
-    }
-
-    for (final b in widget.bulles) {
-      for (final l in b.liens) {
-        relier(b.cle, l);
-      }
-    }
-    widget.origines.forEach((enfant, mere) => relier(mere, enfant));
-    return out;
   }
 
   void _celebrer(String cle, int avant, int apres) {
@@ -237,7 +363,6 @@ class _ChampDeBullesState extends State<ChampDeBulles>
     _dernier = maintenant;
     _t += dt;
 
-    final niveaux = {for (final b in widget.bulles) b.cle: b.niveau};
     final corps = _corps.values.toList();
     for (final c in corps) {
       if (c.apparition > 0) {
@@ -245,27 +370,13 @@ class _ChampDeBullesState extends State<ChampDeBulles>
         continue;
       }
       // Rayon : ressort amorti (le rebond).
-      final cible = ChampDeBulles.rayonDe(niveaux[c.cle] ?? 0);
-      c.vr += ((cible - c.r) * 320 - c.vr * 16) * dt;
+      c.vr += ((c.cible - c.r) * 320 - c.vr * 16) * dt;
       c.r = max(0, c.r + c.vr * dt);
       // Place : ressort amorti.
       c.vx += ((c.ax - c.x) * 22 - c.vx * 7) * dt;
       c.vy += ((c.ay - c.y) * 22 - c.vy * 7) * dt;
       c.x += c.vx * dt;
       c.y += c.vy * dt;
-    }
-    // Les fils tirent un peu les proches l'un vers l'autre.
-    for (final (ka, kb) in _fils) {
-      final a = _corps[ka], b = _corps[kb];
-      if (a == null || b == null) continue;
-      final dx = b.x - a.x, dy = b.y - a.y;
-      final d = sqrt(dx * dx + dy * dy);
-      if (d <= 160) continue;
-      final f = (d - 160) / d * 1.6 * dt;
-      a.vx += dx * f;
-      a.vy += dy * f;
-      b.vx -= dx * f;
-      b.vy -= dy * f;
     }
     // Les bulles se repoussent quand elles se touchent.
     for (var i = 0; i < corps.length; i++) {
@@ -308,6 +419,7 @@ class _ChampDeBullesState extends State<ChampDeBulles>
     return LayoutBuilder(
       builder: (context, contraintes) {
         final largeur = contraintes.maxWidth;
+        _organiser();
         if (largeur != _largeur ||
             _corps.length != widget.bulles.length ||
             widget.bulles.any((b) => !_corps.containsKey(b.cle))) {
@@ -319,36 +431,23 @@ class _ChampDeBullesState extends State<ChampDeBulles>
         } else {
           _placer(largeur);
         }
-        _fils = _relier();
-        final choisies = {
-          for (final b in widget.bulles)
-            if (b.niveau > 0) b.cle,
-        };
-        final visibles = <_Fil>[];
-        for (final (ka, kb) in _fils) {
-          final a = _corps[ka], b = _corps[kb];
-          if (a == null || b == null) continue;
-          final opacite = min(a.r, b.r) / ChampDeBulles.rayonDe(0);
-          if (opacite <= 0.02) continue;
-          // L'influx part de l'artiste choisi.
-          final (de, vers) = choisies.contains(kb) && !choisies.contains(ka)
-              ? (b, a)
-              : (a, b);
-          // Du bord d'un rond au bord de l'autre : rien ne passe sur les
-          // photos (ni sur celles qui chargent encore).
-          final ca = _centre(de), cb = _centre(vers);
-          final ecart = cb - ca;
-          if (ecart.distance <= de.r + vers.r + 4) continue;
+        for (final c in _corps.values) {
+          c.cible = _rayons[c.cle] ?? 32;
+        }
+        // Un rayon court de chaque satellite vers son astre, bord à bord.
+        final rayons = <(Offset, Offset, double)>[];
+        for (final MapEntry(key: sat, value: astre) in _astreDe.entries) {
+          final s = _corps[sat], a = _corps[astre];
+          if (s == null || a == null) continue;
+          final cs = _centre(s), ca = _centre(a);
+          final ecart = ca - cs;
+          if (ecart.distance <= s.r + a.r + 4) continue;
           final sens = ecart / ecart.distance;
-          visibles.add(
-            _Fil(
-              ca + sens * (de.r + 2),
-              cb - sens * (vers.r + 2),
-              actif: choisies.contains(ka) || choisies.contains(kb),
-              phase: ((ka.hashCode ^ kb.hashCode) % 1000) / 1000,
-              opacite: opacite.clamp(0.0, 1.0),
-            ),
-          );
+          rayons.add((
+            cs + sens * (s.r + 3),
+            ca - sens * (a.r + 3),
+            (min(s.r / s.cible, a.r / a.cible)).clamp(0.0, 1.0),
+          ));
         }
         return SizedBox(
           width: largeur,
@@ -359,17 +458,17 @@ class _ChampDeBullesState extends State<ChampDeBulles>
               Positioned.fill(
                 child: IgnorePointer(
                   child: CustomPaint(
-                    painter: _Reseau(
-                      visibles,
-                      _t,
-                      actif: scheme.primary,
-                      calme: scheme.outlineVariant,
-                    ),
+                    painter: _Rayons(rayons, couleur: scheme.primary),
                   ),
                 ),
               ),
-              for (final b in widget.bulles)
-                if (_corps[b.cle] case final c?) _bulle(b, c, scheme),
+              // Les satellites par-dessus : petits, ils resteraient sinon
+              // sous la zone de toucher de leur astre (son nom compris).
+              for (final satellite in [false, true])
+                for (final b in widget.bulles)
+                  if (_astreDe.containsKey(b.cle) == satellite)
+                    if (_corps[b.cle] case final c?)
+                      _bulle(b, c, scheme, satellite: satellite),
               for (final p in _particules) _particule(p, scheme),
             ],
           ),
@@ -383,10 +482,15 @@ class _ChampDeBullesState extends State<ChampDeBulles>
   /// Le centre du rond, tel qu'il est dessiné (flottement compris).
   Offset _centre(_Corps c) => Offset(c.x, c.y + _flotte(c));
 
-  Widget _bulle(Bulle b, _Corps c, ColorScheme scheme) {
+  Widget _bulle(
+    Bulle b,
+    _Corps c,
+    ColorScheme scheme, {
+    required bool satellite,
+  }) {
     final flotte = _flotte(c);
     final r = c.r;
-    const largeurEtiquette = 112.0;
+    final largeurEtiquette = satellite ? 84.0 : 112.0;
     final etat = switch (b.niveau) {
       2 => 'adoré',
       1 => 'aimé',
@@ -400,7 +504,7 @@ class _ChampDeBullesState extends State<ChampDeBulles>
       child: IgnorePointer(
         ignoring: !visible,
         child: Opacity(
-          opacity: (r / ChampDeBulles.rayonDe(0)).clamp(0.0, 1.0),
+          opacity: (r / min(c.cible, 20)).clamp(0.0, 1.0),
           child: Semantics(
             button: true,
             label: '${b.nom}, $etat',
@@ -451,13 +555,13 @@ class _ChampDeBullesState extends State<ChampDeBulles>
                               ],
                             ),
                             child: Padding(
-                              padding: const EdgeInsets.all(3),
+                              padding: EdgeInsets.all(satellite ? 2 : 3),
                               child: ClipOval(
                                 child: Artwork(
                                   url: b.image,
                                   // Décodée à la plus grande taille : pas de
                                   // nouveau décodage à chaque image du rebond.
-                                  size: ChampDeBulles.rayonDe(2) * 2,
+                                  size: 136,
                                   borderRadius: 999,
                                   icon: Icons.person,
                                 ),
@@ -474,21 +578,22 @@ class _ChampDeBullesState extends State<ChampDeBulles>
                       ],
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  SizedBox(height: satellite ? 2 : 4),
                   Text(
                     b.nom,
-                    maxLines: 2,
+                    maxLines: satellite ? 1 : 2,
                     overflow: TextOverflow.ellipsis,
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      fontSize: 13,
+                      fontSize: satellite ? 11 : 13,
                       height: 1.15,
                       fontWeight: b.niveau > 0
                           ? FontWeight.w800
                           : FontWeight.w600,
+                      color: satellite ? scheme.onSurfaceVariant : null,
                     ),
                   ),
-                  if (!b.dansBibliotheque)
+                  if (!b.dansBibliotheque && !satellite)
                     Text(
                       'pas dans ta biblio',
                       style: TextStyle(
@@ -541,69 +646,28 @@ class _ChampDeBullesState extends State<ChampDeBulles>
   }
 }
 
-class _Fil {
-  const _Fil(
-    this.de,
-    this.vers, {
-    required this.actif,
-    required this.phase,
-    required this.opacite,
-  });
+/// Les rayons des satellites vers leur astre : des traits courts et fins,
+/// derrière les bulles.
+class _Rayons extends CustomPainter {
+  _Rayons(this.rayons, {required this.couleur});
 
-  final Offset de, vers;
-  final bool actif; // touche un artiste choisi
-  final double phase;
-  final double opacite;
-}
-
-/// Les fils du réseau, derrière les bulles : des courbes douces, et sur
-/// ceux qui partent d'un artiste choisi, un influx qui court jusqu'au
-/// voisin.
-class _Reseau extends CustomPainter {
-  _Reseau(this.fils, this.t, {required this.actif, required this.calme});
-
-  final List<_Fil> fils;
-  final double t;
-  final Color actif;
-  final Color calme;
+  final List<(Offset, Offset, double)> rayons;
+  final Color couleur;
 
   @override
   void paint(Canvas canvas, Size size) {
     final trait = Paint()
       ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
-    final influx = Paint()
-      ..color = actif
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3);
-    for (final f in fils) {
-      final d = f.vers - f.de;
-      if (d.distance < 1) continue;
-      // Le point de contrôle, un peu de côté : un fil qui ondule, pas une
-      // règle. Le côté dépend du fil, il ne change pas.
-      final normale = Offset(-d.dy, d.dx) / d.distance;
-      final cote = f.phase < 0.5 ? 1.0 : -1.0;
-      final ctrl = f.de + d / 2 + normale * (d.distance * 0.12 * cote);
-      final chemin = Path()
-        ..moveTo(f.de.dx, f.de.dy)
-        ..quadraticBezierTo(ctrl.dx, ctrl.dy, f.vers.dx, f.vers.dy);
-      trait
-        ..color = (f.actif ? actif : calme).withValues(
-          alpha: (f.actif ? 0.5 : 0.55) * f.opacite,
-        )
-        ..strokeWidth = f.actif ? 2 : 1.2;
-      canvas.drawPath(chemin, trait);
-      if (!f.actif) continue;
-      // L'influx : un point lumineux, un trajet toutes les 2,2 s environ.
-      final p = (t / 2.2 + f.phase) % 1.0;
-      final u = 1 - p;
-      final pos = f.de * (u * u) + ctrl * (2 * u * p) + f.vers * (p * p);
-      influx.color = actif.withValues(alpha: sin(p * pi) * f.opacite);
-      canvas.drawCircle(pos, 4, influx);
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = 1.5;
+    for (final (de, vers, opacite) in rayons) {
+      trait.color = couleur.withValues(alpha: 0.4 * opacite);
+      canvas.drawLine(de, vers, trait);
     }
   }
 
   @override
-  bool shouldRepaint(_Reseau old) => true;
+  bool shouldRepaint(_Rayons old) => true;
 }
 
 class _Badge extends StatelessWidget {

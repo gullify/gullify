@@ -8,6 +8,9 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.88.1', [
+    'Tes artistes : fini la toile de fils — chaque artiste choisi devient un astre, d\'autant plus gros qu\'il a de connexions, et ses proches tournent lentement autour de lui en petits satellites, chacun relié à son astre par un rayon court. Aimer un satellite en fait un astre à son tour.',
+  ]),
   ReleaseNote('3.88.0', [
     'Tes artistes : en revenant modifier, tes artistes ont déjà fait pousser leurs proches autour d\'eux — plus seulement la première fois (serveur 1.13.0).',
     'Un réseau, comme des neurones : un fil relie chaque artiste à ses proches, un influx court le long des fils de ceux que tu aimes, et chaque nouvel artiste ajoute un nœud.',
