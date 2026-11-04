@@ -108,8 +108,9 @@ class _NewReleasesLimit extends Notifier<int> {
   @override
   int build() => _kNewReleasesPageSize;
 
+  /// Jusqu'au bout de la page de YouTube Music (moins de 200 albums).
   void more() =>
-      state = (state + _kNewReleasesPageSize).clamp(_kNewReleasesPageSize, 60);
+      state = (state + _kNewReleasesPageSize).clamp(_kNewReleasesPageSize, 200);
 }
 
 final newReleasesLimitProvider =

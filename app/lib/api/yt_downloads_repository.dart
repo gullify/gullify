@@ -11,6 +11,7 @@ class YtAlbum {
     this.inLibrary = false,
     this.knownArtist = false,
     this.becauseOf = '',
+    this.releaseDate = '',
   });
 
   factory YtAlbum.fromJson(Map<String, dynamic> json) => YtAlbum(
@@ -22,6 +23,7 @@ class YtAlbum {
         inLibrary: json['in_library'] == true,
         knownArtist: json['known_artist'] == true,
         becauseOf: json['becauseOf'] as String? ?? '',
+        releaseDate: json['releaseDate'] as String? ?? '',
       );
 
   final String title;
@@ -41,6 +43,10 @@ class YtAlbum {
   /// L'artiste de la bibliothèque à cause de qui cette sortie est proposée
   /// (« Sorties de tes artistes »). Vide pour les nouveautés de YouTube.
   final String becauseOf;
+
+  /// Date de sortie AAAA-MM-JJ (nouveautés, serveur 1.17.0 — Deezer, iTunes) ;
+  /// vide si inconnue.
+  final String releaseDate;
 }
 
 /// Artiste similaire suggéré par YouTube Music.

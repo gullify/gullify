@@ -210,7 +210,7 @@ function fetchNewReleases() {
     $pythonScript = AppConfig::getPythonPath() . '/ytmusic_search.py';
     $pythonBin    = file_exists('/opt/ytdlp/bin/python3') ? '/opt/ytdlp/bin/python3' : 'python3';
     $output = shell_exec(
-        $pythonBin . ' ' . escapeshellarg($pythonScript) . ' new_releases 100 2>/dev/null'
+        $pythonBin . ' ' . escapeshellarg($pythonScript) . ' new_releases 200 2>/dev/null'
     );
     $data = $output ? json_decode($output, true) : null;
     $albums = array_values(array_filter(array_map(fn($r) => [
@@ -230,6 +230,181 @@ function fetchNewReleases() {
     }
     @file_put_contents($cacheFile, json_encode($albums, JSON_UNESCAPED_UNICODE));
     return $albums;
+}
+
+/**
+ * La date de sortie de chaque nouveauté. La page de YouTube Music n'en donne
+ * aucune (ni jour, ni même année) : on la demande à Deezer (recherche, puis
+ * la fiche de l'album), et à iTunes pour ce que Deezer ne connaît pas. Une
+ * date ne change pas : elle est gardée pour toujours
+ * (cache/yt_release_dates.json) ; un album introuvable est redemandé au bout
+ * d'une semaine. Polis avec les deux : Deezer accepte 50 requêtes par 5 s
+ * (vingt albums par appel, soit quarante requêtes au plus),
+ * iTunes une vingtaine par minute (et bloque l'adresse si on insiste). Au
+ * premier refus, une source se tait deux minutes. Dix secondes au plus par
+ * appel : ce qui manque se complète au suivant.
+ *
+ * @return array<string,string> browseId => AAAA-MM-JJ (vide si inconnue)
+ */
+function releaseDates(array $albums) {
+    $file = AppConfig::getDataPath() . '/cache/yt_release_dates.json';
+    $cache = is_readable($file) ? (json_decode((string) @file_get_contents($file), true) ?: []) : [];
+    $now = time();
+    $todo = [];
+    foreach ($albums as $a) {
+        $id = $a['browseId'] ?? '';
+        if ($id === '' || $id[0] === '_') continue;
+        $c = $cache[$id] ?? null;
+        if (!is_array($c)) $c = null;
+        if ($c === null || (($c['d'] ?? '') === '' && $now - (int) ($c['t'] ?? 0) > 7 * 86400)) {
+            $todo[$id] = $a;
+        }
+    }
+
+    $debut = microtime(true);
+    $changed = false;
+    $trouve = []; // browseId => date
+
+    // 1. Deezer : la recherche donne l'album, sa fiche donne le jour.
+    if ($todo && $now >= (int) ($cache['_pause_deezer'] ?? 0)) {
+        // Vingt albums : au plus quarante requêtes, sous la limite de Deezer.
+        $lot = array_slice($todo, 0, 20, true);
+        $urls = [];
+        foreach ($lot as $id => $a) {
+            // Le premier crédité, tel quel (Deezer cherche mal « A, B & C »).
+            $artist = preg_split('/\s*(?:,|&|\/|\bfeat\.?\b|\bft\.?\b|\bwith\b|\bx\b)\s*/iu',
+                (string) ($a['artist'] ?? ''))[0] ?? '';
+            $urls[$id] = 'https://api.deezer.com/search/album?limit=10&q=' . rawurlencode(
+                'artist:"' . trim($artist) . '" album:"' . trim($a['title'] ?? '') . '"');
+        }
+        [$reponses, $refus] = fetchParallel($urls, 5, $debut);
+        $fiches = [];
+        foreach ($reponses as $id => $json) {
+            $candidats = [];
+            foreach ($json['data'] ?? [] as $r) {
+                $candidats[] = ['artistName' => $r['artist']['name'] ?? '', 'collectionName' => $r['title'] ?? '',
+                                'id' => $r['id'] ?? null];
+            }
+            $choix = matchRelease($lot[$id], $candidats);
+            if ($choix !== null && !empty($choix['id'])) {
+                $fiches[$id] = 'https://api.deezer.com/album/' . (int) $choix['id'];
+            } else {
+                $cache[$id] = ['d' => '', 't' => $now, 's' => 'deezer'];
+                $changed = true;
+            }
+        }
+        if (!$refus && $fiches) {
+            [$details, $refus] = fetchParallel($fiches, 5, $debut);
+            foreach ($details as $id => $json) {
+                $d = (string) ($json['release_date'] ?? '');
+                if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $d)) {
+                    $trouve[$id] = $d;
+                    $cache[$id] = ['d' => $d, 't' => $now, 's' => 'deezer'];
+                    $changed = true;
+                }
+            }
+        }
+        if ($refus) {
+            $cache['_pause_deezer'] = $now + 120;
+            $changed = true;
+        }
+    }
+
+    // 2. iTunes, pour ce que Deezer n'a pas trouvé (dix-huit au plus).
+    $reste = array_filter($todo, fn($a, $id) => !isset($trouve[$id]), ARRAY_FILTER_USE_BOTH);
+    if ($reste && $now >= (int) ($cache['_pause'] ?? 0) && microtime(true) - $debut < 8) {
+        $urls = [];
+        foreach (array_slice($reste, 0, 18, true) as $id => $a) {
+            $urls[$id] = 'https://itunes.apple.com/search?' . http_build_query([
+                'term' => trim(($a['artist'] ?? '') . ' ' . ($a['title'] ?? '')),
+                'entity' => 'album', 'limit' => 10, 'country' => 'CA',
+            ]);
+        }
+        [$reponses, $refus] = fetchParallel($urls, 6, $debut);
+        foreach ($reponses as $id => $json) {
+            $choix = matchRelease($reste[$id], $json['results'] ?? []);
+            $d = $choix !== null ? substr((string) ($choix['releaseDate'] ?? ''), 0, 10) : '';
+            if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $d)) $d = '';
+            $cache[$id] = ['d' => $d, 't' => $now, 's' => 'itunes'];
+            $changed = true;
+        }
+        if ($refus) {
+            $cache['_pause'] = $now + 120;
+            $changed = true;
+        }
+    }
+
+    if ($changed) {
+        if (!is_dir(dirname($file))) @mkdir(dirname($file), 0775, true);
+        @file_put_contents($file, json_encode($cache, JSON_UNESCAPED_UNICODE));
+    }
+    $out = [];
+    foreach ($albums as $a) {
+        $id = $a['browseId'] ?? '';
+        $out[$id] = is_array($cache[$id] ?? null) ? (string) ($cache[$id]['d'] ?? '') : '';
+    }
+    return $out;
+}
+
+/**
+ * Des requêtes JSON en parallèle ([$parallele] à la fois), dans le temps qui
+ * reste depuis [$debut] (dix secondes en tout). Rend les réponses lues et si
+ * la source a refusé (403, 429, ou l'erreur de quota de Deezer).
+ *
+ * @return array{0: array<string,array>, 1: bool}
+ */
+function fetchParallel(array $urls, int $parallele, float $debut) {
+    $reponses = [];
+    $refus = false;
+    foreach (array_chunk($urls, $parallele, true) as $lot) {
+        if ($refus || microtime(true) - $debut > 10) break;
+        $multi = curl_multi_init();
+        $handles = [];
+        foreach ($lot as $cle => $url) {
+            $h = curl_init($url);
+            curl_setopt_array($h, [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 6,
+                                   CURLOPT_CONNECTTIMEOUT => 4]);
+            curl_multi_add_handle($multi, $h);
+            $handles[$cle] = $h;
+        }
+        do {
+            $status = curl_multi_exec($multi, $running);
+            if ($running) curl_multi_select($multi, 0.5);
+        } while ($running && $status === CURLM_OK);
+        foreach ($handles as $cle => $h) {
+            $code = curl_getinfo($h, CURLINFO_HTTP_CODE);
+            $json = json_decode((string) curl_multi_getcontent($h), true);
+            curl_multi_remove_handle($multi, $h);
+            if ($code === 403 || $code === 429 || (int) ($json['error']['code'] ?? 0) === 4) {
+                $refus = true;
+                continue;
+            }
+            if ($code === 200 && is_array($json) && !isset($json['error'])) $reponses[$cle] = $json;
+        }
+        curl_multi_close($multi);
+    }
+    return [$reponses, $refus];
+}
+
+/**
+ * Parmi les albums proposés ({artistName, collectionName, …}), celui qui est
+ * vraiment cette nouveauté : même artiste (l'un des crédités), même titre
+ * (sans les « (Deluxe) » ni « - Single »). Plusieurs éditions : la plus
+ * récente (iTunes) ou la première (Deezer, déjà par pertinence).
+ */
+function matchRelease(array $album, array $results) {
+    $clean = fn($t) => normalizeName(preg_replace('/\s*(\([^)]*\)|\[[^\]]*\]|-\s*(single|ep))\s*/iu', ' ', (string) $t));
+    $title = $clean($album['title'] ?? '');
+    $artists = splitArtistNames($album['artist'] ?? '');
+    if ($title === '' || !$artists) return null;
+    $best = null;
+    foreach ($results as $r) {
+        $rt = $clean($r['collectionName'] ?? '');
+        if ($rt === '' || ($rt !== $title && !str_starts_with($rt, $title) && !str_starts_with($title, $rt))) continue;
+        if (!array_intersect($artists, splitArtistNames($r['artistName'] ?? ''))) continue;
+        if ($best === null || (string) ($r['releaseDate'] ?? '') > (string) ($best['releaseDate'] ?? '')) $best = $r;
+    }
+    return $best;
 }
 
 /**
@@ -710,13 +885,29 @@ try {
             // YouTube Music, ce qui était le reproche (idée #116).
             $limit = (int)($_GET['limit'] ?? 30);
             if ($limit < 1)   { $limit = 30; }
-            if ($limit > 100) { $limit = 100; }
+            if ($limit > 200) { $limit = 200; }
             $user = $_GET['user'] ?? '';
 
             $albums = rankNewReleases(
                 $user,
                 markAlbumsInLibrary($user, fetchNewReleases())
             );
+            // Par date de sortie, la plus récente d'abord (demande de
+            // Maxime) ; les sorties du même jour gardent l'ordre ci-dessus
+            // (tes artistes d'abord). Sans date connue : à la fin, dans
+            // l'ordre de YouTube.
+            $dates = releaseDates($albums);
+            foreach ($albums as &$album) {
+                $album['releaseDate'] = $dates[$album['browseId']] ?? '';
+                if ($album['releaseDate'] !== '') $album['year'] = substr($album['releaseDate'], 0, 4);
+            }
+            unset($album);
+            usort($albums, function ($a, $b) {
+                if ($a['releaseDate'] === '' || $b['releaseDate'] === '') {
+                    return ($a['releaseDate'] === '') <=> ($b['releaseDate'] === '');
+                }
+                return strcmp($b['releaseDate'], $a['releaseDate']);
+            });
 
             echo json_encode([
                 'success' => true,

@@ -23,6 +23,7 @@ import 'package:gullify/api/api_client.dart';
 import 'package:gullify/api/library_repository.dart';
 import 'package:gullify/api/yt_downloads_repository.dart';
 import 'package:gullify/models/server_user.dart';
+import 'package:gullify/screens/maisons_amies_screen.dart';
 import 'package:gullify/screens/search_screen.dart';
 import 'package:gullify/state/library.dart';
 import 'package:gullify/state/yt_downloads.dart';
@@ -106,6 +107,8 @@ Future<void> _pumpSearch(WidgetTester tester, _FakeRepo repo) async {
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        // Les maisons amies de l'onglet Recherche : aucune, sans réseau.
+        maisonsAmiesProvider.overrideWith((ref) async => const []),
         ytDownloadsRepositoryProvider.overrideWithValue(repo),
         searchResultsProvider.overrideWith((ref) async => const SearchResults()),
         serverUsersProvider.overrideWith((ref) async => const <ServerUser>[]),
@@ -140,7 +143,7 @@ void main() {
 
     expect(find.text('Nouveautés'), findsOneWidget);
     expect(
-      find.text('Les nouveaux albums de YouTube Music, tes artistes en premier'),
+      find.text("Les nouveaux albums de YouTube Music, les plus récents d'abord"),
       findsOneWidget,
     );
     expect(find.text('Nouveauté 0'), findsOneWidget);
@@ -212,6 +215,8 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          // Les maisons amies de l'onglet Recherche : aucune, sans réseau.
+          maisonsAmiesProvider.overrideWith((ref) async => const []),
           ytNewReleasesProvider.overrideWith((ref) async => throw 'hors ligne'),
           ytArtistReleasesProvider
               .overrideWith((ref) async => throw 'hors ligne'),
@@ -268,8 +273,8 @@ void main() {
 
     expect(find.text('Nouveautés'), findsOneWidget);
     expect(
-      find.text('Les nouveaux albums de YouTube Music, tes artistes en '
-          'premier'),
+      find.text("Les nouveaux albums de YouTube Music, les plus récents "
+          "d'abord"),
       findsOneWidget,
     );
     expect(find.text('Nouveauté 0'), findsOneWidget);
@@ -322,6 +327,8 @@ void main() {
       (tester) async {
     final container = ProviderContainer(
       overrides: [
+        // Les maisons amies de l'onglet Recherche : aucune, sans réseau.
+        maisonsAmiesProvider.overrideWith((ref) async => const []),
         ytDownloadsRepositoryProvider.overrideWithValue(_FakeRepo(_albums(2))),
         searchResultsProvider.overrideWith((ref) async => const SearchResults()),
         serverUsersProvider.overrideWith((ref) async => const <ServerUser>[]),
@@ -358,6 +365,8 @@ void main() {
       (tester) async {
     final container = ProviderContainer(
       overrides: [
+        // Les maisons amies de l'onglet Recherche : aucune, sans réseau.
+        maisonsAmiesProvider.overrideWith((ref) async => const []),
         ytDownloadsRepositoryProvider.overrideWithValue(_FakeRepo(_albums(2))),
         searchResultsProvider.overrideWith((ref) async => const SearchResults()),
         serverUsersProvider.overrideWith((ref) async => const <ServerUser>[]),
@@ -385,5 +394,33 @@ void main() {
       tester.widget<TextField>(find.byType(TextField)).controller!.text,
       'Voisine',
     );
+  });
+
+  testWidgets('chaque nouveauté dit sa date de sortie (serveur 1.17.0)', (
+    tester,
+  ) async {
+    final annee = DateTime.now().year;
+    final repo = _FakeRepo([
+      YtAlbum(
+        title: 'Wild Love',
+        artist: 'Passenger',
+        year: '$annee',
+        thumbnail: '',
+        browseId: 'bdate',
+        releaseDate: '$annee-11-06',
+      ),
+      const YtAlbum(
+        title: 'Vieux disque',
+        artist: 'Quelqu\'un',
+        year: '2019',
+        thumbnail: '',
+        browseId: 'bvieux',
+        releaseDate: '2019-03-01',
+      ),
+    ]);
+    await _pumpSearch(tester, repo);
+
+    expect(find.text('Passenger · 6 nov.'), findsOneWidget);
+    expect(find.text('Quelqu\'un · 1 mars 2019'), findsOneWidget);
   });
 }

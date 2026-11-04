@@ -10,6 +10,7 @@ import 'package:gullify/api/bandcamp_repository.dart';
 import 'package:gullify/api/library_repository.dart';
 import 'package:gullify/api/yt_downloads_repository.dart';
 import 'package:gullify/models/server_user.dart';
+import 'package:gullify/screens/maisons_amies_screen.dart';
 import 'package:gullify/screens/search_screen.dart';
 import 'package:gullify/state/bandcamp.dart';
 import 'package:gullify/state/library.dart';
@@ -174,6 +175,8 @@ Future<void> _pumpBandcamp(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        // Les maisons amies de l'onglet Recherche : aucune, sans réseau.
+        maisonsAmiesProvider.overrideWith((ref) async => const []),
         bandcampRepositoryProvider.overrideWithValue(bandcamp),
         ytDownloadsRepositoryProvider.overrideWithValue(queue ?? _FakeQueue()),
         searchQueryProvider.overrideWith(() => _FixedQuery('godspeed')),

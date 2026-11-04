@@ -1298,7 +1298,7 @@ class _NewReleasesSection extends ConsumerWidget {
         const Padding(
           padding: EdgeInsets.fromLTRB(20, 0, 20, 6),
           child: Text(
-            'Les nouveaux albums de YouTube Music, tes artistes en premier',
+            'Les nouveaux albums de YouTube Music, les plus récents d\'abord',
             style: TextStyle(fontSize: 12.5, color: Color(0xFF8A8F98)),
           ),
         ),
@@ -1310,9 +1310,11 @@ class _NewReleasesSection extends ConsumerWidget {
               borderRadius: 12,
             ),
             title: a.title,
-            subtitle: a.knownArtist && !a.inLibrary
-                ? '${a.artist} · Tu écoutes déjà cet artiste'
-                : a.artist,
+            subtitle: [
+              a.artist,
+              ?_dateCourte(a.releaseDate),
+              if (a.knownArtist && !a.inLibrary) 'Tu écoutes déjà cet artiste',
+            ].join(' · '),
             trailing: a.inLibrary
                 ? const InLibraryBadge()
                 : const Icon(Icons.download_outlined),
@@ -1320,7 +1322,7 @@ class _NewReleasesSection extends ConsumerWidget {
           ),
         if (releases.isLoading)
           const _LoadingRow()
-        else if (albums.length >= limit && limit < 60)
+        else if (albums.length >= limit && limit < 200)
           _LoadMoreButton(
             onPressed: () => ref.read(newReleasesLimitProvider.notifier).more(),
           ),
@@ -1479,6 +1481,19 @@ class _SectionHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return SectionTitle(text, padding: const EdgeInsets.fromLTRB(20, 14, 20, 2));
   }
+}
+
+/// « 6 nov. », ou « 6 nov. 2025 » si ce n'est pas cette année ; null si la
+/// date est inconnue.
+String? _dateCourte(String iso) {
+  final d = DateTime.tryParse(iso);
+  if (d == null) return null;
+  const mois = [
+    'janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin',
+    'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.',
+  ];
+  final annee = d.year == DateTime.now().year ? '' : ' ${d.year}';
+  return '${d.day} ${mois[d.month - 1]}$annee';
 }
 
 /// Bouton « Charger plus » (même langage que l'écran des téléchargements).

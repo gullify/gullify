@@ -8,6 +8,10 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.92.0', [
+    'Nouveautés YouTube Music : par date de sortie, les plus récentes d\'abord, et chaque album dit sa date (« 6 nov. »). YouTube ne la donne pas : ton serveur la demande à Deezer (ou iTunes), une fois pour toutes (serveur 1.17.0).',
+    '« Charger plus » va maintenant jusqu\'au bout de la liste, au lieu de s\'arrêter à 60 albums.',
+  ]),
   ReleaseNote('3.91.0', [
     'Page d\'un artiste : les artistes similaires viennent maintenant de Last.fm quand ton serveur a une clé (sinon YouTube Music) ; ceux déjà dans ta bibliothèque ouvrent leur fiche (serveur 1.16.0).',
     'Accueil → Découvrir : « Artistes suggérés » remplace la suggestion d\'un seul artiste et mène à toute la liste — d\'abord les artistes que tu aimes dans tes goûts mais pas encore dans ta bibliothèque, puis ceux qui te sont proposés. Le cœur ajoute un artiste à tes goûts.',
