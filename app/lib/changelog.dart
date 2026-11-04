@@ -8,6 +8,11 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.89.0', [
+    'Tes artistes : un vrai arbre d\'artistes reliés, qu\'on déplie. Aimer un satellite ne le détache plus : il grossit sur sa branche et ses propres proches poussent autour de lui, en éventail vers l\'extérieur — et ainsi de suite.',
+    'Deux artistes choisis proches l\'un de l\'autre se retrouvent sur la même branche ; un seul trait par bulle, vers celle d\'où elle pousse.',
+    'Chaque artiste choisi se développe, même quand tu en as beaucoup : au moins deux proches chacun, et ceux qui n\'étaient pas encore décrits le sont en priorité la nuit (serveur 1.14.0).',
+  ]),
   ReleaseNote('3.88.1', [
     'Tes artistes : fini la toile de fils — chaque artiste choisi devient un astre, d\'autant plus gros qu\'il a de connexions, et ses proches tournent lentement autour de lui en petits satellites, chacun relié à son astre par un rayon court. Aimer un satellite en fait un astre à son tour.',
   ]),

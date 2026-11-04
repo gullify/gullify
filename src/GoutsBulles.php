@@ -71,13 +71,15 @@ class GoutsBulles
         }
 
         // Chaque choisie, puis ses proches : deux tiers dans la bibliothèque.
-        // Trois chacune au plus, et une trentaine en tout.
-        $parChoix = $choix === [] ? 0 : max(1, min(3, (int)ceil(30 / count($choix))));
+        // Deux chacune au moins (le graphe de l'app les relie, et chacune doit
+        // s'y développer), quatre au plus, une soixantaine en tout.
+        $plafond = max(60, 2 * count($choix));
+        $parChoix = $choix === [] ? 0 : max(2, min(4, (int)ceil(60 / count($choix))));
         $proposes = 0;
         foreach ($choix as $cle => $c) {
             $cle = (string)$cle;
             $out[] = self::bulle($cle, $c['nom'], $c['image'], $biblio, $choix);
-            if ($proposes >= 30) continue;
+            if ($proposes >= $plafond) continue;
             $dedans = [];
             $dehors = [];
             foreach ($voisins[$cle] ?? [] as $p) {
@@ -87,7 +89,7 @@ class GoutsBulles
                 if ($b['artistId'] !== null && isset($rejetes[$b['artistId']])) continue;
                 if ($b['artistId'] !== null) $dedans[] = $b; else $dehors[] = $b;
             }
-            foreach (self::melanger($dedans, $dehors, min($parChoix, 30 - $proposes)) as $b) {
+            foreach (self::melanger($dedans, $dehors, min($parChoix, $plafond - $proposes)) as $b) {
                 $vus[$b['cle']] = true;
                 $out[] = $b;
                 $proposes++;

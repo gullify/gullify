@@ -154,6 +154,24 @@ void main() {
     await _laisser(tester);
   });
 
+  testWidgets('aimer un satellite le garde accroché à son parent', (
+    tester,
+  ) async {
+    final faux = await _pump(tester);
+    // Reset est un proche de Sum 41 : il pousse de lui.
+    await tester.tap(find.text('Reset'));
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(faux.choix['reset'], 1);
+    await _laisser(tester, 3000);
+    // Ses proches ont éclos, et il est resté sur sa branche.
+    expect(find.text('Pennywise'), findsOneWidget);
+    final reset = tester.getCenter(find.text('Reset'));
+    final sum41 = tester.getCenter(find.text('Sum 41'));
+    final pennywise = tester.getCenter(find.text('Pennywise'));
+    expect((reset - sum41).distance, lessThan(200));
+    expect((pennywise - reset).distance, lessThan(200));
+  });
+
   testWidgets('« Faire pousser ses proches » depuis le menu', (tester) async {
     final faux = await _pump(tester);
     await tester.longPress(find.text('Reset'));

@@ -65,6 +65,10 @@ class GoutsSources
              WHERE a.name NOT IN ('', 'Various Artists', 'Artistes divers', 'Unknown Artist')
              GROUP BY a.name
              ORDER BY prio DESC")->fetchAll(PDO::FETCH_ASSOC);
+        // Les artistes choisis dans « Tes artistes » d'abord : sans voisins,
+        // ils ne se développent pas dans le graphe de l'app.
+        $choisis = $db->query("SELECT nom AS name, 99 AS prio FROM gouts_choix ORDER BY niveau DESC")->fetchAll(PDO::FETCH_ASSOC);
+        $rows = array_merge($choisis, $rows);
         $deja = [];
         foreach ($db->query("SELECT cle, UNIX_TIMESTAMP(maj) m FROM artistes_enrichis") as $r) {
             $deja[$r['cle']] = (int)$r['m'];
