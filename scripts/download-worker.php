@@ -156,6 +156,16 @@ $command = 'yt-dlp -o ' . $escapedAlbumPath . ' ' .
            '--postprocessor-args "-metadata album=\"' . $escapedAlbum . '\" -metadata album_artist=\"' . $escapedArtist . '\"" ' .
            escapeShellArgUTF8($url) . ' 2>&1';
 
+// Bandcamp bloque yt-dlp depuis novembre 2026 (défi anti-robot, même en
+// imitant Chrome) : son propre téléchargeur lit la page de l'album sous
+// l'identité de l'app Bandcamp et écrit les mêmes fichiers, les mêmes tags et
+// les mêmes lignes de progression.
+if (Bandcamp::isUrl($url)) {
+    $command = 'php ' . escapeshellarg(__DIR__ . '/bandcamp-download.php') . ' '
+             . escapeShellArgUTF8($url) . ' ' . escapeShellArgUTF8($albumPath) . ' '
+             . escapeShellArgUTF8($album) . ' ' . escapeShellArgUTF8($artist) . ' 2>&1';
+}
+
 // Lancer yt-dlp et capturer la sortie
 $descriptorspec = [
     0 => ["pipe", "r"],

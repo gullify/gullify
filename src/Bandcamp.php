@@ -22,6 +22,9 @@
 
 class Bandcamp
 {
+    /** L'identité présentée à Bandcamp (voir fetch()). */
+    public const AGENT = 'Bandcamp/218977 CFNetwork/1410.0.3 Darwin/22.6.0';
+
     private const SEARCH_URL = 'https://bandcamp.com/api/bcsearch_public_api/1/autocomplete_elastic';
     private const MOBILE_API = 'https://bandcamp.com/api/mobile/24/';
     private const DISCOVER_URL = 'https://bandcamp.com/api/discover/1/discover_web';
@@ -235,6 +238,69 @@ class Bandcamp
             'thumbnail'   => self::artwork($tralbum['art_id'] ?? ($current['art_id'] ?? null), ''),
             'is_track'    => $isTrack,
         ];
+    }
+
+    /**
+     * Les titres d'un album (ou le titre seul) à télécharger, lus sur sa page :
+     * chacun avec son MP3 (128 kb/s, ce que Bandcamp offre à l'écoute — et ce
+     * que yt-dlp récupérait). Sert au téléchargement depuis que Bandcamp
+     * bloque yt-dlp (défi anti-robot, novembre 2026). Les titres sans fichier
+     * (réservés aux acheteurs) sont absents.
+     *
+     * @return array{artist:string,album:string,year:string,cover:string,tracks:array<array{num:int,title:string,artist:string,url:string}>}|null
+     */
+    public static function albumTracks(string $url): ?array
+    {
+        $url = trim($url);
+        if (!self::isUrl($url)) return null;
+        $html = self::fetch($url, ['Accept: text/html']);
+        if ($html === null || !preg_match('/data-tralbum="([^"]*)"/', $html, $m)) return null;
+        $tralbum = json_decode(html_entity_decode($m[1], ENT_QUOTES, 'UTF-8'), true);
+        if (!is_array($tralbum)) return null;
+        $current = is_array($tralbum['current'] ?? null) ? $tralbum['current'] : [];
+        $artist = (string) ($tralbum['artist'] ?? ($current['artist'] ?? ''));
+        $tracks = [];
+        foreach (is_array($tralbum['trackinfo'] ?? null) ? $tralbum['trackinfo'] : [] as $i => $t) {
+            $file = (string) ($t['file']['mp3-128'] ?? '');
+            if (!is_array($t) || !str_starts_with($file, 'http')) continue;
+            $tracks[] = [
+                'num'    => (int) ($t['track_num'] ?? ($i + 1)) ?: $i + 1,
+                'title'  => trim((string) ($t['title'] ?? '')) ?: 'Piste ' . ($i + 1),
+                'artist' => trim((string) ($t['artist'] ?? '')) ?: $artist,
+                'url'    => $file,
+            ];
+        }
+        $artId = $tralbum['art_id'] ?? ($current['art_id'] ?? null);
+        return [
+            'artist' => $artist,
+            'album'  => (string) ($current['title'] ?? ''),
+            'year'   => self::yearOf($current['release_date'] ?? ($tralbum['album_release_date'] ?? null)),
+            // La pochette en grand (1200 px) pour l'intégrer aux fichiers.
+            'cover'  => is_numeric($artId) ? 'https://f4.bcbits.com/img/a' . $artId . '_10.jpg' : '',
+            'tracks' => $tracks,
+        ];
+    }
+
+    /** Un fichier (MP3, pochette) vers [$dest]. */
+    public static function saveTo(string $url, string $dest): bool
+    {
+        $out = @fopen($dest, 'wb');
+        if (!$out) return false;
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_FILE           => $out,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_TIMEOUT        => 180,
+            CURLOPT_CONNECTTIMEOUT => 10,
+            CURLOPT_USERAGENT      => self::AGENT,
+        ]);
+        $ok = curl_exec($ch) !== false && curl_getinfo($ch, CURLINFO_HTTP_CODE) === 200;
+        fclose($out);
+        if (!$ok || filesize($dest) < 1024) {
+            @unlink($dest);
+            return false;
+        }
+        return true;
     }
 
     /**
@@ -501,8 +567,12 @@ class Bandcamp
             CURLOPT_TIMEOUT        => 15,
             CURLOPT_CONNECTTIMEOUT => 8,
             CURLOPT_FOLLOWLOCATION => true,
-            CURLOPT_USERAGENT      => 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 '
-                                    . '(KHTML, like Gecko) Chrome/124.0 Safari/537.36',
+            // L'identité de l'app Bandcamp, pas celle d'un navigateur : depuis
+            // novembre 2026, Bandcamp sert un défi anti-robot (« Client
+            // Challenge », du JavaScript à exécuter) à tout ce qui se dit
+            // Chrome — recherche, API mobile, Découvrir et page des genres
+            // compris —, alors que son app (et curl) passent.
+            CURLOPT_USERAGENT      => self::AGENT,
             CURLOPT_HTTPHEADER     => $headers,
         ]);
         if ($body !== null) {
@@ -513,6 +583,11 @@ class Bandcamp
         $status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         $error  = curl_error($ch);
 
+        if (is_string($raw) && str_contains($raw, 'Client Challenge')) {
+            // Le défi répond 200 : sans ce test, il passait pour une page vide.
+            error_log("Bandcamp: $url → défi anti-robot");
+            return null;
+        }
         if ($status !== 200 || !is_string($raw) || $raw === '') {
             error_log("Bandcamp: $url → HTTP $status" . ($error ? " ($error)" : ''));
             return null;
