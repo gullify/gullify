@@ -180,6 +180,7 @@ class Bulle {
     this.artistId,
     this.niveau = 0,
     this.liens = const [],
+    this.parent,
   });
 
   final String cle;
@@ -192,6 +193,10 @@ class Bulle {
   /// du réseau.
   final List<String> liens;
 
+  /// D'où elle pousse dans l'arbre (serveur 1.15.0) : l'artiste choisi qui
+  /// l'amène, ou, pour un choisi, la bulle depuis laquelle on l'a aimé.
+  final String? parent;
+
   bool get dansBibliotheque => artistId != null;
 
   Bulle avecNiveau(int n) => Bulle(
@@ -201,6 +206,7 @@ class Bulle {
         artistId: artistId,
         niveau: n,
         liens: liens,
+        parent: parent,
       );
 }
 
@@ -341,6 +347,7 @@ class PourToiRepository {
         artistId: (j['artistId'] as num?)?.toInt(),
         niveau: (j['niveau'] as num?)?.toInt() ?? 0,
         liens: [for (final l in j['liens'] as List? ?? const []) '$l'],
+        parent: j['parent'] == null ? null : '${j['parent']}',
       );
 
   List<Bulle> _bulles(dynamic data) => [
@@ -371,13 +378,15 @@ class PourToiRepository {
         ),
       );
 
-  /// 0 retirer, 1 aimer, 2 adorer.
-  Future<void> choisir(Bulle b, int niveau) => _client.post(
+  /// 0 retirer, 1 aimer, 2 adorer ; [parent] : la bulle d'où elle pousse,
+  /// retenue pour garder l'arbre d'une visite à l'autre.
+  Future<void> choisir(Bulle b, int niveau, {String? parent}) => _client.post(
         'pour-toi.php',
         query: {'action': 'choisir'},
         body: {
           'nom': b.nom,
           'niveau': niveau,
+          'parent': ?parent,
           // La photo d'un artiste d'ailleurs ; celle d'un artiste de la
           // bibliothèque se recalcule côté serveur.
           if (!b.dansBibliotheque && b.image != null) 'image': b.image,

@@ -8,6 +8,10 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.90.0', [
+    'Tes artistes : fini le gros paquet collé. Chaque artiste choisi a son propre petit arbre, avec ses satellites ; les arbres se rangent deux par rangée, en quinconce.',
+    'Une branche ne se fait que par toi : aimer un satellite le garde sous l\'artiste d\'où il vient, et le serveur s\'en souvient d\'une visite à l\'autre (serveur 1.15.0).',
+  ]),
   ReleaseNote('3.89.0', [
     'Tes artistes : un vrai arbre d\'artistes reliés, qu\'on déplie. Aimer un satellite ne le détache plus : il grossit sur sa branche et ses propres proches poussent autour de lui, en éventail vers l\'extérieur — et ainsi de suite.',
     'Deux artistes choisis proches l\'un de l\'autre se retrouvent sur la même branche ; un seul trait par bulle, vers celle d\'où elle pousse.',

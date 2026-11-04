@@ -111,7 +111,7 @@ class _ArtistesBullesScreenState extends ConsumerState<ArtistesBullesScreen> {
       HapticFeedback.mediumImpact();
     }
     try {
-      await _repo.choisir(b, niveau);
+      await _repo.choisir(b, niveau, parent: _origines[b.cle] ?? b.parent);
     } catch (e) {
       if (!mounted) return;
       setState(() => _remplacer(b.cle, avant));

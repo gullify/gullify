@@ -79,7 +79,7 @@ class Gouts
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
         "CREATE TABLE IF NOT EXISTS gouts_choix (
             user VARCHAR(50) NOT NULL, cle VARCHAR(191) NOT NULL, nom VARCHAR(255) NOT NULL,
-            niveau TINYINT NOT NULL DEFAULT 1, image VARCHAR(500) NULL,
+            niveau TINYINT NOT NULL DEFAULT 1, image VARCHAR(500) NULL, parent_cle VARCHAR(191) NULL,
             cree_le DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (user, cle)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
         "CREATE TABLE IF NOT EXISTS gouts_bandits (
@@ -638,11 +638,12 @@ class Gouts
     /** « Tes artistes » : clé => [nom, niveau (1 aime, 2 adore), image]. */
     public static function choix(PDO $db, string $user): array
     {
-        $q = $db->prepare('SELECT cle, nom, niveau, image FROM gouts_choix WHERE user = ? ORDER BY niveau DESC, cree_le DESC');
+        $q = $db->prepare('SELECT cle, nom, niveau, image, parent_cle FROM gouts_choix WHERE user = ? ORDER BY niveau DESC, cree_le DESC');
         $q->execute([$user]);
         $out = [];
         while ($r = $q->fetch(PDO::FETCH_ASSOC)) {
-            $out[$r['cle']] = ['nom' => $r['nom'], 'niveau' => (int)$r['niveau'], 'image' => $r['image']];
+            $out[$r['cle']] = ['nom' => $r['nom'], 'niveau' => (int)$r['niveau'], 'image' => $r['image'],
+                               'parent' => $r['parent_cle'] !== null ? (string)$r['parent_cle'] : null];
         }
         return $out;
     }

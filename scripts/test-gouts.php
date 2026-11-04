@@ -265,6 +265,14 @@ ok(array_intersect([Gouts::cle('EssaiGouts E'), Gouts::cle('EssaiGouts F'), Gout
     'bulles : les proches d\'une choisie poussent à côté d\'elle');
 ok(array_intersect([Gouts::cle('EssaiGouts E'), Gouts::cle('EssaiGouts F')], $dep[$iExt]['liens']) !== [], 'bulles : les fils du réseau');
 ok(count($cles) === count(array_unique($cles)), 'bulles : aucune en double');
+$voisinesExt = array_values(array_filter($dep, fn($b) => $b['parent'] === Gouts::cle('EssaiGouts Externe')));
+ok($voisinesExt !== [] && $dep[$iExt]['parent'] === null, 'bulles : les proches poussent de leur choisie, une choisie sans parent est une racine');
+// Aimée depuis une bulle : elle s'en souvient, d'une visite à l'autre.
+GoutsBulles::choisir($db, $U, 'EssaiGouts F', 1, null, Gouts::cle('EssaiGouts Externe'));
+GoutsBulles::choisir($db, $U, 'EssaiGouts F', 2, null); // adorer ensuite garde le parent
+$f = array_values(array_filter(GoutsBulles::depart($db, $U), fn($b) => $b['cle'] === Gouts::cle('EssaiGouts F')));
+ok($f && $f[0]['niveau'] === 2 && $f[0]['parent'] === Gouts::cle('EssaiGouts Externe'), 'parent retenu, même en adorant ensuite');
+GoutsBulles::choisir($db, $U, 'EssaiGouts F', 0, null);
 $aut = GoutsBulles::autour($db, $U, Gouts::cle('EssaiGouts Externe'), 'EssaiGouts Externe', [Gouts::cle('EssaiGouts E')], 6);
 $nomsAut = array_column($aut, 'nom');
 ok(in_array('EssaiGouts F', $nomsAut, true) && !in_array('EssaiGouts E', $nomsAut, true), 'autour : voisins, sans ceux déjà à l\'écran');

@@ -237,7 +237,8 @@ try {
             $b = v2_body() + $_POST;
             try {
                 v2_ok(GoutsBulles::choisir($db, $user, (string)($b['nom'] ?? ''), (int)($b['niveau'] ?? 1),
-                    isset($b['image']) && is_string($b['image']) ? $b['image'] : null));
+                    isset($b['image']) && is_string($b['image']) ? $b['image'] : null,
+                    isset($b['parent']) && is_string($b['parent']) ? $b['parent'] : null));
             } catch (InvalidArgumentException $e) {
                 v2_fail('nom_requis', $e->getMessage(), 400);
             }

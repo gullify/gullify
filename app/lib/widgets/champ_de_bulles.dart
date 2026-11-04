@@ -10,21 +10,23 @@ import 'artwork.dart';
 /// qu'on déplie, à la manière de la vue « graphe » d'Obsidian ou des
 /// explorateurs d'artistes proches (Music-Map, Related Artists Explorer).
 ///
-///  - Un arbre, pas une toile : chaque bulle a UN parent — celle d'où elle a
-///    éclos, ou l'artiste choisi qui l'a fait pousser — et ne le quitte
-///    plus. Aimer un satellite ne le détache pas : il grossit sur place et
-///    ses propres proches poussent autour de lui (et ainsi de suite).
-///    Deux artistes choisis proches l'un de l'autre se retrouvent sur la
-///    même branche. Un seul trait par bulle, vers son parent : lisible, pas
-///    de spaghetti (demande de Maxime, après le réseau de la 3.88.0).
+///  - Un arbre, pas une toile : chaque bulle a UN parent, et une branche ne
+///    se fait que par toi — la bulle d'où une autre a éclos, l'artiste
+///    choisi qui amène un proche, ou la bulle depuis laquelle tu as aimé un
+///    artiste (le serveur s'en souvient, Bulle.parent). Jamais par la seule
+///    ressemblance : tes artistes se ressemblent tous, et tout s'accrochait
+///    en un seul arbre géant (3.89.0). Aimer un satellite ne le détache pas :
+///    il grossit sur sa branche et ses proches poussent de lui. Un seul trait
+///    par bulle, vers son parent (demande de Maxime : pas de spaghetti).
 ///  - Taille : un artiste choisi est gros, d'autant plus qu'il a de
 ///    branches ; un proche non choisi est petit, plus petit en profondeur.
-///  - Placement : chaque arbre pousse — la racine déplie ses enfants tout
-///    autour d'elle, chaque autre bulle déplie les siens en éventail vers
-///    l'extérieur, dans le prolongement de sa branche ; les arbres et les
-///    bulles seules (écoutées, d'ailleurs) se rangent en étagères. Chaque
-///    bulle est rappelée vers sa place par un ressort amorti, et les bulles
-///    qui se touchent s'écartent doucement.
+///  - Placement : chaque arbre pousse — la racine déplie ses enfants en
+///    diagonale autour d'elle, chaque autre bulle déplie les siens en éventail
+///    vers l'extérieur ; un petit arbre se resserre pour tenir à deux par
+///    rangée, et chacun « tombe » à la place libre la plus haute, en
+///    s'emboîtant entre ceux déjà posés. Chaque bulle est rappelée vers sa
+///    place par un ressort amorti, et celles qui se touchent s'écartent
+///    doucement.
 ///  - Toujours vivant, quel que soit le réglage d'animations du téléphone
 ///    (demande de Maxime) : elles flottent, rebondissent quand on aime,
 ///    des cœurs jaillissent (adorer : une onde en plus) et les bulles qui
@@ -102,6 +104,7 @@ class _ChampDeBullesState extends State<ChampDeBulles>
   var _racines = <String>[]; // choisies (ou dépliées) sans parent
   var _seules = <String>[]; // ni parent ni enfant
   var _rayons = <String, double>{};
+  String _signature = '';
 
   /// Plus petit que ça : une « petite » bulle (nom sur une ligne, en gris).
   static const petite = 26.0;
@@ -144,48 +147,29 @@ class _ChampDeBullesState extends State<ChampDeBulles>
   void _organiser() {
     final bulles = widget.bulles;
     final presentes = {for (final b in bulles) b.cle};
-    final rang = {for (final (i, b) in bulles.indexed) b.cle: i};
-    final voisins = <String, Set<String>>{};
-    void relier(String a, String b) {
-      if (a == b || !presentes.contains(a) || !presentes.contains(b)) return;
-      voisins.putIfAbsent(a, () => {}).add(b);
-      voisins.putIfAbsent(b, () => {}).add(a);
-    }
-
+    // Une branche ne se fait que par toi : la bulle d'où une autre a éclos
+    // (cette visite), sinon ce que le serveur retient — l'artiste choisi qui
+    // amène un proche, ou la bulle depuis laquelle on a aimé un artiste.
+    // Jamais par la seule ressemblance : tes artistes se ressemblent tous,
+    // et l'arbre devenait un seul géant illisible.
+    _parent.clear();
+    // Serveur d'avant la 1.15.0 (aucun parent) : il range chaque choisie
+    // suivie de ses proches ; un proche pousse donc de la choisie qui le
+    // précède, si elle le cite.
+    final ancien = !bulles.any((b) => b.parent != null);
+    Bulle? derniere;
     for (final b in bulles) {
-      for (final l in b.liens) {
-        relier(b.cle, l);
+      String? deduit;
+      if (b.niveau > 0) {
+        derniere = b;
+      } else if (ancien && derniere != null && derniere.liens.contains(b.cle)) {
+        deduit = derniere.cle;
       }
+      final p = widget.origines[b.cle] ?? b.parent ?? deduit;
+      if (p == null || !presentes.contains(p) || _ancetre(b.cle, p)) continue;
+      _parent[b.cle] = p;
     }
-    widget.origines.forEach((enfant, mere) => relier(mere, enfant));
-
-    // Un parent parti : la bulle redevient libre (et sera reprise).
-    _parent.removeWhere(
-      (e, p) => !presentes.contains(e) || !presentes.contains(p),
-    );
-    // Celles qui ont éclos : de leur bulle mère, toujours.
-    widget.origines.forEach((enfant, mere) {
-      if (presentes.contains(enfant) &&
-          presentes.contains(mere) &&
-          !_parent.containsKey(enfant) &&
-          !_ancetre(enfant, mere)) {
-        _parent[enfant] = mere;
-      }
-    });
-    // Les autres : un artiste choisi (ou déjà déplié) prend sous lui ses
-    // proches encore libres, dans l'ordre de la liste — les choisis d'abord.
     final niveaux = {for (final b in bulles) b.cle: b.niveau};
-    final porteurs = {..._parent.values};
-    for (final b in bulles) {
-      if (b.niveau == 0 && !porteurs.contains(b.cle)) continue;
-      final proches = [...?voisins[b.cle]]
-        ..sort((a, c) => rang[a]!.compareTo(rang[c]!));
-      for (final v in proches) {
-        if (_parent.containsKey(v) || _ancetre(v, b.cle)) continue;
-        _parent[v] = b.cle;
-        porteurs.add(b.cle);
-      }
-    }
 
     final enfants = <String, List<String>>{};
     for (final b in bulles) {
@@ -241,6 +225,7 @@ class _ChampDeBullesState extends State<ChampDeBulles>
 
     compter(racine);
     var profondeur = 0;
+    final longueurs = <String, (String, double)>{}; // enfant → (parent, longueur)
     void deployer(String u, Offset pos, double? cap, int k) {
       final e = _enfants[u] ?? const <String>[];
       if (e.isEmpty || k > 12) return;
@@ -248,9 +233,14 @@ class _ChampDeBullesState extends State<ChampDeBulles>
       final poids = [for (final x in e) 1.0 + (feuilles[x]! - 1) * 0.6];
       final total = poids.fold(0.0, (s, p) => s + p);
       final ouverture = cap == null ? 2 * pi : min(1.6 * pi, 0.85 * total);
-      var a = cap == null
-          ? -pi / 2 + 0.35 + (u.hashCode % 40) / 100
-          : cap - ouverture / 2;
+      // Autour de la racine : en diagonale, jamais à l'horizontale (un arbre
+      // étroit tient à deux par rangée).
+      // (premier enfant : deux → en haut à droite, nombre pair → diagonale,
+      // impair → droit en haut).
+      final n = e.length;
+      final premier = -pi / 2 +
+          (n == 1 ? 0.6 : n == 2 ? pi / 6 : n.isEven ? pi / n : 0.0);
+      var a = cap == null ? premier - pi / n : cap - ouverture / 2;
       for (final (i, x) in e.indexed) {
         final part = ouverture * poids[i] / total;
         final angle = a + part / 2;
@@ -258,8 +248,11 @@ class _ChampDeBullesState extends State<ChampDeBulles>
         var d = r(u) + r(x) + 30 + ((_enfants[x]?.isNotEmpty ?? false) ? 22 : 0);
         d = max(d, 84 / max(part, 0.3));
         if (cap == null && e.length == 1) d += 10;
+        // En dessous : le nom de la bulle est là, on passe plus loin.
+        if (sin(angle) > 0.3) d += 16;
         final p = pos + Offset(cos(angle), sin(angle)) * d;
         rel[x] = p;
+        longueurs[x] = (u, d);
         deployer(x, p, angle, k + 1);
         a += part;
       }
@@ -278,65 +271,124 @@ class _ChampDeBullesState extends State<ChampDeBulles>
     }
 
     var b = boite();
-    // Trop large pour l'écran : on l'étire en hauteur (les distances
-    // restent à peu près les mêmes, les bulles ne se tassent pas).
-    if (b.width > largeur - 8) {
-      final f = (largeur - 8) / b.width;
-      rel.updateAll((_, o) => Offset(o.dx * f, o.dy / f));
+    // Trop large : on l'étire en hauteur (les distances restent à peu près
+    // les mêmes, les bulles ne se tassent pas). Un petit arbre vise la
+    // moitié de l'écran, pour que deux tiennent côte à côte.
+    final moitie = largeur / 2 - 6;
+    // Seuls les centres se resserrent ; les noms gardent leur largeur.
+    final xs = rel.values.map((o) => o.dx);
+    final centres = xs.reduce(max) - xs.reduce(min);
+    double facteur(double limite) =>
+        centres <= 0 ? 1 : ((limite - (b.width - centres)) / centres);
+    final f = b.width <= moitie
+        ? 1.0
+        : facteur(moitie) >= 0.3
+        ? facteur(moitie)
+        : b.width <= largeur - 8
+        ? 1.0
+        : max(0.3, facteur(largeur - 8));
+    if (f < 1) {
+      // Plus étroit, puis chaque branche retrouve sa longueur en hauteur
+      // (de la racine vers les feuilles : une sous-branche suit son parent).
+      final avant = Map.of(rel);
+      final ordre = [racine];
+      for (var k = 0; k < ordre.length; k++) {
+        ordre.addAll(_enfants[ordre[k]] ?? const <String>[]);
+      }
+      for (final x in ordre.skip(1)) {
+        final (p, longueur) = longueurs[x]!;
+        final o = avant[x]! - avant[p]!;
+        final dx = o.dx * f;
+        final dy = max(
+          o.dy.abs(),
+          sqrt(max(0.0, longueur * longueur - dx * dx)),
+        );
+        rel[x] = rel[p]! + Offset(dx, o.dy < 0 ? -dy : dy);
+      }
       b = boite();
     }
     return b;
   }
 
-  /// Les places : chaque arbre (et chaque bulle seule) rangé en étagères
-  /// d'après sa boîte, l'espace qui reste réparti entre eux.
+  /// Les places : chaque arbre (et chaque bulle seule), dans l'ordre,
+  /// « tombe » à l'endroit libre le plus haut, en s'emboîtant entre ceux
+  /// déjà posés (on compare les boîtes des bulles, pas celle de l'arbre
+  /// entier). Refait seulement quand l'arbre ou la largeur change.
   void _placer(double largeur) {
-    final arbres = <String, Map<String, Offset>>{};
-    final elements = <(String, Rect)>[];
+    final signature = StringBuffer('$largeur');
+    for (final b in widget.bulles) {
+      signature.write('|${b.cle}:${b.niveau}:${_parent[b.cle] ?? ''}');
+    }
+    final sig = signature.toString();
+    if (sig == _signature) return;
+    _signature = sig;
+
+    const marge = 8.0;
+    final posees = <Rect>[];
+    var bas = 0.0;
     for (final racine in [..._racines, ..._seules]) {
       final rel = <String, Offset>{};
       final r = _rayons[racine] ?? 30;
       if (_enfants.containsKey(racine)) {
-        elements.add((racine, _deployer(racine, rel, largeur)));
+        _deployer(racine, rel, largeur);
       } else {
         rel[racine] = Offset.zero;
-        final biblio = widget.bulles
-            .firstWhere((b) => b.cle == racine)
-            .dansBibliotheque;
-        final (g, h, bas) = _boiteDe(r);
-        elements.add((racine, Rect.fromLTRB(-g, -h, g, bas + (biblio ? 0 : 14))));
       }
-      arbres[racine] = rel;
-    }
-
-    var haut = 8.0;
-    var i = 0;
-    while (i < elements.length) {
-      // Une étagère : autant d'éléments que la largeur en tient.
-      final rangee = [elements[i++]];
-      var pris = rangee.first.$2.width + 8;
-      while (i < elements.length && pris + elements[i].$2.width + 8 <= largeur) {
-        pris += elements[i].$2.width + 8;
-        rangee.add(elements[i++]);
-      }
-      final dessus = rangee.map((e) => -e.$2.top).reduce(max);
-      final dessous = rangee.map((e) => e.$2.bottom).reduce(max);
-      final jeu = (largeur - pris) / (rangee.length + 1) + 8;
-      var x = jeu - 4;
-      for (final (cle, b) in rangee) {
-        final cx = x - b.left;
-        final cy = haut + dessus;
-        for (final MapEntry(key: u, value: o) in arbres[cle]!.entries) {
-          final c = _corps[u];
-          if (c == null) continue;
-          c.ax = cx + o.dx;
-          c.ay = cy + o.dy;
+      final biblio = widget.bulles
+          .firstWhere((b) => b.cle == racine)
+          .dansBibliotheque;
+      final boites = [
+        for (final MapEntry(key: u, value: o) in rel.entries)
+          () {
+            final (g, h, dessous) = _boiteDe(_rayons[u] ?? r);
+            final extra = u == racine && !biblio && _rayons[u]! >= petite
+                ? 14.0
+                : 0.0;
+            return Rect.fromLTRB(
+              o.dx - g,
+              o.dy - h,
+              o.dx + g,
+              o.dy + dessous + extra,
+            );
+          }(),
+      ];
+      final tout = boites.reduce((a, b) => a.expandToInclude(b));
+      // Les positions possibles, tous les 12 px ; un arbre plus large que
+      // l'écran se centre.
+      final xMin = 4 - tout.left, xMax = largeur - 4 - tout.right;
+      final xs = xMax < xMin
+          ? [(xMin + xMax) / 2]
+          : [for (var x = xMin; x <= xMax; x += 12) x, xMax];
+      var meilleur = (double.infinity, 0.0, 0.0); // y, x, écart au centre
+      for (final x in xs) {
+        var y = 8 - tout.top;
+        for (final b in boites) {
+          final l = b.left + x, rr = b.right + x;
+          for (final p in posees) {
+            if (l < p.right + marge && rr > p.left - marge) {
+              y = max(y, p.bottom + marge - b.top);
+            }
+          }
         }
-        x += b.width + jeu;
+        final centre = (x + tout.center.dx - largeur / 2).abs();
+        if (y < meilleur.$1 - 0.5 ||
+            ((y - meilleur.$1).abs() <= 0.5 && centre < meilleur.$3)) {
+          meilleur = (y, x, centre);
+        }
       }
-      haut += dessus + dessous + 10;
+      final (y, x, _) = meilleur;
+      for (final b in boites) {
+        posees.add(b.shift(Offset(x, y)));
+      }
+      bas = max(bas, tout.bottom + y);
+      for (final MapEntry(key: u, value: o) in rel.entries) {
+        final c = _corps[u];
+        if (c == null) continue;
+        c.ax = x + o.dx;
+        c.ay = y + o.dy;
+      }
     }
-    _hauteur = haut + 16;
+    _hauteur = bas + 16;
   }
 
   /// Les corps suivent la liste : ceux qui arrivent naissent (au premier

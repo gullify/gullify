@@ -32,10 +32,13 @@ class GoutsBulles
     }
 
     /** Une bulle telle que l'app la dessine. */
-    private static function bulle(string $cle, string $nom, ?string $image, array $biblio, array $choix): array
+    private static function bulle(string $cle, string $nom, ?string $image, array $biblio, array $choix, ?string $parent = null): array
     {
         $b = $biblio[$cle] ?? null;
         return [
+            // D'où elle pousse dans l'arbre de l'app : l'artiste choisi qui
+            // l'amène, ou, pour un choisi, la bulle depuis laquelle on l'a aimé.
+            'parent' => $parent ?? ($choix[$cle]['parent'] ?? null),
             'cle' => $cle,
             'nom' => $b['nom'] ?? $nom,
             'image' => $b ? ImageUrl::artiste($b['id']) : $image,
@@ -85,7 +88,7 @@ class GoutsBulles
             foreach ($voisins[$cle] ?? [] as $p) {
                 $vc = $p['voisin_cle'];
                 if (isset($vus[$vc]) || Gouts::artisteVide((string)$p['voisin_nom'])) continue;
-                $b = self::bulle($vc, $p['voisin_nom'], $p['image'], $biblio, $choix);
+                $b = self::bulle($vc, $p['voisin_nom'], $p['image'], $biblio, $choix, $cle);
                 if ($b['artistId'] !== null && isset($rejetes[$b['artistId']])) continue;
                 if ($b['artistId'] !== null) $dedans[] = $b; else $dehors[] = $b;
             }
@@ -214,7 +217,7 @@ class GoutsBulles
         $dehors = [];
         foreach ($proches as $p) {
             if (isset($deja[$p['voisin_cle']]) || isset($choix[$p['voisin_cle']])) continue;
-            $b = self::bulle($p['voisin_cle'], $p['voisin_nom'], $p['image'], $biblio, $choix);
+            $b = self::bulle($p['voisin_cle'], $p['voisin_nom'], $p['image'], $biblio, $choix, $cle);
             if ($b['artistId'] !== null) $dedans[] = $b; else $dehors[] = $b;
         }
         return self::melanger($dedans, $dehors, $n);
@@ -258,7 +261,7 @@ class GoutsBulles
      * bibliothèque jamais décrit l'est tout de suite : sans ses voisins, il ne
      * servirait à rien.
      */
-    public static function choisir(PDO $db, string $user, string $nom, int $niveau, ?string $image): array
+    public static function choisir(PDO $db, string $user, string $nom, int $niveau, ?string $image, ?string $parent = null): array
     {
         $nom = trim($nom);
         if ($nom === '' || mb_strlen($nom) > 255) throw new InvalidArgumentException('Nom d\'artiste invalide');
@@ -268,9 +271,14 @@ class GoutsBulles
             $db->prepare('DELETE FROM gouts_choix WHERE user = ? AND cle = ?')->execute([$user, $cle]);
         } else {
             if ($image !== null && !preg_match('#^https?://#', $image)) $image = null; // les photos locales se recalculent
-            $db->prepare('INSERT INTO gouts_choix (user, cle, nom, niveau, image) VALUES (?, ?, ?, ?, ?)
-                          ON DUPLICATE KEY UPDATE niveau = VALUES(niveau), nom = VALUES(nom), image = COALESCE(VALUES(image), image)')
-               ->execute([$user, $cle, $nom, $niveau, $image !== null ? mb_substr($image, 0, 500) : null]);
+            // Le parent : la bulle depuis laquelle on l'a aimé (une clé, jamais
+            // lui-même). Gardé tant qu'on ne dit pas autre chose.
+            $parent = $parent !== null ? trim($parent) : null;
+            if ($parent === '' || $parent === $cle || ($parent !== null && strlen($parent) > 191)) $parent = null;
+            $db->prepare('INSERT INTO gouts_choix (user, cle, nom, niveau, image, parent_cle) VALUES (?, ?, ?, ?, ?, ?)
+                          ON DUPLICATE KEY UPDATE niveau = VALUES(niveau), nom = VALUES(nom), image = COALESCE(VALUES(image), image),
+                                                  parent_cle = COALESCE(VALUES(parent_cle), parent_cle)')
+               ->execute([$user, $cle, $nom, $niveau, $image !== null ? mb_substr($image, 0, 500) : null, $parent]);
             if (self::similaires($db, $cle) === []) GoutsSources::enrichirUn($db, $nom);
         }
         return ['cle' => $cle, 'niveau' => $niveau];

@@ -26,7 +26,7 @@ class _Faux extends PourToiRepository {
   @override
   Future<List<Bulle>> bulles() async => const [
     Bulle(cle: 'nofx', nom: 'NOFX', artistId: 1),
-    Bulle(cle: 'reset', nom: 'Reset', artistId: 2),
+    Bulle(cle: 'reset', nom: 'Reset', artistId: 2, parent: 'sum41'),
     // Aimé lors d'une visite précédente, relié à Reset.
     Bulle(cle: 'sum41', nom: 'Sum 41', niveau: 1, liens: ['reset']),
   ];
@@ -46,7 +46,13 @@ class _Faux extends PourToiRepository {
   ];
 
   @override
-  Future<void> choisir(Bulle b, int niveau) async => choix[b.cle] = niveau;
+  final parents = <String, String?>{};
+
+  @override
+  Future<void> choisir(Bulle b, int niveau, {String? parent}) async {
+    choix[b.cle] = niveau;
+    parents[b.cle] = parent;
+  }
 
   @override
   Future<void> analyser() async => analyses++;
@@ -162,6 +168,8 @@ void main() {
     await tester.tap(find.text('Reset'));
     await tester.pump(const Duration(milliseconds: 400));
     expect(faux.choix['reset'], 1);
+    // Le serveur retient d'où il pousse.
+    expect(faux.parents['reset'], 'sum41');
     await _laisser(tester, 3000);
     // Ses proches ont éclos, et il est resté sur sa branche.
     expect(find.text('Pennywise'), findsOneWidget);

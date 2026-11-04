@@ -112,6 +112,24 @@ class AppConfig {
             }
         }
 
+        // « Tes artistes » (serveur 1.15.0) : d'où pousse un artiste choisi —
+        // la bulle depuis laquelle on l'a aimé —, pour garder l'arbre d'une
+        // visite à l'autre. La table naît avec Gouts::assurerTables : absente,
+        // rien à faire.
+        try {
+            $stmt = $db->prepare(
+                "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+                 WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'gouts_choix'"
+            );
+            $stmt->execute([$dbName]);
+            $existing = array_column($stmt->fetchAll(PDO::FETCH_ASSOC), 'COLUMN_NAME');
+            if ($existing !== [] && !in_array('parent_cle', $existing)) {
+                $db->exec("ALTER TABLE gouts_choix ADD COLUMN parent_cle VARCHAR(191) NULL AFTER image");
+            }
+        } catch (PDOException $e) {
+            // ignore — e.g. race condition on concurrent boot
+        }
+
         // Écoutes (Pour toi, serveur 1.11.0) : le saut volontaire (bouton
         // « suivant ») et d'où venait le titre (mix, lecture automatique…),
         // que le profil de goûts lit pour peser chaque écoute.
