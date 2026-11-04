@@ -257,6 +257,14 @@ $dep = GoutsBulles::depart($db, $U);
 ok($dep[0]['niveau'] === 2 && $dep[0]['artistId'] === $artistes['G'], 'bulles : les choisies d\'abord, adorée en tête');
 $ext = array_values(array_filter($dep, fn($b) => $b['cle'] === Gouts::cle('EssaiGouts Externe')));
 ok($ext && $ext[0]['artistId'] === null && $ext[0]['image'] === 'https://exemple.test/x.jpg', 'bulle externe : sans fiche, avec sa photo');
+// En revenant modifier : les proches d'une choisie ont déjà poussé, juste après elle, reliés à elle.
+$cles = array_column($dep, 'cle');
+$iExt = array_search(Gouts::cle('EssaiGouts Externe'), $cles, true);
+$apres = array_slice($cles, $iExt + 1, 3);
+ok(array_intersect([Gouts::cle('EssaiGouts E'), Gouts::cle('EssaiGouts F'), Gouts::cle('EssaiGouts Loin')], $apres) !== [],
+    'bulles : les proches d\'une choisie poussent à côté d\'elle');
+ok(array_intersect([Gouts::cle('EssaiGouts E'), Gouts::cle('EssaiGouts F')], $dep[$iExt]['liens']) !== [], 'bulles : les fils du réseau');
+ok(count($cles) === count(array_unique($cles)), 'bulles : aucune en double');
 $aut = GoutsBulles::autour($db, $U, Gouts::cle('EssaiGouts Externe'), 'EssaiGouts Externe', [Gouts::cle('EssaiGouts E')], 6);
 $nomsAut = array_column($aut, 'nom');
 ok(in_array('EssaiGouts F', $nomsAut, true) && !in_array('EssaiGouts E', $nomsAut, true), 'autour : voisins, sans ceux déjà à l\'écran');

@@ -179,6 +179,7 @@ class Bulle {
     this.image,
     this.artistId,
     this.niveau = 0,
+    this.liens = const [],
   });
 
   final String cle;
@@ -186,6 +187,10 @@ class Bulle {
   final String? image;
   final int? artistId;
   final int niveau;
+
+  /// Les bulles à l'écran qui lui sont proches (serveur 1.13.0) : les fils
+  /// du réseau.
+  final List<String> liens;
 
   bool get dansBibliotheque => artistId != null;
 
@@ -195,6 +200,7 @@ class Bulle {
         image: image,
         artistId: artistId,
         niveau: n,
+        liens: liens,
       );
 }
 
@@ -334,6 +340,7 @@ class PourToiRepository {
         image: _library.absoluteUrl(j['image'] as String?),
         artistId: (j['artistId'] as num?)?.toInt(),
         niveau: (j['niveau'] as num?)?.toInt() ?? 0,
+        liens: [for (final l in j['liens'] as List? ?? const []) '$l'],
       );
 
   List<Bulle> _bulles(dynamic data) => [

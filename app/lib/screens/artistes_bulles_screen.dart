@@ -13,9 +13,11 @@ import '../widgets/champ_de_bulles.dart';
 import '../widgets/pour_toi_actions.dart';
 
 /// « Tes artistes », à la manière des bulles de Spotify : un toucher pour
-/// aimer, deux pour adorer, un troisième pour retirer. Aimer une bulle en
-/// fait éclore d'autres à côté — ses artistes proches —, ce qui permet de
-/// décrire un goût en partant de trois noms. La recherche trouve aussi des
+/// aimer, deux pour adorer, un troisième pour retirer. Aimer (ou adorer) une
+/// bulle en fait éclore d'autres à côté — ses artistes proches —, ce qui
+/// permet de décrire un goût en partant de trois noms. En revenant modifier,
+/// les proches des artistes choisis sont déjà là, reliés à eux : un réseau
+/// qui grandit d'un nœud à chaque artiste. La recherche trouve aussi des
 /// artistes hors de la bibliothèque : ils comptent quand même (leurs voisins
 /// dans la bibliothèque en profitent, et « À découvrir ailleurs » part d'eux).
 class ArtistesBullesScreen extends ConsumerStatefulWidget {
@@ -37,6 +39,9 @@ class _ArtistesBullesScreenState extends ConsumerState<ArtistesBullesScreen> {
 
   /// Les bulles qui viennent d'éclore → celle d'où elles sortent.
   final _origines = <String, String>{};
+
+  /// Celles qui ont déjà fait pousser leurs proches pendant cette visite.
+  final _ecloses = <String>{};
 
   PourToiRepository get _repo => ref.read(pourToiRepositoryProvider);
 
@@ -115,8 +120,9 @@ class _ArtistesBullesScreenState extends ConsumerState<ArtistesBullesScreen> {
       ).showSnackBar(SnackBar(content: Text('Échec : $e')));
       return;
     }
-    // Aimée pour la première fois : ses proches éclosent à côté.
-    if (avant == 0 && niveau == 1) unawaited(_eclore(b));
+    // Aimée ou adorée — même une bulle choisie avant cette visite : ses
+    // proches éclosent à côté, une fois par visite.
+    if (niveau > avant && !_ecloses.contains(b.cle)) unawaited(_eclore(b));
   }
 
   void _remplacer(String cle, int niveau, {Bulle? ajouter}) {
@@ -135,11 +141,21 @@ class _ArtistesBullesScreenState extends ConsumerState<ArtistesBullesScreen> {
     }
   }
 
-  Future<void> _eclore(Bulle b) async {
+  Future<void> _eclore(Bulle b, {bool dire = false}) async {
+    _ecloses.add(b.cle);
+    final messenger = ScaffoldMessenger.of(context);
     try {
       final deja = (_bulles ?? const <Bulle>[]).map((x) => x.cle);
       final nouvelles = await _repo.autour(b, deja);
-      if (!mounted || nouvelles.isEmpty) return;
+      if (!mounted) return;
+      if (nouvelles.isEmpty) {
+        if (dire) {
+          messenger.showSnackBar(
+            SnackBar(content: Text('Pas d\'autre artiste proche de ${b.nom}.')),
+          );
+        }
+        return;
+      }
       setState(() {
         final liste = _bulles!;
         final presentes = liste.map((x) => x.cle).toSet();
@@ -195,6 +211,14 @@ class _ArtistesBullesScreenState extends ConsumerState<ArtistesBullesScreen> {
                     _poser(b, n);
                   },
                 ),
+            ListTile(
+              leading: const Icon(Icons.hub_outlined),
+              title: const Text('Faire pousser ses proches'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _eclore(b, dire: true);
+              },
+            ),
             if (b.niveau > 0)
               ListTile(
                 leading: const Icon(Icons.remove_circle_outline),
@@ -323,7 +347,8 @@ class _ArtistesBullesScreenState extends ConsumerState<ArtistesBullesScreen> {
                 _resultats != null
                     ? 'Touche un artiste pour l\'ajouter.'
                     : 'Touche une fois pour aimer, deux pour adorer, '
-                          'trois pour retirer. Garde le doigt pour plus. La '
+                          'trois pour retirer : chaque artiste aimé fait '
+                          'pousser ses proches. Garde le doigt pour plus. La '
                           'recherche trouve aussi ceux que tu n\'as pas.'
                           '${choisies > 0 ? '  ·  $choisies choisis' : ''}',
                 style: TextStyle(

@@ -27,7 +27,8 @@ class _Faux extends PourToiRepository {
   Future<List<Bulle>> bulles() async => const [
     Bulle(cle: 'nofx', nom: 'NOFX', artistId: 1),
     Bulle(cle: 'reset', nom: 'Reset', artistId: 2),
-    Bulle(cle: 'sum41', nom: 'Sum 41'),
+    // Aimé lors d'une visite précédente, relié à Reset.
+    Bulle(cle: 'sum41', nom: 'Sum 41', niveau: 1, liens: ['reset']),
   ];
 
   @override
@@ -136,6 +137,33 @@ void main() {
     await tester.tap(find.text('NOFX'));
     await tester.pump(const Duration(milliseconds: 400));
     expect(faux.autourDe, ['nofx']);
+  });
+
+  testWidgets('en revenant modifier, adorer un artiste déjà aimé fait éclore', (
+    tester,
+  ) async {
+    final faux = await _pump(tester);
+    expect(find.bySemanticsLabel('Sum 41, aimé'), findsOneWidget);
+    await tester.tap(find.text('Sum 41'));
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(faux.choix['sum41'], 2);
+    expect(faux.autourDe, ['sum41']);
+    expect(find.text('Pennywise'), findsOneWidget);
+    await _laisser(tester);
+  });
+
+  testWidgets('« Faire pousser ses proches » depuis le menu', (tester) async {
+    final faux = await _pump(tester);
+    await tester.longPress(find.text('Reset'));
+    // Les bulles flottent sans fin : pas de pumpAndSettle.
+    await _laisser(tester, 600);
+    await tester.tap(find.text('Faire pousser ses proches'));
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(faux.autourDe, ['reset']);
+    expect(find.text('Pennywise'), findsOneWidget);
+    await _laisser(tester);
   });
 
   testWidgets('un artiste hors bibliothèque se trouve et s\'ajoute', (

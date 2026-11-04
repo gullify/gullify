@@ -8,6 +8,11 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.88.0', [
+    'Tes artistes : en revenant modifier, tes artistes ont déjà fait pousser leurs proches autour d\'eux — plus seulement la première fois (serveur 1.13.0).',
+    'Un réseau, comme des neurones : un fil relie chaque artiste à ses proches, un influx court le long des fils de ceux que tu aimes, et chaque nouvel artiste ajoute un nœud.',
+    'Aimer ou adorer un artiste, même choisi lors d\'une visite précédente, fait éclore ses proches ; garder le doigt → « Faire pousser ses proches » en ajoute d\'autres.',
+  ]),
   ReleaseNote('3.87.3', [
     'Google TV : les barres d\'égaliseur battent toujours, même quand le téléviseur est réglé pour réduire les animations.',
   ]),

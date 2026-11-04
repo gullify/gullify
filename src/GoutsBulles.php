@@ -45,18 +45,53 @@ class GoutsBulles
     }
 
     /**
-     * Les bulles de départ : ce qu'on a déjà choisi, puis les artistes qu'on
-     * écoute le plus, puis des artistes d'ailleurs, mêlés.
+     * Les bulles de départ : ce qu'on a déjà choisi, chacune suivie de ses
+     * artistes proches (on revient modifier : le réseau a déjà poussé), puis
+     * les artistes qu'on écoute le plus et des artistes d'ailleurs, mêlés.
+     * Chaque bulle porte ses `liens` : les bulles à l'écran qui lui sont
+     * proches, les fils du réseau que l'app dessine.
      */
     public static function depart(PDO $db, string $user, int $n = 36): array
     {
         $biblio = self::bibliotheque($db, $user);
         $choix = Gouts::choix($db, $user);
-        $vus = [];
+        $rejetes = self::rejetes($db, $user);
+        $vus = $choix === [] ? [] : array_fill_keys(array_map('strval', array_keys($choix)), true);
         $out = [];
+
+        // Des choisies jamais décrites (choisies avant qu'on décrive tout de
+        // suite, ou la source était muette) : deux par ouverture, pas plus.
+        $voisins = self::voisinsDe($db, array_keys($choix));
+        $aDecrire = 2;
         foreach ($choix as $cle => $c) {
+            if ($aDecrire <= 0) break;
+            if (isset($voisins[$cle]) || self::dejaCherche($db, (string)$cle)) continue;
+            $aDecrire--;
+            if (GoutsSources::enrichirUn($db, $c['nom'])) $voisins[$cle] = self::similaires($db, (string)$cle);
+        }
+
+        // Chaque choisie, puis ses proches : deux tiers dans la bibliothèque.
+        // Trois chacune au plus, et une trentaine en tout.
+        $parChoix = $choix === [] ? 0 : max(1, min(3, (int)ceil(30 / count($choix))));
+        $proposes = 0;
+        foreach ($choix as $cle => $c) {
+            $cle = (string)$cle;
             $out[] = self::bulle($cle, $c['nom'], $c['image'], $biblio, $choix);
-            $vus[$cle] = true;
+            if ($proposes >= 30) continue;
+            $dedans = [];
+            $dehors = [];
+            foreach ($voisins[$cle] ?? [] as $p) {
+                $vc = $p['voisin_cle'];
+                if (isset($vus[$vc]) || Gouts::artisteVide((string)$p['voisin_nom'])) continue;
+                $b = self::bulle($vc, $p['voisin_nom'], $p['image'], $biblio, $choix);
+                if ($b['artistId'] !== null && isset($rejetes[$b['artistId']])) continue;
+                if ($b['artistId'] !== null) $dedans[] = $b; else $dehors[] = $b;
+            }
+            foreach (self::melanger($dedans, $dehors, min($parChoix, 30 - $proposes)) as $b) {
+                $vus[$b['cle']] = true;
+                $out[] = $b;
+                $proposes++;
+            }
         }
 
         // Les écoutés (affinité), à défaut les plus fournis de la bibliothèque.
@@ -73,7 +108,7 @@ class GoutsBulles
         $l = [];
         foreach ($locaux as $r) {
             $cle = Gouts::cle($r['name']);
-            if (isset($vus[$cle]) || Gouts::artisteVide((string)$r['name'])) continue;
+            if (isset($vus[$cle]) || isset($rejetes[(int)$r['id']]) || Gouts::artisteVide((string)$r['name'])) continue;
             $vus[$cle] = true;
             $l[] = self::bulle($cle, $r['name'], null, $biblio, $choix);
         }
@@ -97,7 +132,63 @@ class GoutsBulles
             $out[] = $pris;
             $reste--;
         }
+        return self::relier($db, $out);
+    }
+
+    /** Les artistes écartés (« Pas pour moi ») : id => true. */
+    private static function rejetes(PDO $db, string $user): array
+    {
+        $q = $db->prepare("SELECT cible_id FROM gouts_rejets WHERE user = ? AND type = 'artist'");
+        $q->execute([$user]);
+        return array_fill_keys(array_map('intval', $q->fetchAll(PDO::FETCH_COLUMN)), true);
+    }
+
+    /** Les proches de plusieurs artistes d'un coup : clé => [proches, du plus proche au moins]. */
+    private static function voisinsDe(PDO $db, array $cles): array
+    {
+        $out = [];
+        foreach (array_chunk(array_map('strval', $cles), 200) as $lot) {
+            $in = implode(',', array_fill(0, count($lot), '?'));
+            $q = $db->prepare("SELECT cle, voisin_cle, voisin_nom, image FROM artistes_similaires
+                                WHERE cle IN ($in) ORDER BY score DESC");
+            $q->execute($lot);
+            while ($r = $q->fetch(PDO::FETCH_ASSOC)) {
+                $r['voisin_cle'] = (string)$r['voisin_cle'];
+                $out[(string)$r['cle']][] = $r;
+            }
+        }
         return $out;
+    }
+
+    private static function dejaCherche(PDO $db, string $cle): bool
+    {
+        $q = $db->prepare('SELECT 1 FROM artistes_enrichis WHERE cle = ?');
+        $q->execute([$cle]);
+        return (bool)$q->fetchColumn();
+    }
+
+    /** Deux tiers de la bibliothèque, un tiers d'ailleurs, quand on peut. */
+    private static function melanger(array $dedans, array $dehors, int $n): array
+    {
+        if ($n <= 0) return [];
+        $nDedans = min(count($dedans), max($n - count($dehors), (int)ceil($n * 2 / 3)));
+        return array_slice(array_merge(array_slice($dedans, 0, $nDedans), $dehors, array_slice($dedans, $nDedans)), 0, $n);
+    }
+
+    /** Les fils du réseau : pour chaque bulle, les bulles à l'écran qui lui sont proches. */
+    private static function relier(PDO $db, array $bulles): array
+    {
+        $ecran = array_fill_keys(array_column($bulles, 'cle'), true);
+        $voisins = self::voisinsDe($db, array_keys($ecran));
+        foreach ($bulles as &$b) {
+            $liens = [];
+            foreach ($voisins[$b['cle']] ?? [] as $p) {
+                if ($p['voisin_cle'] !== $b['cle'] && isset($ecran[$p['voisin_cle']])) $liens[] = $p['voisin_cle'];
+            }
+            $b['liens'] = array_values(array_unique($liens));
+        }
+        unset($b);
+        return $bulles;
     }
 
     /**
@@ -124,9 +215,7 @@ class GoutsBulles
             $b = self::bulle($p['voisin_cle'], $p['voisin_nom'], $p['image'], $biblio, $choix);
             if ($b['artistId'] !== null) $dedans[] = $b; else $dehors[] = $b;
         }
-        // Deux tiers de la bibliothèque, un tiers d'ailleurs, quand on peut.
-        $nDedans = min(count($dedans), max($n - count($dehors), (int)ceil($n * 2 / 3)));
-        return array_slice(array_merge(array_slice($dedans, 0, $nDedans), $dehors, array_slice($dedans, $nDedans)), 0, $n);
+        return self::melanger($dedans, $dehors, $n);
     }
 
     private static function similaires(PDO $db, string $cle): array

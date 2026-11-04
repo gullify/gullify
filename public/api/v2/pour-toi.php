@@ -12,7 +12,7 @@
  *   POST ?action=rejeter    {type: song|artist, id}      « Pas pour moi »
  *   POST ?action=retablir   {type: song|artist, id}
  *   POST ?action=analyser                      → refait le profil et les rayons maintenant
- *   GET  ?action=bulles                        → « Tes artistes » : bulles de départ
+ *   GET  ?action=bulles                        → « Tes artistes » : bulles de départ (choisis + leurs proches, `liens`)
  *   GET  ?action=bulles&autour=<clé>&nom=…&deja=k1,k2  → ce qui éclot à côté d'une bulle aimée
  *   GET  ?action=chercher_artiste&q=…          → bibliothèque puis monde (Last.fm / YouTube Music)
  *   POST ?action=choisir    {nom, niveau: 0|1|2, image?}   0 retirer, 1 aimer, 2 adorer

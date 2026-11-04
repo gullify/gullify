@@ -18,7 +18,11 @@ import 'artwork.dart';
 ///  - au repos, elles flottent doucement, toujours — quel que soit le
 ///    réglage d'animations du téléphone (demande de Maxime) ;
 ///  - aimer fait jaillir des cœurs, adorer en plus une onde ;
-///  - les bulles qui éclosent sortent de celle qu'on vient d'aimer.
+///  - les bulles qui éclosent sortent de celle qu'on vient d'aimer ;
+///  - un réseau, comme des neurones : un fil relie chaque bulle à ses
+///    proches (Bulle.liens, et la bulle d'où elle a éclos), un léger ressort
+///    les rapproche, et un influx court le long des fils qui partent d'un
+///    artiste choisi.
 ///
 /// Le champ calcule sa propre hauteur : le placer dans un défilement.
 class ChampDeBulles extends StatefulWidget {
@@ -89,6 +93,7 @@ class _ChampDeBullesState extends State<ChampDeBulles>
   double _t = 0;
   double _largeur = 0;
   double _hauteur = 200;
+  List<(String, String)> _fils = const [];
 
   static const _rangee = 150.0;
   static const _haut = 72.0;
@@ -176,6 +181,27 @@ class _ChampDeBullesState extends State<ChampDeBulles>
     }
   }
 
+  /// Les fils du réseau entre bulles présentes, chaque paire une fois.
+  List<(String, String)> _relier() {
+    final presentes = {for (final b in widget.bulles) b.cle};
+    final vues = <String>{};
+    final out = <(String, String)>[];
+    void relier(String a, String b) {
+      if (a == b || !presentes.contains(a) || !presentes.contains(b)) return;
+      if (vues.add(a.compareTo(b) < 0 ? '$a\u0000$b' : '$b\u0000$a')) {
+        out.add((a, b));
+      }
+    }
+
+    for (final b in widget.bulles) {
+      for (final l in b.liens) {
+        relier(b.cle, l);
+      }
+    }
+    widget.origines.forEach((enfant, mere) => relier(mere, enfant));
+    return out;
+  }
+
   void _celebrer(String cle, int avant, int apres) {
     _niveaux[cle] = apres;
     final c = _corps[cle];
@@ -227,6 +253,19 @@ class _ChampDeBullesState extends State<ChampDeBulles>
       c.vy += ((c.ay - c.y) * 22 - c.vy * 7) * dt;
       c.x += c.vx * dt;
       c.y += c.vy * dt;
+    }
+    // Les fils tirent un peu les proches l'un vers l'autre.
+    for (final (ka, kb) in _fils) {
+      final a = _corps[ka], b = _corps[kb];
+      if (a == null || b == null) continue;
+      final dx = b.x - a.x, dy = b.y - a.y;
+      final d = sqrt(dx * dx + dy * dy);
+      if (d <= 160) continue;
+      final f = (d - 160) / d * 1.6 * dt;
+      a.vx += dx * f;
+      a.vy += dy * f;
+      b.vx -= dx * f;
+      b.vy -= dy * f;
     }
     // Les bulles se repoussent quand elles se touchent.
     for (var i = 0; i < corps.length; i++) {
@@ -280,12 +319,55 @@ class _ChampDeBullesState extends State<ChampDeBulles>
         } else {
           _placer(largeur);
         }
+        _fils = _relier();
+        final choisies = {
+          for (final b in widget.bulles)
+            if (b.niveau > 0) b.cle,
+        };
+        final visibles = <_Fil>[];
+        for (final (ka, kb) in _fils) {
+          final a = _corps[ka], b = _corps[kb];
+          if (a == null || b == null) continue;
+          final opacite = min(a.r, b.r) / ChampDeBulles.rayonDe(0);
+          if (opacite <= 0.02) continue;
+          // L'influx part de l'artiste choisi.
+          final (de, vers) = choisies.contains(kb) && !choisies.contains(ka)
+              ? (b, a)
+              : (a, b);
+          // Du bord d'un rond au bord de l'autre : rien ne passe sur les
+          // photos (ni sur celles qui chargent encore).
+          final ca = _centre(de), cb = _centre(vers);
+          final ecart = cb - ca;
+          if (ecart.distance <= de.r + vers.r + 4) continue;
+          final sens = ecart / ecart.distance;
+          visibles.add(
+            _Fil(
+              ca + sens * (de.r + 2),
+              cb - sens * (vers.r + 2),
+              actif: choisies.contains(ka) || choisies.contains(kb),
+              phase: ((ka.hashCode ^ kb.hashCode) % 1000) / 1000,
+              opacite: opacite.clamp(0.0, 1.0),
+            ),
+          );
+        }
         return SizedBox(
           width: largeur,
           height: _hauteur,
           child: Stack(
             clipBehavior: Clip.none,
             children: [
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: CustomPaint(
+                    painter: _Reseau(
+                      visibles,
+                      _t,
+                      actif: scheme.primary,
+                      calme: scheme.outlineVariant,
+                    ),
+                  ),
+                ),
+              ),
               for (final b in widget.bulles)
                 if (_corps[b.cle] case final c?) _bulle(b, c, scheme),
               for (final p in _particules) _particule(p, scheme),
@@ -296,8 +378,13 @@ class _ChampDeBullesState extends State<ChampDeBulles>
     );
   }
 
+  double _flotte(_Corps c) => sin(_t * 1.4 + c.phase) * 3.0;
+
+  /// Le centre du rond, tel qu'il est dessiné (flottement compris).
+  Offset _centre(_Corps c) => Offset(c.x, c.y + _flotte(c));
+
   Widget _bulle(Bulle b, _Corps c, ColorScheme scheme) {
-    final flotte = sin(_t * 1.4 + c.phase) * 3.0;
+    final flotte = _flotte(c);
     final r = c.r;
     const largeurEtiquette = 112.0;
     final etat = switch (b.niveau) {
@@ -452,6 +539,71 @@ class _ChampDeBullesState extends State<ChampDeBulles>
       ),
     );
   }
+}
+
+class _Fil {
+  const _Fil(
+    this.de,
+    this.vers, {
+    required this.actif,
+    required this.phase,
+    required this.opacite,
+  });
+
+  final Offset de, vers;
+  final bool actif; // touche un artiste choisi
+  final double phase;
+  final double opacite;
+}
+
+/// Les fils du réseau, derrière les bulles : des courbes douces, et sur
+/// ceux qui partent d'un artiste choisi, un influx qui court jusqu'au
+/// voisin.
+class _Reseau extends CustomPainter {
+  _Reseau(this.fils, this.t, {required this.actif, required this.calme});
+
+  final List<_Fil> fils;
+  final double t;
+  final Color actif;
+  final Color calme;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final trait = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+    final influx = Paint()
+      ..color = actif
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3);
+    for (final f in fils) {
+      final d = f.vers - f.de;
+      if (d.distance < 1) continue;
+      // Le point de contrôle, un peu de côté : un fil qui ondule, pas une
+      // règle. Le côté dépend du fil, il ne change pas.
+      final normale = Offset(-d.dy, d.dx) / d.distance;
+      final cote = f.phase < 0.5 ? 1.0 : -1.0;
+      final ctrl = f.de + d / 2 + normale * (d.distance * 0.12 * cote);
+      final chemin = Path()
+        ..moveTo(f.de.dx, f.de.dy)
+        ..quadraticBezierTo(ctrl.dx, ctrl.dy, f.vers.dx, f.vers.dy);
+      trait
+        ..color = (f.actif ? actif : calme).withValues(
+          alpha: (f.actif ? 0.5 : 0.55) * f.opacite,
+        )
+        ..strokeWidth = f.actif ? 2 : 1.2;
+      canvas.drawPath(chemin, trait);
+      if (!f.actif) continue;
+      // L'influx : un point lumineux, un trajet toutes les 2,2 s environ.
+      final p = (t / 2.2 + f.phase) % 1.0;
+      final u = 1 - p;
+      final pos = f.de * (u * u) + ctrl * (2 * u * p) + f.vers * (p * p);
+      influx.color = actif.withValues(alpha: sin(p * pi) * f.opacite);
+      canvas.drawCircle(pos, 4, influx);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_Reseau old) => true;
 }
 
 class _Badge extends StatelessWidget {
