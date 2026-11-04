@@ -45,7 +45,6 @@ class _Faux extends PourToiRepository {
     Bulle(cle: 'beaudommage', nom: 'Beau Dommage'),
   ];
 
-  @override
   final parents = <String, String?>{};
 
   @override

@@ -44,6 +44,7 @@ import 'screens/popular_screen.dart';
 import 'screens/rayon_screen.dart';
 import 'screens/gouts_screen.dart';
 import 'screens/artistes_bulles_screen.dart';
+import 'screens/artistes_suggeres_screen.dart';
 import 'screens/radio_edit_screen.dart';
 import 'screens/radio_screen.dart';
 import 'api/radio_repository.dart';
@@ -295,6 +296,11 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/gouts/artistes',
         builder: (_, _) => const ArtistesBullesScreen(),
+      ),
+      // Accueil → Découvrir : aimés pas encore chez soi, puis suggérés.
+      GoRoute(
+        path: '/decouvrir/artistes',
+        builder: (_, _) => const ArtistesSuggeresScreen(),
       ),
       // « Découvrir sur Bandcamp » (idée #111) : genres → sous-genres → liste.
       GoRoute(

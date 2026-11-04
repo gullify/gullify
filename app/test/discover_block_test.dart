@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:gullify/api/notifications_repository.dart';
+import 'package:gullify/api/pour_toi_repository.dart';
 import 'package:gullify/api/stats_repository.dart';
 import 'package:gullify/api/yt_downloads_repository.dart';
 import 'package:gullify/screens/home_screen.dart';
@@ -46,7 +47,11 @@ const _stats = ListeningStats(
 /// L'accueil sans réseau : seuls les providers que la page regarde sont
 /// remplacés. `discover` est le tirage de l'artiste voisin — une valeur, rien
 /// du tout, ou une panne de YouTube Music.
-ProviderContainer _container({DiscoverArtist? discover, bool failing = false}) {
+ProviderContainer _container({
+  DiscoverArtist? discover,
+  bool failing = false,
+  List<ArtisteSuggere>? suggestions,
+}) {
   final container = ProviderContainer(
     // Riverpod 3 relance tout seul un provider qui a échoué : la minuterie
     // de cette reprise survit au test et le fait tomber sur « Timer still
@@ -62,6 +67,11 @@ ProviderContainer _container({DiscoverArtist? discover, bool failing = false}) {
       // Un serveur d'avant « Pour toi » : la section se tait.
       pourToiAccueilProvider.overrideWith(
         (ref) async => throw Exception('pas de pour-toi.php'),
+      ),
+      // Sans liste : un serveur d'avant les artistes suggérés (1.16.0), qui
+      // garde la suggestion d'un artiste voisin.
+      suggestionsArtistesProvider.overrideWith(
+        (ref) async => suggestions ?? (throw Exception('pas de suggestions')),
       ),
       discoverArtistProvider.overrideWith((ref) async {
         if (failing) throw Exception('YouTube Music injoignable');
@@ -86,7 +96,12 @@ Future<GoRouter> _pumpHome(
   final router = GoRouter(
     routes: [
       GoRoute(path: '/', builder: (_, _) => const HomeScreen()),
-      for (final path in const ['/search', '/bandcamp', '/podcasts'])
+      for (final path in const [
+        '/search',
+        '/bandcamp',
+        '/podcasts',
+        '/decouvrir/artistes',
+      ])
         GoRoute(
           path: path,
           builder: (_, _) => Scaffold(body: Text('page $path')),
@@ -182,5 +197,45 @@ void main() {
     await tester.tap(find.text('Podcasts'));
     await tester.pumpAndSettle();
     expect(find.text('page /podcasts'), findsOneWidget);
+  });
+
+  testWidgets(
+    'artistes suggérés : remplace l\'artiste voisin et mène à la liste',
+    (tester) async {
+      final container = _container(
+        discover: _discover,
+        suggestions: const [
+          ArtisteSuggere(
+            bulle: Bulle(cle: 'beaudommage', nom: 'Beau Dommage', niveau: 2),
+            groupe: 'gouts',
+            raison: 'Tu l\'adores',
+          ),
+          ArtisteSuggere(
+            bulle: Bulle(cle: 'harmonium', nom: 'Harmonium'),
+            groupe: 'suggeres',
+            raison: 'Proche de Beau Dommage',
+          ),
+        ],
+      );
+      await _pumpHome(tester, container);
+
+      expect(find.text('Artistes suggérés'), findsOneWidget);
+      expect(find.textContaining('1 dans tes goûts'), findsOneWidget);
+      expect(find.text('Voisine'), findsNothing);
+
+      await tester.tap(find.text('Artistes suggérés'));
+      await tester.pumpAndSettle();
+      expect(find.text('page /decouvrir/artistes'), findsOneWidget);
+    },
+  );
+
+  testWidgets('aucune suggestion : ni rangée vide, ni artiste voisin', (
+    tester,
+  ) async {
+    final container = _container(discover: _discover, suggestions: const []);
+    await _pumpHome(tester, container);
+
+    expect(find.text('Artistes suggérés'), findsNothing);
+    expect(find.text('Podcasts'), findsOneWidget);
   });
 }

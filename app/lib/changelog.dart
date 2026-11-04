@@ -8,6 +8,10 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.91.0', [
+    'Page d\'un artiste : les artistes similaires viennent maintenant de Last.fm quand ton serveur a une clé (sinon YouTube Music) ; ceux déjà dans ta bibliothèque ouvrent leur fiche (serveur 1.16.0).',
+    'Accueil → Découvrir : « Artistes suggérés » remplace la suggestion d\'un seul artiste et mène à toute la liste — d\'abord les artistes que tu aimes dans tes goûts mais pas encore dans ta bibliothèque, puis ceux qui te sont proposés. Le cœur ajoute un artiste à tes goûts.',
+  ]),
   ReleaseNote('3.90.0', [
     'Tes artistes : fini le gros paquet collé. Chaque artiste choisi a son propre petit arbre, avec ses satellites ; les arbres se rangent deux par rangée, en quinconce.',
     'Une branche ne se fait que par toi : aimer un satellite le garde sous l\'artiste d\'où il vient, et le serveur s\'en souvient d\'une visite à l\'autre (serveur 1.15.0).',

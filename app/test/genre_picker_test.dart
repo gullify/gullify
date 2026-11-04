@@ -14,6 +14,7 @@ import 'package:gullify/models/song.dart';
 import 'package:gullify/screens/artist_screen.dart';
 import 'package:gullify/state/genre_medley.dart';
 import 'package:gullify/state/library.dart';
+import 'package:gullify/state/pour_toi.dart';
 import 'package:gullify/state/yt_downloads.dart';
 
 const _taxonomy = [
@@ -141,6 +142,7 @@ Widget _wrap(
       // session, qui arme un minuteur que le test ne verra jamais expirer.
       ytArtistAlbumsProvider('Artiste Test').overrideWith((ref) async => []),
       relatedArtistsProvider('Artiste Test').overrideWith((ref) async => []),
+      prochesArtisteProvider('Artiste Test').overrideWith((ref) async => []),
       artistDetailProvider(1).overrideWith((ref) async => ArtistDetail(
             artist: Artist(id: 1, name: 'Artiste Test', albumCount: 1, genre: genre),
             albums: const [Album(id: 1, name: 'Album Test', year: 2024)],

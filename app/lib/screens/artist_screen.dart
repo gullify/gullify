@@ -10,6 +10,7 @@ import '../api/yt_downloads_repository.dart';
 import '../state/genre_medley.dart';
 import '../state/library.dart';
 import '../state/player.dart';
+import '../state/pour_toi.dart';
 import '../state/yt_downloads.dart';
 import '../widgets/artwork.dart';
 import '../widgets/adaptive_layout.dart';
@@ -474,8 +475,11 @@ class _ArtistPlayBarState extends ConsumerState<_ArtistPlayBar> {
   }
 }
 
-/// Artistes similaires (YouTube Music) : carrousel d'avatars ronds. Un tap
-/// lance une recherche sur ce nom pour l'explorer / télécharger.
+/// Artistes similaires : carrousel d'avatars ronds. Ils viennent du serveur
+/// (Last.fm quand il a une clé, sinon YouTube Music) ; un serveur d'avant
+/// la 1.16.0 n'en sait rien, l'app demande alors à YouTube Music. Un
+/// artiste déjà dans la bibliothèque ouvre sa fiche ; les autres, une
+/// recherche pour l'écouter ou le télécharger.
 class _SimilarArtists extends ConsumerWidget {
   const _SimilarArtists({required this.name});
 
@@ -483,75 +487,94 @@ class _SimilarArtists extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final related = ref.watch(relatedArtistsProvider(name));
-    return related.maybeWhen(
-      data: (artists) {
-        if (artists.isEmpty) return const SizedBox.shrink();
-        final scheme = Theme.of(context).colorScheme;
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SectionTitle('Artistes similaires'),
-            SizedBox(
-              height: 148,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.fromLTRB(20, 10, 20, 12),
-                itemCount: artists.length,
-                separatorBuilder: (_, _) => const SizedBox(width: 14),
-                itemBuilder: (context, i) {
-                  final a = artists[i];
-                  return SizedBox(
-                    width: 92,
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(46),
-                      onTap: () {
-                        ref.read(searchQueryProvider.notifier).set(a.name);
-                        context.go('/search');
-                      },
-                      child: Column(
-                        children: [
-                          DecoratedBox(
-                            decoration: const BoxDecoration(
-                              shape: BoxShape.circle,
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Color(0x33000000),
-                                  blurRadius: 14,
-                                  offset: Offset(0, 6),
-                                ),
-                              ],
+    final serveur = ref.watch(prochesArtisteProvider(name));
+    // Le serveur n'a rien (ou ne sait pas) : YouTube Music, depuis l'app.
+    final repli = serveur.hasError || (serveur.hasValue && serveur.value!.isEmpty);
+    final List<(String, String?, int?)>? artistes = repli
+        ? ref
+              .watch(relatedArtistsProvider(name))
+              .value
+              ?.map(
+                (a) => (a.name, a.thumbnail.isEmpty ? null : a.thumbnail, null),
+              )
+              .toList()
+        : serveur.value?.map((b) => (b.nom, b.image, b.artistId)).toList();
+    if (artistes == null || artistes.isEmpty) return const SizedBox.shrink();
+    final scheme = Theme.of(context).colorScheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SectionTitle('Artistes similaires'),
+        SizedBox(
+          height: 160,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.fromLTRB(20, 10, 20, 12),
+            itemCount: artistes.length,
+            separatorBuilder: (_, _) => const SizedBox(width: 14),
+            itemBuilder: (context, i) {
+              final (nom, image, artistId) = artistes[i];
+              return SizedBox(
+                width: 92,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(46),
+                  onTap: () {
+                    if (artistId != null) {
+                      context.push('/artist/$artistId');
+                    } else {
+                      ref.read(searchQueryProvider.notifier).set(nom);
+                      context.go('/search');
+                    }
+                  },
+                  child: Column(
+                    children: [
+                      DecoratedBox(
+                        decoration: const BoxDecoration(
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Color(0x33000000),
+                              blurRadius: 14,
+                              offset: Offset(0, 6),
                             ),
-                            child: Artwork(
-                              url: a.thumbnail.isEmpty ? null : a.thumbnail,
-                              size: 88,
-                              borderRadius: 44,
-                              icon: Icons.person,
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            a.name,
-                            maxLines: 1,
-                            textAlign: TextAlign.center,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 12.5,
-                              fontWeight: FontWeight.w600,
-                              color: scheme.onSurface,
-                            ),
-                          ),
-                        ],
+                          ],
+                        ),
+                        child: Artwork(
+                          url: image,
+                          size: 88,
+                          borderRadius: 44,
+                          icon: Icons.person,
+                        ),
                       ),
-                    ),
-                  );
-                },
-              ),
-            ),
-          ],
-        );
-      },
-      orElse: () => const SizedBox.shrink(),
+                      const SizedBox(height: 6),
+                      Text(
+                        nom,
+                        maxLines: 1,
+                        textAlign: TextAlign.center,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w600,
+                          color: scheme.onSurface,
+                        ),
+                      ),
+                      Text(
+                        artistId != null ? 'Dans ta biblio' : 'À découvrir',
+                        maxLines: 1,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: scheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 }

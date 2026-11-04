@@ -11,6 +11,7 @@ import 'package:gullify/models/album.dart';
 import 'package:gullify/models/artist.dart';
 import 'package:gullify/screens/artist_screen.dart';
 import 'package:gullify/state/library.dart';
+import 'package:gullify/state/pour_toi.dart';
 import 'package:gullify/state/yt_downloads.dart';
 
 class _FakeLibraryRepo extends Fake implements LibraryRepository {
@@ -65,6 +66,7 @@ Widget _wrap(_FakeLibraryRepo repo) => ProviderScope(
         // Sans ça, la fiche interroge YouTube — donc le réseau.
         ytArtistAlbumsProvider('Artiste Test').overrideWith((ref) async => []),
         relatedArtistsProvider('Artiste Test').overrideWith((ref) async => []),
+        prochesArtisteProvider('Artiste Test').overrideWith((ref) async => []),
         artistDetailProvider(1).overrideWith((ref) async => const ArtistDetail(
               artist: Artist(id: 1, name: 'Artiste Test', albumCount: 1),
               albums: [Album(id: 1, name: 'Album Test')],

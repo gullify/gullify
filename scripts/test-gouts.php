@@ -273,6 +273,19 @@ GoutsBulles::choisir($db, $U, 'EssaiGouts F', 2, null); // adorer ensuite garde 
 $f = array_values(array_filter(GoutsBulles::depart($db, $U), fn($b) => $b['cle'] === Gouts::cle('EssaiGouts F')));
 ok($f && $f[0]['niveau'] === 2 && $f[0]['parent'] === Gouts::cle('EssaiGouts Externe'), 'parent retenu, même en adorant ensuite');
 GoutsBulles::choisir($db, $U, 'EssaiGouts F', 0, null);
+// Page de l'artiste : ses proches, ceux de la bibliothèque reconnus.
+$pr = GoutsBulles::proches($db, $U, 'EssaiGouts Externe');
+$nomsPr = array_column($pr, 'nom');
+ok(in_array('EssaiGouts E', $nomsPr, true) && in_array('EssaiGouts Loin', $nomsPr, true), 'proches : les voisins de l\'artiste');
+$e = array_values(array_filter($pr, fn($b) => $b['nom'] === 'EssaiGouts E'));
+ok($e && $e[0]['artistId'] === $artistes['E'], 'proches : un voisin de la bibliothèque a sa fiche');
+// Accueil → Découvrir : d'abord les aimés qu'on n'a pas, puis le reste ; jamais la bibliothèque.
+$sug = GoutsBulles::suggestions($db, $U);
+ok($sug && $sug[0]['nom'] === 'EssaiGouts Externe' && $sug[0]['groupe'] === 'gouts', 'suggestions : l\'artiste aimé pas encore chez soi en premier');
+ok(count(array_filter($sug, fn($b) => $b['artistId'] !== null)) === 0, 'suggestions : rien de la bibliothèque');
+ok(in_array('EssaiGouts Loin', array_column($sug, 'nom'), true), 'suggestions : puis des artistes proches qu\'on n\'a pas');
+$cs = array_column($sug, 'cle');
+ok(count($cs) === count(array_unique($cs)), 'suggestions : aucun en double');
 $aut = GoutsBulles::autour($db, $U, Gouts::cle('EssaiGouts Externe'), 'EssaiGouts Externe', [Gouts::cle('EssaiGouts E')], 6);
 $nomsAut = array_column($aut, 'nom');
 ok(in_array('EssaiGouts F', $nomsAut, true) && !in_array('EssaiGouts E', $nomsAut, true), 'autour : voisins, sans ceux déjà à l\'écran');

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../api/pour_toi_repository.dart';
 import '../api/stats_repository.dart';
 import '../models/album.dart';
 import '../state/discover.dart';
@@ -45,6 +46,7 @@ class HomeScreen extends ConsumerWidget {
             ref.invalidate(popularSongsProvider);
             ref.invalidate(statsProvider);
             ref.invalidate(discoverArtistProvider);
+            ref.invalidate(suggestionsArtistesProvider);
             ref.invalidate(pourToiAccueilProvider);
             return ref.refresh(recentAlbumsProvider.future);
           },
@@ -471,7 +473,12 @@ class _DiscoverBlock extends ConsumerWidget {
     final scheme = Theme.of(context).colorScheme;
     // Rien pendant le chargement comme en cas d'erreur : la rangée de
     // l'artiste voisin apparaît quand il y a vraiment quelqu'un à proposer.
-    final discover = ref.watch(discoverArtistProvider).value;
+    // Les artistes suggérés du serveur (1.16.0) ; un serveur d'avant n'en
+    // sait rien : on garde alors la suggestion d'un artiste voisin.
+    final suggestions = ref.watch(suggestionsArtistesProvider);
+    final discover = suggestions.hasError
+        ? ref.watch(discoverArtistProvider).value
+        : null;
     final retro = isRetroSkin(context);
 
     final contents = Column(
@@ -499,7 +506,10 @@ class _DiscoverBlock extends ConsumerWidget {
             ],
           ),
         ),
-        if (discover != null) ...[
+        if (suggestions.value case final liste? when liste.isNotEmpty) ...[
+          _SuggestionsRow(artistes: liste),
+          const _DiscoverSeparator(),
+        ] else if (discover != null) ...[
           _DiscoverArtistRow(discover: discover),
           const _DiscoverSeparator(),
         ],
@@ -681,6 +691,98 @@ class _DiscoverBadge extends StatelessWidget {
 /// suggéré par YouTube Music à partir d'un artiste de sa bibliothèque. Un tap
 /// lance une recherche sur ce nom (pour l'explorer / le télécharger) ; le
 /// bouton relance un tirage.
+/// « Artistes suggérés » : trois visages en éventail et ce qui attend — en
+/// premier les artistes aimés dans tes goûts mais pas encore chez toi. Mène
+/// à la liste entière.
+class _SuggestionsRow extends StatelessWidget {
+  const _SuggestionsRow({required this.artistes});
+
+  final List<ArtisteSuggere> artistes;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final gouts = artistes.where((a) => a.dansTesGouts).length;
+    final visages = artistes.take(3).toList();
+    final premiers = visages.map((a) => a.bulle.nom).join(', ');
+    return InkWell(
+      onTap: () => context.push('/decouvrir/artistes'),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 10, 12, 10),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 52 + 22.0 * (visages.length - 1),
+              height: 52,
+              child: Stack(
+                children: [
+                  for (final (i, a) in visages.indexed.toList().reversed)
+                    Positioned(
+                      left: 22.0 * i,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(color: scheme.surface, width: 2),
+                          boxShadow: const [
+                            BoxShadow(
+                              color: Color(0x33000000),
+                              blurRadius: 10,
+                              offset: Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: Artwork(
+                          url: a.bulle.image,
+                          size: 48,
+                          borderRadius: 24,
+                          icon: Icons.person,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Artistes suggérés',
+                    style: TextStyle(
+                      fontSize: 15.5,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.3,
+                    ),
+                  ),
+                  const SizedBox(height: 1),
+                  Text(
+                    gouts > 0
+                        ? '$gouts dans tes goûts, pas encore chez toi · '
+                              '$premiers'
+                        : premiers,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 12,
+                      height: 1.15,
+                      color: scheme.onSurface.withValues(alpha: 0.72),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              Icons.chevron_right,
+              color: scheme.onSurface.withValues(alpha: 0.6),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _DiscoverArtistRow extends ConsumerWidget {
   const _DiscoverArtistRow({required this.discover});
 

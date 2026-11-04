@@ -210,6 +210,23 @@ class Bulle {
       );
 }
 
+/// Un artiste suggéré (accueil → Découvrir, serveur 1.16.0) : [groupe]
+/// `gouts` pour ceux aimés dans « Tes artistes » mais pas encore dans la
+/// bibliothèque, `suggeres` pour les autres ; [raison] dit pourquoi.
+class ArtisteSuggere {
+  const ArtisteSuggere({
+    required this.bulle,
+    required this.groupe,
+    required this.raison,
+  });
+
+  final Bulle bulle;
+  final String groupe;
+  final String raison;
+
+  bool get dansTesGouts => groupe == 'gouts';
+}
+
 /// Pour toi (serveur 1.11.0, `api/v2/pour-toi.php`) : les rayons calculés la
 /// nuit, la suite d'un morceau (lecture automatique, radio d'un titre), le
 /// portrait et ses réglages.
@@ -370,6 +387,32 @@ class PourToiRepository {
           'deja': deja.take(300).join(','),
         }),
       );
+
+  /// Les artistes proches d'un artiste (page de l'artiste) : Last.fm s'il
+  /// y a une clé sur le serveur, sinon YouTube Music (serveur 1.16.0).
+  Future<List<Bulle>> proches(String nom) async => _bulles(
+        await _client.get(
+          'pour-toi.php',
+          query: {'action': 'proches', 'nom': nom},
+        ),
+      );
+
+  /// Les artistes suggérés : d'abord ceux aimés pas encore chez soi.
+  Future<List<ArtisteSuggere>> suggestions() async {
+    final data = await _client.get(
+      'pour-toi.php',
+      query: {'action': 'suggestions'},
+    );
+    return [
+      for (final a in (data as Map?)?['artistes'] as List? ?? const [])
+        if (a is Map)
+          ArtisteSuggere(
+            bulle: _bulle(a.cast<String, dynamic>()),
+            groupe: '${a['groupe'] ?? 'suggeres'}',
+            raison: '${a['raison'] ?? ''}',
+          ),
+    ];
+  }
 
   Future<List<Bulle>> chercherArtiste(String texte) async => _bulles(
         await _client.get(

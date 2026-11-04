@@ -230,6 +230,93 @@ class GoutsBulles
         return $q->fetchAll(PDO::FETCH_ASSOC);
     }
 
+    /**
+     * Les artistes proches d'un artiste (page de l'artiste) : Last.fm s'il y
+     * a une clé, sinon YouTube Music — décrits tout de suite s'il ne l'a
+     * jamais été. Ceux de la bibliothèque sont reconnus (artistId).
+     */
+    public static function proches(PDO $db, string $user, string $nom, int $n = 20): array
+    {
+        $nom = trim($nom);
+        if ($nom === '') return [];
+        $cle = Gouts::cle($nom);
+        $proches = self::similaires($db, $cle);
+        if ($proches === [] && !self::dejaCherche($db, $cle)) {
+            GoutsSources::enrichirUn($db, $nom);
+            $proches = self::similaires($db, $cle);
+        }
+        $biblio = self::bibliotheque($db, $user);
+        $choix = Gouts::choix($db, $user);
+        $rejetes = self::rejetes($db, $user);
+        $out = [];
+        foreach ($proches as $p) {
+            if (Gouts::artisteVide((string)$p['voisin_nom'])) continue;
+            $b = self::bulle((string)$p['voisin_cle'], $p['voisin_nom'], $p['image'], $biblio, $choix);
+            if ($b['artistId'] !== null && isset($rejetes[$b['artistId']])) continue;
+            $out[] = $b;
+            if (count($out) >= $n) break;
+        }
+        return $out;
+    }
+
+    /**
+     * Les artistes suggérés (accueil → Découvrir) : d'abord ceux qu'on a dit
+     * aimer dans « Tes artistes » sans les avoir encore dans la bibliothèque,
+     * puis « À découvrir ailleurs » (calculé la nuit), puis les proches des
+     * artistes choisis qu'on n'a pas. Chacun avec sa raison.
+     */
+    public static function suggestions(PDO $db, string $user, int $n = 60): array
+    {
+        $biblio = self::bibliotheque($db, $user);
+        $choix = Gouts::choix($db, $user);
+        $vus = [];
+        $out = [];
+        $ajouter = function (string $cle, string $nom, ?string $image, string $groupe, string $raison) use (&$out, &$vus, $db, $biblio, $choix) {
+            if (isset($vus[$cle]) || isset($biblio[$cle]) || Gouts::artisteVide($nom)) return;
+            $vus[$cle] = true;
+            $out[] = self::bulle($cle, $nom, $image ?? self::imageConnue($db, $cle), $biblio, $choix)
+                + ['groupe' => $groupe, 'raison' => $raison];
+        };
+
+        // 1. Aimés dans tes goûts, pas encore chez toi : adorés d'abord.
+        foreach ($choix as $cle => $c) {
+            $ajouter((string)$cle, $c['nom'], $c['image'], 'gouts', $c['niveau'] >= 2 ? 'Tu l\'adores' : 'Tu l\'aimes');
+        }
+        // 2. À découvrir ailleurs.
+        $q = $db->prepare("SELECT contenu FROM gouts_rayons WHERE user = ? AND type = 'ailleurs' LIMIT 1");
+        $q->execute([$user]);
+        foreach ((json_decode((string)$q->fetchColumn(), true)['artistes'] ?? []) as $a) {
+            $parce = array_slice($a['parce'] ?? [], 0, 2);
+            $ajouter(Gouts::cle($a['nom']), $a['nom'], $a['image'] ?? null, 'suggeres',
+                $parce ? 'Parce que tu écoutes ' . implode(' et ', $parce) : 'Pour toi');
+        }
+        // 3. Les proches de tes artistes choisis, qu'on n'a pas.
+        $voisins = self::voisinsDe($db, array_keys($choix));
+        $tour = 0;
+        while (count($out) < $n && $tour < 6) {
+            $avance = false;
+            foreach ($choix as $cle => $c) {
+                $p = $voisins[(string)$cle][$tour] ?? null;
+                if ($p === null) continue;
+                $avance = true;
+                $ajouter($p['voisin_cle'], $p['voisin_nom'], $p['image'], 'suggeres', 'Proche de ' . $c['nom']);
+                if (count($out) >= $n) break;
+            }
+            if (!$avance) break;
+            $tour++;
+        }
+        return array_slice($out, 0, $n);
+    }
+
+    /** Une photo déjà connue d'un artiste d'ailleurs, s'il y en a une. */
+    private static function imageConnue(PDO $db, string $cle): ?string
+    {
+        $q = $db->prepare('SELECT image FROM artistes_similaires WHERE voisin_cle = ? AND image IS NOT NULL LIMIT 1');
+        $q->execute([$cle]);
+        $i = $q->fetchColumn();
+        return $i === false ? null : (string)$i;
+    }
+
     /** Chercher un artiste : la bibliothèque d'abord, le monde ensuite. */
     public static function chercher(PDO $db, string $user, string $texte): array
     {

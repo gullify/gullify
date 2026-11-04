@@ -14,6 +14,8 @@
  *   POST ?action=analyser                      → refait le profil et les rayons maintenant
  *   GET  ?action=bulles                        → « Tes artistes » : bulles de départ (choisis + leurs proches, `liens`)
  *   GET  ?action=bulles&autour=<clé>&nom=…&deja=k1,k2  → ce qui éclot à côté d'une bulle aimée
+ *   GET  ?action=proches&nom=…                 → artistes proches d'un artiste (page de l'artiste)
+ *   GET  ?action=suggestions                   → artistes suggérés : aimés pas encore chez soi, puis ailleurs
  *   GET  ?action=chercher_artiste&q=…          → bibliothèque puis monde (Last.fm / YouTube Music)
  *   POST ?action=choisir    {nom, niveau: 0|1|2, image?}   0 retirer, 1 aimer, 2 adorer
  *   (une bulle : {cle, nom, image, artistId|null, niveau})
@@ -229,6 +231,13 @@ try {
             }
             v2_ok(['bulles' => GoutsBulles::depart($db, $user)]);
         }
+
+        case 'proches':
+            v2_ok(['bulles' => GoutsBulles::proches($db, $user, (string)($_GET['nom'] ?? ''),
+                max(1, min(40, (int)($_GET['n'] ?? 20))))]);
+
+        case 'suggestions':
+            v2_ok(['artistes' => GoutsBulles::suggestions($db, $user)]);
 
         case 'chercher_artiste':
             v2_ok(['bulles' => GoutsBulles::chercher($db, $user, (string)($_GET['q'] ?? ''))]);
