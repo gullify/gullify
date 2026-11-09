@@ -249,10 +249,12 @@ class RadioStations
                 ($s['logo']    ?? null) ?: null,
                 ($s['website'] ?? null) ?: null,
                 implode(',', array_map('strval', $s['genres'] ?? [])) ?: null,
-                ($s['country']  ?? null) ?: null,
-                ($s['language'] ?? null) ?: null,
+                // Radio Browser ne borne rien (« english,french,spanish,… ») :
+                // une seule valeur trop longue faisait échouer TOUT l'import.
+                mb_substr((string)($s['country']  ?? ''), 0, 80) ?: null,
+                mb_substr((string)($s['language'] ?? ''), 0, 80) ?: null,
                 (int)($stream['bitrate'] ?? 0) ?: null,
-                $stream['format'] ?? null,
+                mb_substr((string)($stream['format'] ?? ''), 0, 20) ?: null,
             ];
         }
 

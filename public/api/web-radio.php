@@ -29,27 +29,35 @@ $cacheFile = AppConfig::getDataPath() . '/cache/web_radio_ca.json';
 $cacheDuration = 3600; // 1 hour
 
 /**
- * Get a working Radio Browser API server
+ * Les miroirs de Radio Browser, à essayer l'un après l'autre. Radio Browser
+ * annonce ceux qui vivent derrière all.api.radio-browser.info (DNS, puis nom
+ * inverse) ; de1 et de2 suivent, connus pour répondre. On n'en tire plus un au
+ * hasard : nl1 et at1 ont disparu, et deux tirages sur trois tombaient dans
+ * le vide — l'utilisateur recevait la liste de secours de 20 stations au lieu
+ * du catalogue (serveur 1.20.1).
  */
-function getRadioBrowserServer() {
-    $servers = [
-        'https://de1.api.radio-browser.info',
-        'https://nl1.api.radio-browser.info',
-        'https://at1.api.radio-browser.info'
-    ];
-    return $servers[array_rand($servers)];
+function getRadioBrowserServers(): array {
+    $servers = [];
+    foreach (@dns_get_record('all.api.radio-browser.info', DNS_A) ?: [] as $rec) {
+        $host = @gethostbyaddr((string)($rec['ip'] ?? ''));
+        if ($host && str_ends_with($host, '.api.radio-browser.info')) {
+            $servers[] = 'https://' . $host;
+        }
+    }
+    shuffle($servers); // répartir la charge entre les miroirs vivants
+    foreach (['de1', 'de2'] as $connu) {
+        $servers[] = "https://$connu.api.radio-browser.info";
+    }
+    return array_values(array_unique($servers));
 }
 
 /**
  * Fetch stations from Radio Browser API
  */
 function fetchFromRadioBrowser() {
-    $server = getRadioBrowserServer();
-    $url = "$server/json/stations/bycountry/canada?hidebroken=true&order=clickcount&reverse=true&limit=1200";
-
     $ctx = stream_context_create([
         "http" => [
-            "timeout" => 30,
+            "timeout" => 15,
             "user_agent" => "MusicPlayer/1.0",
             "header" => "Accept: application/json\r\n"
         ],
@@ -59,13 +67,17 @@ function fetchFromRadioBrowser() {
         ]
     ]);
 
-    $data = @file_get_contents($url, false, $ctx);
-    if (!$data) {
-        return null;
+    $stations = null;
+    foreach (getRadioBrowserServers() as $server) {
+        $url = "$server/json/stations/bycountry/canada?hidebroken=true&order=clickcount&reverse=true&limit=1200";
+        $data = @file_get_contents($url, false, $ctx);
+        $decoded = $data ? json_decode($data, true) : null;
+        if (is_array($decoded) && $decoded) {
+            $stations = $decoded;
+            break;
+        }
     }
-
-    $stations = json_decode($data, true);
-    if (!$stations || !is_array($stations)) {
+    if (!$stations) {
         return null;
     }
 
@@ -269,8 +281,14 @@ function importCatalogInto(string $user, string $cacheFile, int $cacheDuration, 
     if ($user === '') return 0;
     $catalog  = getStations($cacheFile, $cacheDuration);
     $stations = $catalog['stations'] ?? [];
-    // Catalogue injoignable : on ne marque rien, on réessaiera plus tard.
-    if (!$stations) return 0;
+    // Catalogue injoignable : on ne marque rien, on réessaiera plus tard. La
+    // liste de secours (20 stations) n'est PAS le catalogue : la transférer
+    // marquait le transfert comme fait, et l'utilisateur restait à 20 pour
+    // de bon.
+    if (!$stations || ($catalog['source'] ?? '') === 'fallback') {
+        if (!$initial) throw new RuntimeException('Radio Browser ne répond pas pour le moment. Réessaie plus tard.');
+        return 0;
+    }
     // La réservation est atomique : deux requêtes en même temps ne peuvent
     // pas transférer le catalogue deux fois.
     if ($initial && !RadioStations::claimCatalogImport($user)) return 0;
@@ -283,12 +301,44 @@ function importCatalogInto(string $user, string $cacheFile, int $cacheDuration, 
  * relire le catalogue de 1200 lignes à chaque fois.
  */
 function transferCatalogOnce(string $user, string $cacheFile, int $cacheDuration): void {
-    if ($user === '' || RadioStations::catalogImported($user)) return;
+    if ($user === '') return;
+    $initial = !RadioStations::catalogImported($user);
+    // Avant le serveur 1.20.1, un miroir mort faisait transférer la liste de
+    // secours (20 stations) à la place du catalogue, et le transfert passait
+    // pour fait. Une liste qui n'est QUE la liste de secours reprend donc le
+    // catalogue, sans doublon (même URL de flux).
+    if (!$initial && !onlyFallbackStations($user)) return;
     try {
-        importCatalogInto($user, $cacheFile, $cacheDuration, true);
+        importCatalogInto($user, $cacheFile, $cacheDuration, $initial);
     } catch (\Throwable $e) {
         error_log('web-radio: transfert du catalogue échoué: ' . $e->getMessage());
     }
+}
+
+/** La liste de l'utilisateur est exactement la liste de secours. */
+function onlyFallbackStations(string $user): bool {
+    $secours = [];
+    foreach (getFallbackStations()['stations'] as $f) {
+        $secours[trim((string)($f['streams'][0]['url'] ?? ''))] = true;
+    }
+    try {
+        $st = AppConfig::getDB()->prepare(
+            'SELECT stream_url FROM radio_custom_stations WHERE user = ? LIMIT ' . (count($secours) + 1)
+        );
+        $st->execute([$user]);
+        $urls = $st->fetchAll(PDO::FETCH_COLUMN);
+    } catch (\Throwable $e) {
+        return false;
+    }
+    // Exactement la liste de secours, toute et rien qu'elle : une liste
+    // épurée à la main n'y ressemble jamais trait pour trait.
+    $vues = [];
+    foreach ($urls as $u) {
+        $u = trim((string)$u);
+        if (!isset($secours[$u])) return false;
+        $vues[$u] = true;
+    }
+    return count($vues) === count($secours);
 }
 
 function readJsonBody(): array {
@@ -410,7 +460,12 @@ try {
             // Reprendre le catalogue dans sa liste, à la demande : ce qu'il a
             // déjà (même URL de flux) n'est pas dupliqué.
             if ($user === '') { http_response_code(401); echo json_encode(['success' => false, 'error' => 'unauthenticated']); break; }
-            $n = importCatalogInto($user, $cacheFile, $cacheDuration, false);
+            try {
+                $n = importCatalogInto($user, $cacheFile, $cacheDuration, false);
+            } catch (RuntimeException $e) {
+                echo json_encode(['success' => false, 'error' => $e->getMessage()], JSON_UNESCAPED_UNICODE);
+                break;
+            }
             echo json_encode(['success' => true, 'imported' => $n]);
             break;
 
