@@ -24,7 +24,7 @@ class GameSource
     /** Le vivier par défaut : toute la bibliothèque. */
     public static function all(): array
     {
-        return ['mode' => 'all', 'genres' => [], 'playlists' => []];
+        return ['mode' => 'all', 'genres' => [], 'playlists' => [], 'origines' => []];
     }
 
     /**
@@ -42,13 +42,17 @@ class GameSource
 
         $genres    = self::strings($raw['genres'] ?? []);
         $playlists = self::ids($raw['playlists'] ?? []);
+        // L'origine des artistes (serveur 1.20.0) se croise à n'importe quel
+        // vivier : « Rock » + « Québec », ou tout le Québec.
+        $origines  = self::strings($raw['origines'] ?? []);
 
         // Une sélection vide ne filtre rien : mieux vaut tout jouer que de ne
         // rien pouvoir tirer.
-        if ($mode === 'genres' && !$genres) return self::all();
-        if ($mode === 'playlists' && !$playlists) return self::all();
+        if ($mode === 'genres' && !$genres) $mode = 'all';
+        if ($mode === 'playlists' && !$playlists) $mode = 'all';
+        if ($mode === 'all') return ['origines' => $origines] + self::all();
 
-        return ['mode' => $mode, 'genres' => $genres, 'playlists' => $playlists];
+        return ['mode' => $mode, 'genres' => $genres, 'playlists' => $playlists, 'origines' => $origines];
     }
 
     /**
@@ -70,13 +74,14 @@ class GameSource
             'mode'      => is_string($raw) ? $raw : 'all',
             'genres'    => $_GET['genres']    ?? $_POST['genres']    ?? $body['genres']    ?? [],
             'playlists' => $_GET['playlists'] ?? $_POST['playlists'] ?? $body['playlists'] ?? [],
+            'origines'  => $_GET['origines']  ?? $_POST['origines']  ?? $body['origines']  ?? [],
         ]);
     }
 
     /** Vrai quand rien n'est filtré (aucun fragment SQL à ajouter). */
     public static function isAll(array $src): bool
     {
-        return ($src['mode'] ?? 'all') === 'all';
+        return ($src['mode'] ?? 'all') === 'all' && empty($src['origines']);
     }
 
     /**
@@ -91,14 +96,27 @@ class GameSource
         string $al = 'al',
         string $a = 'a'
     ): array {
+        [$sql, $params] = self::modeWhere($user, $src, $s, $al, $a);
+        if (!empty($src['origines'])) {
+            $in = self::placeholders($src['origines']);
+            $sql .= " AND $a.origine IN ($in)";
+            $params = array_merge($params, $src['origines']);
+        }
+        return [$sql, $params];
+    }
+
+    private static function modeWhere(string $user, array $src, string $s, string $al, string $a): array
+    {
         switch ($src['mode'] ?? 'all') {
             case 'genres':
                 // Le genre vit sur l'album, mais beaucoup de bibliothèques ne
-                // le portent que sur l'artiste : on accepte les deux.
+                // le portent que sur l'artiste — et un artiste a aussi ses
+                // genres secondaires (artiste_genres) : on accepte les trois.
                 $in = self::placeholders($src['genres']);
                 return [
-                    " AND ($al.genre IN ($in) OR $a.genre IN ($in))",
-                    array_merge($src['genres'], $src['genres']),
+                    " AND ($al.genre IN ($in) OR $a.genre IN ($in)"
+                        . " OR EXISTS (SELECT 1 FROM artiste_genres agx WHERE agx.artist_id = $a.id AND agx.genre IN ($in)))",
+                    array_merge($src['genres'], $src['genres'], $src['genres']),
                 ];
 
             case 'playlists':
@@ -135,6 +153,7 @@ class GameSource
         string $a = 'a'
     ): array {
         $mode = $src['mode'] ?? 'all';
+        // Genres et origines se lisent sur l'album ou son artiste.
         if ($mode === 'all' || $mode === 'genres') {
             return self::songWhere($user, $src, 's', $al, $a);
         }

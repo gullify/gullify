@@ -19,6 +19,7 @@ require_once __DIR__ . '/../../src/ImageUrl.php';
 require_once __DIR__ . '/../../src/Database.php';
 require_once __DIR__ . '/../../src/GameSource.php';
 require_once __DIR__ . '/../../src/GenreTaxonomy.php';
+require_once __DIR__ . '/../../src/ArtisteGenres.php';
 require_once __DIR__ . '/../../src/PathHelper.php';
 require_once __DIR__ . '/../../src/TrackArtist.php';
 require_once __DIR__ . '/../../src/TransitionAnalysis.php';
@@ -306,7 +307,11 @@ try {
                 'id' => $artist['id'],
                 'name' => $artist['name'],
                 'imageUrl' => ImageUrl::artiste($artist['id']),
-                'genre' => $artist['genre'] ?? null
+                'genre' => $artist['genre'] ?? null,
+                // Plusieurs genres (le principal en tête) et l'origine, à
+                // part (serveur 1.20.0).
+                'genres' => ArtisteGenres::lire($conn, [(int)$artist['id']])[(int)$artist['id']]['genres'] ?? [],
+                'origine' => $artist['origine'] ?? null,
             ],
             'albums' => $albums,
             'topTracks' => $topTracks,
@@ -1177,51 +1182,117 @@ try {
         $response['data'] = ['songs' => $songs, 'artists' => $artists, 'albums' => $albums];
 
     } elseif ($action === 'get_genres') {
+        // Un artiste compte dans chacun de ses genres (principal comme
+        // secondaires, serveur 1.20.0), en plus du genre que portent ses
+        // albums ; un album, dans le genre qu'il porte et dans ceux de son
+        // artiste.
         $stmt = $conn->prepare('
-            SELECT
-                al.genre,
-                COUNT(DISTINCT a.id) as artist_count,
-                COUNT(DISTINCT al.id) as album_count
-            FROM albums al
-            JOIN artists a ON al.artist_id = a.id
-            WHERE a.user = ? AND al.genre IS NOT NULL AND al.genre != ""
-            GROUP BY al.genre
-            ORDER BY al.genre ASC
+            SELECT p.genre, COUNT(DISTINCT p.artist_id) AS artist_count FROM (
+                SELECT al.artist_id, al.genre FROM albums al
+                JOIN artists a ON al.artist_id = a.id
+                WHERE a.user = ? AND al.genre IS NOT NULL AND al.genre != ""
+                UNION
+                SELECT ag.artist_id, ag.genre FROM artiste_genres ag
+                JOIN artists a ON ag.artist_id = a.id
+                WHERE a.user = ?
+            ) p
+            GROUP BY p.genre
+            ORDER BY p.genre ASC
+        ');
+        $stmt->execute([$user, $user]);
+        $rows = $stmt->fetchAll();
+
+        // Albums de chaque genre, et l'aperçu : jusqu'à 4 pochettes (les
+        // albums les plus récents) pour la mosaïque de la vue « Genres ».
+        $albStmt = $conn->prepare('
+            SELECT p.genre, p.id, p.art FROM (
+                SELECT al.genre AS genre, al.id AS id,
+                       (al.artwork IS NOT NULL AND al.artwork != "") AS art
+                FROM albums al
+                JOIN artists a ON al.artist_id = a.id
+                WHERE a.user = ? AND al.genre IS NOT NULL AND al.genre != ""
+                UNION
+                SELECT ag.genre, al.id, (al.artwork IS NOT NULL AND al.artwork != "")
+                FROM artiste_genres ag
+                JOIN albums al ON al.artist_id = ag.artist_id
+                JOIN artists a ON ag.artist_id = a.id
+                WHERE a.user = ?
+            ) p
+            ORDER BY p.id DESC
+        ');
+        $albStmt->execute([$user, $user]);
+        $albumCounts = [];
+        $covers = [];
+        $vus = [];
+        while ($r = $albStmt->fetch()) {
+            // La collation confond « Rock » et « rock » : on compte comme elle.
+            $g = mb_strtolower($r['genre'], 'UTF-8');
+            if (isset($vus[$g][$r['id']])) continue;
+            $vus[$g][$r['id']] = true;
+            $albumCounts[$g] = ($albumCounts[$g] ?? 0) + 1;
+            if ($r['art'] && count($covers[$g] ?? []) < 4) {
+                $covers[$g][] = albumArtworkUrl((int)$r['id']);
+            }
+        }
+
+        $genres = [];
+        foreach ($rows as $row) {
+            $g = mb_strtolower($row['genre'], 'UTF-8');
+            $genres[] = [
+                'name' => $row['genre'],
+                'artistCount' => (int)$row['artist_count'],
+                'albumCount' => $albumCounts[$g] ?? 0,
+                'artworkUrls' => $covers[$g] ?? []
+            ];
+        }
+        $response['data'] = ['genres' => $genres];
+
+    } elseif ($action === 'get_origines') {
+        // D'où viennent les artistes de la bibliothèque (serveur 1.20.0) :
+        // Québec, France… avec de quoi faire une mosaïque, comme les genres.
+        $stmt = $conn->prepare('
+            SELECT a.origine, COUNT(DISTINCT a.id) AS artist_count,
+                   COUNT(DISTINCT al.id) AS album_count
+            FROM artists a
+            LEFT JOIN albums al ON al.artist_id = a.id
+            WHERE a.user = ? AND a.origine IS NOT NULL AND a.origine != ""
+            GROUP BY a.origine
         ');
         $stmt->execute([$user]);
         $rows = $stmt->fetchAll();
 
-        // Aperçu : jusqu'à 4 pochettes par genre (les albums les plus
-        // récents), pour la mosaïque de la vue « Genres » de l'app.
-        $covers = [];
         $coverStmt = $conn->prepare('
-            SELECT t.genre, t.id FROM (
-                SELECT al.genre AS genre, al.id AS id,
-                       ROW_NUMBER() OVER (
-                           PARTITION BY al.genre ORDER BY al.id DESC
-                       ) AS rn
+            SELECT t.origine, t.id FROM (
+                SELECT a.origine, al.id,
+                       ROW_NUMBER() OVER (PARTITION BY a.origine ORDER BY al.id DESC) AS rn
                 FROM albums al
                 JOIN artists a ON al.artist_id = a.id
-                WHERE a.user = ? AND al.genre IS NOT NULL AND al.genre != ""
+                WHERE a.user = ? AND a.origine IS NOT NULL AND a.origine != ""
                   AND al.artwork IS NOT NULL AND al.artwork != ""
             ) t
             WHERE t.rn <= 4
         ');
         $coverStmt->execute([$user]);
-        while ($cover = $coverStmt->fetch()) {
-            $covers[$cover['genre']][] = albumArtworkUrl((int)$cover['id']);
+        $covers = [];
+        while ($c = $coverStmt->fetch()) {
+            $covers[$c['origine']][] = albumArtworkUrl((int)$c['id']);
         }
 
-        $genres = [];
+        // L'ordre de la liste (d'ici d'abord), puis ce qu'elle ne connaît pas.
+        $ordre = array_flip(Origine::ALL);
+        usort($rows, static fn($x, $y) =>
+            [$ordre[$x['origine']] ?? 999, $x['origine']] <=> [$ordre[$y['origine']] ?? 999, $y['origine']]);
+
+        $origines = [];
         foreach ($rows as $row) {
-            $genres[] = [
-                'name' => $row['genre'],
+            $origines[] = [
+                'name' => $row['origine'],
                 'artistCount' => (int)$row['artist_count'],
                 'albumCount' => (int)$row['album_count'],
-                'artworkUrls' => $covers[$row['genre']] ?? []
+                'artworkUrls' => $covers[$row['origine']] ?? [],
             ];
         }
-        $response['data'] = ['genres' => $genres];
+        $response['data'] = ['origines' => $origines];
 
     } elseif ($action === 'get_years') {
         // Machine à remonter le temps (idée #80) : les millésimes présents
@@ -1323,6 +1394,7 @@ try {
         $custom = customGenres($conn, $user);
         $response['data'] = [
             'genres' => array_merge(GenreTaxonomy::ALL, $custom),
+            'origines' => Origine::ALL,
             'custom' => $custom,
         ];
 
@@ -1378,7 +1450,9 @@ try {
             // qu'un jour : elle vient aussi bien d'un artiste inconnu au
             // bataillon que d'un refus de passage de MusicBrainz, et on ne va
             // pas s'en tenir là un mois durant.
-            $cacheFile = AppConfig::getDataPath() . '/cache/genre-suggest-'
+            // « v2 » : la réponse porte aussi les genres et l'origine
+            // (serveur 1.20.0) ; les anciennes n'ont ni l'un ni l'autre.
+            $cacheFile = AppConfig::getDataPath() . '/cache/genre-suggest-v2-'
                 . md5(mb_strtolower($artistName, 'UTF-8')) . '.json';
             $cached = @filemtime($cacheFile)
                 ? json_decode((string)@file_get_contents($cacheFile), true)
@@ -1395,11 +1469,12 @@ try {
                 require_once __DIR__ . '/../../src/GenreLookup.php';
                 // Quelqu'un attend devant son téléphone : des appels courts,
                 // et une seule reprise — mieux vaut « aucune suggestion »
-                // qu'une minute d'attente. Deezer et Apple Music ne sont
-                // consultés que si MusicBrainz n'a rien dit (idée #54).
+                // qu'une minute d'attente. Last.fm d'abord ; MusicBrainz,
+                // Deezer et Apple Music seulement s'il n'a rien dit.
                 $suggestion = function_exists('curl_init')
                     ? GenreLookup::suggest($artistName, 4, 2)
-                    : ['genre' => null, 'tags' => [], 'source' => null];
+                    : ['genre' => null, 'genres' => [], 'tags' => [], 'source' => null,
+                       'origine' => null, 'origine_source' => null];
                 @file_put_contents($cacheFile, json_encode($suggestion, JSON_UNESCAPED_UNICODE));
             }
 
@@ -1432,40 +1507,62 @@ try {
         }
         $response['data'] = $albums;
 
-    } elseif ($action === 'get_artists_by_genre') {
-        $genre = isset($_GET['genre']) ? $_GET['genre'] : '';
+    } elseif ($action === 'get_artists_by_genre' || $action === 'get_artists_by_origine') {
+        // Les artistes d'un genre (principal ou secondaire, ou porté par un
+        // de leurs albums), d'une origine, ou des deux croisés : Rock venu du
+        // Québec = genre=Rock&origine=Québec. Chacun avec ses genres et son
+        // origine, pour que l'app filtre sans redemander.
+        $genre   = trim((string)($_GET['genre'] ?? ''));
+        $origine = trim((string)($_GET['origine'] ?? ''));
 
-        if (empty($genre)) {
+        if ($genre === '' && $origine === '') {
             $response['error'] = true;
             $response['message'] = 'Genre parameter required';
         } else {
-            $stmt = $conn->prepare('
-                SELECT DISTINCT
+            $where  = 'a.user = ?';
+            $params = [$user];
+            if ($genre !== '') {
+                $where .= ' AND (EXISTS (SELECT 1 FROM albums alg WHERE alg.artist_id = a.id AND alg.genre = ?) OR '
+                    . ArtisteGenres::sqlPorte('a') . ')';
+                $params[] = $genre;
+                $params[] = $genre;
+            }
+            if ($origine !== '') {
+                $where .= ' AND a.origine = ?';
+                $params[] = $origine;
+            }
+            $stmt = $conn->prepare("
+                SELECT
                     a.id,
                     a.name,
-                    (a.image IS NOT NULL AND a.image != "") as has_image,
-                    COUNT(DISTINCT al.id) as album_count,
+                    (a.image IS NOT NULL AND a.image != '') as has_image,
+                    (SELECT COUNT(*) FROM albums al3 WHERE al3.artist_id = a.id) as album_count,
                     (SELECT COUNT(*) FROM songs s2 JOIN albums al2 ON s2.album_id = al2.id WHERE al2.artist_id = a.id) as song_count
                 FROM artists a
-                JOIN albums al ON a.id = al.artist_id
-                WHERE a.user = ? AND al.genre = ?
-                GROUP BY a.id, a.name
+                WHERE $where
                 ORDER BY a.name ASC
-            ');
-            $stmt->execute([$user, $genre]);
+            ");
+            $stmt->execute($params);
+            $rows  = $stmt->fetchAll();
+            $infos = ArtisteGenres::lire($conn, array_column($rows, 'id'));
 
             $artists = [];
-            while ($row = $stmt->fetch()) {
+            foreach ($rows as $row) {
+                $id = (int)$row['id'];
                 $artists[] = [
-                    'id' => $row['id'],
+                    'id' => $id,
                     'name' => $row['name'],
-                    'imageUrl' => $row['has_image'] ? ImageUrl::artiste($row['id']) : null,
+                    'imageUrl' => $row['has_image'] ? ImageUrl::artiste($id) : null,
                     'albumCount' => (int)$row['album_count'],
-                    'songCount' => (int)$row['song_count']
+                    'songCount' => (int)$row['song_count'],
+                    'genre' => $infos[$id]['genres'][0] ?? null,
+                    'genres' => $infos[$id]['genres'] ?? [],
+                    'origine' => $infos[$id]['origine'] ?? null,
                 ];
             }
             $response['data'] = [
                 'genre' => $genre,
+                'origine' => $origine,
                 'artists' => $artists
             ];
         }
@@ -1528,6 +1625,20 @@ try {
             ")->execute([$to, $user, $from]);
             $conn->prepare("UPDATE artists SET genre = ? WHERE user = ? AND genre = ?")
                  ->execute([$to, $user, $from]);
+            // Les genres secondaires suivent. Un artiste qui portait déjà le
+            // nom d'arrivée garde une seule ligne (IGNORE, puis on retire le
+            // reste) — sauf si l'on ne change que la casse, que la collation
+            // tient pour le même nom.
+            $conn->prepare("
+                UPDATE IGNORE artiste_genres ag JOIN artists a ON ag.artist_id = a.id
+                SET ag.genre = ? WHERE a.user = ? AND ag.genre = ?
+            ")->execute([$to, $user, $from]);
+            if (GenreTaxonomy::normalize($from) !== GenreTaxonomy::normalize($to)) {
+                $conn->prepare("
+                    DELETE ag FROM artiste_genres ag JOIN artists a ON ag.artist_id = a.id
+                    WHERE a.user = ? AND ag.genre = ?
+                ")->execute([$user, $from]);
+            }
 
             // Un genre ajouté à la main suit son nom. S'il arrive sur un genre
             // qui existe déjà (liste principale ou autre ajout), les deux n'en
@@ -1560,8 +1671,20 @@ try {
                 UPDATE albums al JOIN artists a ON al.artist_id = a.id
                 SET al.genre = NULL WHERE a.user = ? AND al.genre = ?
             ")->execute([$user, $genre]);
+            // Un artiste dont c'était le genre principal passe au suivant de
+            // ses genres, s'il en a un autre.
+            $stmt = $conn->prepare("SELECT id FROM artists WHERE user = ? AND genre = ?");
+            $stmt->execute([$user, $genre]);
+            $touches = array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
             $conn->prepare("UPDATE artists SET genre = NULL WHERE user = ? AND genre = ?")
                  ->execute([$user, $genre]);
+            $conn->prepare("
+                DELETE ag FROM artiste_genres ag JOIN artists a ON ag.artist_id = a.id
+                WHERE a.user = ? AND ag.genre = ?
+            ")->execute([$user, $genre]);
+            foreach (ArtisteGenres::lire($conn, $touches) as $id => $info) {
+                if ($info['genres']) ArtisteGenres::poser($conn, $id, $info['genres'], false);
+            }
 
             // Retirer un genre partout et le laisser dans les choix n'aurait
             // pas de sens : un genre ajouté à la main s'en va avec.
@@ -1572,11 +1695,23 @@ try {
             $response['data'] = ['deleted' => $genre];
         }
 
-    } elseif ($action === 'set_artist_genre') {
-        // Définit le genre d'un artiste et le propage à tous ses albums, pour
-        // rester cohérent avec le filtre par genre (basé sur albums.genre).
+    } elseif ($action === 'set_artist_genre' || $action === 'set_artist_genres') {
+        // Les genres d'un artiste, choisis à la main : propagés à tous ses
+        // albums (le filtre par genre lit aussi albums.genre), et plus jamais
+        // touchés par un scan. `set_artist_genre` (un seul genre) reste pour
+        // les apps d'avant la 3.93.0 ; `set_artist_genres` prend `genres` (liste
+        // JSON, le principal en tête) et, s'il est là, `origine` ('' = aucune).
         $artistId = (int)($_POST['artist_id'] ?? $_GET['artist_id'] ?? 0);
-        $genre    = trim((string)($_POST['genre'] ?? $_GET['genre'] ?? ''));
+        if ($action === 'set_artist_genre') {
+            $genres = [trim((string)($_POST['genre'] ?? $_GET['genre'] ?? ''))];
+        } else {
+            $raw = $_POST['genres'] ?? $_GET['genres'] ?? null;
+            if (is_string($raw)) $raw = json_decode($raw, true);
+            $genres = is_array($raw) ? $raw : null;
+        }
+        $origineDonnee = array_key_exists('origine', $_POST) || array_key_exists('origine', $_GET);
+        $origineBrute  = trim((string)($_POST['origine'] ?? $_GET['origine'] ?? ''));
+
         if (!$artistId) {
             $response['error']   = true;
             $response['message'] = 'artist_id required';
@@ -1587,12 +1722,31 @@ try {
                 $response['error']   = true;
                 $response['message'] = 'Artist not found or access denied';
             } else {
-                $g = $genre === '' ? null : mb_substr($genre, 0, 100);
-                $conn->prepare('UPDATE artists SET genre = ? WHERE id = ? AND user = ?')
-                     ->execute([$g, $artistId, $user]);
-                $conn->prepare('UPDATE albums SET genre = ? WHERE artist_id = ?')
-                     ->execute([$g, $artistId]);
-                $response['data'] = ['artist_id' => $artistId, 'genre' => $g];
+                if ($genres !== null) {
+                    $genres = ArtisteGenres::nettoyer($genres);
+                    ArtisteGenres::poser($conn, $artistId, $genres, true);
+                    // Retirer tous les genres rend l'artiste « à ranger » : le
+                    // scan pourra lui en retrouver.
+                    $conn->prepare('UPDATE artists SET genres_manuel = ? WHERE id = ?')
+                         ->execute([$genres ? 1 : 0, $artistId]);
+                }
+                $origine = null;
+                if ($origineDonnee) {
+                    // Une origine de la liste garde son écriture canonique ;
+                    // une autre (« Haïti ») est acceptée telle quelle.
+                    $origine = $origineBrute === ''
+                        ? null
+                        : (Origine::canonique($origineBrute) ?? mb_substr($origineBrute, 0, 60));
+                    $conn->prepare('UPDATE artists SET origine = ?, origine_manuelle = ? WHERE id = ?')
+                         ->execute([$origine, $origine === null ? 0 : 1, $artistId]);
+                }
+                $info = ArtisteGenres::lire($conn, [$artistId])[$artistId] ?? ['genres' => [], 'origine' => null];
+                $response['data'] = [
+                    'artist_id' => $artistId,
+                    'genre'     => $info['genres'][0] ?? null,
+                    'genres'    => $info['genres'],
+                    'origine'   => $info['origine'],
+                ];
             }
         }
 
@@ -1921,9 +2075,17 @@ try {
             $params[]  = "%$search%";
         }
         if ($genre !== '') {
-            $extraSql .= ' AND (al.genre = ? OR a.genre = ?)';
+            // Un artiste compte aussi dans ses genres secondaires.
+            $extraSql .= ' AND (al.genre = ? OR a.genre = ? OR ' . ArtisteGenres::sqlPorte('a') . ')';
             $params[]  = $genre;
             $params[]  = $genre;
+            $params[]  = $genre;
+        }
+        // Origine de l'artiste (serveur 1.20.0) : seule, ou croisée au genre.
+        $origine = trim($_GET['origine'] ?? '');
+        if ($origine !== '') {
+            $extraSql .= ' AND a.origine = ?';
+            $params[]  = $origine;
         }
         // Millésime (idée #80) : les albums d'une année précise, pour la
         // machine à remonter le temps de la bibliothèque.

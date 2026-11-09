@@ -8,6 +8,12 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.93.0', [
+    'Genres : un artiste peut maintenant en avoir jusqu\'à trois (Les Cowboys Fringants : Folk et Rock). Il apparaît dans chacun, et « Tout lire » d\'un genre joue aussi les artistes qui l\'ont en second (serveur 1.20.0).',
+    'Nouveau : l\'origine, à part des genres — Québec, Acadie, Canada, France, États-Unis… Bibliothèque → Genres → « Origines » ouvre tout le Québec, avec des puces pour n\'en garder que le Rock ; et dans « Rock », des puces [Québec] [France] pour ne garder que le rock d\'ici. Les deux boutons de lecture suivent le filtre.',
+    'La détection des genres demande d\'abord à Last.fm (bien meilleur sur la musique d\'ici que MusicBrainz), puis MusicBrainz, Deezer et Apple Music. Elle trouve aussi l\'origine, et range au passage les vieux genres bruts (« Music », « Other », « Indie »…). Paramètres → Bibliothèque → « Détecter les genres » repasse sur toute la bibliothèque une fois.',
+    '« Définir le genre » : touche plusieurs genres (le premier choisi, étoilé, est le principal), choisis l\'origine, ou prends toute la suggestion d\'un tap. Ce que tu choisis à la main, la détection n\'y touche plus.',
+  ]),
   ReleaseNote('3.92.1', [
     'Navigateur : lancer une file (album, liste, mix, Pour toi) après une autre rejouait la toute première écoutée — par exemple une pré-écoute choisie dans « Artistes suggérés » —, même si l\'écran affichait le bon titre. Chaque file joue maintenant ce qu\'elle annonce.',
     'Bandcamp : « Découvrir » remonte de nouveau ses sorties — Bandcamp a changé la forme de ses réponses (serveur 1.18.1).',

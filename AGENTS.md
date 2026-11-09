@@ -49,3 +49,16 @@ administrateur. GulliFY n'a pas de « données précieuses orphelines » : rien 
   bascule (jamais affiché ; refusé si `must_change_password` ou format ni bcrypt ni argon2). Essais dans
   `scripts/test-maison-gestion.php`.
 - Essais : `scripts/test-comptes.php` (faux Comptes `scripts/test-comptes-faux.php`), base jetable.
+
+## Genres multiples et origine (serveur 1.20.0, app 3.93.0)
+- Un artiste a jusqu'à 3 genres (`artiste_genres`, rang 0 = principal, recopié dans `artists.genre` pour
+  Subsonic, les jeux et les vieux écrans) et une ORIGINE à part (`artists.origine` : liste fermée de
+  `src/Origine.php` — Québec, Acadie, Canada, France…). Helper : `src/ArtisteGenres.php`.
+- Sources (`GenreLookup::suggest`) : Last.fm d'abord (clé `LASTFM_API_KEY`), puis MusicBrainz, Deezer,
+  Apple Music. Origine : étiquettes Last.fm, sinon région MusicBrainz (on remonte la ville → province).
+  « canadian » et « french » sont ambigus (langue, Québec) : MusicBrainz tranche quand il sait.
+- `scan-genres.php` sans `--force` : artistes sans genre + ceux pas encore analysés (`genres_analyse`) ;
+  garde le principal, ajoute secondaires et origine, nettoie les genres bruts (« Music », « Indie »).
+  `genres_manuel` / `origine_manuelle` (posés par l'app) : jamais touchés, même avec `--force`.
+- API : `get_artists_by_genre` (+ `origine=`), `get_origines`, `get_all_albums&origine=`,
+  `set_artist_genres` (genres JSON + `origine`), `GameSource` accepte `origines` (croisé au vivier).

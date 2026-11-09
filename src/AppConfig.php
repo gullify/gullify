@@ -130,6 +130,43 @@ class AppConfig {
             // ignore — e.g. race condition on concurrent boot
         }
 
+        // Plusieurs genres et une origine par artiste (serveur 1.20.0) : voir
+        // src/ArtisteGenres.php. La table naît ici, et recopie le genre déjà
+        // posé comme genre principal.
+        try {
+            $stmt = $db->prepare(
+                "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+                 WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'artists'"
+            );
+            $stmt->execute([$dbName]);
+            $existing = array_column($stmt->fetchAll(PDO::FETCH_ASSOC), 'COLUMN_NAME');
+        } catch (PDOException $e) {
+            $existing = [];
+        }
+        if ($existing !== []) {
+            $columns = [
+                'origine'          => "ALTER TABLE artists ADD COLUMN origine VARCHAR(60) NULL, ADD INDEX idx_artists_origine (origine)",
+                'genres_manuel'    => "ALTER TABLE artists ADD COLUMN genres_manuel TINYINT(1) NOT NULL DEFAULT 0",
+                'origine_manuelle' => "ALTER TABLE artists ADD COLUMN origine_manuelle TINYINT(1) NOT NULL DEFAULT 0",
+                'genres_analyse'   => "ALTER TABLE artists ADD COLUMN genres_analyse DATETIME NULL",
+            ];
+            foreach ($columns as $col => $sql) {
+                if (!in_array($col, $existing)) {
+                    try {
+                        $db->exec($sql);
+                    } catch (PDOException $e) {
+                        // ignore — e.g. race condition on concurrent boot
+                    }
+                }
+            }
+            try {
+                require_once __DIR__ . '/ArtisteGenres.php';
+                ArtisteGenres::assurerTable($db);
+            } catch (Throwable $e) {
+                // ignore — la table sera retentée au prochain démarrage
+            }
+        }
+
         // Écoutes (Pour toi, serveur 1.11.0) : le saut volontaire (bouton
         // « suivant ») et d'où venait le titre (mix, lecture automatique…),
         // que le profil de goûts lit pour peser chaque écoute.

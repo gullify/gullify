@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import '../models/album.dart';
 import '../models/artist.dart';
 import '../models/game_source.dart';
@@ -376,11 +378,13 @@ class LibraryRepository {
   }
 
   /// Les albums de la bibliothèque, éventuellement restreints à un [genre]
-  /// (porté par l'album ou, à défaut, par son artiste).
+  /// (porté par l'album ou par son artiste, en principal comme en
+  /// secondaire) et/ou à l'[origine] de l'artiste.
   Future<List<Album>> albums({
     int limit = 5000,
     int offset = 0,
     String? genre,
+    String? origine,
     int? year,
   }) async {
     final data =
@@ -391,6 +395,7 @@ class LibraryRepository {
                 'limit': limit,
                 'offset': offset,
                 'genre': ?genre,
+                'origine': ?origine,
                 'year': ?year,
               },
             )
@@ -898,6 +903,54 @@ class LibraryRepository {
     form: {'artist_id': artistId, 'genre': genre},
   );
 
+  /// Les genres d'un artiste (jusqu'à trois, le principal en tête ; vide =
+  /// aucun), et son [origine] quand [withOrigine] — nulle ou vide pour la
+  /// retirer. Choisis à la main : le scan n'y touche plus (serveur 1.20.0).
+  ///
+  /// Un serveur d'avant ne connaît pas l'action : on retombe alors sur le
+  /// genre principal seul, l'origine en moins.
+  Future<void> setArtistGenres(
+    int artistId,
+    List<String> genres, {
+    String? origine,
+    bool withOrigine = false,
+  }) async {
+    try {
+      await _client.post(
+        'library.php',
+        query: {'action': 'set_artist_genres'},
+        form: {
+          'artist_id': artistId,
+          'genres': jsonEncode(genres),
+          if (withOrigine) 'origine': origine ?? '',
+        },
+      );
+    } on ApiException catch (e) {
+      if (!e.message.contains('Unknown action')) rethrow;
+      await setArtistGenre(artistId, genres.isEmpty ? '' : genres.first);
+    }
+  }
+
+  /// D'où viennent les artistes de la bibliothèque (Québec, France…), comme
+  /// les genres : nom, artistes, albums et un aperçu de pochettes.
+  Future<List<GenreCount>> origines() async {
+    final data =
+        await _client.get('library.php', query: {'action': 'get_origines'})
+            as Map<String, dynamic>;
+    return _list(
+      data['origines'],
+      (j) => GenreCount(
+        j['name'] as String? ?? '',
+        (j['artistCount'] as num?)?.toInt() ?? 0,
+        albumCount: (j['albumCount'] as num?)?.toInt() ?? 0,
+        artworkUrls: [
+          for (final u in j['artworkUrls'] as List<dynamic>? ?? [])
+            ?_abs(u as String?),
+        ],
+      ),
+    );
+  }
+
   /// Liste des genres présents dans la bibliothèque (nom + nb d'artistes).
   Future<List<GenreCount>> genres() async {
     final data =
@@ -964,6 +1017,7 @@ class LibraryRepository {
     return GenreTaxonomy(
       genres: names(data['genres']),
       custom: names(data['custom']),
+      origines: names(data['origines']),
     );
   }
 
@@ -976,8 +1030,9 @@ class LibraryRepository {
     form: {'name': name},
   );
 
-  /// Le genre que les catalogues suggèrent pour un artiste (MusicBrainz, puis
-  /// Deezer, puis Apple Music), ramené à la liste fermée. `genre` est nul
+  /// Le genre que les catalogues suggèrent pour un artiste (Last.fm, puis
+  /// MusicBrainz, Deezer et Apple Music), ramené à la liste fermée — avec
+  /// ses autres genres et son origine. `genre` est nul
   /// quand rien de fiable n'en sort — mieux vaut aucune suggestion qu'une
   /// fausse.
   Future<GenreSuggestion> suggestArtistGenre(int artistId) async {
@@ -987,10 +1042,15 @@ class LibraryRepository {
               query: {'action': 'suggest_artist_genre', 'artist_id': artistId},
             )
             as Map<String, dynamic>;
+    String? texte(Object? v) =>
+        v is String && v.trim().isNotEmpty ? v : null;
     return GenreSuggestion(
-      genre: (data['genre'] as String?)?.trim().isEmpty ?? true
-          ? null
-          : data['genre'] as String,
+      genre: texte(data['genre']),
+      genres: [
+        for (final g in data['genres'] as List<dynamic>? ?? [])
+          if (g is String && g.isNotEmpty) g,
+      ],
+      origine: texte(data['origine']),
       tags: [
         for (final t in data['tags'] as List<dynamic>? ?? [])
           if (t is String && t.isNotEmpty) t,
@@ -1029,11 +1089,20 @@ class LibraryRepository {
     );
   }
 
-  Future<List<Artist>> artistsByGenre(String genre) async {
+  Future<List<Artist>> artistsByGenre(String genre) =>
+      artistsByFacet(genre: genre);
+
+  /// Les artistes d'un genre, d'une origine, ou des deux croisés (Rock venu
+  /// du Québec). Chacun porte ses genres et son origine.
+  Future<List<Artist>> artistsByFacet({String? genre, String? origine}) async {
     final data =
         await _client.get(
               'library.php',
-              query: {'action': 'get_artists_by_genre', 'genre': genre},
+              query: {
+                'action': 'get_artists_by_genre',
+                'genre': ?genre,
+                'origine': ?origine,
+              },
             )
             as Map<String, dynamic>;
     return _list(data['artists'], _artist);
@@ -1063,7 +1132,8 @@ class LibraryRepository {
   }
 
   /// Détecte automatiquement le genre des artistes qui n'en ont pas (via
-  /// MusicBrainz). Tourne côté serveur ; suivre via [genreScanStatus].
+  /// Last.fm d'abord), et leur origine. Tourne côté serveur ; suivre via
+  /// [genreScanStatus].
   Future<void> genreScan() =>
       _client.get('scan.php', query: {'action': 'genre_scan'});
 
@@ -1126,20 +1196,38 @@ class LibraryRepository {
 /// montrent, pour que le choix reste éclairé plutôt qu'imposé — et [source],
 /// celui des catalogues qui a répondu.
 class GenreSuggestion {
-  const GenreSuggestion({this.genre, this.tags = const [], this.source});
+  const GenreSuggestion({
+    this.genre,
+    this.genres = const [],
+    this.tags = const [],
+    this.source,
+    this.origine,
+  });
 
   final String? genre;
+
+  /// Tous les genres suggérés, le principal en tête (serveur 1.20.0).
+  final List<String> genres;
   final List<String> tags;
 
-  /// « musicbrainz », « deezer », « itunes », ou nul quand personne n'a rien
-  /// dit. Voir [sourceLabel] pour le nom à afficher.
+  /// « lastfm », « musicbrainz », « deezer », « itunes », ou nul quand
+  /// personne n'a rien dit. Voir [sourceLabel] pour le nom à afficher.
   final String? source;
 
-  bool get isEmpty => genre == null && tags.isEmpty;
+  /// L'origine que les catalogues prêtent à l'artiste (Québec, France…).
+  final String? origine;
+
+  /// Les genres à proposer : la liste du serveur, ou à défaut le seul genre
+  /// d'un serveur d'avant.
+  List<String> get allGenres =>
+      genres.isNotEmpty ? genres : [?genre];
+
+  bool get isEmpty => genre == null && tags.isEmpty && origine == null;
 
   /// Le nom du catalogue tel qu'on le montre. Une source inconnue se donne
   /// telle quelle plutôt que de se taire : c'est le serveur qui la nomme.
   String? get sourceLabel => switch (source) {
+    'lastfm' => 'Last.fm',
     'musicbrainz' => 'MusicBrainz',
     'deezer' => 'Deezer',
     'itunes' => 'Apple Music',
@@ -1152,10 +1240,18 @@ class GenreSuggestion {
 /// tous, dans l'ordre d'affichage voulu ; [custom] rappelle lesquels ont été
 /// ajoutés à la main (ils figurent aussi dans [genres], à la fin).
 class GenreTaxonomy {
-  const GenreTaxonomy({this.genres = const [], this.custom = const []});
+  const GenreTaxonomy({
+    this.genres = const [],
+    this.custom = const [],
+    this.origines = const [],
+  });
 
   final List<String> genres;
   final List<String> custom;
+
+  /// Les origines proposées (Québec, Acadie, Canada, France…), vides avec un
+  /// serveur d'avant la 1.20.0.
+  final List<String> origines;
 }
 
 /// Les artistes qu'il reste à ranger : un début de liste (plafonnée) et le

@@ -238,8 +238,10 @@ class _GenreScanCard extends StatelessWidget {
             ),
             const SizedBox(height: 6),
             Text(
-              'Attribue automatiquement un genre aux artistes qui n\'en ont '
-              'pas encore (via MusicBrainz).',
+              'Trouve les genres (jusqu\'à trois) et l\'origine (Québec, '
+              'France…) des artistes que l\'analyse n\'a pas encore vus — '
+              'Last.fm d\'abord, puis MusicBrainz, Deezer et Apple Music. Ce '
+              'que tu as choisi à la main n\'est jamais touché.',
               style: TextStyle(fontSize: 13, color: scheme.onSurfaceVariant),
             ),
             const SizedBox(height: 12),

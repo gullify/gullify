@@ -509,6 +509,47 @@ class GenreTaxonomy
      * Le genre canonique d'une étiquette, ou null si elle ne dit rien
      * d'exploitable.
      */
+    /**
+     * Les genres d'un artiste, le principal en tête (celui de pickFromTags),
+     * puis ceux qui pèsent assez à côté : Les Cowboys Fringants sont Folk ET
+     * Rock, pas l'un OU l'autre.
+     *
+     * Un genre secondaire doit peser au moins $seuil du plus fort (à rang
+     * égal ou mieux) ; les indices de langue (rang faible) n'en ajoutent
+     * jamais — « french » dit d'où l'on chante, pas ce qu'on joue.
+     *
+     * @param array<array{name: string, count: int}> $tags
+     * @return array<string>
+     */
+    public static function pickManyFromTags(array $tags, int $max = 3, float $seuil = 0.4): array
+    {
+        $principal = self::pickFromTags($tags);
+        if ($principal === null) return [];
+
+        $top    = 1;
+        $poids  = []; // genre => meilleur compte
+        foreach ($tags as $tag) {
+            $top = max($top, (int)($tag['count'] ?? 0));
+        }
+        foreach ($tags as $tag) {
+            $match = self::match((string)($tag['name'] ?? ''));
+            if (!$match || $match['rank'] === self::RANK_WEAK) continue;
+            $g = $match['genre'];
+            $poids[$g] = max($poids[$g] ?? 0, max(0, (int)($tag['count'] ?? 0)));
+        }
+        unset($poids[$principal]);
+        arsort($poids);
+
+        $genres = [$principal];
+        foreach ($poids as $g => $count) {
+            if (count($genres) >= $max) break;
+            if ($count / $top < $seuil) break;
+            $genres[] = $g;
+        }
+
+        return $genres;
+    }
+
     public static function classify(string $raw): ?string
     {
         $match = self::match($raw);

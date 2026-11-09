@@ -7,6 +7,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../api/library_repository.dart';
 import '../api/yt_downloads_repository.dart';
+import '../models/artist.dart';
 import '../state/genre_medley.dart';
 import '../state/library.dart';
 import '../state/player.dart';
@@ -46,7 +47,7 @@ class ArtistScreen extends ConsumerWidget {
               imageUrl: d.artist.imageUrl,
               name: d.artist.name,
               albumCount: d.albums.length,
-              genre: d.artist.genre,
+              genre: _etiquette(d.artist),
               onMenu: () => _artistMenu(context, ref, d),
             ),
             const SizedBox(height: 16),
@@ -602,15 +603,16 @@ void _artistMenu(BuildContext context, WidgetRef ref, ArtistDetail d) {
           ListTile(
             leading: const Icon(Icons.label_outline),
             title: const Text('Définir le genre'),
-            subtitle: d.artist.genre != null && d.artist.genre!.isNotEmpty
-                ? Text(d.artist.genre!)
+            subtitle: _etiquette(d.artist) != null
+                ? Text(_etiquette(d.artist)!)
                 : null,
             onTap: () {
               Navigator.pop(sheetContext);
               _setGenreDialog(
                 context,
                 d.artist.id,
-                d.artist.genre,
+                _genresDe(d.artist),
+                origine: d.artist.origine,
                 artistName: d.artist.name,
               );
             },
@@ -666,18 +668,43 @@ void _artistMenu(BuildContext context, WidgetRef ref, ArtistDetail d) {
   );
 }
 
-/// Ce que rend le dialogue : le genre choisi, et s'il faut enchaîner sur
-/// l'artiste suivant qui n'a pas de genre.
+/// Ce que rend le dialogue : les genres choisis (le principal en tête), l'origine,
+/// et s'il faut enchaîner sur l'artiste suivant qui n'a pas de genre.
 class _GenreChoice {
-  const _GenreChoice(this.genre, {this.next = false});
+  const _GenreChoice(
+    this.genres, {
+    this.origine,
+    this.origineChanged = false,
+    this.next = false,
+  });
 
-  final String genre;
+  final List<String> genres;
+  final String? origine;
+
+  /// L'origine n'est envoyée que si on l'a touchée : la poser marque le
+  /// choix comme fait à la main, et le scan ne la corrigerait plus.
+  final bool origineChanged;
   final bool next;
 }
 
-/// Dialogue « Définir le genre » : une suggestion tirée de MusicBrainz, les
-/// genres principaux à choisir d'un tap, un champ libre pour ce qui n'y rentre
-/// pas — et, le temps de se décider, un medley de l'artiste qui part tout seul.
+/// Les genres d'un artiste, le principal compris même d'un serveur d'avant.
+List<String> _genresDe(Artist a) =>
+    a.genres.isNotEmpty ? a.genres : [?a.genre];
+
+/// Ce qui se lit sous le nom d'un artiste : ses genres, puis d'où il vient.
+String? _etiquette(Artist a) {
+  final parts = [
+    if (_genresDe(a).isNotEmpty) _genresDe(a).join(', '),
+    if ((a.origine ?? '').isNotEmpty) a.origine!,
+  ];
+  return parts.isEmpty ? null : parts.join(' · ');
+}
+
+/// Dialogue « Définir le genre » : la suggestion des catalogues (Last.fm
+/// d'abord), les genres principaux à choisir d'un tap — jusqu'à trois, le
+/// premier choisi est le principal —, l'origine (Québec, France…), un champ
+/// libre pour ce qui n'y rentre pas, et, le temps de se décider, un medley de
+/// l'artiste qui part tout seul.
 ///
 /// Le dialogue ne fait que choisir : c'est ici qu'on enregistre, et qu'on
 /// rouvre le choix sur l'artiste suivant quand on a demandé à enchaîner
@@ -686,7 +713,8 @@ class _GenreChoice {
 Future<void> _setGenreDialog(
   BuildContext context,
   int artistId,
-  String? current, {
+  List<String> current, {
+  String? origine,
   String? artistName,
 }) async {
   // Tout ce dont la suite a besoin se saisit AVANT l'attente : passé la
@@ -700,28 +728,35 @@ Future<void> _setGenreDialog(
     builder: (_) => _GenreDialog(
       artistId: artistId,
       current: current,
+      origine: origine,
       artistName: artistName,
     ),
   );
   if (choice == null) return; // Annulé : rien à enregistrer.
-  final genre = choice.genre;
+  final genres = choice.genres;
 
   try {
     await container
         .read(libraryRepositoryProvider)
-        .setArtistGenre(artistId, genre);
+        .setArtistGenres(
+          artistId,
+          genres,
+          origine: choice.origine,
+          withOrigine: choice.origineChanged,
+        );
   } catch (e) {
     messenger.showSnackBar(SnackBar(content: Text('Échec : $e')));
     return;
   }
   container.invalidate(artistDetailProvider(artistId));
   container.invalidate(genresProvider);
+  container.invalidate(originesProvider);
   container.invalidate(artistsProvider);
   container.invalidate(untaggedArtistsProvider);
 
   // Retirer un genre n'ouvre pas de série : on vient au contraire d'ajouter
   // un artiste à ranger.
-  if (genre.isEmpty) {
+  if (genres.isEmpty) {
     messenger.showSnackBar(const SnackBar(content: Text('Genre retiré')));
     return;
   }
@@ -750,7 +785,7 @@ Future<void> _setGenreDialog(
 
   // La série continue d'elle-même : le dialogue rouvre sur le suivant, qui
   // dit son nom en titre.
-  await _setGenreDialog(context, next.id, null, artistName: next.name);
+  await _setGenreDialog(context, next.id, const [], artistName: next.name);
 }
 
 /// Les artistes sans genre, ou null si le serveur n'a pas répondu — le genre
@@ -764,17 +799,22 @@ Future<UntaggedArtists?> _untaggedArtists(ProviderContainer container) async {
   }
 }
 
+/// Trois genres au plus : au-delà, un artiste n'est plus rangé, il est partout.
+const _maxGenres = 3;
+
 /// Des boutons serrés : le dialogue en compte jusqu'à quatre, et « Enregistrer
 /// et suivant » est long à lui seul.
 class _GenreDialog extends ConsumerStatefulWidget {
   const _GenreDialog({
     required this.artistId,
     required this.current,
+    this.origine,
     this.artistName,
   });
 
   final int artistId;
-  final String? current;
+  final List<String> current;
+  final String? origine;
 
   /// Affiché en titre : en enchaînant d'un artiste au suivant, le dialogue
   /// est tout ce qui dit qui l'on range.
@@ -785,7 +825,9 @@ class _GenreDialog extends ConsumerStatefulWidget {
 }
 
 class _GenreDialogState extends ConsumerState<_GenreDialog> {
-  late String? _selected = widget.current;
+  /// Les genres choisis, dans l'ordre : le premier est le principal.
+  late final List<String> _selected = [...widget.current];
+  late String? _origine = widget.origine;
   final _customCtrl = TextEditingController();
 
   /// Saisi à l'ouverture, jamais plus tard : passé la fermeture, `ref`
@@ -819,32 +861,68 @@ class _GenreDialogState extends ConsumerState<_GenreDialog> {
     super.dispose();
   }
 
-  /// Le dialogue rend le genre choisi et se ferme : l'enregistrement, lui,
-  /// se poursuit chez l'appelant — le serveur répond souvent bien après, et
+  /// Taper un genre l'ajoute (à la suite) ou le retire ; plein, le plus
+  /// récent des secondaires laisse sa place.
+  void _toggle(String genre) => setState(() {
+    if (_selected.remove(genre)) return;
+    if (_selected.length >= _maxGenres) _selected.removeLast();
+    _selected.add(genre);
+  });
+
+  /// La suggestion d'un tap : ses genres remplacent la sélection, et son
+  /// origine s'y joint si rien n'était choisi.
+  void _takeSuggestion(GenreSuggestion s) => setState(() {
+    _selected
+      ..clear()
+      ..addAll(s.allGenres.take(_maxGenres));
+    _customCtrl.clear();
+    if (_origine == null && s.origine != null) _origine = s.origine;
+  });
+
+  /// Le dialogue rend le choix et se ferme : l'enregistrement, lui, se
+  /// poursuit chez l'appelant — le serveur répond souvent bien après, et
   /// `ref` appartiendrait alors à un widget démonté (« Using "ref" when a
   /// widget is about to or has been unmounted is unsafe »).
-  void _save(String genre, {bool next = false}) =>
-      Navigator.pop(context, _GenreChoice(genre, next: next));
+  void _save(List<String> genres, {bool next = false}) => Navigator.pop(
+    context,
+    _GenreChoice(
+      genres,
+      origine: _origine,
+      origineChanged: _origine != widget.origine,
+      next: next,
+    ),
+  );
 
-  /// Le genre à enregistrer : ce qu'on a tapé à la main s'il y en a, sinon la
-  /// tuile choisie.
-  String get _chosen {
+  /// Les genres à enregistrer : les tuiles choisies, puis ce qu'on a tapé à
+  /// la main (en principal s'il n'y a rien d'autre).
+  List<String> get _chosen {
     final custom = _customCtrl.text.trim();
-    return custom.isNotEmpty ? custom : (_selected ?? '');
+    return [
+      ..._selected,
+      if (custom.isNotEmpty && !_selected.contains(custom)) custom,
+    ].take(_maxGenres).toList();
   }
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     // Les genres proposés par le serveur (liste principale + ceux ajoutés à
     // la main), plus ceux que la bibliothèque contient déjà sans qu'ils en
     // fassent partie (un genre saisi au champ libre, par exemple).
-    final taxonomy =
-        ref.watch(genreTaxonomyProvider).value?.genres ?? const <String>[];
+    final tax = ref.watch(genreTaxonomyProvider).value;
+    final taxonomy = tax?.genres ?? const <String>[];
     final extras = [
       for (final g in ref.watch(genresProvider).value ?? [])
         if (g.name.isNotEmpty && !taxonomy.contains(g.name)) g.name,
     ]..sort();
     final choices = [...taxonomy, ...extras];
+    // Les origines de la liste, plus celle de l'artiste si elle n'y est pas.
+    final origines = [
+      ...?tax?.origines,
+      if (_origine != null && !(tax?.origines.contains(_origine) ?? false))
+        _origine!,
+    ];
+    final faint = TextStyle(fontSize: 11.5, color: scheme.onSurfaceVariant);
 
     // Ce qui aide à choisir (la suggestion, le medley) se tient en haut ; les
     // tuiles, elles seules, défilent. Sans ça, une trentaine de genres
@@ -868,10 +946,7 @@ class _GenreDialogState extends ConsumerState<_GenreDialog> {
             _Suggestion(
               artistId: widget.artistId,
               selected: _selected,
-              onPick: (genre) => setState(() {
-                _selected = genre;
-                _customCtrl.clear();
-              }),
+              onPick: _takeSuggestion,
             ),
             const SizedBox(height: 8),
             _MedleyButton(artistId: widget.artistId),
@@ -881,7 +956,15 @@ class _GenreDialogState extends ConsumerState<_GenreDialog> {
                 padding: EdgeInsets.only(bottom: 12),
                 child: Text('Genres indisponibles pour le moment.'),
               )
-            else
+            else ...[
+              Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Text(
+                  'Jusqu\'à $_maxGenres genres · le premier choisi est le '
+                  'principal',
+                  style: faint,
+                ),
+              ),
               Flexible(
                 child: SingleChildScrollView(
                   child: Wrap(
@@ -891,16 +974,41 @@ class _GenreDialogState extends ConsumerState<_GenreDialog> {
                       for (final g in choices)
                         _GenreChip(
                           label: g,
-                          selected: _selected == g,
-                          onTap: () => setState(
-                            () => _selected = _selected == g ? null : g,
-                          ),
+                          selected: _selected.contains(g),
+                          principal: _selected.isNotEmpty &&
+                              _selected.first == g,
+                          onTap: () => _toggle(g),
                         ),
                     ],
                   ),
                 ),
               ),
-            const SizedBox(height: 10),
+            ],
+            if (origines.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Text('Origine', style: faint),
+              const SizedBox(height: 4),
+              SizedBox(
+                height: 34,
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  children: [
+                    for (final o in origines)
+                      Padding(
+                        padding: const EdgeInsets.only(right: 4),
+                        child: _GenreChip(
+                          label: o,
+                          selected: _origine == o,
+                          onTap: () => setState(
+                            () => _origine = _origine == o ? null : o,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+            const SizedBox(height: 6),
             TextField(
               controller: _customCtrl,
               style: const TextStyle(fontSize: 14),
@@ -909,12 +1017,6 @@ class _GenreDialogState extends ConsumerState<_GenreDialog> {
                 labelText: 'Autre genre',
                 hintText: 'Si aucun ne convient…',
               ),
-              onChanged: (v) {
-                // Saisir un genre à la main écarte la sélection.
-                if (v.trim().isNotEmpty && _selected != null) {
-                  setState(() => _selected = null);
-                }
-              },
             ),
           ],
         ),
@@ -923,10 +1025,10 @@ class _GenreDialogState extends ConsumerState<_GenreDialog> {
       // dépasse, l'OverflowBar le range en colonne.
       actionsPadding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
       actions: [
-        if ((widget.current ?? '').isNotEmpty)
+        if (widget.current.isNotEmpty)
           TextButton(
             style: compactDialogAction,
-            onPressed: () => _save(''),
+            onPressed: () => _save(const []),
             child: const Text('Retirer'),
           ),
         TextButton(
@@ -952,16 +1054,19 @@ class _GenreDialogState extends ConsumerState<_GenreDialog> {
 }
 
 /// Une tuile de genre, en petit. La liste en compte une trentaine : à taille
-/// normale, elles remplissaient le dialogue à elles seules.
+/// normale, elles remplissaient le dialogue à elles seules. Le genre
+/// principal porte une étoile.
 class _GenreChip extends StatelessWidget {
   const _GenreChip({
     required this.label,
     required this.selected,
     required this.onTap,
+    this.principal = false,
   });
 
   final String label;
   final bool selected;
+  final bool principal;
   final VoidCallback onTap;
 
   @override
@@ -972,9 +1077,13 @@ class _GenreChip extends StatelessWidget {
       label: Text(label),
       selected: selected,
       onSelected: (_) => onTap(),
-      // Sans crochet ni pastille : le genre choisi se reconnaît à sa couleur,
-      // et chaque tuile garde sa place pour le nom qu'elle porte.
+      // Sans crochet : le genre choisi se reconnaît à sa couleur, le
+      // principal à son étoile, et chaque tuile garde sa place pour le nom
+      // qu'elle porte.
       showCheckmark: false,
+      avatar: principal
+          ? Icon(Icons.star_rounded, size: 14, color: scheme.onPrimary)
+          : null,
       selectedColor: scheme.primary,
       labelStyle: TextStyle(
         fontSize: 12,
@@ -989,9 +1098,10 @@ class _GenreChip extends StatelessWidget {
   }
 }
 
-/// La suggestion des catalogues, en tête du dialogue : un genre à prendre d'un
-/// tap, d'où il vient, et les étiquettes qui l'ont dicté. Elle ne choisit
-/// jamais à la place — elle propose, et se tait quand elle n'a rien de sûr.
+/// La suggestion des catalogues, en tête du dialogue : des genres à prendre
+/// d'un tap, l'origine, d'où ça vient, et les étiquettes qui l'ont dicté.
+/// Elle ne choisit jamais à la place — elle propose, et se tait quand elle
+/// n'a rien de sûr.
 class _Suggestion extends ConsumerWidget {
   const _Suggestion({
     required this.artistId,
@@ -1000,8 +1110,8 @@ class _Suggestion extends ConsumerWidget {
   });
 
   final int artistId;
-  final String? selected;
-  final ValueChanged<String> onPick;
+  final List<String> selected;
+  final ValueChanged<GenreSuggestion> onPick;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -1025,7 +1135,8 @@ class _Suggestion extends ConsumerWidget {
       // très bien sans, on n'affiche pas d'erreur en travers.
       error: (_, _) => Text('Suggestion indisponible', style: faint),
       data: (s) {
-        if (s.genre == null) {
+        final genres = s.allGenres;
+        if (genres.isEmpty && s.origine == null) {
           return Text(
             s.tags.isEmpty
                 ? 'Aucun catalogue ne dit rien de cet artiste'
@@ -1034,6 +1145,10 @@ class _Suggestion extends ConsumerWidget {
           );
         }
         final source = s.sourceLabel;
+        final pris = genres.isNotEmpty &&
+            genres.length == selected.length &&
+            [for (var i = 0; i < genres.length; i++) genres[i] == selected[i]]
+                .every((x) => x);
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -1059,10 +1174,15 @@ class _Suggestion extends ConsumerWidget {
                     ),
                   ],
                 ),
+                // Un seul tap prend tout : les genres dans l'ordre, et
+                // l'origine.
                 _GenreChip(
-                  label: s.genre!,
-                  selected: selected == s.genre,
-                  onTap: () => onPick(s.genre!),
+                  label: [
+                    if (genres.isNotEmpty) genres.join(' + '),
+                    ?s.origine,
+                  ].join(' · '),
+                  selected: pris,
+                  onTap: () => onPick(s),
                 ),
               ],
             ),

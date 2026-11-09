@@ -291,40 +291,99 @@ class _AlbumsView extends ConsumerWidget {
 
 /// Les genres de la bibliothèque en grille : mosaïque des pochettes, nom et
 /// contenu. Un genre s'ouvre sur sa page (albums + artistes).
-class _GenresView extends ConsumerWidget {
+///
+/// Deux puces en tête basculent sur les ORIGINES (Québec, France…) : la même
+/// grille, d'où viennent les artistes plutôt que ce qu'ils jouent. Chaque
+/// page croise ensuite l'autre axe (Rock → Québec, Québec → Rock).
+class _GenresView extends ConsumerStatefulWidget {
   const _GenresView();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final genres = ref.watch(genresProvider);
-    return genres.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e, _) => Center(child: Text('Erreur: $e')),
-      data: (list) {
-        if (list.isEmpty) {
-          return const MascotEmpty(
-            message: 'Aucun genre pour l\'instant',
-            hint: 'Assigne un genre depuis la fiche d\'un artiste, ou lance '
-                'la détection automatique dans Paramètres → Bibliothèque.',
-          );
-        }
-        return AlphaGrid<GenreCount>(
-          items: list,
-          nameOf: (g) => g.name,
-          hintText: 'Filtrer les genres…',
-          trailing: IconButton.filledTonal(
-            tooltip: 'Gérer les genres',
-            icon: const Icon(Icons.tune),
-            onPressed: () => context.push('/genres'),
+  ConsumerState<_GenresView> createState() => _GenresViewState();
+}
+
+class _GenresViewState extends ConsumerState<_GenresView> {
+  bool _origines = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final provider = _origines ? originesProvider : genresProvider;
+    final items = ref.watch(provider);
+    final bascule = SizedBox(
+      height: 44,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 17),
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 3),
+            child: ChoiceChip(
+              label: const Text('Genres'),
+              selected: !_origines,
+              onSelected: (_) => setState(() => _origines = false),
+            ),
           ),
-          // Mêmes proportions que la grille d'albums : vignette carrée
-          // + deux lignes de texte.
-          maxCrossAxisExtent: 200,
-          childAspectRatio: 0.75,
-          onRefresh: () => ref.refresh(genresProvider.future),
-          itemBuilder: (context, genre) => _GenreCard(genre: genre),
-        );
-      },
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 3),
+            child: ChoiceChip(
+              avatar: const Icon(Icons.public, size: 16),
+              label: const Text('Origines'),
+              selected: _origines,
+              onSelected: (_) => setState(() => _origines = true),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    return Column(
+      children: [
+        bascule,
+        Expanded(
+          child: items.when(
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (e, _) => Center(child: Text('Erreur: $e')),
+            data: (list) {
+              if (list.isEmpty) {
+                return _origines
+                    ? const MascotEmpty(
+                        message: 'Aucune origine pour l\'instant',
+                        hint: 'Lance la détection des genres dans Paramètres '
+                            '→ Bibliothèque : elle trouve aussi d\'où vient '
+                            'chaque artiste.',
+                      )
+                    : const MascotEmpty(
+                        message: 'Aucun genre pour l\'instant',
+                        hint: 'Assigne un genre depuis la fiche d\'un artiste, '
+                            'ou lance la détection automatique dans '
+                            'Paramètres → Bibliothèque.',
+                      );
+              }
+              return AlphaGrid<GenreCount>(
+                items: list,
+                nameOf: (g) => g.name,
+                hintText: _origines
+                    ? 'Filtrer les origines…'
+                    : 'Filtrer les genres…',
+                trailing: IconButton.filledTonal(
+                  tooltip: 'Gérer les genres',
+                  icon: const Icon(Icons.tune),
+                  onPressed: () => context.push('/genres'),
+                ),
+                // Mêmes proportions que la grille d'albums : vignette carrée
+                // + deux lignes de texte.
+                maxCrossAxisExtent: 200,
+                childAspectRatio: 0.75,
+                onRefresh: () => ref.refresh(provider.future),
+                itemBuilder: (context, genre) => _GenreCard(
+                  genre: genre,
+                  route: _origines ? '/origine' : '/genre',
+                ),
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 }
@@ -332,9 +391,12 @@ class _GenresView extends ConsumerWidget {
 /// Carte de genre : mosaïque des pochettes radius 20 + ombre, nom 14/700,
 /// « N artistes · N albums » 12 gris.
 class _GenreCard extends StatelessWidget {
-  const _GenreCard({required this.genre});
+  const _GenreCard({required this.genre, this.route = '/genre'});
 
   final GenreCount genre;
+
+  /// La page qu'ouvre la carte : `/genre` ou `/origine`.
+  final String route;
 
   @override
   Widget build(BuildContext context) {
@@ -348,7 +410,7 @@ class _GenreCard extends StatelessWidget {
     return InkWell(
       borderRadius: BorderRadius.circular(20),
       onTap: () => context.push(
-        '/genre?name=${Uri.encodeQueryComponent(genre.name)}',
+        '$route?name=${Uri.encodeQueryComponent(genre.name)}',
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

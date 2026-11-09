@@ -20,6 +20,7 @@ class _Repository extends LibraryRepository {
     int limit = 5000,
     int offset = 0,
     String? genre,
+    String? origine,
     int? year,
   }) async {
     if (!online) throw ApiException('network', 'pas de réseau');

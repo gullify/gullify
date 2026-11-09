@@ -15,7 +15,10 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$Artist {
 
- int get id; String get name; String? get imageUrl; String? get genre; int get albumCount; int get songCount;
+ int get id; String get name; String? get imageUrl; String? get genre;/// Tous ses genres, le principal en tête (serveur 1.20.0) ; [genre] reste
+/// le principal, pour les serveurs d'avant.
+ List<String> get genres;/// D'où vient l'artiste (Québec, France…), à part des genres.
+ String? get origine; int get albumCount; int get songCount;
 /// Create a copy of Artist
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -28,16 +31,16 @@ $ArtistCopyWith<Artist> get copyWith => _$ArtistCopyWithImpl<Artist>(this as Art
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is Artist&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.imageUrl, imageUrl) || other.imageUrl == imageUrl)&&(identical(other.genre, genre) || other.genre == genre)&&(identical(other.albumCount, albumCount) || other.albumCount == albumCount)&&(identical(other.songCount, songCount) || other.songCount == songCount));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is Artist&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.imageUrl, imageUrl) || other.imageUrl == imageUrl)&&(identical(other.genre, genre) || other.genre == genre)&&const DeepCollectionEquality().equals(other.genres, genres)&&(identical(other.origine, origine) || other.origine == origine)&&(identical(other.albumCount, albumCount) || other.albumCount == albumCount)&&(identical(other.songCount, songCount) || other.songCount == songCount));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,name,imageUrl,genre,albumCount,songCount);
+int get hashCode => Object.hash(runtimeType,id,name,imageUrl,genre,const DeepCollectionEquality().hash(genres),origine,albumCount,songCount);
 
 @override
 String toString() {
-  return 'Artist(id: $id, name: $name, imageUrl: $imageUrl, genre: $genre, albumCount: $albumCount, songCount: $songCount)';
+  return 'Artist(id: $id, name: $name, imageUrl: $imageUrl, genre: $genre, genres: $genres, origine: $origine, albumCount: $albumCount, songCount: $songCount)';
 }
 
 
@@ -48,7 +51,7 @@ abstract mixin class $ArtistCopyWith<$Res>  {
   factory $ArtistCopyWith(Artist value, $Res Function(Artist) _then) = _$ArtistCopyWithImpl;
 @useResult
 $Res call({
- int id, String name, String? imageUrl, String? genre, int albumCount, int songCount
+ int id, String name, String? imageUrl, String? genre, List<String> genres, String? origine, int albumCount, int songCount
 });
 
 
@@ -65,12 +68,14 @@ class _$ArtistCopyWithImpl<$Res>
 
 /// Create a copy of Artist
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? name = null,Object? imageUrl = freezed,Object? genre = freezed,Object? albumCount = null,Object? songCount = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? name = null,Object? imageUrl = freezed,Object? genre = freezed,Object? genres = null,Object? origine = freezed,Object? albumCount = null,Object? songCount = null,}) {
   return _then(_self.copyWith(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as int,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
 as String,imageUrl: freezed == imageUrl ? _self.imageUrl : imageUrl // ignore: cast_nullable_to_non_nullable
 as String?,genre: freezed == genre ? _self.genre : genre // ignore: cast_nullable_to_non_nullable
+as String?,genres: null == genres ? _self.genres : genres // ignore: cast_nullable_to_non_nullable
+as List<String>,origine: freezed == origine ? _self.origine : origine // ignore: cast_nullable_to_non_nullable
 as String?,albumCount: null == albumCount ? _self.albumCount : albumCount // ignore: cast_nullable_to_non_nullable
 as int,songCount: null == songCount ? _self.songCount : songCount // ignore: cast_nullable_to_non_nullable
 as int,
@@ -158,10 +163,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( int id,  String name,  String? imageUrl,  String? genre,  int albumCount,  int songCount)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( int id,  String name,  String? imageUrl,  String? genre,  List<String> genres,  String? origine,  int albumCount,  int songCount)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _Artist() when $default != null:
-return $default(_that.id,_that.name,_that.imageUrl,_that.genre,_that.albumCount,_that.songCount);case _:
+return $default(_that.id,_that.name,_that.imageUrl,_that.genre,_that.genres,_that.origine,_that.albumCount,_that.songCount);case _:
   return orElse();
 
 }
@@ -179,10 +184,10 @@ return $default(_that.id,_that.name,_that.imageUrl,_that.genre,_that.albumCount,
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( int id,  String name,  String? imageUrl,  String? genre,  int albumCount,  int songCount)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( int id,  String name,  String? imageUrl,  String? genre,  List<String> genres,  String? origine,  int albumCount,  int songCount)  $default,) {final _that = this;
 switch (_that) {
 case _Artist():
-return $default(_that.id,_that.name,_that.imageUrl,_that.genre,_that.albumCount,_that.songCount);case _:
+return $default(_that.id,_that.name,_that.imageUrl,_that.genre,_that.genres,_that.origine,_that.albumCount,_that.songCount);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -199,10 +204,10 @@ return $default(_that.id,_that.name,_that.imageUrl,_that.genre,_that.albumCount,
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( int id,  String name,  String? imageUrl,  String? genre,  int albumCount,  int songCount)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( int id,  String name,  String? imageUrl,  String? genre,  List<String> genres,  String? origine,  int albumCount,  int songCount)?  $default,) {final _that = this;
 switch (_that) {
 case _Artist() when $default != null:
-return $default(_that.id,_that.name,_that.imageUrl,_that.genre,_that.albumCount,_that.songCount);case _:
+return $default(_that.id,_that.name,_that.imageUrl,_that.genre,_that.genres,_that.origine,_that.albumCount,_that.songCount);case _:
   return null;
 
 }
@@ -214,13 +219,26 @@ return $default(_that.id,_that.name,_that.imageUrl,_that.genre,_that.albumCount,
 @JsonSerializable()
 
 class _Artist implements Artist {
-  const _Artist({required this.id, required this.name, this.imageUrl, this.genre, this.albumCount = 0, this.songCount = 0});
+  const _Artist({required this.id, required this.name, this.imageUrl, this.genre, final  List<String> genres = const <String>[], this.origine, this.albumCount = 0, this.songCount = 0}): _genres = genres;
   factory _Artist.fromJson(Map<String, dynamic> json) => _$ArtistFromJson(json);
 
 @override final  int id;
 @override final  String name;
 @override final  String? imageUrl;
 @override final  String? genre;
+/// Tous ses genres, le principal en tête (serveur 1.20.0) ; [genre] reste
+/// le principal, pour les serveurs d'avant.
+ final  List<String> _genres;
+/// Tous ses genres, le principal en tête (serveur 1.20.0) ; [genre] reste
+/// le principal, pour les serveurs d'avant.
+@override@JsonKey() List<String> get genres {
+  if (_genres is EqualUnmodifiableListView) return _genres;
+  // ignore: implicit_dynamic_type
+  return EqualUnmodifiableListView(_genres);
+}
+
+/// D'où vient l'artiste (Québec, France…), à part des genres.
+@override final  String? origine;
 @override@JsonKey() final  int albumCount;
 @override@JsonKey() final  int songCount;
 
@@ -237,16 +255,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _Artist&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.imageUrl, imageUrl) || other.imageUrl == imageUrl)&&(identical(other.genre, genre) || other.genre == genre)&&(identical(other.albumCount, albumCount) || other.albumCount == albumCount)&&(identical(other.songCount, songCount) || other.songCount == songCount));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _Artist&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.imageUrl, imageUrl) || other.imageUrl == imageUrl)&&(identical(other.genre, genre) || other.genre == genre)&&const DeepCollectionEquality().equals(other._genres, _genres)&&(identical(other.origine, origine) || other.origine == origine)&&(identical(other.albumCount, albumCount) || other.albumCount == albumCount)&&(identical(other.songCount, songCount) || other.songCount == songCount));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,name,imageUrl,genre,albumCount,songCount);
+int get hashCode => Object.hash(runtimeType,id,name,imageUrl,genre,const DeepCollectionEquality().hash(_genres),origine,albumCount,songCount);
 
 @override
 String toString() {
-  return 'Artist(id: $id, name: $name, imageUrl: $imageUrl, genre: $genre, albumCount: $albumCount, songCount: $songCount)';
+  return 'Artist(id: $id, name: $name, imageUrl: $imageUrl, genre: $genre, genres: $genres, origine: $origine, albumCount: $albumCount, songCount: $songCount)';
 }
 
 
@@ -257,7 +275,7 @@ abstract mixin class _$ArtistCopyWith<$Res> implements $ArtistCopyWith<$Res> {
   factory _$ArtistCopyWith(_Artist value, $Res Function(_Artist) _then) = __$ArtistCopyWithImpl;
 @override @useResult
 $Res call({
- int id, String name, String? imageUrl, String? genre, int albumCount, int songCount
+ int id, String name, String? imageUrl, String? genre, List<String> genres, String? origine, int albumCount, int songCount
 });
 
 
@@ -274,12 +292,14 @@ class __$ArtistCopyWithImpl<$Res>
 
 /// Create a copy of Artist
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? name = null,Object? imageUrl = freezed,Object? genre = freezed,Object? albumCount = null,Object? songCount = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? name = null,Object? imageUrl = freezed,Object? genre = freezed,Object? genres = null,Object? origine = freezed,Object? albumCount = null,Object? songCount = null,}) {
   return _then(_Artist(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as int,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
 as String,imageUrl: freezed == imageUrl ? _self.imageUrl : imageUrl // ignore: cast_nullable_to_non_nullable
 as String?,genre: freezed == genre ? _self.genre : genre // ignore: cast_nullable_to_non_nullable
+as String?,genres: null == genres ? _self._genres : genres // ignore: cast_nullable_to_non_nullable
+as List<String>,origine: freezed == origine ? _self.origine : origine // ignore: cast_nullable_to_non_nullable
 as String?,albumCount: null == albumCount ? _self.albumCount : albumCount // ignore: cast_nullable_to_non_nullable
 as int,songCount: null == songCount ? _self.songCount : songCount // ignore: cast_nullable_to_non_nullable
 as int,

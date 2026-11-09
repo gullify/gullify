@@ -29,7 +29,7 @@ final genreTaxonomyProvider = FutureProvider<GenreTaxonomy>(
 );
 
 /// La suggestion des catalogues pour un artiste (choix manuel du genre) :
-/// MusicBrainz, puis Deezer, puis Apple Music tant que rien n'est sorti.
+/// Last.fm, puis MusicBrainz, Deezer et Apple Music tant que rien n'est sorti.
 /// Interrogée seulement quand le dialogue s'ouvre : ce sont des allers-retours
 /// réseau côté serveur, et le résultat y est gardé en cache un mois.
 final genreSuggestionProvider =
@@ -51,6 +51,29 @@ final artistsByGenreProvider = FutureProvider.family<List<Artist>, String>(
 /// Albums d'un genre donné.
 final albumsByGenreProvider = FutureProvider.family<List<Album>, String>(
   (ref, genre) => ref.watch(libraryRepositoryProvider).albums(genre: genre),
+);
+
+/// D'où viennent les artistes de la bibliothèque (Québec, France…).
+final originesProvider = FutureProvider<List<GenreCount>>(
+  (ref) => ref.watch(libraryRepositoryProvider).origines(),
+);
+
+/// Une facette de la bibliothèque : un genre, une origine, ou les deux
+/// croisés (Rock venu du Québec).
+typedef Facette = ({String? genre, String? origine});
+
+/// Artistes d'une facette, chacun avec ses genres et son origine.
+final artistsByFacetProvider = FutureProvider.family<List<Artist>, Facette>(
+  (ref, f) => ref
+      .watch(libraryRepositoryProvider)
+      .artistsByFacet(genre: f.genre, origine: f.origine),
+);
+
+/// Albums d'une facette.
+final albumsByFacetProvider = FutureProvider.family<List<Album>, Facette>(
+  (ref, f) => ref
+      .watch(libraryRepositoryProvider)
+      .albums(genre: f.genre, origine: f.origine),
 );
 
 /// Les millésimes présents dans la bibliothèque (vue « Années », idée #80).

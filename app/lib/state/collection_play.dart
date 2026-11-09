@@ -32,19 +32,31 @@ Future<List<Song>> titresDeLArtiste(LibraryRepository repo, int artistId) async 
 /// rend rien, on rassemble le genre artiste par artiste plutôt que de laisser
 /// le silence. [shuffle] garde la liste telle quelle ; sinon elle est remise
 /// en ordre.
+///
+/// [origine] restreint aux artistes venus de là (Rock venu du Québec).
 Future<List<Song>> titresDuGenre(
   LibraryRepository repo,
   String genre, {
   required bool shuffle,
+  String? origine,
   int limit = 500,
   void Function(String message)? journal,
 }) async {
   var songs = await repo.randomSongs(
     limit: limit,
-    source: GameSource(mode: GameSourceMode.genres, genres: [genre]),
+    source: GameSource(
+      mode: GameSourceMode.genres,
+      genres: [genre],
+      origines: [?origine],
+    ),
   );
   if (songs.isEmpty) {
-    songs = await _titresParArtiste(repo, genre, journal: journal);
+    songs = await _titresParArtiste(
+      repo,
+      genre,
+      origine: origine,
+      journal: journal,
+    );
     if (songs.isNotEmpty) songs = songs.toList()..shuffle();
   }
   journal?.call('genre « $genre » : ${songs.length} titres '
@@ -58,11 +70,14 @@ Future<List<Song>> titresDuGenre(
 /// attendre. Un artiste illisible est simplement sauté.
 Future<List<Song>> _titresParArtiste(
   LibraryRepository repo,
-  String genre, {
+  String? genre, {
+  String? origine,
   void Function(String message)? journal,
 }) async {
   const maxArtists = 8;
-  final artists = await repo.artistsByGenre(genre);
+  final artists = origine == null
+      ? await repo.artistsByGenre(genre!)
+      : await repo.artistsByFacet(genre: genre, origine: origine);
   if (artists.isEmpty) return const [];
   final picked = artists.toList()..shuffle();
   final songs = <Song>[];
@@ -75,6 +90,39 @@ Future<List<Song>> _titresParArtiste(
   }
   journal?.call('genre « $genre » : repli par artiste, ${songs.length} titres');
   return songs;
+}
+
+/// Les titres d'une origine (tout le Québec, toute la France…), croisée à un
+/// [genre] s'il est donné. Même repli que le genre : artiste par artiste.
+Future<List<Song>> titresDeLOrigine(
+  LibraryRepository repo,
+  String origine, {
+  required bool shuffle,
+  String? genre,
+  int limit = 500,
+  void Function(String message)? journal,
+}) async {
+  if (genre != null) {
+    return titresDuGenre(
+      repo,
+      genre,
+      shuffle: shuffle,
+      origine: origine,
+      limit: limit,
+      journal: journal,
+    );
+  }
+  var songs = await repo.randomSongs(
+    limit: limit,
+    source: GameSource(origines: [origine]),
+  );
+  if (songs.isEmpty) {
+    songs = await _titresParArtiste(repo, null, origine: origine, journal: journal);
+    if (songs.isNotEmpty) songs = songs.toList()..shuffle();
+  }
+  journal?.call('origine « $origine » : ${songs.length} titres '
+      '(${shuffle ? 'aléatoire' : 'tout lire'})');
+  return shuffle ? songs : enOrdreDeBibliotheque(songs);
 }
 
 /// Les titres d'une année : la radio « machine à remonter le temps » quand on

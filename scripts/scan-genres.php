@@ -1,21 +1,26 @@
 <?php
 /**
- * Genre Scanner
+ * Genre Scanner — les genres (jusqu'à trois) et l'origine de chaque artiste.
  *
- * Priority chain per artist:
- *   1. ID3 tags from sample files (majority vote) — preserves manual tags
- *   2. Online catalogues (src/GenreLookup.php): MusicBrainz, then Deezer, then
- *      Apple Music — each consulted only while nothing has come out
+ * Par artiste :
+ *   1. Last.fm (clé LASTFM_API_KEY), puis les tags ID3 de ses fichiers (vote à
+ *      la majorité), puis MusicBrainz, Deezer et Apple Music — chacun consulté
+ *      seulement tant que rien n'est sorti (src/GenreLookup.php) ;
+ *   2. l'origine (Québec, France…) : étiquettes Last.fm, ou région MusicBrainz.
  *
- * Whatever the source, the answer always comes from the closed list of main
- * genres (src/GenreTaxonomy.php): tags that map to nothing ("Music", "seen
- * live", "Noquarterpunk") are dropped rather than written to the library, so
- * an artist stays untagged until something real turns up.
+ * Quelle que soit la source, les genres sortent de la liste fermée
+ * (src/GenreTaxonomy.php) et les origines de la leur (src/Origine.php).
+ *
+ * Un scan ordinaire traite les artistes sans genre ET ceux que l'analyse
+ * Last.fm n'a pas encore vus (`genres_analyse`) : ceux-là gardent leur genre
+ * principal, et gagnent leurs genres secondaires et leur origine. --force
+ * refait tout, genre principal compris. Ce qui a été choisi à la main dans
+ * l'app (`genres_manuel`, `origine_manuelle`) n'est JAMAIS touché.
  *
  * Usage:
  *   php scan-genres.php [username] [--force] [--dry-run] [--limit=N]
  *
- *   --force     overwrite genres that are already set (default: skip tagged artists)
+ *   --force     recompute every artist (manual choices excepted)
  *   --dry-run   show what would be written, touch nothing
  *   --limit=N   stop after N artists processed (handy with --dry-run)
  */
@@ -81,6 +86,7 @@ function updateProgress(array $data): void {
 require_once __DIR__ . '/../src/PathHelper.php';
 require_once __DIR__ . '/../src/GenreTaxonomy.php';
 require_once __DIR__ . '/../src/GenreLookup.php';
+require_once __DIR__ . '/../src/ArtisteGenres.php';
 require_once AppConfig::getVendorPath() . '/getid3/getid3.php';
 
 // ── Les catalogues ────────────────────────────────────────────────────────
@@ -95,7 +101,7 @@ require_once AppConfig::getVendorPath() . '/getid3/getid3.php';
  * number of files carrying a tag is its vote count, so a lone oddball tag
  * loses to the genre written on the rest of the discography.
  */
-function id3GenreFromFiles(array $filePaths, getID3 $getID3): ?string {
+function id3GenresFromFiles(array $filePaths, getID3 $getID3): array {
     $counts = [];
     foreach ($filePaths as $path) {
         if (!file_exists($path)) continue;
@@ -121,40 +127,44 @@ function id3GenreFromFiles(array $filePaths, getID3 $getID3): ?string {
             // Corrupted / unsupported file — skip
         }
     }
-    if (empty($counts)) return null;
+    if (empty($counts)) return [];
 
     $tags = [];
     foreach ($counts as $name => $count) {
         $tags[] = ['name' => (string)$name, 'count' => $count];
     }
 
-    return GenreTaxonomy::pickFromTags($tags);
+    return GenreTaxonomy::pickManyFromTags($tags, GenreLookup::MAX_GENRES);
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 try {
     $db       = AppConfig::getDB();
+    ArtisteGenres::assurerTable($db);
     $getID3   = new getID3();
     $basePath = rtrim(AppConfig::getMusicBasePath(), '/') . '/';
+    $lastfm   = trim((string)AppConfig::get('lastfm.api_key')) !== '';
 
-    echo "Taxonomy: " . count(GenreTaxonomy::ALL) . " main genres.\n";
-    echo "Mode: " . ($force ? 'force (overwrite existing genres)' : 'skip already-tagged artists');
+    echo "Taxonomy: " . count(GenreTaxonomy::ALL) . " main genres, " . count(Origine::ALL) . " origins.\n";
+    echo "Last.fm: " . ($lastfm ? 'yes' : 'no key (MusicBrainz, Deezer, Apple Music only)') . "\n";
+    echo "Mode: " . ($force ? 'force (recompute, manual choices kept)' : 'new and not-yet-analysed artists');
     if ($dryRun) echo " — dry run (nothing written)";
     if ($limit)  echo " — limited to {$limit} artists";
     echo "\n\n";
 
-    // Artists to process
+    $cols = "id, name, user, genre, origine, genres_manuel, origine_manuelle, genres_analyse";
     if ($targetArtist) {
-        $stmt = $db->prepare("SELECT id, name, user, genre FROM artists WHERE id = ?");
+        $stmt = $db->prepare("SELECT $cols FROM artists WHERE id = ?");
         $stmt->execute([$targetArtist]);
     } elseif ($targetUser) {
-        $stmt = $db->prepare("SELECT id, name, user, genre FROM artists WHERE user = ?");
+        $stmt = $db->prepare("SELECT $cols FROM artists WHERE user = ?");
         $stmt->execute([$targetUser]);
     } else {
-        $stmt = $db->query("SELECT id, name, user, genre FROM artists");
+        $stmt = $db->query("SELECT $cols FROM artists");
     }
     $artists      = $stmt->fetchAll(PDO::FETCH_ASSOC);
     $totalArtists = count($artists);
+    $existants    = ArtisteGenres::lire($db, array_column($artists, 'id'));
 
     echo "Found {$totalArtists} artists.\n\n";
 
@@ -167,14 +177,19 @@ try {
     ]);
 
     $updatedCount = 0;
-    $skippedCount = 0;  // déjà taggés, laissés tels quels
+    $skippedCount = 0;  // rien à faire (déjà analysés, ou choisis à la main)
     $noGenreCount = 0;  // cherchés, rien de probant trouvé
     $onlineCount  = 0;  // trouvés par les catalogues en ligne
+    $origineCount = 0;  // origine trouvée
+    $traites      = 0;
 
     foreach ($artists as $index => $artist) {
-        $artistId   = (int)$artist['id'];
-        $artistName = $artist['name'];
-        $hasGenre   = !empty($artist['genre']);
+        $artistId    = (int)$artist['id'];
+        $artistName  = $artist['name'];
+        $hasGenre    = !empty($artist['genre']);
+        $genresMain  = (bool)$artist['genres_manuel'];
+        $origineMain = (bool)$artist['origine_manuelle'];
+        $analyse     = !empty($artist['genres_analyse']);
 
         updateProgress([
             'status'         => 'scanning',
@@ -184,63 +199,90 @@ try {
             'current_artist' => $artistName,
         ]);
 
-        // Skip if already tagged and not forcing
-        if ($hasGenre && !$force) {
+        // Ce qu'il y a à chercher pour cet artiste.
+        $chercherGenres  = !$genresMain && ($force || !$hasGenre || !$analyse);
+        $chercherOrigine = !$origineMain && ($force || (empty($artist['origine']) && !$analyse));
+        if (!$chercherGenres && !$chercherOrigine) {
             $skippedCount++;
             continue;
         }
+        $traites++;
 
-        // ── Step 1: ID3 tags ─────────────────────────────────────────────────
-        $stmtSongs = $db->prepare("
-            SELECT s.file_path
-            FROM   songs s
-            JOIN   albums al ON s.album_id = al.id
-            WHERE  al.artist_id = ?
-            ORDER  BY RAND()
-            LIMIT  20
-        ");
-        $stmtSongs->execute([$artistId]);
-        $filePaths = array_map(
-            fn($r) => $basePath . $r['file_path'],
-            $stmtSongs->fetchAll(PDO::FETCH_ASSOC)
-        );
-
-        $genre = id3GenreFromFiles($filePaths, $getID3);
-        $source = 'id3';
-
-        // ── Step 2: les catalogues en ligne ──────────────────────────────────
+        // ── Les catalogues en ligne (Last.fm d'abord) ────────────────────────
         // Un scan de fond peut insister (3 essais) : personne n'attend devant
         // son téléphone.
-        if (!$genre && function_exists('curl_init')) {
-            $found = GenreLookup::suggest($artistName, 10, 3);
-            if ($found['genre']) {
-                $genre  = $found['genre'];
-                $source = $found['source'] ?? 'catalogue';
-                $onlineCount++;
+        $found = function_exists('curl_init')
+            ? GenreLookup::suggest($artistName, 10, 3, $chercherOrigine)
+            : ['genres' => [], 'source' => null, 'origine' => null, 'origine_source' => null];
+
+        $genres = [];
+        $source = null;
+        if ($chercherGenres) {
+            // Last.fm a le premier mot ; puis les tags des fichiers ; puis les
+            // autres catalogues (déjà interrogés par suggest, à défaut).
+            if ($found['genres'] && $found['source'] === 'lastfm') {
+                [$genres, $source] = [$found['genres'], 'lastfm'];
+            } else {
+                $stmtSongs = $db->prepare("
+                    SELECT s.file_path
+                    FROM   songs s
+                    JOIN   albums al ON s.album_id = al.id
+                    WHERE  al.artist_id = ?
+                    ORDER  BY RAND()
+                    LIMIT  20
+                ");
+                $stmtSongs->execute([$artistId]);
+                $filePaths = array_map(
+                    fn($r) => $basePath . $r['file_path'],
+                    $stmtSongs->fetchAll(PDO::FETCH_ASSOC)
+                );
+                $genres = id3GenresFromFiles($filePaths, $getID3);
+                $source = 'id3';
+                if (!$genres && $found['genres']) {
+                    [$genres, $source] = [$found['genres'], $found['source']];
+                }
+            }
+
+            // Sans --force, un artiste déjà rangé garde son genre principal :
+            // l'analyse lui ajoute ce qui lui manque, elle ne le déménage pas.
+            if ($hasGenre && !$force) {
+                // Ce qui traîne d'un vieux tag est remis d'aplomb au passage :
+                // « Music » ou « Other » s'en vont, « Indie » devient
+                // « Alternatif / Indie ». Un nom que la liste ne connaît pas du
+                // tout (un genre saisi à la main) reste tel quel.
+                $deja = [];
+                foreach ($existants[$artistId]['genres'] ?? [$artist['genre']] as $g) {
+                    if (GenreTaxonomy::isCanonical($g)) $deja[] = $g;
+                    elseif (!GenreTaxonomy::isNoise($g)) $deja[] = GenreTaxonomy::classify($g) ?? $g;
+                }
+                $genres = ArtisteGenres::nettoyer(array_merge($deja, $genres), GenreLookup::MAX_GENRES);
             }
         }
 
-        if (!$genre) {
-            $noGenreCount++;
-            echo "  [{$index}/{$totalArtists}] {$artistName} → (no genre found)\n";
-            if ($limit && ($updatedCount + $noGenreCount) >= $limit) {
-                echo "\nLimit reached ({$limit}).\n";
-                break;
-            }
-            continue;
-        }
+        $origine = $chercherOrigine ? $found['origine'] : null;
+        if ($origine !== null) $origineCount++;
+        if ($genres && $source !== 'id3' && $source !== null) $onlineCount++;
+
+        $avant = $existants[$artistId]['genres'] ?? [];
+        $ligne = "  [{$index}/{$totalArtists}] {$artistName} → "
+            . ($genres ? implode(', ', $genres) . " ({$source})" : ($chercherGenres ? '(no genre found)' : '(genres kept)'))
+            . ($origine !== null ? " · {$origine} ({$found['origine_source']})" : '');
+        echo $ligne . "\n";
+
+        if ($chercherGenres && !$genres) $noGenreCount++;
+        elseif ($genres && $genres !== $avant) $updatedCount++;
 
         // ── Persist ──────────────────────────────────────────────────────────
         if (!$dryRun) {
-            $db->prepare("UPDATE artists SET genre = ? WHERE id = ?")->execute([$genre, $artistId]);
-            $db->prepare("UPDATE albums SET genre = ? WHERE artist_id = ? AND (genre IS NULL OR genre = '')")
-               ->execute([$genre, $artistId]);
+            if ($genres) ArtisteGenres::poser($db, $artistId, $genres, false);
+            if ($origine !== null) {
+                $db->prepare('UPDATE artists SET origine = ? WHERE id = ? AND origine_manuelle = 0')
+                   ->execute([$origine, $artistId]);
+            }
+            $db->prepare('UPDATE artists SET genres_analyse = NOW() WHERE id = ?')->execute([$artistId]);
         }
 
-        $updatedCount++;
-        echo "  [{$index}/{$totalArtists}] {$artistName} → {$genre} ({$source})\n";
-
-        if ($limit && ($updatedCount + $noGenreCount) >= $limit) {
+        if ($limit && $traites >= $limit) {
             echo "\nLimit reached ({$limit}).\n";
             break;
         }
@@ -255,12 +297,14 @@ try {
         'updated'        => $updatedCount,
         'skipped'        => $skippedCount + $noGenreCount,
         'musicbrainz'    => $onlineCount,
+        'origines'       => $origineCount,
     ]);
 
     echo "\n✓ Genre scan complete!\n";
     echo "  Updated : {$updatedCount} artists\n";
     echo "  Via les catalogues en ligne : {$onlineCount}\n";
-    echo "  Already tagged : {$skippedCount} artists\n";
+    echo "  Origine trouvée : {$origineCount}\n";
+    echo "  Nothing to do : {$skippedCount} artists\n";
     echo "  No genre found : {$noGenreCount} artists\n";
 
 } catch (Throwable $e) {

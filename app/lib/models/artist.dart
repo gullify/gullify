@@ -10,6 +10,13 @@ abstract class Artist with _$Artist {
     required String name,
     String? imageUrl,
     String? genre,
+
+    /// Tous ses genres, le principal en tête (serveur 1.20.0) ; [genre] reste
+    /// le principal, pour les serveurs d'avant.
+    @Default(<String>[]) List<String> genres,
+
+    /// D'où vient l'artiste (Québec, France…), à part des genres.
+    String? origine,
     @Default(0) int albumCount,
     @Default(0) int songCount,
   }) = _Artist;

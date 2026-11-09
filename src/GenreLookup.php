@@ -2,19 +2,21 @@
 /**
  * Gullify — Le genre d'un artiste, demandé à plusieurs sources.
  *
- * MusicBrainz est la source de référence, mais elle ne connaît qu'une partie
- * du monde : sur une bibliothèque d'ici, l'artiste n'y figure souvent pas, ou
- * n'y porte aucune étiquette — et le rangement à la main restait sans
- * suggestion une fois sur deux (idée #54). On demande donc, À DÉFAUT, à deux
- * catalogues qui connaissent bien la musique québécoise :
+ * Last.fm d'abord (quand le serveur a une clé, LASTFM_API_KEY) : ses
+ * étiquettes sont votées par des millions d'auditeurs et connaissent bien la
+ * scène d'ici, là où MusicBrainz ne connaît souvent pas l'artiste ou ne lui
+ * met aucune étiquette. Puis, À DÉFAUT :
  *
- *   1. MusicBrainz — les tags votés de la communauté, riches quand ils sont là ;
- *   2. Deezer — le genre de chaque album de l'artiste, compté (aucune clé) ;
- *   3. Apple Music (iTunes Search) — un genre principal par artiste (aucune clé).
+ *   1. Last.fm — les étiquettes pesées (« folk », « rock », « quebec »…) ;
+ *   2. MusicBrainz — les tags votés de la communauté, riches quand ils sont là ;
+ *   3. Deezer — le genre de chaque album de l'artiste, compté (aucune clé) ;
+ *   4. Apple Music (iTunes Search) — un genre principal par artiste (aucune clé).
  *
- * Les sources suivantes ne sont interrogées que tant que rien n'est sorti : un
- * artiste bien connu de MusicBrainz ne coûte pas un aller-retour de plus
- * qu'avant, et l'ordre garde à MusicBrainz le dernier mot quand il en a un.
+ * Les sources suivantes ne sont interrogées que tant que rien n'est sorti.
+ *
+ * Un artiste a jusqu'à trois genres (le principal en tête), et une ORIGINE à
+ * part (Québec, France…, voir Origine.php) : tirée des mêmes étiquettes
+ * Last.fm, ou de la région que MusicBrainz lui connaît.
  *
  * Comme dans MusicBrainz.php, rien ici ne DÉCIDE d'un genre : chaque source
  * rend des étiquettes pesées, et c'est GenreTaxonomy qui tranche.
@@ -22,6 +24,7 @@
 
 require_once __DIR__ . '/GenreTaxonomy.php';
 require_once __DIR__ . '/MusicBrainz.php';
+require_once __DIR__ . '/Origine.php';
 
 class GenreLookup
 {
@@ -66,24 +69,38 @@ class GenreLookup
     /** Étiquettes rapportées à l'app : de quoi montrer d'où vient la suggestion. */
     private const MAX_TAGS = 6;
 
+    /** Genres retenus par artiste, principal compris. */
+    public const MAX_GENRES = 3;
+
     /**
-     * Le genre d'un artiste, la source qui l'a donné, et les étiquettes qui y
-     * ont mené.
+     * Le genre d'un artiste (et ses genres, son origine), la source qui l'a
+     * donné, et les étiquettes qui y ont mené.
      *
-     * @param int $timeout  Secondes accordées à chaque appel réseau.
-     * @param int $attempts Essais par appel MusicBrainz (voir MusicBrainz::tags).
-     * @return array{genre: string|null, tags: array<string>, source: string|null}
+     * @param int  $timeout  Secondes accordées à chaque appel réseau.
+     * @param int  $attempts Essais par appel MusicBrainz (voir MusicBrainz::tags).
+     * @param bool $origine  Chercher aussi l'origine chez MusicBrainz quand
+     *   Last.fm n'en dit rien (un appel de plus, cadencé à 1 par seconde).
+     * @return array{genre: string|null, genres: array<string>, tags: array<string>,
+     *   source: string|null, origine: string|null, origine_source: string|null}
      */
-    public static function suggest(string $artistName, int $timeout = 5, int $attempts = 2): array
+    public static function suggest(string $artistName, int $timeout = 5, int $attempts = 2, bool $origine = true): array
     {
         $names = self::candidates($artistName);
         $seen  = [];
+        $lastfmTags = null;
 
-        $sources = [
-            'musicbrainz' => static fn(): array => MusicBrainz::tags($artistName, $timeout, $attempts),
-            'deezer'      => static fn(): array => self::firstOf($names, static fn(string $n): array => self::deezerTags($n, $timeout)),
-            'itunes'      => static fn(): array => self::firstOf($names, static fn(string $n): array => self::itunesTags($n, $timeout)),
-        ];
+        $sources = [];
+        if (self::lastfmKey() !== '') {
+            $sources['lastfm'] = static function () use ($names, $timeout, &$lastfmTags): array {
+                return $lastfmTags = self::firstOf($names, static fn(string $n): array => self::lastfmTags($n, $timeout));
+            };
+        }
+        $sources['musicbrainz'] = static fn(): array => MusicBrainz::tags($artistName, $timeout, $attempts);
+        $sources['deezer']      = static fn(): array => self::firstOf($names, static fn(string $n): array => self::deezerTags($n, $timeout));
+        $sources['itunes']      = static fn(): array => self::firstOf($names, static fn(string $n): array => self::itunesTags($n, $timeout));
+
+        $result = ['genre' => null, 'genres' => [], 'tags' => [], 'source' => null,
+                   'origine' => null, 'origine_source' => null];
 
         foreach ($sources as $source => $fetch) {
             $tags = self::sorted($fetch());
@@ -92,23 +109,88 @@ class GenreLookup
                 $seen[$key] ??= $tag['name'];
             }
 
-            $genre = GenreTaxonomy::pickFromTags($tags);
-            if ($genre !== null) {
-                return [
-                    'genre'  => $genre,
-                    'tags'   => array_slice(array_values($seen), 0, self::MAX_TAGS),
-                    'source' => $source,
-                ];
+            $genres = GenreTaxonomy::pickManyFromTags($tags, self::MAX_GENRES);
+            if ($genres) {
+                $result['genre']  = $genres[0];
+                $result['genres'] = $genres;
+                $result['source'] = $source;
+                break;
+            }
+        }
+
+        // L'origine : les étiquettes Last.fm d'abord (déjà lues), la région
+        // MusicBrainz à défaut.
+        if ($lastfmTags) {
+            $result['origine'] = Origine::depuisTags($lastfmTags);
+            if ($result['origine'] !== null) $result['origine_source'] = 'lastfm';
+        }
+        if ($result['origine'] === null && $origine) {
+            $result['origine'] = MusicBrainz::origine($artistName, $timeout, $attempts);
+            if ($result['origine'] !== null) $result['origine_source'] = 'musicbrainz';
+        } elseif ($origine && in_array($result['origine'], [Origine::CANADA, Origine::FRANCE], true)) {
+            // Deux étiquettes ambiguës : « canadian » se dit aussi des
+            // artistes d'ici (Céline Dion), et « french » de qui chante en
+            // français (Les Denis Drolet). MusicBrainz, qui connaît le pays et
+            // la ville natale, tranche quand il sait.
+            $precise = MusicBrainz::origine($artistName, $timeout, $attempts);
+            $corrige = $result['origine'] === Origine::CANADA
+                ? in_array($precise, [Origine::QUEBEC, Origine::ACADIE], true)
+                : $precise !== null && $precise !== Origine::FRANCE;
+            if ($corrige) {
+                $result['origine'] = $precise;
+                $result['origine_source'] = 'musicbrainz';
             }
         }
 
         // Rien de net nulle part : on rend quand même ce qu'on a lu, le
         // dialogue le montre pour que le choix reste éclairé.
-        return [
-            'genre'  => null,
-            'tags'   => array_slice(array_values($seen), 0, self::MAX_TAGS),
-            'source' => null,
-        ];
+        $result['tags'] = array_slice(array_values($seen), 0, self::MAX_TAGS);
+
+        return $result;
+    }
+
+    /**
+     * Ce que Last.fm sait d'un artiste : ses étiquettes les plus votées, le
+     * compte ramené de 0 à 100 par Last.fm lui-même. `autocorrect` rattrape
+     * les fautes courantes (« Cowboys Fringants » → « Les Cowboys Fringants »).
+     *
+     * @return array<array{name: string, count: int}>
+     */
+    public static function lastfmTags(string $artistName, int $timeout = 5): array
+    {
+        $key = self::lastfmKey();
+        if ($key === '') return [];
+
+        // Last.fm demande moins de cinq appels par seconde.
+        static $dernier = 0.0;
+        $attente = 0.22 - (microtime(true) - $dernier);
+        if ($attente > 0) usleep((int)($attente * 1_000_000));
+        $dernier = microtime(true);
+
+        $data = self::json('https://ws.audioscrobbler.com/2.0/?' . http_build_query([
+            'method'      => 'artist.gettoptags',
+            'artist'      => $artistName,
+            'api_key'     => $key,
+            'format'      => 'json',
+            'autocorrect' => 1,
+        ]), $timeout);
+
+        $tags = [];
+        foreach ($data['toptags']['tag'] ?? [] as $t) {
+            $name = trim((string)($t['name'] ?? ''));
+            if ($name === '') continue;
+            $tags[] = ['name' => $name, 'count' => (int)($t['count'] ?? 0)];
+        }
+
+        return $tags;
+    }
+
+    /** La clé Last.fm du serveur, ou '' (la source est alors sautée). */
+    private static function lastfmKey(): string
+    {
+        if (!class_exists('AppConfig')) return '';
+
+        return trim((string)AppConfig::get('lastfm.api_key'));
     }
 
     /**

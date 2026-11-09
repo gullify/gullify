@@ -51,9 +51,25 @@ CREATE TABLE IF NOT EXISTS artists (
     album_count INT DEFAULT 0,
     song_count INT DEFAULT 0,
     genre VARCHAR(100) NULL,
+    origine VARCHAR(60) NULL,
+    genres_manuel TINYINT(1) NOT NULL DEFAULT 0,
+    origine_manuelle TINYINT(1) NOT NULL DEFAULT 0,
+    genres_analyse DATETIME NULL,
     INDEX idx_artists_user (user),
     INDEX idx_artists_name (name),
-    INDEX idx_artists_genre (genre)
+    INDEX idx_artists_genre (genre),
+    INDEX idx_artists_origine (origine)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Les genres d'un artiste (jusqu'à trois, le principal au rang 0 — recopié
+-- dans artists.genre). Voir src/ArtisteGenres.php.
+CREATE TABLE IF NOT EXISTS artiste_genres (
+    artist_id INT NOT NULL,
+    genre VARCHAR(100) NOT NULL,
+    rang TINYINT NOT NULL DEFAULT 0,
+    PRIMARY KEY (artist_id, genre),
+    INDEX idx_artiste_genres_genre (genre),
+    FOREIGN KEY (artist_id) REFERENCES artists(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Albums

@@ -85,6 +85,79 @@ class MusicBrainz
      */
     public static function findArtistId(string $name, int $timeout = 10, int $attempts = 3): ?string
     {
+        $found = self::findArtist($name, $timeout, $attempts);
+
+        return $found ? (string)$found['id'] : null;
+    }
+
+    /**
+     * L'origine d'un artiste selon MusicBrainz (voir Origine::depuisMusicBrainz),
+     * ou null. La fiche de recherche porte déjà la région et le pays : un seul
+     * appel quand le nom tombe juste.
+     */
+    public static function origine(string $artistName, int $timeout = 10, int $attempts = 3): ?string
+    {
+        require_once __DIR__ . '/Origine.php';
+        $stripped = trim((string)preg_replace('/^\s*\([^)]*\)\s*/', '', $artistName));
+        foreach (array_unique(array_filter([trim($artistName), $stripped])) as $candidate) {
+            $found = self::findArtist($candidate, $timeout, $attempts);
+            if (!$found) continue;
+            $origine = Origine::depuisMusicBrainz($found);
+
+            // « Canada », mais née à Charlemagne ou à Rosaireville : on remonte
+            // de la ville à sa province (une région englobe l'autre, quelques
+            // appels au plus).
+            if ($origine === Origine::CANADA) {
+                foreach (['begin-area', 'area'] as $champ) {
+                    $lieu = $found[$champ] ?? null;
+                    if (empty($lieu['id']) || ($lieu['type'] ?? '') === 'Country') continue;
+                    $code = self::provinceDe((string)$lieu['id'], $timeout, $attempts);
+                    if ($code === 'CA-QC') return Origine::QUEBEC;
+                    if ($code !== null) break;
+                }
+            }
+            return $origine;
+        }
+
+        return null;
+    }
+
+    /**
+     * Le code ISO 3166-2 de la province (ou de l'État) qui englobe une région
+     * MusicBrainz, en remontant les « part of » ; null si on n'y arrive pas
+     * en $max marches.
+     */
+    private static function provinceDe(string $areaId, int $timeout, int $attempts, int $max = 5): ?string
+    {
+        for ($i = 0; $i < $max && $areaId !== ''; $i++) {
+            $area = self::get(
+                'https://musicbrainz.org/ws/2/area/' . rawurlencode($areaId) . '?inc=area-rels&fmt=json',
+                $timeout,
+                $attempts
+            );
+            if (!$area) return null;
+            $codes = $area['iso-3166-2-codes'] ?? [];
+            if ($codes) return (string)$codes[0];
+            if (($area['type'] ?? '') === 'Country') return null;
+
+            $areaId = '';
+            foreach ($area['relations'] ?? [] as $rel) {
+                if (($rel['type'] ?? '') === 'part of' && ($rel['direction'] ?? '') === 'backward') {
+                    $areaId = (string)($rel['area']['id'] ?? '');
+                    break;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * La fiche de recherche MusicBrainz d'un artiste (id, nom, pays, région),
+     * ou null.
+     */
+    public static function findArtist(string $name, int $timeout = 10, int $attempts = 3): ?array
+    {
         $nameLower = strtolower(trim($name));
 
         foreach (['quoted', 'loose'] as $mode) {
@@ -117,7 +190,7 @@ class MusicBrainz
                 }
             }
 
-            if ($best && !empty($best['id'])) return (string)$best['id'];
+            if ($best && !empty($best['id'])) return $best;
         }
 
         return null;

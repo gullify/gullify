@@ -29,6 +29,7 @@ class GameSource {
     this.mode = GameSourceMode.all,
     this.genres = const [],
     this.playlists = const [],
+    this.origines = const [],
   });
 
   /// Toute la bibliothèque : le réglage par défaut.
@@ -38,6 +39,11 @@ class GameSource {
   final List<String> genres;
   final List<GameSourcePlaylist> playlists;
 
+  /// L'origine des artistes (Québec, France…), croisée au vivier : « Rock »
+  /// venu du Québec, ou tout le Québec. Sert à lancer une collection ; les
+  /// jeux ne la proposent pas (serveur 1.20.0).
+  final List<String> origines;
+
   /// Le mode réellement appliqué : une sélection vide ne filtre rien, sinon
   /// le jeu n'aurait plus rien à tirer.
   GameSourceMode get effectiveMode => switch (mode) {
@@ -46,7 +52,7 @@ class GameSource {
     _ => mode,
   };
 
-  bool get isAll => effectiveMode == GameSourceMode.all;
+  bool get isAll => effectiveMode == GameSourceMode.all && origines.isEmpty;
 
   GameSource copyWith({
     GameSourceMode? mode,
@@ -77,6 +83,7 @@ class GameSource {
     'playlists': effectiveMode == GameSourceMode.playlists
         ? [for (final p in playlists) p.id]
         : const <int>[],
+    if (origines.isNotEmpty) 'origines': origines,
   };
 
   /// Paramètres de requête (vides quand rien n'est filtré, pour ne pas
@@ -128,13 +135,15 @@ class GameSource {
       other is GameSource &&
       other.mode == mode &&
       _sameStrings(other.genres, genres) &&
-      _samePlaylists(other.playlists, playlists);
+      _samePlaylists(other.playlists, playlists) &&
+      _sameStrings(other.origines, origines);
 
   @override
   int get hashCode => Object.hash(
     mode,
     Object.hashAll(genres),
     Object.hashAll(playlists),
+    Object.hashAll(origines),
   );
 
   static bool _sameStrings(List<String> a, List<String> b) {

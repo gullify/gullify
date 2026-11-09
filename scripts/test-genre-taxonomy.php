@@ -246,6 +246,76 @@ foreach ($tagCases as $label => [$tags, $want]) {
     check($label, GenreTaxonomy::pickFromTags($tags), $want);
 }
 
+// ── Plusieurs genres par artiste ──────────────────────────────────────────────
+echo "Plusieurs genres\n";
+$t = fn(array $pairs) => array_map(fn($k, $v) => ['name' => $k, 'count' => $v], array_keys($pairs), $pairs);
+$manyCases = [
+    // Le profil Last.fm d'un groupe d'ici : folk ET rock, l'origine à part.
+    'folk + rock + quebec' => [
+        $t(['folk' => 100, 'quebec' => 90, 'rock' => 70, 'francophone' => 40, 'seen live' => 10]),
+        [GenreTaxonomy::FOLK, GenreTaxonomy::ROCK],
+    ],
+    // Un genre trop faible à côté ne compte pas.
+    'secondaire sous le seuil' => [
+        $t(['rock' => 100, 'pop' => 20]),
+        [GenreTaxonomy::ROCK],
+    ],
+    // Trois au plus, le principal en tête.
+    'plafond de trois' => [
+        $t(['hip hop' => 100, 'rnb' => 90, 'pop' => 80, 'electronic' => 70, 'jazz' => 60]),
+        [GenreTaxonomy::HIPHOP, GenreTaxonomy::RNB, GenreTaxonomy::POP],
+    ],
+    // Une langue n'ajoute jamais un genre.
+    'langue écartée' => [
+        $t(['metal' => 100, 'french' => 90]),
+        [GenreTaxonomy::METAL],
+    ],
+    // Deux étiquettes du même genre n'en font qu'un.
+    'même genre deux fois' => [
+        $t(['punk rock' => 100, 'punk' => 90, 'hardcore punk' => 80]),
+        [GenreTaxonomy::PUNK],
+    ],
+    'rien' => [$t(['seen live' => 100]), []],
+];
+foreach ($manyCases as $label => [$tags, $want]) {
+    check($label, GenreTaxonomy::pickManyFromTags($tags), $want);
+    // Le principal est toujours celui de pickFromTags.
+    check("$label (principal)", GenreTaxonomy::pickManyFromTags($tags)[0] ?? null, GenreTaxonomy::pickFromTags($tags));
+}
+
+// ── L'origine ─────────────────────────────────────────────────────────────────
+echo "Origine\n";
+require_once __DIR__ . '/../src/Origine.php';
+$origineCases = [
+    'quebec + canadian' => [$t(['folk' => 100, 'canadian' => 80, 'quebec' => 60]), Origine::QUEBEC],
+    'québécois accentué' => [$t(['Québécois' => 100]), Origine::QUEBEC],
+    'canadian seul' => [$t(['indie' => 100, 'canadian' => 70]), Origine::CANADA],
+    'french' => [$t(['chanson' => 100, 'french' => 60]), Origine::FRANCE],
+    'acadien' => [$t(['folk' => 100, 'acadian' => 50, 'canada' => 40]), Origine::ACADIE],
+    'le plus voté' => [$t(['rock' => 100, 'british' => 80, 'american' => 20]), Origine::ROYAUME_UNI],
+    'vote isolé ignoré' => [$t(['rock' => 100, 'pop' => 90, 'indie' => 80, 'french' => 2]), null],
+    'aucune' => [$t(['rock' => 100]), null],
+];
+foreach ($origineCases as $label => [$tags, $want]) {
+    check($label, Origine::depuisTags($tags), $want);
+}
+$mbCases = [
+    'ville du Québec' => [['country' => 'CA', 'area' => ['name' => 'Montréal']], Origine::QUEBEC],
+    'province' => [['country' => 'CA', 'area' => ['name' => 'Quebec', 'iso-3166-2-codes' => ['CA-QC']]], Origine::QUEBEC],
+    'ville natale' => [['country' => 'CA', 'area' => ['name' => 'Canada'], 'begin-area' => ['name' => 'Trois-Rivières']], Origine::QUEBEC],
+    'Moncton' => [['country' => 'CA', 'begin-area' => ['name' => 'Moncton']], Origine::ACADIE],
+    'Toronto' => [['country' => 'CA', 'area' => ['name' => 'Toronto']], Origine::CANADA],
+    'pays seul' => [['country' => 'FR'], Origine::FRANCE],
+    'pays par la région' => [['area' => ['name' => 'Belgium', 'iso-3166-1-codes' => ['BE']]], Origine::BELGIQUE],
+    'pays inconnu' => [['country' => 'XW'], null],
+    'rien' => [[], null],
+];
+foreach ($mbCases as $label => [$fiche, $want]) {
+    check("MusicBrainz : $label", Origine::depuisMusicBrainz($fiche), $want);
+}
+check('canonique', Origine::canonique('quebec'), Origine::QUEBEC);
+check('canonique inconnue', Origine::canonique('Atlantide'), null);
+
 // ── Bilan ─────────────────────────────────────────────────────────────────────
 echo "\n";
 if ($failures === 0) {

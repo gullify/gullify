@@ -32,8 +32,14 @@ class _FakeLibraryRepo extends Fake implements LibraryRepository {
   /// dialogue s'est refermé.
   final Completer<void>? pending;
 
+  /// Les genres enregistrés, joints par « + » (« Punk », « Punk+Ska »…) ;
+  /// vide = retirés.
   String? savedGenre;
   int? savedArtistId;
+
+  /// L'origine envoyée, et si elle l'a été (on ne l'envoie que touchée).
+  String? savedOrigine;
+  bool origineSent = false;
 
   /// Ce qu'il reste à ranger, tel que le serveur le dirait après
   /// l'enregistrement.
@@ -47,10 +53,17 @@ class _FakeLibraryRepo extends Fake implements LibraryRepository {
   final List<(int, String)> saves = [];
 
   @override
-  Future<void> setArtistGenre(int artistId, String genre) async {
+  Future<void> setArtistGenres(
+    int artistId,
+    List<String> genres, {
+    String? origine,
+    bool withOrigine = false,
+  }) async {
     savedArtistId = artistId;
-    savedGenre = genre;
-    saves.add((artistId, genre));
+    savedGenre = genres.join('+');
+    savedOrigine = origine;
+    origineSent = withOrigine;
+    saves.add((artistId, savedGenre!));
     if (pending != null) await pending!.future;
   }
 
@@ -105,6 +118,8 @@ class _FakeMedleyAudio implements MedleyAudio {
 Widget _wrap(
   _FakeLibraryRepo repo, {
   String? genre,
+  List<String> genres = const [],
+  String? origine,
   GenreSuggestion suggestion = const GenreSuggestion(),
   List<String> taxonomy = _taxonomy,
   List<String>? medleyUrls,
@@ -120,6 +135,7 @@ Widget _wrap(
         (ref) async => GenreTaxonomy(
           genres: [...taxonomy, 'Musique de fanfare'],
           custom: const ['Musique de fanfare'],
+          origines: const ['Québec', 'Acadie', 'France'],
         ),
       ),
       genresProvider.overrideWith((ref) async => const [
@@ -144,7 +160,14 @@ Widget _wrap(
       relatedArtistsProvider('Artiste Test').overrideWith((ref) async => []),
       prochesArtisteProvider('Artiste Test').overrideWith((ref) async => []),
       artistDetailProvider(1).overrideWith((ref) async => ArtistDetail(
-            artist: Artist(id: 1, name: 'Artiste Test', albumCount: 1, genre: genre),
+            artist: Artist(
+              id: 1,
+              name: 'Artiste Test',
+              albumCount: 1,
+              genre: genre,
+              genres: genres,
+              origine: origine,
+            ),
             albums: const [Album(id: 1, name: 'Album Test', year: 2024)],
             topTracks: const [],
           )),
@@ -191,6 +214,8 @@ void main() {
     WidgetTester tester,
     _FakeLibraryRepo repo, {
     String? genre,
+    List<String> genres = const [],
+    String? origine,
     GenreSuggestion suggestion = const GenreSuggestion(),
     List<String> taxonomy = _taxonomy,
     List<String>? medleyUrls,
@@ -201,6 +226,8 @@ void main() {
     await tester.pumpWidget(_wrap(
       repo,
       genre: genre,
+      genres: genres,
+      origine: origine,
       suggestion: suggestion,
       taxonomy: taxonomy,
       medleyUrls: medleyUrls,
@@ -237,7 +264,7 @@ void main() {
     expect(repo.savedGenre, 'Punk');
   });
 
-  testWidgets('le champ libre prend le pas sur la sélection', (tester) async {
+  testWidgets('le champ libre s\'ajoute à la sélection', (tester) async {
     final repo = _FakeLibraryRepo();
     await pump(tester, repo);
 
@@ -247,7 +274,114 @@ void main() {
     await settle(tester);
     await save(tester);
 
+    expect(repo.savedGenre, 'Punk+Turlututu');
+  });
+
+  testWidgets('seul, le champ libre devient le genre', (tester) async {
+    final repo = _FakeLibraryRepo();
+    await pump(tester, repo);
+
+    await tester.enterText(find.byType(TextField), 'Turlututu');
+    await settle(tester);
+    await save(tester);
+
     expect(repo.savedGenre, 'Turlututu');
+  });
+
+  // ── Plusieurs genres, une origine (serveur 1.20.0) ──────────────────────
+  testWidgets('plusieurs genres, dans l\'ordre où on les choisit',
+      (tester) async {
+    final repo = _FakeLibraryRepo();
+    await pump(tester, repo);
+
+    await tester.tap(find.widgetWithText(ChoiceChip, 'Métal'));
+    await settle(tester);
+    await tester.tap(find.widgetWithText(ChoiceChip, 'Punk'));
+    await settle(tester);
+    // Le principal porte une étoile, et lui seul.
+    expect(find.byIcon(Icons.star_rounded), findsOneWidget);
+    await save(tester);
+
+    expect(repo.savedGenre, 'Métal+Punk');
+    // L'origine n'a pas été touchée : elle ne part pas.
+    expect(repo.origineSent, isFalse);
+  });
+
+  testWidgets('trois genres au plus : le quatrième prend la dernière place',
+      (tester) async {
+    final repo = _FakeLibraryRepo();
+    await pump(tester, repo);
+
+    for (final g in ['Punk', 'Métal', 'Traditionnel québécois', 'Musique de fanfare']) {
+      await tester.tap(find.widgetWithText(ChoiceChip, g));
+      await settle(tester);
+    }
+    await save(tester);
+
+    expect(repo.savedGenre, 'Punk+Métal+Musique de fanfare');
+  });
+
+  testWidgets('retaper le principal le retire : le suivant prend sa place',
+      (tester) async {
+    final repo = _FakeLibraryRepo();
+    await pump(tester, repo, genre: 'Punk', genres: const ['Punk', 'Métal']);
+
+    await tester.tap(find.widgetWithText(ChoiceChip, 'Punk'));
+    await settle(tester);
+    await save(tester);
+
+    expect(repo.savedGenre, 'Métal');
+  });
+
+  testWidgets('l\'origine se choisit à part, et part avec les genres',
+      (tester) async {
+    final repo = _FakeLibraryRepo();
+    await pump(tester, repo, genre: 'Punk', genres: const ['Punk']);
+
+    await tester.tap(find.widgetWithText(ChoiceChip, 'Québec'));
+    await settle(tester);
+    await save(tester);
+
+    expect(repo.savedGenre, 'Punk');
+    expect(repo.origineSent, isTrue);
+    expect(repo.savedOrigine, 'Québec');
+  });
+
+  testWidgets('retaper l\'origine la retire', (tester) async {
+    final repo = _FakeLibraryRepo();
+    await pump(tester, repo, genre: 'Punk', genres: const ['Punk'], origine: 'France');
+
+    await tester.tap(find.widgetWithText(ChoiceChip, 'France'));
+    await settle(tester);
+    await save(tester);
+
+    expect(repo.origineSent, isTrue);
+    expect(repo.savedOrigine, isNull);
+  });
+
+  testWidgets('la suggestion prend ses genres et son origine d\'un tap',
+      (tester) async {
+    final repo = _FakeLibraryRepo();
+    await pump(
+      tester,
+      repo,
+      suggestion: const GenreSuggestion(
+        genre: 'Punk',
+        genres: ['Punk', 'Métal'],
+        origine: 'Québec',
+        tags: ['punk', 'quebec', 'metal'],
+        source: 'lastfm',
+      ),
+    );
+
+    expect(find.text('d\'après Last.fm : punk, quebec, metal'), findsOneWidget);
+    await tester.tap(find.widgetWithText(ChoiceChip, 'Punk + Métal · Québec'));
+    await settle(tester);
+    await save(tester);
+
+    expect(repo.savedGenre, 'Punk+Métal');
+    expect(repo.savedOrigine, 'Québec');
+    expect(repo.origineSent, isTrue);
   });
 
   testWidgets('« Retirer » vide le genre, et n\'apparaît que s\'il y en a un',

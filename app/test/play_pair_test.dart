@@ -149,6 +149,45 @@ void main() {
     expect(actions.played.single.map((s) => s.title), ['Repli']);
   });
 
+  testWidgets('un genre croisé à une origine ne tire que de là',
+      (tester) async {
+    final repo = _FakeRepo();
+    final actions = _FakeActions();
+
+    await tester.pumpWidget(_app(
+      const GenrePlayButtons(genre: 'Rock', origine: 'Québec'),
+      repo: repo,
+      a: actions,
+    ));
+    await tester.tap(find.text('Tout lire'));
+    await tester.pumpAndSettle();
+
+    expect(repo.lastSource?.genres, ['Rock']);
+    expect(repo.lastSource?.origines, ['Québec']);
+    expect(repo.lastSource?.toApi()['origines'], ['Québec']);
+  });
+
+  testWidgets('une origine se lance en entier', (tester) async {
+    final repo = _FakeRepo();
+    final actions = _FakeActions();
+
+    await tester.pumpWidget(_app(
+      const OriginePlayButtons(origine: 'France'),
+      repo: repo,
+      a: actions,
+    ));
+    await tester.tap(find.text('Tout lire'));
+    await tester.pumpAndSettle();
+
+    // Toute la bibliothèque, restreinte à l'origine : le filtre n'est donc
+    // pas « tout » et part bien au serveur.
+    expect(repo.lastSource?.effectiveMode, GameSourceMode.all);
+    expect(repo.lastSource?.origines, ['France']);
+    expect(repo.lastSource?.isAll, isFalse);
+    expect(repo.lastSource?.query, isNotEmpty);
+    expect(actions.played.single, hasLength(3));
+  });
+
   testWidgets('un genre vide le dit plutôt que de lancer le vide',
       (tester) async {
     final repo = _FakeRepo(pool: const []);

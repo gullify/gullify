@@ -349,6 +349,12 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (_, state) =>
             GenreScreen(genre: state.uri.queryParameters['name'] ?? ''),
       ),
+      // Une origine de la bibliothèque (Québec, France…), croisée aux genres.
+      GoRoute(
+        path: '/origine',
+        builder: (_, state) =>
+            GenreScreen(origine: state.uri.queryParameters['name'] ?? ''),
+      ),
       // La machine à remonter le temps (idée #80) : une année de la
       // bibliothèque, sa radio et ses albums.
       GoRoute(
