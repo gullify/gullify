@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
+import '../state/keep_screen_on.dart' show playerHoldsScreen;
+
 import '../audio/tuner.dart';
 import '../state/player.dart';
 import '../state/tuner.dart';
@@ -84,7 +86,8 @@ class _TunerSheetState extends ConsumerState<_TunerSheet> {
     // La source vit dans un provider (partagé, remplaçable en test) : on la
     // referme plutôt que de la laisser tenir le micro après la fermeture.
     unawaited(_source.stop());
-    _keepScreenOn(false);
+    // Ouvert depuis le lecteur : s'il tient l'écran allumé, on le lui laisse.
+    _keepScreenOn(playerHoldsScreen);
     super.dispose();
   }
 

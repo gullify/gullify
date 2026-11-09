@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 
 import '../models/song.dart';
 import '../state/favorites.dart';
+import '../state/keep_screen_on.dart';
 import '../state/player.dart';
 import '../state/sleep_timer.dart';
 import '../widgets/artwork.dart';
@@ -39,7 +40,7 @@ class NowPlayingScreen extends ConsumerWidget {
     // lecture du bas de la fenêtre : le lecteur ouvert n'a plus à les porter,
     // il montre la pochette et, à côté, ce qui suit.
     if (SideNavigationScope.visibleOf(context)) {
-      return _WideNowPlaying(item: item);
+      return KeepScreenOnScope(child: _WideNowPlaying(item: item));
     }
 
     final state = ref.watch(playbackStateProvider).value;
@@ -195,6 +196,7 @@ class NowPlayingScreen extends ConsumerWidget {
             ),
           ),
         _actionPlate(retro, const _SleepTimerButton()),
+        _actionPlate(retro, const _KeepScreenOnButton()),
         if (!isRadio && songId != null && server)
           _actionPlate(
             retro,
@@ -231,7 +233,8 @@ class NowPlayingScreen extends ConsumerWidget {
     );
 
     // Swipe vers le bas pour fermer le lecteur (en plus de la flèche).
-    return Dismissible(
+    return KeepScreenOnScope(
+      child: Dismissible(
       key: const ValueKey('now-playing'),
       direction: DismissDirection.down,
       onDismissed: (_) => context.pop(),
@@ -446,6 +449,7 @@ class NowPlayingScreen extends ConsumerWidget {
           ],
         ),
       ),
+      ),
     );
   }
 }
@@ -596,6 +600,40 @@ class _SleepTimerButton extends ConsumerWidget {
           },
         ),
       ),
+    );
+  }
+}
+
+/// Garder l'écran allumé tant que le lecteur est ouvert (comme le mode
+/// cuisine de GulliEATS) : paroles, accords, ou la pochette sur un support.
+class _KeepScreenOnButton extends ConsumerWidget {
+  const _KeepScreenOnButton();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final on = ref.watch(keepScreenOnProvider);
+    return IconButton(
+      tooltip: on ? 'L’écran reste allumé' : 'Garder l’écran allumé',
+      isSelected: on,
+      icon: Icon(
+        on ? Icons.light_mode_rounded : Icons.light_mode_outlined,
+        color: on ? Theme.of(context).colorScheme.primary : null,
+      ),
+      onPressed: () {
+        ref.read(keepScreenOnProvider.notifier).toggle();
+        ScaffoldMessenger.maybeOf(context)
+          ?..hideCurrentSnackBar()
+          ..showSnackBar(
+            SnackBar(
+              content: Text(
+                on
+                    ? 'L’écran peut de nouveau s’éteindre'
+                    : 'L’écran reste allumé tant que le lecteur est ouvert',
+              ),
+              duration: const Duration(seconds: 2),
+            ),
+          );
+      },
     );
   }
 }
@@ -985,6 +1023,7 @@ class _WideNowPlayingState extends ConsumerState<_WideNowPlaying> {
                     ),
                   ),
                 const _SleepTimerButton(),
+                const _KeepScreenOnButton(),
                 if (!isRadio && songId != null && server)
                   IconButton(
                     icon: const Icon(Icons.ios_share_rounded),

@@ -8,6 +8,9 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.94.0', [
+    'Lecteur : nouveau bouton « Garder l\'écran allumé » (le soleil, à côté de la minuterie). Tant que le lecteur est ouvert, l\'écran ne s\'éteint pas : pratique pour suivre les paroles ou les accords. Le choix est retenu, et l\'écran se remet en veille normale dès qu\'on referme le lecteur.',
+  ]),
   ReleaseNote('3.93.0', [
     'Genres : un artiste peut maintenant en avoir jusqu\'à trois (Les Cowboys Fringants : Folk et Rock). Il apparaît dans chacun, et « Tout lire » d\'un genre joue aussi les artistes qui l\'ont en second (serveur 1.20.0).',
     'Nouveau : l\'origine, à part des genres — Québec, Acadie, Canada, France, États-Unis… Bibliothèque → Genres → « Origines » ouvre tout le Québec, avec des puces pour n\'en garder que le Rock ; et dans « Rock », des puces [Québec] [France] pour ne garder que le rock d\'ici. Les deux boutons de lecture suivent le filtre.',
