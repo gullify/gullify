@@ -188,6 +188,96 @@ final class TableRecettes
         return array_values(array_filter(array_unique($h), fn($x) => preg_match('/^[0-9a-f]{64}$/', $x) === 1));
     }
 
+    // ── Transcriptions ────────────────────────────────────────────────────
+    // Une photo de recette (page de livre, fiche manuscrite) qu'une maison n'a pas de quoi lire : elle la
+    // dépose ici (ses pages d'abord, par `fichier`), l'atelier la lit avec Claude dès qu'elle arrive
+    // (scripts/transcriptions.php attendre/prendre/rendre, service gullieats-transcriptions) et la maison
+    // vient chercher le résultat. Pas de plafond : ce sont des gens, pas des robots.
+
+    public const PAGES_MAX = 30;
+
+    /** @param array<int, string> $pages empreintes déjà déposées */
+    public function demanderTranscription(string $maison, array $pages): int
+    {
+        $pages = array_values(array_unique(array_filter($pages, 'is_string')));
+        if ($pages === [] || count($pages) > self::PAGES_MAX) {
+            throw new DomainException('Entre 1 et ' . self::PAGES_MAX . ' pages.');
+        }
+        foreach ($pages as $h) {
+            if (!$this->aFichier($h)) {
+                throw new DomainException('Page manquante : envoie-la d\'abord.');
+            }
+        }
+        $this->db->prepare("INSERT INTO table_transcriptions (maison, pages, etat, essais, cree, maj)
+                            VALUES (?, ?, 'attente', 0, NOW(), NOW())")
+            ->execute([$maison, json_encode($pages)]);
+        return (int)$this->db->lastInsertId();
+    }
+
+    /** L'état d'une transcription de la maison, ou null si elle n'est pas à elle. */
+    public function transcription(string $maison, int $id): ?array
+    {
+        $q = $this->db->prepare('SELECT id, etat, resultat, erreur FROM table_transcriptions WHERE id = ? AND maison = ?');
+        $q->execute([$id, $maison]);
+        $l = $q->fetch();
+        if ($l === false) {
+            return null;
+        }
+        return ['id' => (int)$l['id'], 'etat' => $l['etat'], 'erreur' => $l['erreur'],
+                'resultat' => $l['resultat'] === null ? null : json_decode($l['resultat'], true)];
+    }
+
+    public function transcriptionsEnAttente(): int
+    {
+        $this->relancerLesOubliees();
+        return (int)$this->db->query("SELECT COUNT(*) FROM table_transcriptions WHERE etat = 'attente'")->fetchColumn();
+    }
+
+    /** La plus ancienne en attente, passée « en cours » : {id, maison, pages: [chemins]} ; null s'il n'y a rien. */
+    public function prendreTranscription(): ?array
+    {
+        $this->relancerLesOubliees();
+        // Le travail fini depuis 30 jours ne sert plus à personne.
+        $this->db->exec("DELETE FROM table_transcriptions WHERE etat IN ('faite', 'echec') AND maj < NOW() - INTERVAL 30 DAY");
+        $this->db->beginTransaction();
+        $l = $this->db->query("SELECT id, maison, pages FROM table_transcriptions WHERE etat = 'attente'
+                               ORDER BY id LIMIT 1 FOR UPDATE")->fetch();
+        if ($l === false) {
+            $this->db->commit();
+            return null;
+        }
+        $this->db->prepare("UPDATE table_transcriptions SET etat = 'en_cours', essais = essais + 1, maj = NOW() WHERE id = ?")
+            ->execute([$l['id']]);
+        $this->db->commit();
+        return ['id' => (int)$l['id'], 'maison' => $l['maison'],
+                'pages' => array_map(fn($h) => $this->chemin((string)$h), (array)json_decode($l['pages'], true))];
+    }
+
+    public function rendreTranscription(int $id, array $resultat): void
+    {
+        $json = json_encode($resultat, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        if ($json === false || strlen($json) > self::CONTENU_MAX) {
+            throw new DomainException('Résultat illisible ou trop gros.');
+        }
+        $this->db->prepare("UPDATE table_transcriptions SET etat = 'faite', resultat = ?, erreur = NULL, maj = NOW() WHERE id = ?")
+            ->execute([$json, $id]);
+    }
+
+    public function echecTranscription(int $id, string $erreur): void
+    {
+        $this->db->prepare("UPDATE table_transcriptions SET etat = 'echec', erreur = ?, maj = NOW() WHERE id = ?")
+            ->execute([mb_substr($erreur, 0, 500), $id]);
+    }
+
+    /** Une lecture interrompue (atelier redémarré) depuis 20 min repart, trois essais au plus. */
+    private function relancerLesOubliees(): void
+    {
+        $this->db->exec("UPDATE table_transcriptions SET etat = 'attente', maj = NOW()
+                         WHERE etat = 'en_cours' AND maj < NOW() - INTERVAL 20 MINUTE AND essais < 3");
+        $this->db->exec("UPDATE table_transcriptions SET etat = 'echec', erreur = 'La lecture a échoué trois fois.', maj = NOW()
+                         WHERE etat = 'en_cours' AND maj < NOW() - INTERVAL 20 MINUTE AND essais >= 3");
+    }
+
     // ── Interne ───────────────────────────────────────────────────────────
 
     /** Un numéro de changement croissant, partagé par toutes les maisons. */
@@ -212,5 +302,11 @@ final class TableRecettes
             seq BIGINT UNSIGNED NOT NULL, maj DATETIME NOT NULL,
             PRIMARY KEY (maison, uid), KEY (seq)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4');
+        $this->db->exec("CREATE TABLE IF NOT EXISTS table_transcriptions (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, maison VARCHAR(63) NOT NULL,
+            pages TEXT NOT NULL, etat VARCHAR(10) NOT NULL DEFAULT 'attente', essais TINYINT UNSIGNED NOT NULL DEFAULT 0,
+            resultat MEDIUMTEXT NULL, erreur VARCHAR(500) NULL, cree DATETIME NOT NULL, maj DATETIME NOT NULL,
+            KEY (etat, id), KEY (maison)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
     }
 }

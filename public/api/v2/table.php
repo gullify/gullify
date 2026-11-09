@@ -9,6 +9,8 @@
  *   GET  ?action=fichier&h=<sha256>
  *   GET  ?action=changements&depuis=<seq>                                → {recettes, fin, encore}
  *   GET  ?action=maisons                                                 → [{nom, recettes, maj}]
+ *   POST ?action=transcrire         {pages: [empreintes déjà déposées]}  → {id}   (lue par l'atelier)
+ *   GET  ?action=transcription&id=  → {id, etat (attente|en_cours|faite|echec), resultat, erreur}
  */
 require_once __DIR__ . '/_v2.php';
 require_once __DIR__ . '/../../../src/RegistreMaisons.php';
@@ -50,6 +52,13 @@ try {
     if ($action === 'maisons' && $methode === 'GET') {
         v2_ok($table->maisons());
     }
+    if ($action === 'transcription' && $methode === 'GET') {
+        $t = $table->transcription($maison, (int)($_GET['id'] ?? 0));
+        if ($t === null) {
+            v2_fail('absent', 'Transcription inconnue.', 404);
+        }
+        v2_ok($t);
+    }
     if ($methode !== 'POST') {
         v2_fail('methode', 'Méthode refusée.', 405);
     }
@@ -57,6 +66,8 @@ try {
     switch ($action) {
         case 'deposer':
             v2_ok(['manquants' => $table->deposer($maison, (array)($corps['recettes'] ?? []))]);
+        case 'transcrire':
+            v2_ok(['id' => $table->demanderTranscription($maison, (array)($corps['pages'] ?? []))], 201);
         case 'retirer':
             v2_ok(['retirees' => $table->retirer($maison, !empty($corps['tout']) ? null : (array)($corps['uids'] ?? []))]);
         default:
