@@ -396,10 +396,26 @@ class Bandcamp
         $tracks = [];
         foreach ($data['results'] as $r) {
             if (!is_array($r)) continue;
-            $track = self::discoverTrack($r);
+            // Depuis novembre 2026, Découvrir répond en camelCase
+            // (`featuredTrack`, `streamUrl`…) : ramené aux noms d'avant, les
+            // deux formes passent.
+            $track = self::discoverTrack(self::snakeKeys($r));
             if ($track !== null) $tracks[] = $track;
         }
         return ['tracks' => $tracks, 'cursor' => (string) ($data['cursor'] ?? '')];
+    }
+
+    /** Les clés camelCase d'un tableau (et de ses sous-tableaux) en snake_case. */
+    public static function snakeKeys(array $a): array
+    {
+        $out = [];
+        foreach ($a as $k => $v) {
+            if (is_string($k)) {
+                $k = strtolower(preg_replace('/(?<=[a-z0-9])([A-Z])/', '_$1', $k) ?? $k);
+            }
+            $out[$k] = is_array($v) ? self::snakeKeys($v) : $v;
+        }
+        return $out;
     }
 
     /**

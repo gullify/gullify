@@ -913,7 +913,7 @@ class GullifyAudioHandler extends BaseAudioHandler
     _switchingSource = true;
     queue.add(swapped);
     mediaItem.add(swapped[index]);
-    await _player.setAudioSources(
+    await _setSources(_player,
       [for (final item in swapped) AudioSource.uri(Uri.parse(item.id))],
       initialIndex: index,
       initialPosition: position,
@@ -1110,6 +1110,32 @@ class GullifyAudioHandler extends BaseAudioHandler
   /// « rien ne joue » et abandonne la sélection en cours).
   bool _switchingSource = false;
 
+  /// Pose une nouvelle file sur [player]. Passage obligé de tout
+  /// `setAudioSources` de l'app.
+  ///
+  /// Sur le web, le lecteur est d'abord libéré : just_audio réutilise la même
+  /// liste de lecture (même identifiant) à chaque nouvelle file, et
+  /// just_audio_web garde en cache, sous cet identifiant, la liste qu'il a
+  /// décodée la toute première fois. Le navigateur rejouait donc depuis le
+  /// début le premier titre jamais chargé — une pré-écoute, par exemple —
+  /// quoi qu'on lance ensuite, pendant que l'écran affichait le bon titre.
+  /// Libéré, le lecteur repart d'un cache vide.
+  Future<void> _setSources(
+    AudioPlayer player,
+    List<AudioSource> sources, {
+    int? initialIndex,
+    Duration? initialPosition,
+    ShuffleOrder? shuffleOrder,
+  }) async {
+    if (kIsWeb) await player.stop();
+    await player.setAudioSources(
+      sources,
+      initialIndex: initialIndex,
+      initialPosition: initialPosition,
+      shuffleOrder: shuffleOrder,
+    );
+  }
+
   /// Lance une file. [startPosition] ne sert qu'à la reprise Android Auto
   /// (idée #103) : on retombe sur la piste là où on l'avait laissée.
   Future<void> playSongs(
@@ -1138,7 +1164,7 @@ class GullifyAudioHandler extends BaseAudioHandler
     queue.add(items);
     // Ce qu'on écoute maintenant est ce qu'Android Auto proposera de reprendre.
     unawaited(resume.remember(songs, index: startIndex));
-    await _player.setAudioSources(
+    await _setSources(_player,
       [for (final item in items) AudioSource.uri(Uri.parse(item.id))],
       initialIndex: startIndex,
       initialPosition: startPosition,
@@ -1164,7 +1190,7 @@ class GullifyAudioHandler extends BaseAudioHandler
       extras: const {'radio': true},
     );
     queue.add([item]);
-    await _player.setAudioSources([AudioSource.uri(Uri.parse(url))]);
+    await _setSources(_player, [AudioSource.uri(Uri.parse(url))]);
     await play();
   }
 
@@ -1204,7 +1230,7 @@ class GullifyAudioHandler extends BaseAudioHandler
     mediaItem.add(item);
     playbackState.add(playbackState.value
         .copyWith(processingState: AudioProcessingState.loading));
-    await _player.setAudioSources([AudioSource.uri(Uri.parse(url))]);
+    await _setSources(_player, [AudioSource.uri(Uri.parse(url))]);
     await play();
   }
 
@@ -1399,7 +1425,7 @@ class GullifyAudioHandler extends BaseAudioHandler
     );
     queue.add([item]);
     mediaItem.add(item);
-    await _player.setAudioSources([
+    await _setSources(_player, [
       // just_audio propose de remplacer LoopingAudioSource par une liste de
       // N fois la même source : ici ce serait 350 entrées de file pour une
       // seule fiche affichée, et la file du lecteur ne collerait plus à celle
@@ -1611,7 +1637,7 @@ class GullifyAudioHandler extends BaseAudioHandler
     _switchingSource = true;
     queue.add(items);
     mediaItem.add(items[at]);
-    await _player.setAudioSources(
+    await _setSources(_player,
       [for (final item in items) AudioSource.uri(Uri.parse(item.id))],
       initialIndex: at,
       // Une radio n'a pas de position à reprendre : elle est en direct.
@@ -1958,7 +1984,7 @@ class GullifyAudioHandler extends BaseAudioHandler
       await spare.setLoopMode(_player.loopMode);
       await spare.setShuffleModeEnabled(_player.shuffleModeEnabled);
       await spare.setSpeed(_player.speed);
-      await spare.setAudioSources(
+      await _setSources(spare, 
         [for (final item in q) AudioSource.uri(Uri.parse(item.id))],
         initialIndex: next,
         // Le lecteur qui prend l'antenne hérite de l'ordre aléatoire en cours :

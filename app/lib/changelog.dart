@@ -8,6 +8,10 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.92.1', [
+    'Navigateur : lancer une file (album, liste, mix, Pour toi) après une autre rejouait la toute première écoutée — par exemple une pré-écoute choisie dans « Artistes suggérés » —, même si l\'écran affichait le bon titre. Chaque file joue maintenant ce qu\'elle annonce.',
+    'Bandcamp : « Découvrir » remonte de nouveau ses sorties — Bandcamp a changé la forme de ses réponses (serveur 1.18.1).',
+  ]),
   ReleaseNote('3.92.0', [
     'Nouveautés YouTube Music : par date de sortie, les plus récentes d\'abord, et chaque album dit sa date (« 6 nov. »). YouTube ne la donne pas : ton serveur la demande à Deezer (ou iTunes), une fois pour toutes (serveur 1.17.0).',
     '« Charger plus » va maintenant jusqu\'au bout de la liste, au lieu de s\'arrêter à 60 albums.',
