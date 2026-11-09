@@ -289,6 +289,8 @@ function importCatalogInto(string $user, string $cacheFile, int $cacheDuration, 
         if (!$initial) throw new RuntimeException('Radio Browser ne répond pas pour le moment. Réessaie plus tard.');
         return 0;
     }
+    // Les stations d'ici que Radio Browser ne connaît pas (CFIM) viennent avec.
+    $stations = array_merge(RadioStations::STATIONS_D_ICI, $stations);
     // La réservation est atomique : deux requêtes en même temps ne peuvent
     // pas transférer le catalogue deux fois.
     if ($initial && !RadioStations::claimCatalogImport($user)) return 0;
@@ -323,7 +325,7 @@ function onlyFallbackStations(string $user): bool {
     }
     try {
         $st = AppConfig::getDB()->prepare(
-            'SELECT stream_url FROM radio_custom_stations WHERE user = ? LIMIT ' . (count($secours) + 1)
+            'SELECT stream_url FROM radio_custom_stations WHERE user = ? LIMIT ' . (count($secours) + count(RadioStations::STATIONS_D_ICI) + 1)
         );
         $st->execute([$user]);
         $urls = $st->fetchAll(PDO::FETCH_COLUMN);
@@ -332,9 +334,12 @@ function onlyFallbackStations(string $user): bool {
     }
     // Exactement la liste de secours, toute et rien qu'elle : une liste
     // épurée à la main n'y ressemble jamais trait pour trait.
+    // Les stations d'ici (CFIM), offertes à part, ne comptent pas.
+    $dIci = array_flip(RadioStations::urlsDIci());
     $vues = [];
     foreach ($urls as $u) {
         $u = trim((string)$u);
+        if (isset($dIci[$u])) continue;
         if (!isset($secours[$u])) return false;
         $vues[$u] = true;
     }
@@ -351,12 +356,14 @@ try {
     switch ($action) {
         case 'list':
             transferCatalogOnce($user, $cacheFile, $cacheDuration);
+            RadioStations::offrirStationsDIci($user);
             $data = ownStations($user);
             echo json_encode(['success' => true, 'data' => $data], JSON_UNESCAPED_UNICODE);
             break;
 
         case 'search':
             transferCatalogOnce($user, $cacheFile, $cacheDuration);
+            RadioStations::offrirStationsDIci($user);
             $query = $_GET['q'] ?? '';
             $data = ownStations($user);
             $data['stations'] = searchStations($data['stations'], $query);

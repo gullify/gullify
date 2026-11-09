@@ -21,6 +21,63 @@ require_once __DIR__ . '/RadioStreamResolver.php';
 
 class RadioStations
 {
+    /**
+     * Les stations d'ici que Radio Browser ne connaît pas. Elles viennent avec
+     * chaque import du catalogue, et sont offertes une fois à chaque liste
+     * existante (voir offrirStationsDIci). Même forme qu'une station du
+     * catalogue.
+     */
+    public const STATIONS_D_ICI = [
+        [
+            'id'       => 'ici-cfim',
+            // Le nom que lui donne GulliTV (section TVIles).
+            'name'     => 'CFIM 92,7',
+            'country'  => 'Canada',
+            'state'    => 'Quebec',
+            'language' => 'French',
+            'genres'   => ['Communautaire', 'Îles-de-la-Madeleine'],
+            'streams'  => [['url' => 'https://arcq.streamb.live/SB00208', 'format' => 'MP3', 'bitrate' => 128]],
+            'logo'     => 'https://cfim.ca/wp-content/uploads/2019/02/CFIM-logo-iles-27-f%C3%A9v-2019-jaune.png',
+            'website'  => 'https://cfim.ca/',
+        ],
+    ];
+
+    /** Les URL de flux des stations d'ici. */
+    public static function urlsDIci(): array
+    {
+        return array_map(fn($s) => trim($s['streams'][0]['url']), self::STATIONS_D_ICI);
+    }
+
+    /**
+     * Offre une fois à l'utilisateur les stations d'ici qu'on ne lui a pas
+     * encore offertes. Celles qu'il a déjà (même flux) ne sont pas dupliquées ;
+     * celles qu'il supprime ensuite ne reviennent pas.
+     */
+    public static function offrirStationsDIci(string $user): void
+    {
+        if ($user === '') return;
+        self::ensureTables();
+        try {
+            $db = AppConfig::getDB();
+            $st = $db->prepare('SELECT stations_offertes FROM radio_user_prefs WHERE user = ?');
+            $st->execute([$user]);
+            $offertes = array_filter(explode(',', (string)$st->fetchColumn()));
+            $nouvelles = array_values(array_filter(
+                self::STATIONS_D_ICI,
+                fn($s) => !in_array($s['id'], $offertes, true)
+            ));
+            if (!$nouvelles) return;
+            self::importCatalog($user, $nouvelles);
+            $toutes = implode(',', array_unique(array_merge($offertes, array_column($nouvelles, 'id'))));
+            $db->prepare('
+                INSERT INTO radio_user_prefs (user, stations_offertes) VALUES (?, ?)
+                ON DUPLICATE KEY UPDATE stations_offertes = VALUES(stations_offertes)
+            ')->execute([$user, $toutes]);
+        } catch (\Throwable $e) {
+            error_log('RadioStations::offrirStationsDIci failed: ' . $e->getMessage());
+        }
+    }
+
     public static function ensureTables(): void
     {
         static $bootstrapped = false;
@@ -85,6 +142,10 @@ class RadioStations
                 )
             ");
             try { $db->exec("ALTER TABLE radio_user_prefs ADD COLUMN catalog_imported_at DATETIME NULL DEFAULT NULL"); } catch (\Throwable $e) {}
+            // Les stations d'ici déjà offertes à cet utilisateur (ids de
+            // STATIONS_D_ICI, séparés par des virgules) : une station offerte
+            // puis supprimée ne revient pas (serveur 1.20.2).
+            try { $db->exec("ALTER TABLE radio_user_prefs ADD COLUMN stations_offertes TEXT NULL"); } catch (\Throwable $e) {}
 
             $db->exec("
                 CREATE TABLE IF NOT EXISTS radio_folders (
