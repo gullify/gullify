@@ -14,6 +14,73 @@ class RecoSong {
   final String? raison;
 }
 
+/// Un titre d'ailleurs que la lecture automatique fait écouter à la pièce
+/// (serveur 1.21.0) : un artiste proche qu'on n'a pas, joué depuis YouTube
+/// Music ou Bandcamp comme dans la recherche, et téléchargeable du lecteur.
+class TitreAilleurs {
+  const TitreAilleurs({
+    required this.source,
+    required this.title,
+    required this.artist,
+    required this.url,
+    this.videoId = '',
+    this.trackId = 0,
+    this.bandId = 0,
+    this.album = '',
+    this.thumbnail = '',
+    this.duration = 0,
+    this.origin,
+    this.raison,
+  });
+
+  factory TitreAilleurs.fromJson(Map<String, dynamic> j) => TitreAilleurs(
+    source: j['externe'] == 'bandcamp' ? 'bandcamp' : 'youtube',
+    title: j['title'] as String? ?? '',
+    artist: j['artist'] as String? ?? '',
+    url: j['url'] as String? ?? '',
+    videoId: j['videoId'] as String? ?? '',
+    trackId: (j['trackId'] as num?)?.toInt() ?? 0,
+    bandId: (j['bandId'] as num?)?.toInt() ?? 0,
+    album: j['album'] as String? ?? '',
+    thumbnail: j['thumbnail'] as String? ?? '',
+    duration: (j['duration'] as num?)?.toInt() ?? 0,
+    origin: j['origin'] as String?,
+    raison: j['raison'] as String?,
+  );
+
+  /// `youtube` ou `bandcamp`.
+  final String source;
+  final String title;
+  final String artist;
+
+  /// La page du titre (watch?v= ou bandcamp.com/track/…) : c'est elle que
+  /// le téléchargement reçoit.
+  final String url;
+  final String videoId;
+  final int trackId;
+  final int bandId;
+  final String album;
+  final String thumbnail;
+
+  /// En secondes, 0 si inconnue (Bandcamp).
+  final int duration;
+  final String? origin;
+  final String? raison;
+
+  bool get isBandcamp => source == 'bandcamp';
+
+  bool get jouable => isBandcamp ? trackId > 0 && bandId > 0 : videoId.isNotEmpty;
+}
+
+/// Un élément de la suite : un titre de la bibliothèque OU un titre d'ailleurs.
+class SuiteItem {
+  const SuiteItem.biblio(RecoSong this.reco) : ailleurs = null;
+  const SuiteItem.ailleurs(TitreAilleurs this.ailleurs) : reco = null;
+
+  final RecoSong? reco;
+  final TitreAilleurs? ailleurs;
+}
+
 /// Un artiste hors de la bibliothèque (rayon « À découvrir ailleurs »).
 class RecoArtiste {
   const RecoArtiste({
@@ -312,6 +379,46 @@ class PourToiRepository {
             )
             as Map<String, dynamic>;
     return _recos(data['titres']);
+  }
+
+  /// La suite qui peut sortir de la bibliothèque (serveur 1.21.0) : quand
+  /// elle n'a plus rien de proche, des titres d'artistes proches qu'on n'a
+  /// pas, à écouter à la pièce. [artistes] = artistes des titres d'ailleurs
+  /// qui viennent de jouer ; [exclusAilleurs] = `yt:<id>` / `bc:<id>` déjà en
+  /// file. Un serveur plus ancien ignore ces paramètres : que la bibliothèque.
+  Future<List<SuiteItem>> suiteMixte({
+    required List<int> graines,
+    List<String> artistes = const [],
+    List<int> exclus = const [],
+    List<String> exclusAilleurs = const [],
+    int n = 10,
+    bool radio = false,
+  }) async {
+    final data =
+        await _client.get(
+              'pour-toi.php',
+              query: {
+                'action': 'suite',
+                'ailleurs': '1',
+                'graines': graines.join(','),
+                'artistes': artistes.join('\n'),
+                'exclus': exclus.take(400).join(','),
+                'exclus_ext': exclusAilleurs.take(400).join(','),
+                'n': n,
+                'famille': radio ? 'radio' : 'auto',
+              },
+            )
+            as Map<String, dynamic>;
+    return [
+      for (final j in data['titres'] as List? ?? const [])
+        if (j is Map)
+          if (j['externe'] != null)
+            SuiteItem.ailleurs(
+              TitreAilleurs.fromJson(j.cast<String, dynamic>()),
+            )
+          else
+            SuiteItem.biblio(_reco(j.cast<String, dynamic>())),
+    ];
   }
 
   /// La radio d'un titre : lui, puis sa suite.

@@ -168,6 +168,53 @@ def related_artists(query):
     except Exception:
         return []
 
+def _cle(nom):
+    """Comparaison souple de deux noms d'artiste (casse, accents, ponctuation)."""
+    import unicodedata
+    s = unicodedata.normalize("NFKD", (nom or "").lower())
+    s = "".join(c for c in s if c.isalnum())
+    return s[3:] if s.startswith("the") and len(s) > 6 else s
+
+def top_songs(names, limit=8):
+    """Les titres connus de plusieurs artistes, en un seul processus.
+
+    Lecture automatique hors de la bibliothèque (GoutsAilleurs) : pour chaque
+    nom, la recherche « chansons » de YouTube Music, en ne gardant que les
+    titres où l'artiste figure vraiment — un homonyme ou une reprise ne
+    passent pas.
+    """
+    try:
+        ytmusic = _client()
+    except Exception:
+        return {}
+    out = {}
+    for name in names:
+        voulu = _cle(name)
+        songs = []
+        try:
+            results = ytmusic.search(name, filter="songs", limit=20)
+        except Exception:
+            results = []
+        for item in results:
+            artistes = [a.get("name", "") for a in item.get("artists", []) or []]
+            if not voulu or not any(_cle(a) == voulu for a in artistes):
+                continue
+            if not item.get("videoId"):
+                continue
+            songs.append({
+                "title": item.get("title", ""),
+                "artist": ", ".join(artistes),
+                "album": item.get("album", {}).get("name", "") if item.get("album") else "",
+                "duration": item.get("duration", ""),
+                "videoId": item.get("videoId", ""),
+                "thumbnail": item.get("thumbnails", [{}])[-1].get("url", "")
+                    if item.get("thumbnails") else "",
+            })
+            if len(songs) >= limit:
+                break
+        out[name] = songs
+    return out
+
 def _two_row_items(node):
     """Parcourt une réponse « browse » et rend ses tuiles (musicTwoRowItemRenderer)."""
     if isinstance(node, dict):
@@ -328,6 +375,14 @@ def main():
         results = artist_albums(query, limit)
     elif search_type == "related":
         results = related_artists(query)
+    elif search_type == "top_songs":
+        # query est ici une liste JSON de noms d'artistes.
+        try:
+            names = [n for n in json.loads(query) if isinstance(n, str) and n.strip()]
+        except ValueError:
+            names = []
+        print(json.dumps({"artistes": top_songs(names[:10], limit)}))
+        sys.exit(0)
     elif search_type == "album_details":
         # query is actually browseId in this case
         details = get_album_details(query)

@@ -116,6 +116,7 @@ class PreviewPlayer extends Notifier<PreviewState> {
       artist: song.artist,
       artwork: song.thumbnail.isEmpty ? null : song.thumbnail,
       source: 'YouTube',
+      sourceAlbum: song.album,
     );
   }
 
@@ -130,6 +131,8 @@ class PreviewPlayer extends Notifier<PreviewState> {
       artist: song.artist,
       artwork: song.thumbnail.isEmpty ? null : song.thumbnail,
       source: 'Bandcamp',
+      sourceAlbum: song.album,
+      pageUrl: song.url,
     );
   }
 
@@ -140,6 +143,8 @@ class PreviewPlayer extends Notifier<PreviewState> {
     required String artist,
     required String source,
     String? artwork,
+    String? sourceAlbum,
+    String? pageUrl,
   }) async {
     final handler = ref.read(audioHandlerProvider);
 
@@ -162,6 +167,8 @@ class PreviewPlayer extends Notifier<PreviewState> {
         artist: artist,
         artwork: artwork,
         source: source,
+        sourceAlbum: sourceAlbum,
+        pageUrl: pageUrl,
       );
     } catch (_) {
       _failed = id;

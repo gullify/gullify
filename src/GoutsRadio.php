@@ -34,11 +34,19 @@ class GoutsRadio
     /**
      * @param int[] $graines titres qui jouent ou viennent de jouer (le plus récent en dernier)
      * @param int[] $exclus  titres déjà dans la file
+     * @param array<int,float> $ctxEnPlus artistes de la bibliothèque proches d'après
+     *        les liens du monde (GoutsAilleurs::proches) : id => proximité 0..1
+     * @param bool  $replis  sans voisins connus, se rabattre sur le même genre puis les
+     *        artistes aimés ; faux quand la suite peut sortir de la bibliothèque
+     * @param bool  $seance  sans graines, partir des titres finis de la séance
+     * @param array|null $etat rempli : `sec` = rien de proche dans la bibliothèque
      * @return array<array{id:int, bras:string, raison:string}>
      */
     public static function suite(PDO $db, string $user, array $graines, array $exclus, int $n = 10,
-                                 ?float $aventure = null, string $famille = 'auto'): array
+                                 ?float $aventure = null, string $famille = 'auto', array $ctxEnPlus = [],
+                                 bool $replis = true, bool $seance = true, ?array &$etat = null): array
     {
+        $etat = ['sec' => false];
         Gouts::assurerTables($db);
         $n = max(1, min(50, $n));
         $aventure ??= Gouts::aventure($db, $user);
@@ -50,9 +58,10 @@ class GoutsRadio
         foreach ($graines as $g) $exclus[(int)$g] = true;
 
         // ── La séance : 3 dernières heures ──────────────────────────────────
-        $seance = self::seance($db, $user);
-        foreach ($seance['recents'] as $id => $_) $exclus[$id] = true;
-        if ($graines === []) $graines = $seance['finis'];
+        $sea = self::seance($db, $user);
+        foreach ($sea['recents'] as $id => $_) $exclus[$id] = true;
+        if ($graines === [] && $seance) $graines = $sea['finis'];
+        $seance = $sea;
 
         // ── Les graines et leur voisinage ───────────────────────────────────
         $infos = self::infosTitres($db, $user, array_slice($graines, -4));
@@ -67,12 +76,15 @@ class GoutsRadio
             $ctx[$a] = max($ctx[$a] ?? 0, $w);
             foreach ($voisins[$a] ?? [] as $v => $s) $ctx[$v] = max($ctx[$v] ?? 0, $w * $s);
         }
+        foreach ($ctxEnPlus as $a => $s) $ctx[(int)$a] = max($ctx[(int)$a] ?? 0, 0.8 * (float)$s);
         // Graine sans voisins connus (bibliothèque pas encore enrichie) : le
-        // même genre, puis les artistes qu'on aime, pour ne jamais rester muet.
-        if (count($ctx) < 4) {
+        // même genre, puis les artistes qu'on aime, pour ne jamais rester muet
+        // — sauf quand la suite peut sortir de la bibliothèque (GoutsAilleurs).
+        if (count($ctx) < 4) $etat['sec'] = true;
+        if (count($ctx) < 4 && $replis) {
             foreach (self::memeGenre($db, $user, array_keys($racines)) as $a) $ctx[$a] ??= 0.3;
         }
-        if (count($ctx) < 4) {
+        if (count($ctx) < 4 && $replis) {
             arsort($affArt);
             foreach (array_slice($affArt, 0, 20, true) as $a => $s) if ($s > 0) $ctx[$a] ??= 0.25 * $s;
         }

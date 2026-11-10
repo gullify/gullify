@@ -8,6 +8,11 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.95.0', [
+    'Lecture automatique : quand ta bibliothèque n\'a plus rien de proche de ce qui joue, la musique continue AILLEURS. Elle suit les liens de tes goûts (les artistes proches de « Tes artistes ») vers des artistes que tu n\'as pas, et en fait jouer un titre connu, à la pièce, depuis YouTube Music — ou Bandcamp s\'il n\'est pas sur YouTube. Ce qui est proche ET déjà chez toi passe toujours en premier (serveur 1.21.0).',
+    'Une chanson lancée seule depuis la recherche (YouTube ou Bandcamp) a maintenant sa suite, elle aussi, d\'après son artiste.',
+    'Lecteur : nouveau bouton « Télécharger » à la place du cœur, sur un titre qui n\'est pas dans ta bibliothèque. Tu l\'aimes ? Un tap, la même confirmation que dans la recherche, et il arrive dans ta bibliothèque.',
+  ]),
   ReleaseNote('3.94.0', [
     'Lecteur : nouveau bouton « Garder l\'écran allumé » (le soleil, à côté de la minuterie). Tant que le lecteur est ouvert, l\'écran ne s\'éteint pas : pratique pour suivre les paroles ou les accords. Le choix est retenu, et l\'écran se remet en veille normale dès qu\'on referme le lecteur.',
   ]),

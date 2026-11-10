@@ -394,7 +394,9 @@ class _AutoplayTile extends ConsumerWidget {
         secondary: const Icon(Icons.all_inclusive),
         title: const Text('Lecture automatique'),
         subtitle: const Text(
-          'Au bout de la file, des titres proches de ce qui vient de jouer',
+          'Au bout de la file, des titres proches de ce qui vient de jouer — '
+          'écoutés sur YouTube Music ou Bandcamp quand ta bibliothèque n\'a '
+          'rien de proche',
         ),
         value: autoplay.enabled,
         onChanged: autoplay.setEnabled,

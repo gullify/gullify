@@ -88,6 +88,26 @@ const kPreviewVideoId = 'previewVideoId';
 /// Bandcamp » (idée #111) : `bc:<id du titre>`.
 const kBandcampTrack = 'bandcampTrack';
 
+/// Dans les extras d'un titre YouTube ou Bandcamp : son album tel que la
+/// source le nomme (le téléchargement du lecteur le range là ; sinon
+/// « Singles »). La fiche, elle, peut afficher autre chose (« Pré-écoute… »).
+const kSourceAlbum = 'sourceAlbum';
+
+/// Dans les extras d'un titre d'ailleurs ajouté par la lecture automatique :
+/// pourquoi il est là (« Proche de …, hors de ta bibliothèque »).
+const kAilleursRaison = 'ailleursRaison';
+
+/// L'identité d'un titre d'ailleurs dans la file : `yt:<id>` ou `bc:<id>`,
+/// `null` pour tout le reste (bibliothèque, radio, podcast).
+String? ailleursKeyOf(Map<String, dynamic>? extras) {
+  final yt = extras?[kPreviewVideoId];
+  // La pré-écoute d'un titre Bandcamp de la recherche porte déjà « bc:… ».
+  if (yt is String && yt.isNotEmpty) return yt.startsWith('bc:') ? yt : 'yt:$yt';
+  final bc = extras?[kBandcampTrack];
+  if (bc is String && bc.isNotEmpty) return bc;
+  return null;
+}
+
 /// Marque, dans les extras d'une fiche, un épisode de podcast (idée #112) :
 /// son `guid` dans le flux. C'est à ça que la liste des épisodes reconnaît
 /// celui qui joue, et que l'app sait quoi retenir comme position d'écoute.
@@ -1210,6 +1230,8 @@ class GullifyAudioHandler extends BaseAudioHandler
     String? artist,
     String? artwork,
     String source = 'YouTube',
+    String? sourceAlbum,
+    String? pageUrl,
   }) async {
     _flushPlay();
     await _cancelFade();
@@ -1221,7 +1243,12 @@ class GullifyAudioHandler extends BaseAudioHandler
       album: 'Pré-écoute $source',
       // La durée arrive avec le flux (voir durationStream, plus haut).
       artUri: _artUri(artwork),
-      extras: {kPreviewVideoId: videoId},
+      extras: {
+        kPreviewVideoId: videoId,
+        // De quoi la télécharger depuis le lecteur.
+        kSourceAlbum: ?sourceAlbum,
+        'bcUrl': ?pageUrl,
+      },
     );
     queue.add([item]);
     // Annoncé tout de suite, avant même le chargement : la rangée de la
@@ -1270,6 +1297,37 @@ class GullifyAudioHandler extends BaseAudioHandler
           'bcUrl': t.url,
         },
       );
+
+  /// La fiche d'un titre d'ailleurs proposé par la lecture automatique : lu
+  /// par le même proxy que la pré-écoute (l'adresse du flux se résout au
+  /// moment de jouer, elle peut attendre dans la file). `null` sans dépôt lié.
+  @visibleForTesting
+  MediaItem? ailleursMediaItem(TitreAilleurs a) {
+    if (!a.jouable) return null;
+    final url = a.isBandcamp
+        ? bandcampRepository?.streamUrl(a.bandId, a.trackId)
+        : ytRepository?.previewUrl(a.videoId);
+    if (url == null || url.isEmpty) return null;
+    return MediaItem(
+      id: url,
+      title: a.title,
+      artist: a.artist,
+      album: a.album.isNotEmpty
+          ? a.album
+          : (a.isBandcamp ? 'Bandcamp' : 'YouTube Music'),
+      duration: a.duration > 0 ? Duration(seconds: a.duration) : null,
+      artUri: _artUri(a.thumbnail.isEmpty ? null : a.thumbnail),
+      extras: {
+        if (a.isBandcamp) ...{
+          kBandcampTrack: 'bc:${a.trackId}',
+          'bcUrl': a.url,
+        } else
+          kPreviewVideoId: a.videoId,
+        kSourceAlbum: a.album,
+        if (a.raison case final String r) kAilleursRaison: r,
+      },
+    );
+  }
 
   /// Joue les épisodes d'un podcast (idée #112), à partir de [startIndex].
   ///
@@ -1482,14 +1540,22 @@ class GullifyAudioHandler extends BaseAudioHandler
   /// [Autoplay.remainingTrigger] titre après celui qui joue, le serveur
   /// propose la suite — d'après les derniers titres, la séance (un artiste
   /// sauté tout à l'heure recule) et le profil de goûts — et elle s'ajoute au
-  /// bout de la file. Seulement pour les titres de la bibliothèque, sans
-  /// répétition ni aléatoire (just_audio placerait les nouveaux titres au
-  /// hasard dans l'ordre tiré, parfois derrière celui qui joue).
+  /// bout de la file. Sans répétition ni aléatoire (just_audio placerait les
+  /// nouveaux titres au hasard dans l'ordre tiré, parfois derrière celui qui
+  /// joue).
+  ///
+  /// Quand la bibliothèque n'a plus rien de proche, le serveur va chercher
+  /// ailleurs (serveur 1.21.0) : des artistes proches qu'on n'a pas, joués à
+  /// la pièce depuis YouTube Music ou Bandcamp comme dans la recherche. Un
+  /// titre d'ailleurs (pré-écoute lancée de la recherche comprise) a donc
+  /// lui aussi sa suite, d'après son artiste.
   bool _autoplayBusy = false;
 
   Future<void> _maybeAutoplay() async {
     final repo = pourToiRepository;
-    if (repo == null || !autoplay.enabled || _autoplayBusy) return;
+    if (repo == null || !autoplay.enabled || _autoplayBusy || localMode) {
+      return;
+    }
     final state = playbackState.value;
     if (state.repeatMode != AudioServiceRepeatMode.none ||
         state.shuffleMode != AudioServiceShuffleMode.none) {
@@ -1501,45 +1567,69 @@ class GullifyAudioHandler extends BaseAudioHandler
     if (q.length - 1 - current > Autoplay.remainingTrigger) return;
     final extras = q[current].extras ?? const <String, dynamic>{};
     final id = extras['songId'];
-    if (id is! int || id <= 0 || extras['filePath'] == null) return;
-    if (extras['remote'] == true || localMode) return;
+    final biblio = id is int &&
+        id > 0 &&
+        extras['filePath'] != null &&
+        extras['remote'] != true;
+    if (!biblio && ailleursKeyOf(extras) == null) return;
 
+    final joues = q.take(current + 1).toList();
     final graines = <int>[
-      for (final item in q.take(current + 1))
+      for (final item in joues)
         if (item.extras?['songId'] case final int s when s > 0) s,
+    ];
+    // Les artistes des titres d'ailleurs parmi les trois derniers : la suite
+    // part d'eux comme d'un titre de la bibliothèque.
+    final artistes = <String>[
+      for (final item in joues.skip(joues.length > 3 ? joues.length - 3 : 0))
+        if (ailleursKeyOf(item.extras) != null &&
+            (item.artist?.trim().isNotEmpty ?? false))
+          item.artist!.trim(),
     ];
     final exclus = <int>[
       for (final item in q)
         if (item.extras?['songId'] case final int s when s > 0) s,
     ];
+    final exclusAilleurs = <String>[
+      for (final item in q)
+        if (ailleursKeyOf(item.extras) case final String k) k,
+    ];
     // Une radio de titre reste une radio : ses suites en portent le nom.
-    final radio = _origins[id]?.startsWith('radio') ?? false;
+    final radio = id is int && (_origins[id]?.startsWith('radio') ?? false);
     _autoplayBusy = true;
     try {
-      final recos = await repo.suite(
+      final suite = await repo.suiteMixte(
         graines: graines.length > 3
             ? graines.sublist(graines.length - 3)
             : graines,
+        artistes: artistes,
         exclus: exclus,
+        exclusAilleurs: exclusAilleurs,
         n: Autoplay.batch,
         radio: radio,
       );
       // La file a changé pendant la demande (autre album lancé) : la suite
       // ne lui va plus.
       final now = queue.value;
-      if (recos.isEmpty ||
+      if (suite.isEmpty ||
           now.length != q.length ||
           now.isEmpty ||
           now.first.id != q.first.id) {
         return;
       }
+      final recos = <RecoSong>[];
+      final items = <MediaItem>[];
+      for (final s in suite) {
+        if (s.reco case final RecoSong r) {
+          if (_sourceUri(r.song).isEmpty) continue;
+          recos.add(r);
+          items.add(_toMediaItem(r.song));
+        } else if (s.ailleurs case final TitreAilleurs a) {
+          if (ailleursMediaItem(a) case final MediaItem m) items.add(m);
+        }
+      }
       tagOrigins(recos);
-      final songs = [
-        for (final r in recos)
-          if (_sourceUri(r.song).isNotEmpty) r.song,
-      ];
-      if (songs.isEmpty) return;
-      final items = songs.map(_toMediaItem).toList();
+      if (items.isEmpty) return;
       queue.add([...now, ...items]);
       await _player.addAudioSources(
         [for (final item in items) AudioSource.uri(Uri.parse(item.id))],

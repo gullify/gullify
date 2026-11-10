@@ -6,6 +6,7 @@
  *   GET  ?action=rayon&id=N                    → { titre, sousTitre, type, titres: [Song + raison, origin] }
  *   GET  ?action=suite&graines=1,2&exclus=3,4&n=10&famille=auto|radio
  *                                              → { titres: [Song + raison, origin] }   (lecture automatique)
+ *        (+ &ailleurs=1&artistes=…&exclus_ext=yt:ID,bc:ID : peut sortir de la bibliothèque, voir pt_suite_ailleurs)
  *   GET  ?action=radio&titre=N&n=25            → { titres: [le titre, puis sa suite] }
  *   GET  ?action=profil                        → le portrait (étiquettes, artistes, habitudes, réglages)
  *   POST ?action=aventure   {valeur: 0..1}
@@ -25,6 +26,7 @@ require_once __DIR__ . '/../../../src/Gouts.php';
 require_once __DIR__ . '/../../../src/GoutsRadio.php';
 require_once __DIR__ . '/../../../src/GoutsRayons.php';
 require_once __DIR__ . '/../../../src/GoutsBulles.php';
+require_once __DIR__ . '/../../../src/GoutsAilleurs.php';
 
 $ctx    = v2_auth();
 $user   = (string)$ctx['user']['username'];
@@ -82,6 +84,61 @@ function pt_assurer_analyse(PDO $db, string $user, bool $forcer = false): void
     } finally {
         flock($verrou, LOCK_UN);
     }
+}
+
+/**
+ * La suite qui peut sortir de la bibliothèque (`ailleurs=1`, app 3.95.0) :
+ * ce que la bibliothèque a de proche, et quand elle n'a rien (ou pas assez),
+ * des titres d'artistes proches qu'on n'a pas, joués à la pièce depuis
+ * YouTube Music ou Bandcamp (src/GoutsAilleurs.php). Les deux sont mêlés.
+ *
+ *   artistes=Nom\nNom   artistes des titres d'ailleurs qui viennent de jouer
+ *   exclus_ext=yt:ID,bc:ID   titres d'ailleurs déjà dans la file
+ * Une fiche d'ailleurs porte `externe` (youtube|bandcamp) au lieu d'un `id`.
+ */
+function pt_suite_ailleurs(PDO $db, string $user, array $graines, array $exclus, int $n,
+                           ?float $aventure, string $famille): array
+{
+    @set_time_limit(90);
+    $externes = array_slice(array_values(array_filter(array_map('trim',
+        explode("\n", (string)($_GET['artistes'] ?? ''))), fn($s) => $s !== '')), -3);
+    $exclusExt = array_slice(array_values(array_filter(array_map('trim',
+        explode(',', (string)($_GET['exclus_ext'] ?? ''))),
+        fn($c) => (bool)preg_match('/^(yt|bc):[\w-]{1,64}$/', $c))), 0, 500);
+
+    // Les noms derrière les graines de la bibliothèque, puis ceux d'ailleurs.
+    $noms = [];
+    $infos = GoutsRadio::infosTitres($db, $user, array_slice($graines, -3));
+    foreach (array_slice($graines, -3) as $g) {
+        if (isset($infos[(int)$g])) $noms[] = (string)$infos[(int)$g]['nom'];
+    }
+    $noms = array_merge($noms, $externes);
+    $prox = $noms === [] ? ['dedans' => [], 'dehors' => []] : GoutsAilleurs::proches($db, $user, $noms);
+
+    $etat = null;
+    $choix = GoutsRadio::suite($db, $user, $graines, $exclus, $n, $aventure, $famille,
+        $prox['dedans'], false, $externes === [], $etat);
+    $lib = GoutsRayons::hydrater($db, $user, $choix);
+    $sec = (bool)($etat['sec'] ?? false);
+    $manque = $n - count($lib);
+    $ext = ($sec || $manque > 0)
+        ? GoutsAilleurs::titres($prox['dehors'], $exclusExt, max($manque, $sec ? 3 : 0), $famille)
+        : [];
+
+    // Rien de proche nulle part (pas de réseau, artiste inconnu du monde) :
+    // l'ancienne suite, avec ses replis — on ne reste jamais muet.
+    if ($lib === [] && $ext === []) {
+        return GoutsRayons::hydrater($db, $user, GoutsRadio::suite($db, $user, $graines, $exclus, $n, $aventure, $famille));
+    }
+
+    // Mêlés un à un ; on commence par ailleurs quand c'est ailleurs qui joue.
+    [$a, $b] = $graines === [] ? [$ext, $lib] : [$lib, $ext];
+    $out = [];
+    while ($a !== [] || $b !== []) {
+        if ($a !== []) $out[] = array_shift($a);
+        if ($b !== []) $out[] = array_shift($b);
+    }
+    return $out;
 }
 
 try {
@@ -154,9 +211,14 @@ try {
         case 'suite': {
             $famille = ($_GET['famille'] ?? 'auto') === 'radio' ? 'radio' : 'auto';
             $aventure = isset($_GET['aventure']) ? max(0.0, min(1.0, (float)$_GET['aventure'])) : null;
-            $choix = GoutsRadio::suite($db, $user, pt_ids((string)($_GET['graines'] ?? ''), 6),
-                pt_ids((string)($_GET['exclus'] ?? ''), 500), (int)($_GET['n'] ?? 10), $aventure, $famille);
-            v2_ok(['titres' => GoutsRayons::hydrater($db, $user, $choix)]);
+            $graines = pt_ids((string)($_GET['graines'] ?? ''), 6);
+            $exclus = pt_ids((string)($_GET['exclus'] ?? ''), 500);
+            $n = max(1, min(50, (int)($_GET['n'] ?? 10)));
+            if (($_GET['ailleurs'] ?? '') !== '1') {
+                $choix = GoutsRadio::suite($db, $user, $graines, $exclus, $n, $aventure, $famille);
+                v2_ok(['titres' => GoutsRayons::hydrater($db, $user, $choix)]);
+            }
+            v2_ok(['titres' => pt_suite_ailleurs($db, $user, $graines, $exclus, $n, $aventure, $famille)]);
         }
 
         case 'radio': {

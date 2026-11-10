@@ -440,6 +440,10 @@ class BandcampRepository {
   /// la réponse est binaire, pas une envelope JSON.
   String previewUrl(BcSong song) => _streamUrl(song.bandId, song.trackId);
 
+  /// Idem, d'après les seuls identifiants (titres d'ailleurs de la lecture
+  /// automatique).
+  String streamUrl(int bandId, int trackId) => _streamUrl(bandId, trackId);
+
   String _streamUrl(int bandId, int trackId) => _client.resourceUrl(
         'api/download.php?action=bandcamp_preview'
         '&band_id=$bandId&track_id=$trackId',

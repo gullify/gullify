@@ -62,3 +62,16 @@ administrateur. GulliFY n'a pas de « données précieuses orphelines » : rien 
   `genres_manuel` / `origine_manuelle` (posés par l'app) : jamais touchés, même avec `--force`.
 - API : `get_artists_by_genre` (+ `origine=`), `get_origines`, `get_all_albums&origine=`,
   `set_artist_genres` (genres JSON + `origine`), `GameSource` accepte `origines` (croisé au vivier).
+
+## Lecture automatique hors de la bibliothèque (serveur 1.21.0, app 3.95.0)
+- `pour-toi.php?action=suite&ailleurs=1` (+ `artistes=` noms séparés par `\n`, `exclus_ext=yt:ID,bc:ID`) :
+  `GoutsRadio::suite` sans replis (genre/favoris) ; si la bibliothèque est « à sec » (`etat.sec` :
+  moins de 4 artistes proches) ou ne remplit pas `n`, `src/GoutsAilleurs.php` ajoute jusqu'à 5 titres
+  d'artistes proches qu'on n'a pas (`artistes_similaires` + `gouts_choix`), un par artiste, YouTube Music
+  (`ytmusic_search.py top_songs`, artiste vérifié) puis Bandcamp. Cache par artiste dans
+  `/tmp/gullify-ailleurs` (14 j, 1 j si vide). Fiche d'ailleurs = `externe` au lieu d'`id`.
+  Rien du tout → l'ancienne suite avec replis. Sans `ailleurs=1` (vieilles apps) : inchangé.
+- App : `suiteMixte`, fiches `ailleursMediaItem` (extras `previewVideoId` ou `bandcampTrack`, `bcUrl`,
+  `sourceAlbum`), `ailleursKeyOf`. Un titre d'ailleurs (pré-écoute de la recherche comprise) a sa suite.
+  Bouton « Télécharger » du lecteur (`widgets/download_ailleurs_button.dart`) à la place du cœur.
+- Essais : `scripts/test-gouts.php` (section « Ailleurs »), `app/test/ailleurs_test.dart`.

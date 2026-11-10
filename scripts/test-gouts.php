@@ -28,6 +28,7 @@ require_once __DIR__ . '/../src/Gouts.php';
 require_once __DIR__ . '/../src/GoutsRadio.php';
 require_once __DIR__ . '/../src/GoutsRayons.php';
 require_once __DIR__ . '/../src/GoutsPortrait.php';
+require_once __DIR__ . '/../src/GoutsAilleurs.php';
 
 $echecs = 0;
 $total = 0;
@@ -56,6 +57,7 @@ function nettoyer(PDO $db, string $u): void
     $db->prepare('DELETE FROM artists WHERE user = ?')->execute([$u]);
     $db->exec("DELETE FROM artistes_similaires WHERE cle LIKE 'essaigouts%'");
     $db->exec("DELETE FROM artistes_tags WHERE cle LIKE 'essaigouts%'");
+    $db->exec("DELETE FROM artistes_enrichis WHERE cle LIKE 'essaigouts%'");
 }
 nettoyer($db, $U);
 
@@ -311,6 +313,61 @@ $port = GoutsPortrait::pour($db, $U);
 ok($port['portrait'] !== '' && $port['etiquettes'] !== [], 'portrait et ADN');
 ok(count($port['habitudes']['heures']) === 24, 'heures : 24 colonnes');
 ok($port['artistes'][0]['id'] === $artistes['A'] || $port['artistes'][0]['id'] === $artistes['B'], 'repère : A ou B');
+
+echo "Ailleurs (la suite sort de la bibliothèque)\n";
+ok(GoutsAilleurs::secondes('3:45') === 225 && GoutsAilleurs::secondes('1:02:03') === 3723
+   && GoutsAilleurs::secondes('?') === 0, 'durées « m:ss »');
+// Un artiste rejeté ne revient pas par les liens du monde.
+$db->prepare("INSERT INTO gouts_rejets (user, type, cible_id) VALUES (?, 'artist', ?)")->execute([$U, $artistes['C']]);
+$p = GoutsAilleurs::proches($db, $U, ['EssaiGouts A']);
+$db->prepare("DELETE FROM gouts_rejets WHERE user = ?")->execute([$U]);
+ok(isset($p['dedans'][$artistes['B']]) && !isset($p['dedans'][$artistes['C']]), 'proches dans la bibliothèque : B, pas C (rejeté)');
+$cleAilleurs = Gouts::cle('EssaiGouts Ailleurs');
+ok(($p['dehors'][$cleAilleurs]['racine'] ?? '') === 'EssaiGouts A' && !isset($p['dehors'][Gouts::cle('EssaiGouts A')]),
+   'proches d\'ailleurs : « Ailleurs », amené par A (A, chez soi, n\'en est pas)');
+// Une graine d'ailleurs sans liens connus : la graine elle-même, et les artistes aimés.
+$db->prepare('INSERT IGNORE INTO artistes_enrichis (cle, nom, source, trouve) VALUES (?, ?, ?, 0)')
+   ->execute([$cleAilleurs, 'EssaiGouts Ailleurs', 'essai']);
+$db->prepare('INSERT INTO gouts_choix (user, cle, nom, niveau) VALUES (?, ?, ?, 2)')
+   ->execute([$U, Gouts::cle('EssaiGouts Choisi'), 'EssaiGouts Choisi']);
+$p2 = GoutsAilleurs::proches($db, $U, ['EssaiGouts Ailleurs']);
+ok(isset($p2['dehors'][$cleAilleurs], $p2['dehors'][Gouts::cle('EssaiGouts Choisi')]), 'sans liens : la graine et les artistes aimés');
+// Les titres, depuis un cache préparé (aucun appel réseau).
+$cache = new ReflectionMethod(GoutsAilleurs::class, 'ecrireCache');
+$fiche = fn($id) => ['externe' => 'youtube', 'videoId' => $id, 'cleFile' => "yt:$id", 'title' => "T $id",
+                     'artist' => 'EssaiGouts Ailleurs', 'album' => '', 'thumbnail' => '', 'duration' => 200,
+                     'url' => "https://music.youtube.com/watch?v=$id"];
+$cache->invoke(null, 'EssaiGouts Ailleurs', [$fiche('aaa'), $fiche('bbb')]);
+$seul = ['ail' => $p['dehors'][$cleAilleurs]];
+$vus = [];
+for ($i = 0; $i < 10; $i++) foreach (GoutsAilleurs::titres($seul, ['yt:aaa'], 3) as $t) $vus[] = $t;
+ok(count($vus) === 10 && array_unique(array_column($vus, 'videoId')) === ['bbb'], 'un titre par artiste, jamais un déjà en file');
+ok(!isset($vus[0]['cleFile']) && $vus[0]['origin'] === 'auto:ailleurs' && str_contains($vus[0]['raison'], 'EssaiGouts A'),
+   'fiche d\'ailleurs : origine et raison');
+@unlink((new ReflectionMethod(GoutsAilleurs::class, 'fichierCache'))->invoke(null, 'EssaiGouts Ailleurs'));
+// Un artiste seul (ni liens ni genre partagé) : la bibliothèque est « à sec ».
+$db->prepare('INSERT INTO artists (name, user, genre) VALUES (?, ?, ?)')->execute(['EssaiGouts Seul', $U, 'Seulgenre']);
+$seulId = (int)$db->lastInsertId();
+$db->prepare('INSERT INTO albums (artist_id, name, genre) VALUES (?, ?, ?)')->execute([$seulId, 'Album S', 'Seulgenre']);
+$al = (int)$db->lastInsertId();
+$seulTitres = [];
+for ($t = 1; $t <= 4; $t++) {
+    $db->prepare('INSERT INTO songs (album_id, title, track_number, duration, file_path) VALUES (?, ?, ?, 200, ?)')
+       ->execute([$al, "Titre S-$t", $t, "essai/S/$t.mp3"]);
+    $seulTitres[] = (int)$db->lastInsertId();
+}
+$etat = null;
+$sansRepli = GoutsRadio::suite($db, $U, [$seulTitres[0]], [], 10, 0.35, 'auto', [], false, true, $etat);
+$autres = array_filter($sansRepli, fn($s) => !in_array($s['id'], $seulTitres, true));
+ok($etat['sec'] === true && $autres === [], 'à sec, sans repli : rien d\'éloigné (' . count($sansRepli) . ' titre(s) de lui)');
+$avecRepli = GoutsRadio::suite($db, $U, [$seulTitres[0]], [], 10, 0.35, 'auto', [], true, true, $etat);
+ok($etat['sec'] === true && count($avecRepli) > 0, 'à sec, avec repli (anciennes apps) : jamais muet');
+$etat = null;
+$lies = GoutsRadio::suite($db, $U, [$seulTitres[0]], [], 10, 0.35, 'auto',
+    [$artistes['E'] => 1.0, $artistes['F'] => 0.9, $artistes['G'] => 0.8], false, true, $etat);
+$famE = array_filter($lies, fn($s) => in_array(GoutsRadio::infosTitres($db, $U, [$s['id']])[$s['id']]['artiste'] ?? 0,
+    [$artistes['E'], $artistes['F'], $artistes['G']], true));
+ok($etat['sec'] === false && count($famE) >= 5, 'liens du monde vers la bibliothèque : E, F, G joués (' . count($famE) . ')');
 
 nettoyer($db, $U);
 echo "\n$total essais, $echecs échec(s).\n";

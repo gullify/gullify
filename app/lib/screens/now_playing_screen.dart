@@ -12,6 +12,7 @@ import '../state/player.dart';
 import '../state/sleep_timer.dart';
 import '../widgets/artwork.dart';
 import '../widgets/chords_sheet.dart';
+import '../widgets/download_ailleurs_button.dart';
 import '../widgets/glass_box.dart';
 import '../widgets/glass_kit.dart';
 import '../widgets/liquid_glass.dart';
@@ -117,6 +118,8 @@ class NowPlayingScreen extends ConsumerWidget {
           ),
         ),
         if (songId != null) _FavoriteButton(songId: songId),
+        // Un titre d'ailleurs (YouTube, Bandcamp) : on l'aime, on le garde.
+        if (songId == null) DownloadAilleursButton(item: item),
       ],
     );
 
@@ -1005,6 +1008,7 @@ class _WideNowPlayingState extends ConsumerState<_WideNowPlaying> {
                   ),
                 ),
                 if (songId != null) _FavoriteButton(songId: songId),
+                if (songId == null) DownloadAilleursButton(item: item),
               ],
             ),
             const SizedBox(height: 10),
