@@ -8,6 +8,9 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.97.0', [
+    'Android Auto : dans Bibliothèque, « Bibliothèques de la maison » lance d\'un tap la lecture aléatoire de toute la maison, ou celle d\'une autre personne du serveur (serveur 1.22.0).',
+  ]),
   ReleaseNote('3.96.0', [
     'Accueil : le bouton « Tes goûts » est là même avant tes premiers mix. Tu peux y choisir tes artistes tout de suite — c\'est justement ce qui nourrit les mix.',
   ]),

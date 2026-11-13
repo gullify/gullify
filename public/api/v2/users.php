@@ -12,6 +12,10 @@
  *       action, so the app reuses its Artist mapper. READ-ONLY: browsing
  *       another user's library never mutates anything.
  *
+ *   GET /api/v2/users.php?action=random&user=X|*&limit=
+ *       → [songs] tirés au hasard chez X, ou dans toute la maison (user=*,
+ *       dédoublonnés par fichier). Même forme que library.php random_songs.
+ *
  * Artist/album/song detail and streaming are keyed by global id (see
  * library.php `artist`/`album` and stream.php), so once the app has an
  * artist id it navigates and plays through the existing endpoints.
@@ -20,6 +24,7 @@ require_once __DIR__ . '/_v2.php';
 require_once __DIR__ . '/../../../src/ImageUrl.php';
 require_once __DIR__ . '/../../../src/Database.php';
 require_once __DIR__ . '/../../../src/Avatar.php';
+require_once __DIR__ . '/../../../src/TrackArtist.php';
 
 $ctx    = v2_auth();
 $me     = $ctx['user']['username'];
@@ -110,6 +115,68 @@ try {
             'offset'   => $offset,
             'has_more' => ($offset + $limit) < $total,
         ]);
+    }
+
+    if ($action === 'random') {
+        // Lecture aléatoire de la bibliothèque d'un autre (user=X) ou de toute
+        // la maison (user=*, la sienne comprise). Même forme que library.php
+        // `random_songs` : l'app réutilise son lecteur de titres, et la lecture
+        // passe par stream.php (id global). Seulement des comptes actifs.
+        $target = trim((string) ($_GET['user'] ?? ''));
+        if ($target === '') {
+            v2_fail('missing_user', 'user parameter required', 400);
+        }
+        $maison = $target === '*';
+        if (!$maison) {
+            $chk = $conn->prepare('SELECT 1 FROM users WHERE username = ? AND is_active = 1');
+            $chk->execute([$target]);
+            if (!$chk->fetchColumn()) {
+                v2_fail('not_found', 'Unknown user', 404);
+            }
+        }
+        $limit = max(1, min(500, (int) ($_GET['limit'] ?? 200)));
+        // Dans la maison, un même fichier peut être rangé chez plusieurs
+        // personnes (racine partagée) : on en tire le double et on dédoublonne
+        // par chemin, pour ne pas entendre deux fois la même chanson.
+        $draw = $maison ? $limit * 2 : $limit;
+        $where = $maison
+            ? 'a.user IN (SELECT username FROM users WHERE is_active = 1)'
+            : 'a.user = ?';
+        $stmt = $conn->prepare("
+            SELECT s.id, s.title, s.track_number, s.duration, s.file_path,
+                   s.album_id, al.name AS album_name,
+                   " . TRACK_ARTIST_ID . " AS artist_id,
+                   " . TRACK_ARTIST_NAME . " AS artist_name
+            FROM songs s
+            JOIN albums al ON s.album_id = al.id
+            JOIN artists a ON al.artist_id = a.id
+            " . TRACK_ARTIST_JOIN . "
+            WHERE $where
+            ORDER BY RAND()
+            LIMIT $draw
+        ");
+        $stmt->execute($maison ? [] : [$target]);
+
+        $songs = [];
+        $seen = [];
+        while (($row = $stmt->fetch()) && count($songs) < $limit) {
+            $path = (string) $row['file_path'];
+            if (isset($seen[$path])) continue;
+            $seen[$path] = true;
+            $songs[] = [
+                'id'          => (int) $row['id'],
+                'title'       => $row['title'],
+                'trackNumber' => (int) $row['track_number'],
+                'duration'    => (int) $row['duration'],
+                'filePath'    => $row['file_path'],
+                'albumId'     => (int) $row['album_id'],
+                'albumName'   => $row['album_name'],
+                'artworkUrl'  => ImageUrl::album((int) $row['album_id']),
+                'artistId'    => $row['artist_id'] !== null ? (int) $row['artist_id'] : null,
+                'artistName'  => $row['artist_name'],
+            ];
+        }
+        v2_ok($songs);
     }
 
     v2_fail('unknown_action', 'Unknown users action: ' . $action, 400);

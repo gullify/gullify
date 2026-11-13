@@ -1177,6 +1177,16 @@ class LibraryRepository {
     avatarUrl: _abs(j['avatarUrl'] as String?),
   );
 
+  /// Titres tirés au hasard dans la bibliothèque de [username], ou dans
+  /// toute la maison si [username] vaut `*` (dédoublonnés par le serveur).
+  Future<List<Song>> randomSongsOf(String username, {int limit = 200}) async {
+    final data = await _client.get(
+      'users.php',
+      query: {'action': 'random', 'user': username, 'limit': limit},
+    );
+    return _list(data, _song);
+  }
+
   /// La liste des artistes de la bibliothèque d'un autre utilisateur.
   /// Les détails (artiste/album) et la lecture passent ensuite par les
   /// endpoints habituels, indexés par id global.

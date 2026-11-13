@@ -183,6 +183,15 @@ class BrowseIds {
   static const genres = 'GENRES';
   static const downloads = 'DOWNLOADS';
 
+  /// « Bibliothèques de la maison » : un aléatoire par personne du serveur,
+  /// et un pour toute la maison. Chaque élément se joue d'un tap.
+  static const maison = 'MAISON';
+  static const maisonShufflePrefix = 'MAISON_SHUFFLE_';
+
+  /// [username] = `*` pour toute la maison (la sienne comprise).
+  static String maisonShuffle(String username) =>
+      '$maisonShufflePrefix$username';
+
   /// Le dossier local (idées #114, #115) : ses artistes, ses albums, ses
   /// titres. Des identifiants À PART de ceux du serveur — les deux mondes ont
   /// chacun leurs numéros d'album, et rien ne doit pouvoir se confondre.
@@ -3222,6 +3231,8 @@ class GullifyAudioHandler extends BaseAudioHandler
               playable: false),
           const MediaItem(id: BrowseIds.genres, title: 'Genres',
               playable: false),
+          const MediaItem(id: BrowseIds.maison,
+              title: 'Bibliothèques de la maison', playable: false),
           // Seule entrée qui ne demande rien au réseau : elle n'a de sens que
           // s'il y a des titres téléchargés sur le téléphone.
           if (downloads.isNotEmpty)
@@ -3306,6 +3317,27 @@ class GullifyAudioHandler extends BaseAudioHandler
               title: '${g.name} (${g.artistCount})',
               playable: false,
             ),
+        ];
+
+      // Rien à fouiller ici : chaque ligne lance l'aléatoire d'une
+      // bibliothèque, la maison entière en tête.
+      case BrowseIds.maison:
+        final users = await repo.serverUsers();
+        return [
+          MediaItem(
+            id: BrowseIds.maisonShuffle('*'),
+            title: 'Lecture aléatoire — toute la maison',
+            playable: true,
+          ),
+          for (final u in users)
+            if (u.songCount > 0)
+              MediaItem(
+                id: BrowseIds.maisonShuffle(u.username),
+                title: 'Lecture aléatoire — ${u.displayName}',
+                artist: '${u.songCount} titres',
+                artUri: _artUri(u.avatarUrl),
+                playable: true,
+              ),
         ];
 
       case BrowseIds.favorites:
@@ -3991,6 +4023,23 @@ class GullifyAudioHandler extends BaseAudioHandler
 
       if (mediaId.startsWith('POURTOI_')) {
         await _playPourToi(mediaId);
+        return;
+      }
+
+      // Aléatoire chez quelqu'un d'autre, ou dans toute la maison. Traité à
+      // part, comme les genres : un nom d'utilisateur ne se découpe pas à
+      // l'expression régulière des autres catégories.
+      if (mediaId.startsWith(BrowseIds.maisonShufflePrefix)) {
+        final who = mediaId.substring(BrowseIds.maisonShufflePrefix.length);
+        final songs = who.isEmpty ? const <Song>[] : await repo.randomSongsOf(who);
+        if (songs.isEmpty) {
+          logAA('→ bibliothèque vide');
+          playbackState.add(playbackState.value.copyWith(
+            processingState: AudioProcessingState.idle,
+          ));
+          return;
+        }
+        await playSongs(songs);
         return;
       }
 

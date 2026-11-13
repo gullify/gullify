@@ -9,6 +9,7 @@ import 'package:gullify/audio/audio_handler.dart';
 import 'package:gullify/models/album.dart';
 import 'package:gullify/models/artist.dart';
 import 'package:gullify/models/game_source.dart';
+import 'package:gullify/models/server_user.dart';
 import 'package:gullify/models/song.dart';
 
 class _Repository extends LibraryRepository {
@@ -113,6 +114,12 @@ class _Repository extends LibraryRepository {
   }
 
   @override
+  Future<List<ServerUser>> serverUsers() async => const [
+        ServerUser(id: 2, username: 'julie', fullName: 'Julie', songCount: 40),
+        ServerUser(id: 3, username: 'vide', songCount: 0),
+      ];
+
+  @override
   String streamUrl(Song song) => 'https://exemple.test/stream/${song.id}';
 }
 
@@ -174,6 +181,25 @@ void main() {
         reason: '$category doit pouvoir se jouer sans descendre d\'un cran',
       );
     }
+  });
+
+  test('Bibliothèque mène aux aléatoires de la maison et des autres',
+      () async {
+    final handler = _handler();
+
+    final library = await handler.getChildren(BrowseIds.library);
+    expect(library.map((i) => i.id), contains(BrowseIds.maison));
+
+    final items = await handler.getChildren(BrowseIds.maison);
+    // La maison entière en tête, puis une ligne par personne qui a de la
+    // musique ; chacune se joue d'un tap, sans descendre plus bas.
+    expect(items.map((i) => i.id),
+        [BrowseIds.maisonShuffle('*'), BrowseIds.maisonShuffle('julie')]);
+    expect(items.map((i) => i.title), [
+      'Lecture aléatoire — toute la maison',
+      'Lecture aléatoire — Julie',
+    ]);
+    expect(items.every((i) => i.playable == true), isTrue);
   });
 
   test('« Tout lire » un genre : les titres du genre, remis en ordre',

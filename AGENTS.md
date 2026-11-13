@@ -75,3 +75,9 @@ administrateur. GulliFY n'a pas de « données précieuses orphelines » : rien 
   `sourceAlbum`), `ailleursKeyOf`. Un titre d'ailleurs (pré-écoute de la recherche comprise) a sa suite.
   Bouton « Télécharger » du lecteur (`widgets/download_ailleurs_button.dart`) à la place du cœur.
 - Essais : `scripts/test-gouts.php` (section « Ailleurs »), `app/test/ailleurs_test.dart`.
+
+## Aléatoire de la maison en voiture (serveur 1.22.0, app 3.97.0)
+- `users.php?action=random&user=X` (une autre personne, compte actif) ou `user=*` (toute la maison, la sienne
+  comprise, dédoublonnée par `file_path`) : même forme que `library.php random_songs`.
+- Android Auto : Bibliothèque → « Bibliothèques de la maison » (`BrowseIds.maison`), éléments jouables
+  `MAISON_SHUFFLE_<username|*>`. Essai : `app/test/aa_play_all_test.dart`.
