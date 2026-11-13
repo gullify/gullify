@@ -8,6 +8,9 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.96.0', [
+    'Accueil : le bouton « Tes goûts » est là même avant tes premiers mix. Tu peux y choisir tes artistes tout de suite — c\'est justement ce qui nourrit les mix.',
+  ]),
   ReleaseNote('3.95.0', [
     'Lecture automatique : quand ta bibliothèque n\'a plus rien de proche de ce qui joue, la musique continue AILLEURS. Elle suit les liens de tes goûts (les artistes proches de « Tes artistes ») vers des artistes que tu n\'as pas, et en fait jouer un titre connu, à la pièce, depuis YouTube Music — ou Bandcamp s\'il n\'est pas sur YouTube. Ce qui est proche ET déjà chez toi passe toujours en premier (serveur 1.21.0).',
     'Une chanson lancée seule depuis la recherche (YouTube ou Bandcamp) a maintenant sa suite, elle aussi, d\'après son artiste.',

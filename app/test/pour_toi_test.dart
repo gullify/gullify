@@ -253,6 +253,8 @@ void main() {
         find.textContaining('tes mix et tes découvertes arrivent ici'),
         findsOneWidget,
       );
+      // « Tes goûts » reste ouvert : y choisir ses artistes nourrit les mix.
+      expect(find.text('Tes goûts'), findsOneWidget);
     });
 
     testWidgets('un serveur d\'avant Pour toi : rien du tout', (tester) async {

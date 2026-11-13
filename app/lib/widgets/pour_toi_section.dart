@@ -31,9 +31,10 @@ class PourToiSection extends ConsumerWidget {
       for (final r in rayons)
         if (r.type == 'ailleurs') r,
     ];
-    if (listes.isEmpty && ailleurs.isEmpty) return const _PourToiVide();
     final scheme = Theme.of(context).colorScheme;
 
+    // Même sans mix encore (peu d'écoutes), « Tes goûts » reste ouvert : on
+    // peut y choisir ses artistes, et c'est justement ce qui nourrit les mix.
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -59,6 +60,7 @@ class PourToiSection extends ConsumerWidget {
             ],
           ),
         ),
+        if (listes.isEmpty && ailleurs.isEmpty) const _PourToiVide(),
         if (listes.isNotEmpty)
           SizedBox(
             height: 236,
@@ -84,7 +86,7 @@ class _PourToiVide extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 4),
+      padding: const EdgeInsets.fromLTRB(20, 6, 20, 4),
       child: Row(
         children: [
           Icon(Icons.auto_awesome_outlined, color: scheme.primary),
