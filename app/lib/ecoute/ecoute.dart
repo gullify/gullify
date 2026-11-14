@@ -89,6 +89,8 @@ class EtatDistant {
     this.pause = true,
     this.volume,
     this.actif = false,
+    this.horloge,
+    this.avec = const [],
   });
 
   factory EtatDistant.fromJson(Map<String, dynamic> j) {
@@ -109,6 +111,8 @@ class EtatDistant {
       pause: j['pause'] as bool? ?? true,
       volume: (j['volume'] as num?)?.toDouble(),
       actif: j['actif'] as bool? ?? false,
+      horloge: (j['horloge'] as num?)?.toDouble(),
+      avec: [for (final n in (j['avec'] as List? ?? const [])) if (n is String) n],
     );
   }
 
@@ -125,6 +129,13 @@ class EtatDistant {
   /// télécommande).
   final double? volume;
   final bool actif;
+
+  /// L'heure de l'appareil (secondes) au moment de sa réponse ; null avant
+  /// GulliOS 1.140 / app 3.100.0 (pas de départ synchronisé).
+  final double? horloge;
+
+  /// Les autres appareils du groupe (noms), pour la pastille.
+  final List<String> avec;
 
   Map<String, dynamic>? get titre =>
       actif && index >= 0 && index < file.length ? file[index] : null;
@@ -443,10 +454,26 @@ List<Appareil> lireReponseMdns(Uint8List d, String expediteur) {
 
 // ── Le téléphone, télécommande ───────────────────────────────────────────────
 
-class Cible {
-  const Cible(this.appareil, this.etat);
+/// Un appareil du groupe, son dernier état, et l'écart de son horloge avec
+/// celle du téléphone (secondes ; null s'il ne sait pas partir à l'heure).
+class Membre {
+  const Membre(this.appareil, this.etat, this.ecart);
   final Appareil appareil;
   final EtatDistant etat;
+  final double? ecart;
+
+  Membre avecEtat(EtatDistant e) => Membre(appareil, e, ecart);
+}
+
+/// Où joue la musique : un ou plusieurs appareils (3.100.0). Le premier mène :
+/// c'est son titre et sa position qu'on affiche.
+class Cible {
+  const Cible(this.membres);
+  final List<Membre> membres;
+
+  Appareil get appareil => membres.first.appareil;
+  EtatDistant get etat => membres.first.etat;
+  List<Appareil> get appareils => [for (final m in membres) m.appareil];
 }
 
 /// L'appareil où joue la musique, ou null : elle joue ici.
@@ -454,9 +481,15 @@ final cibleProvider = NotifierProvider<CibleNotifier, Cible?>(
   CibleNotifier.new,
 );
 
+double _maintenantTel() => DateTime.now().microsecondsSinceEpoch / 1e6;
+
+/// Délai laissé au groupe pour charger avant de partir ensemble.
+const _delaiDepart = 1.5;
+
 class CibleNotifier extends Notifier<Cible?> {
   Timer? _sonde;
-  int _echecs = 0;
+  final _echecs = <String, int>{};
+  int _dernierIndex = -1;
 
   @override
   Cible? build() {
@@ -464,18 +497,52 @@ class CibleNotifier extends Notifier<Cible?> {
     return null;
   }
 
-  /// Envoie la file d'ici à [a], au titre et à la seconde où l'on en est, puis
-  /// met ce téléphone en pause.
-  Future<void> envoyer(Appareil a) async {
+  /// L'écart d'horloge d'un appareil : son heure moins celle du téléphone au
+  /// milieu de l'aller-retour (le meilleur de trois essais).
+  Future<(EtatDistant, double?)> _mesurer(Appareil a) async {
+    EtatDistant? dernier;
+    double? meilleur;
+    var plusCourt = double.infinity;
+    for (var n = 0; n < 3; n++) {
+      final t0 = _maintenantTel();
+      final e = await _etat(a);
+      final t1 = _maintenantTel();
+      dernier = e;
+      if (e.horloge == null) break;
+      if (t1 - t0 < plusCourt) {
+        plusCourt = t1 - t0;
+        meilleur = e.horloge! - (t0 + t1) / 2;
+      }
+    }
+    return (dernier!, meilleur);
+  }
+
+  /// Envoie la file d'ici à [appareils], au titre et à la seconde où l'on en
+  /// est ; ils partent ensemble. Puis ce téléphone se met en pause.
+  Future<void> envoyer(List<Appareil> appareils) async {
+    if (appareils.isEmpty) return;
     final handler = ref.read(audioHandlerProvider);
     final client = ref.read(apiClientProvider);
     final user = ref.read(authProvider).user;
+    // Déjà sur des appareils : on repart de là où ils en sont.
+    final avant = state;
     final items = handler.queue.value;
     final lecture = handler.playbackState.value;
     if (items.isEmpty) throw StateError('Rien à envoyer : la file est vide.');
     final courant = handler.mediaItem.value;
     var index = lecture.queueIndex ?? items.indexWhere((i) => i.id == courant?.id);
     if (index < 0 || index >= items.length) index = 0;
+    var position = lecture.position.inMilliseconds / 1000;
+    if (avant != null && avant.etat.titre != null) {
+      final t = avant.etat.titre!;
+      final i = items.indexWhere(
+        (m) => m.title == t['titre'] && (m.artist ?? '') == t['artiste'],
+      );
+      if (i >= 0) {
+        index = i;
+        position = avant.etat.position.inMilliseconds / 1000 + _delaiDepart;
+      }
+    }
 
     // Un billet pour chaque titre de la bibliothèque ; une radio ou un balado
     // public part tel quel ; un fichier du téléphone, ou une adresse qui porte
@@ -523,61 +590,225 @@ class CibleNotifier extends Notifier<Cible?> {
     final de = (user?.fullName?.trim().isNotEmpty ?? false)
         ? user!.fullName!.trim().split(' ').first
         : (user?.username ?? 'quelqu\'un');
-    final etat = await _poster(a, '/jouer', {
-      'de': de,
-      'file': file,
-      'index': nouvelIndex,
-      'position': lecture.position.inMilliseconds / 1000,
-    });
+
+    // Ceux qui quittent le groupe s'arrêtent.
+    final gardes = {for (final a in appareils) a.cle};
+    for (final m in avant?.membres ?? const <Membre>[]) {
+      if (!gardes.contains(m.appareil.cle)) {
+        unawaited(
+          _poster(m.appareil, '/commande', {'geste': 'arreter'}).then(
+            (_) {},
+            onError: (_) {},
+          ),
+        );
+      }
+    }
+
+    final mesures = await Future.wait([
+      for (final a in appareils)
+        _mesurer(a).then<(EtatDistant, double?)?>((m) => m, onError: (_) => null),
+    ]);
+    final depart = _maintenantTel() + _delaiDepart;
+    final membres = <Membre>[];
+    final refus = <String>[];
+    await Future.wait([
+      for (var k = 0; k < appareils.length; k++)
+        () async {
+          final a = appareils[k];
+          final ecart = mesures[k]?.$2;
+          try {
+            final e = await _poster(a, '/jouer', {
+              'de': de,
+              'avec': [for (final b in appareils) if (b.cle != a.cle) b.nom],
+              'file': file,
+              'index': nouvelIndex,
+              'position': position,
+              if (appareils.length > 1 && ecart != null) 'depart': depart + ecart,
+            });
+            membres.add(Membre(a.avec(dispo: true), e, ecart));
+          } catch (_) {
+            refus.add(a.nom);
+          }
+        }(),
+    ]);
+    if (membres.isEmpty) {
+      throw StateError('${refus.join(', ')} n\'a pas pu jouer la musique.');
+    }
+    // L'ordre choisi est gardé : le premier mène.
+    membres.sort(
+      (x, y) => appareils.indexWhere((a) => a.cle == x.appareil.cle)
+          .compareTo(appareils.indexWhere((a) => a.cle == y.appareil.cle)),
+    );
     await handler.pause();
-    state = Cible(a.avec(dispo: true), etat);
-    _echecs = 0;
+    state = Cible(membres);
+    _dernierIndex = nouvelIndex;
+    _echecs.clear();
     _sonde?.cancel();
     _sonde = Timer.periodic(const Duration(seconds: 1), (_) => _rafraichir());
+    if (refus.isNotEmpty) {
+      throw StateError('${refus.join(', ')} n\'a pas répondu ; les autres jouent.');
+    }
   }
 
   Future<void> _rafraichir() async {
     final c = state;
     if (c == null) return;
-    try {
-      final e = await _etat(c.appareil);
-      if (state?.appareil.cle != c.appareil.cle) return;
-      _echecs = 0;
-      // Quelqu'un d'autre a pris l'appareil, ou il s'est arrêté : on lâche.
-      if (!e.actif) {
-        _lacher();
-        return;
+    final suivants = <Membre>[];
+    for (final r in await Future.wait([
+      for (final m in c.membres)
+        _etat(m.appareil).then<(Membre, EtatDistant?)>(
+          (e) => (m, e),
+          onError: (_) => (m, null),
+        ),
+    ])) {
+      final (m, e) = r;
+      final cle = m.appareil.cle;
+      if (e == null) {
+        // Injoignable un moment : on le garde 10 s.
+        if ((_echecs[cle] = (_echecs[cle] ?? 0) + 1) < 10) suivants.add(m);
+        continue;
       }
-      state = Cible(c.appareil, e);
-    } catch (_) {
-      if (++_echecs >= 10) _lacher();
+      _echecs.remove(cle);
+      // Quelqu'un d'autre l'a pris, ou il s'est arrêté : il quitte le groupe.
+      if (e.actif) suivants.add(m.avecEtat(e));
+    }
+    if (!identical(state, c)) return;
+    if (suivants.isEmpty) {
+      _lacher();
+      return;
+    }
+    state = Cible(suivants);
+    // Nouveau titre : si le groupe s'est écarté (> 150 ms), on le recale.
+    final chef = suivants.first.etat;
+    if (chef.index != _dernierIndex) {
+      _dernierIndex = chef.index;
+      if (suivants.length > 1 && !chef.pause && _ecartDuGroupe(suivants) > 0.15) {
+        unawaited(_caler(chef.index, chef.position.inMilliseconds / 1000 + _delaiDepart));
+      }
     }
   }
 
+  /// Le plus grand écart de position entre les membres, ramenés à la même
+  /// heure du téléphone. 0 si on ne sait pas le calculer.
+  double _ecartDuGroupe(List<Membre> ms) {
+    final positions = <double>[];
+    for (final m in ms) {
+      final e = m.etat;
+      if (m.ecart == null || e.horloge == null || e.index != ms.first.etat.index) return 0;
+      // Position de l'appareil à l'heure t (téléphone) = position + (t - (horloge - écart)).
+      positions.add(e.position.inMilliseconds / 1000 - (e.horloge! - m.ecart!));
+    }
+    positions.sort();
+    return positions.isEmpty ? 0 : positions.last - positions.first;
+  }
+
+  /// Tout le groupe repart ensemble au titre [index], à [position] (secondes).
+  Future<void> _caler(int index, double position) async {
+    final c = state;
+    if (c == null) return;
+    final depart = _maintenantTel() + _delaiDepart;
+    await Future.wait([
+      for (final m in c.membres)
+        (m.ecart == null
+                ? _poster(m.appareil, '/commande', {'geste': 'aller', 'valeur': index}).then(
+                    (_) => _poster(m.appareil, '/commande', {
+                      'geste': 'chercher',
+                      'valeur': position,
+                    }),
+                  )
+                : _poster(m.appareil, '/commande', {
+                    'geste': 'caler',
+                    'valeur': {
+                      'index': index,
+                      'position': position,
+                      'depart': depart + m.ecart!,
+                    },
+                  }))
+            .then((_) {}, onError: (_) {}),
+    ]);
+    _dernierIndex = index;
+  }
+
+  /// Un geste pour tout le groupe. Seul, un appareil reçoit le geste tel quel ;
+  /// à plusieurs, tout ce qui fait repartir passe par un départ commun.
   Future<void> commande(String geste, [Object? valeur]) async {
     final c = state;
     if (c == null) return;
-    try {
-      final e = await _poster(c.appareil, '/commande', {
-        'geste': geste,
-        'valeur': ?valeur,
-      });
-      if (state?.appareil.cle == c.appareil.cle) state = Cible(c.appareil, e);
-    } catch (e) {
-      debugPrint('Écouter sur… : $geste refusé — $e');
+    if (c.membres.length > 1) {
+      final e = c.etat;
+      final pos = e.position.inMilliseconds / 1000;
+      switch (geste) {
+        case 'reprendre':
+          return _caler(e.index, pos);
+        case 'suivant':
+          if (e.index + 1 < e.file.length) return _caler(e.index + 1, 0);
+          return;
+        case 'precedent':
+          return _caler(pos > 3 || e.index == 0 ? e.index : e.index - 1, 0);
+        case 'chercher':
+          if (valeur is num) return _caler(e.index, valeur.toDouble());
+          return;
+        case 'aller':
+          if (valeur is int) return _caler(valeur, 0);
+          return;
+        case 'volume':
+          // « Tous » : le même volume partout où il se règle.
+          for (final m in c.membres) {
+            if (m.etat.volume != null) unawaited(volume(m.appareil, valeur));
+          }
+          return;
+      }
     }
+    await Future.wait([
+      for (final m in c.membres)
+        _poster(m.appareil, '/commande', {'geste': geste, 'valeur': ?valeur}).then(
+          (e) => _remplacer(m.appareil.cle, e),
+          onError: (Object e) => debugPrint('Écouter sur… : $geste refusé — $e'),
+        ),
+    ]);
   }
 
-  /// Revenir à « Ce téléphone » : l'appareil s'arrête, la lecture reprend ici
+  /// Le volume d'un seul appareil du groupe.
+  Future<void> volume(Appareil a, Object? valeur) async {
+    try {
+      final e = await _poster(a, '/commande', {'geste': 'volume', 'valeur': valeur});
+      _remplacer(a.cle, e);
+    } catch (_) {}
+  }
+
+  void _remplacer(String cle, EtatDistant e) {
+    final c = state;
+    if (c == null) return;
+    state = Cible([
+      for (final m in c.membres) if (m.appareil.cle == cle) m.avecEtat(e) else m,
+    ]);
+  }
+
+  /// Retire un appareil du groupe (il s'arrête) ; les autres continuent.
+  Future<void> retirer(Appareil a) async {
+    final c = state;
+    if (c == null) return;
+    if (c.membres.length == 1) return revenir();
+    state = Cible([for (final m in c.membres) if (m.appareil.cle != a.cle) m]);
+    try {
+      await _poster(a, '/commande', {'geste': 'arreter'});
+    } catch (_) {}
+  }
+
+  /// Revenir à « Ce téléphone » : le groupe s'arrête, la lecture reprend ici
   /// au titre et à la seconde où il en était (si c'est un titre de notre file).
   Future<void> revenir() async {
     final c = state;
     if (c == null) return;
     _lacher();
     final handler = ref.read(audioHandlerProvider);
-    try {
-      await _poster(c.appareil, '/commande', {'geste': 'arreter'});
-    } catch (_) {}
+    await Future.wait([
+      for (final m in c.membres)
+        _poster(m.appareil, '/commande', {'geste': 'arreter'}).then(
+          (_) {},
+          onError: (_) {},
+        ),
+    ]);
     final titre = c.etat.titre;
     if (titre == null) return;
     final items = handler.queue.value;
@@ -612,6 +843,9 @@ class Recepteur {
 
   /// Qui a envoyé ce qui joue (« Maxime ») ; vide quand c'est la télé elle-même.
   final de = ValueNotifier<String>('');
+
+  /// Les autres appareils du groupe (3.100.0), pour la pastille.
+  final avec = ValueNotifier<List<String>>(const []);
 
   /// Appelé quand un téléphone lance une file : la coque ouvre le lecteur.
   void Function()? ouvrirLecteur;
@@ -736,17 +970,77 @@ class Recepteur {
     final pos = corps['position'] is num ? corps['position'] as num : 0;
     final qui = corps['de'];
     de.value = qui is String ? (qui.length > 80 ? qui.substring(0, 80) : qui) : '';
+    final autres = corps['avec'];
+    avec.value = [
+      if (autres is List)
+        for (final n in autres.take(10)) if (n is String) n.length > 60 ? n.substring(0, 60) : n,
+    ];
+    final depart = _depart(corps['depart']);
+    _generation++;
     await _h.playEcoute(
       items,
       startIndex: index,
       startPosition: Duration(milliseconds: (pos * 1000).round()),
+      lancer: depart == null,
     );
+    if (depart != null) unawaited(_partir(depart));
     ouvrirLecteur?.call();
+  }
+
+  /// Plusieurs appareils (3.100.0) : un départ programmé plus ancien que le
+  /// dernier ordre est abandonné.
+  int _generation = 0;
+
+  /// L'heure de départ (secondes, horloge d'ICI : le téléphone a corrigé
+  /// l'écart), ou null.
+  static double? _depart(Object? v) => v is num && v > 0 ? v.toDouble() : null;
+
+  static double _maintenant() => DateTime.now().microsecondsSinceEpoch / 1e6;
+
+  /// En pause : attendre que le titre soit prêt (et calé à [position]), puis
+  /// lancer à l'heure [depart]. Un départ passé ou à plus de 30 s part tout
+  /// de suite.
+  Future<void> _partir(double depart, {double? position}) async {
+    final g = ++_generation;
+    final limite = depart < _maintenant() + 30 ? depart : _maintenant() + 30;
+    while (_maintenant() < limite && g == _generation) {
+      if (_h.playbackState.value.processingState == AudioProcessingState.ready) {
+        break;
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+    }
+    if (position != null && g == _generation) {
+      await _h.seek(Duration(microseconds: (position * 1e6).round()));
+    }
+    final reste = depart - _maintenant();
+    if (reste > 0 && reste <= 30) {
+      await Future<void>.delayed(Duration(microseconds: (reste * 1e6).round()));
+    }
+    if (g == _generation) await _h.play();
   }
 
   Future<void> _geste(Object? geste, Object? valeur) async {
     final h = _h;
+    if (geste != 'caler') _generation++;
     switch (geste) {
+      case 'caler':
+        if (valeur is! Map) throw const FormatException('caler : {index, position, depart}');
+        final i = valeur['index'];
+        final p = valeur['position'];
+        final d = _depart(valeur['depart']);
+        if (i is! int || i < 0 || i >= h.queue.value.length) {
+          throw const FormatException('index hors de la file');
+        }
+        if (p is! num || p < 0 || d == null) {
+          throw const FormatException('position ou départ invalide');
+        }
+        await h.pause();
+        final courant = h.queue.value.indexWhere((m) => m.id == h.mediaItem.value?.id);
+        if (courant != i) {
+          await h.skipToQueueItem(i);
+          await h.pause();
+        }
+        unawaited(_partir(d, position: p.toDouble()));
       case 'pause':
         await h.pause();
       case 'reprendre':
@@ -805,6 +1099,8 @@ class Recepteur {
       'pause': actif ? !lecture.playing : true,
       'volume': null,
       'actif': actif,
+      'horloge': _maintenant(),
+      'avec': actif ? avec.value : const <String>[],
     };
   }
 }

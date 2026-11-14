@@ -140,12 +140,17 @@ class _TvNowPlayingScreenState extends ConsumerState<TvNowPlayingScreen> {
                                   color: scheme.onPrimary,
                                 ),
                                 const SizedBox(width: 10),
-                                Text(
-                                  'Joue depuis le téléphone de $de',
-                                  style: TextStyle(
-                                    color: scheme.onPrimary,
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.w600,
+                                ValueListenableBuilder<List<String>>(
+                                  valueListenable: Recepteur.instance!.avec,
+                                  builder: (_, avec, _) => Text(
+                                    avec.isEmpty
+                                        ? 'Joue depuis le téléphone de $de'
+                                        : 'Joue depuis le téléphone de $de · avec ${avec.join(', ')}',
+                                    style: TextStyle(
+                                      color: scheme.onPrimary,
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.w600,
+                                    ),
                                   ),
                                 ),
                               ],
@@ -251,9 +256,9 @@ class _LyricsPanelState extends ConsumerState<_LyricsPanel> {
                     // texte, qui commande aussi la mesure des
                     // lignes et donc le calage du défilement.
                     child: MediaQuery(
-                      data: MediaQuery.of(context).copyWith(
-                        textScaler: const TextScaler.linear(3.4),
-                      ),
+                      data: MediaQuery.of(
+                        context,
+                      ).copyWith(textScaler: const TextScaler.linear(3.4)),
                       child: LyricsView(text: text, controller: _scroll),
                     ),
                   ),

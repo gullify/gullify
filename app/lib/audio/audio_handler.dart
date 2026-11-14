@@ -1209,6 +1209,7 @@ class GullifyAudioHandler extends BaseAudioHandler
     List<MediaItem> items, {
     int startIndex = 0,
     Duration? startPosition,
+    bool lancer = true,
   }) async {
     if (items.isEmpty) return;
     _flushPlay();
@@ -1220,7 +1221,8 @@ class GullifyAudioHandler extends BaseAudioHandler
       initialIndex: startIndex.clamp(0, items.length - 1),
       initialPosition: startPosition,
     );
-    await play();
+    // Plusieurs appareils (3.100.0) : c'est le récepteur qui lance, à l'heure dite.
+    if (lancer) await play();
   }
 
   Future<void> playRadio({

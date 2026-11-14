@@ -42,31 +42,55 @@ class _ListeAppareils extends ConsumerStatefulWidget {
 }
 
 class _ListeAppareilsState extends ConsumerState<_ListeAppareils> {
-  String? _envoi;
+  /// Les appareils cochés (clés). Au départ : ceux qui jouent déjà.
+  late final Set<String> _coches = {
+    for (final a in ref.read(cibleProvider)?.appareils ?? const <Appareil>[]) a.cle,
+  };
 
-  Future<void> _choisir(Appareil? a) async {
+  /// Dans l'ordre où on les a cochés : le premier mène le groupe.
+  late final List<String> _ordre = _coches.toList();
+  bool _envoi = false;
+
+  void _basculer(Appareil a) => setState(() {
+    if (_coches.remove(a.cle)) {
+      _ordre.remove(a.cle);
+    } else {
+      _coches.add(a.cle);
+      _ordre.add(a.cle);
+    }
+  });
+
+  Future<void> _revenir() async {
+    final nav = Navigator.of(context);
+    await ref.read(cibleProvider.notifier).revenir();
+    nav.pop();
+  }
+
+  Future<void> _jouer(List<Appareil> appareils) async {
     final cible = ref.read(cibleProvider.notifier);
     final messager = ScaffoldMessenger.of(context);
     final nav = Navigator.of(context);
-    if (a == null) {
-      await cible.revenir();
-      nav.pop();
-      return;
-    }
-    setState(() => _envoi = a.cle);
+    final choisis = [
+      for (final cle in _ordre)
+        ?appareils.where((a) => a.cle == cle).firstOrNull ??
+            ref.read(cibleProvider)?.appareils.where((a) => a.cle == cle).firstOrNull,
+    ];
+    if (choisis.isEmpty) return;
+    setState(() => _envoi = true);
     try {
-      await cible.envoyer(a);
+      await cible.envoyer(choisis);
       nav.pop();
     } catch (e) {
       if (!mounted) return;
-      setState(() => _envoi = null);
+      setState(() => _envoi = false);
       messager.showSnackBar(
         SnackBar(
           content: Text(
-            e is StateError ? e.message : '${a.nom} n\'a pas pu jouer la musique.',
+            e is StateError ? e.message : 'La musique n\'a pas pu partir.',
           ),
         ),
       );
+      if (ref.read(cibleProvider) != null) nav.pop();
     }
   }
 
@@ -78,6 +102,10 @@ class _ListeAppareilsState extends ConsumerState<_ListeAppareils> {
     final teles = [for (final a in appareils) if (a.genre == 'tv') a];
     final gullios = [for (final a in appareils) if (a.genre != 'tv') a]
       ..sort((x, y) => (y.dispo ? 1 : 0) - (x.dispo ? 1 : 0));
+    final groupeActuel = {for (final a in cible?.appareils ?? const <Appareil>[]) a.cle};
+    final inchange = cible != null &&
+        _coches.length == groupeActuel.length &&
+        _coches.containsAll(groupeActuel);
 
     Widget ligne({
       required IconData icone,
@@ -85,44 +113,35 @@ class _ListeAppareilsState extends ConsumerState<_ListeAppareils> {
       required String detail,
       required bool choisi,
       bool actif = true,
-      String? cle,
       VoidCallback? onTap,
-    }) {
-      final enCours = cle != null && _envoi == cle;
-      return Opacity(
-        opacity: actif ? 1 : 0.45,
-        child: ListTile(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-          leading: Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: choisi ? scheme.primary : scheme.surfaceContainerHighest,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(icone, color: choisi ? scheme.onPrimary : scheme.onSurface),
+    }) => Opacity(
+      opacity: actif ? 1 : 0.45,
+      child: ListTile(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        leading: Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: choisi ? scheme.primary : scheme.surfaceContainerHighest,
+            borderRadius: BorderRadius.circular(12),
           ),
-          title: Text(
-            nom,
-            style: TextStyle(
-              fontWeight: FontWeight.w700,
-              color: choisi ? scheme.primary : null,
-            ),
-          ),
-          subtitle: Text(detail),
-          trailing: enCours
-              ? const SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : choisi
-              ? Icon(Icons.check, color: scheme.primary)
-              : null,
-          onTap: actif && _envoi == null ? onTap : null,
+          child: Icon(icone, color: choisi ? scheme.onPrimary : scheme.onSurface),
         ),
-      );
-    }
+        title: Text(
+          nom,
+          style: TextStyle(
+            fontWeight: FontWeight.w700,
+            color: choisi ? scheme.primary : null,
+          ),
+        ),
+        subtitle: Text(detail),
+        trailing: Checkbox(
+          value: choisi,
+          onChanged: actif && !_envoi && onTap != null ? (_) => onTap() : null,
+        ),
+        onTap: actif && !_envoi ? onTap : null,
+      ),
+    );
 
     Widget groupe(String t) => Padding(
       padding: const EdgeInsets.fromLTRB(24, 10, 24, 2),
@@ -143,79 +162,109 @@ class _ListeAppareilsState extends ConsumerState<_ListeAppareils> {
       _ => Icons.desktop_windows_outlined,
     };
 
+    Widget appareil(Appareil a) => ligne(
+      icone: icone(a),
+      nom: a.nom,
+      detail: a.description,
+      choisi: _coches.contains(a.cle),
+      actif: a.dispo || groupeActuel.contains(a.cle),
+      onTap: () => _basculer(a),
+    );
+
+    final n = _coches.length;
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(8, 0, 8, 12),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 2),
-              child: Text(
-                'Écouter sur…',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w800,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 2),
+                child: Text(
+                  'Écouter sur…',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
               ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-              child: Text(
-                'Les GulliFY et GulliOS sur ce Wi-Fi.',
-                style: TextStyle(color: scheme.onSurfaceVariant),
-              ),
-            ),
-            ligne(
-              icone: Icons.smartphone,
-              nom: 'Ce téléphone',
-              detail: cible == null ? 'Le son sort d\'ici' : 'Revenir ici',
-              choisi: cible == null,
-              onTap: cible == null ? null : () => _choisir(null),
-            ),
-            if (teles.isNotEmpty) groupe('Télé'),
-            for (final a in teles)
-              ligne(
-                icone: icone(a),
-                nom: a.nom,
-                detail: a.description,
-                choisi: cible?.appareil.cle == a.cle,
-                actif: a.dispo,
-                cle: a.cle,
-                onTap: () => _choisir(a),
-              ),
-            if (gullios.isNotEmpty) groupe('GulliOS'),
-            for (final a in gullios)
-              ligne(
-                icone: icone(a),
-                nom: a.nom,
-                detail: a.description,
-                choisi: cible?.appareil.cle == a.cle,
-                actif: a.dispo,
-                cle: a.cle,
-                onTap: () => _choisir(a),
-              ),
-            if (appareils.isEmpty)
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
-                child: Row(
-                  children: [
-                    const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        'Recherche sur le Wi-Fi… (une télé doit avoir GulliFY ouvert)',
-                        style: TextStyle(color: scheme.onSurfaceVariant),
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: Text(
+                  'Coche un ou plusieurs appareils de ce Wi-Fi.',
+                  style: TextStyle(color: scheme.onSurfaceVariant),
+                ),
+              ),
+              ligne(
+                icone: Icons.smartphone,
+                nom: 'Ce téléphone',
+                detail: cible == null ? 'Le son sort d\'ici' : 'Ramener la musique ici',
+                choisi: cible == null && n == 0,
+                onTap: cible == null
+                    ? () => setState(() {
+                        _coches.clear();
+                        _ordre.clear();
+                      })
+                    : _revenir,
+              ),
+              if (teles.isNotEmpty) groupe('Télé'),
+              for (final a in teles) appareil(a),
+              if (gullios.isNotEmpty) groupe('GulliOS'),
+              for (final a in gullios) appareil(a),
+              if (appareils.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
+                  child: Row(
+                    children: [
+                      const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'Recherche sur le Wi-Fi… (une télé doit avoir GulliFY ouvert)',
+                          style: TextStyle(color: scheme.onSurfaceVariant),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(8, 12, 8, 0),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    style: FilledButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
                       ),
                     ),
-                  ],
+                    onPressed: n == 0 || _envoi || inchange
+                        ? null
+                        : () => _jouer(appareils),
+                    child: _envoi
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : Text(
+                            n == 0
+                                ? 'Coche au moins un appareil'
+                                : inchange
+                                ? 'Joue déjà sur ${n == 1 ? 'cet appareil' : 'ces $n appareils'}'
+                                : 'Jouer sur $n appareil${n > 1 ? 's' : ''}',
+                            style: const TextStyle(fontWeight: FontWeight.w800),
+                          ),
+                  ),
                 ),
               ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -243,6 +292,8 @@ class TelecommandeScreen extends ConsumerWidget {
         ? (e.position.inMilliseconds / duree).clamp(0.0, 1.0)
         : 0.0;
     final a = cible.appareil;
+    final plusieurs = cible.membres.length > 1;
+    final noms = [for (final m in cible.membres) m.appareil.nom].join(' · ');
 
     return Scaffold(
       appBar: AppBar(
@@ -284,7 +335,11 @@ class TelecommandeScreen extends ConsumerWidget {
                     child: Row(
                       children: [
                         Icon(
-                          a.genre == 'tv' ? Icons.tv : Icons.desktop_windows_outlined,
+                          plusieurs
+                              ? Icons.speaker_group
+                              : a.genre == 'tv'
+                              ? Icons.tv
+                              : Icons.desktop_windows_outlined,
                           color: scheme.onPrimary,
                         ),
                         const SizedBox(width: 12),
@@ -293,16 +348,22 @@ class TelecommandeScreen extends ConsumerWidget {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                'Joue sur ${a.nom}',
+                                plusieurs
+                                    ? 'Joue sur ${cible.membres.length} appareils'
+                                    : 'Joue sur ${a.nom}',
                                 style: TextStyle(
                                   color: scheme.onPrimary,
                                   fontWeight: FontWeight.w800,
                                 ),
                               ),
                               Text(
-                                a.genre == 'tv'
+                                plusieurs
+                                    ? noms
+                                    : a.genre == 'tv'
                                     ? 'Le son sort de la télé'
                                     : 'Le son sort de ses enceintes',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
                                   color: scheme.onPrimary.withValues(alpha: 0.85),
                                   fontSize: 12.5,
@@ -383,11 +444,12 @@ class TelecommandeScreen extends ConsumerWidget {
                   ),
                 ],
               ),
-              if (e.volume != null)
+              if (!plusieurs && e.volume != null)
                 _Volume(
                   valeur: e.volume!,
                   onChange: (v) => cmd.commande('volume', v),
                 ),
+              if (plusieurs) _VolumesGroupe(cible: cible),
               const SizedBox(height: 16),
             ],
           ),
@@ -395,6 +457,95 @@ class TelecommandeScreen extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// Plusieurs appareils : « Tous », puis une ligne par appareil (✕ le retire
+/// du groupe ; la télé garde le volume de sa télécommande).
+class _VolumesGroupe extends ConsumerWidget {
+  const _VolumesGroupe({required this.cible});
+
+  final Cible cible;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final scheme = Theme.of(context).colorScheme;
+    final cmd = ref.read(cibleProvider.notifier);
+    final reglables = [for (final m in cible.membres) if (m.etat.volume != null) m.etat.volume!];
+    Widget nom(String t, {Color? couleur}) => SizedBox(
+      width: 112,
+      child: Text(
+        t,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5, color: couleur),
+      ),
+    );
+    return Column(
+      children: [
+        if (reglables.isNotEmpty)
+          Row(
+            children: [
+              nom('Tous', couleur: scheme.primary),
+              Expanded(
+                child: _Glissiere(
+                  valeur: reglables.reduce((x, y) => x + y) / reglables.length,
+                  onChange: (v) => cmd.commande('volume', v),
+                ),
+              ),
+              const SizedBox(width: 40),
+            ],
+          ),
+        for (final m in cible.membres)
+          Row(
+            children: [
+              nom(m.appareil.nom),
+              Expanded(
+                child: m.etat.volume == null
+                    ? Text(
+                        'volume à sa télécommande',
+                        style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+                      )
+                    : _Glissiere(
+                        valeur: m.etat.volume!,
+                        onChange: (v) => cmd.volume(m.appareil, v),
+                      ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.close, size: 18),
+                tooltip: 'Retirer ${m.appareil.nom} du groupe',
+                onPressed: () => cmd.retirer(m.appareil),
+              ),
+            ],
+          ),
+      ],
+    );
+  }
+}
+
+/// Une glissière de volume (0 à 100), envoyée au lâcher.
+class _Glissiere extends StatefulWidget {
+  const _Glissiere({required this.valeur, required this.onChange});
+
+  final double valeur;
+  final ValueChanged<double> onChange;
+
+  @override
+  State<_Glissiere> createState() => _GlissiereState();
+}
+
+class _GlissiereState extends State<_Glissiere> {
+  double? _glisse;
+
+  @override
+  Widget build(BuildContext context) => Slider(
+    value: (_glisse ?? widget.valeur).clamp(0, 100),
+    max: 100,
+    onChanged: (v) => setState(() => _glisse = v),
+    onChangeEnd: (v) {
+      setState(() => _glisse = null);
+      widget.onChange(v.roundToDouble());
+    },
+  );
 }
 
 /// Le volume de l'appareil : on le règle en glissant, envoyé au lâcher.

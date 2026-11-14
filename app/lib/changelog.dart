@@ -8,6 +8,10 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.100.0', [
+    '« Écouter sur… » : coche plusieurs appareils — une télé GulliFY, des postes ou le serveur GulliOS — et ils jouent ensemble, partis à la même seconde. Pause, suivant et position valent pour tout le groupe, qui repart en même temps ; à chaque nouveau titre, il se recale s\'il s\'est écarté (GulliOS 1.140).',
+    'Dans le lecteur : volume « Tous » et un volume par appareil (la télé garde sa télécommande) ; ✕ retire un appareil du groupe sans arrêter les autres. Chaque appareil affiche « Joue depuis le téléphone de … · avec … ».',
+  ]),
   ReleaseNote('3.99.1', [
     '« Écouter sur… » ne trouvait aucun appareil sur certains Wi-Fi. Le téléphone pose maintenant lui-même la question sur le réseau, et à défaut demande à chaque adresse du réseau si un GulliOS ou une télé GulliFY écoute (quelques secondes).',
   ]),
