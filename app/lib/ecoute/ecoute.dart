@@ -156,7 +156,15 @@ Future<EtatDistant> _etat(Appareil a) async {
 }
 
 Future<EtatDistant> _poster(Appareil a, String chemin, Object corps) async {
-  final r = await _dio.post<dynamic>('${a.base}$chemin', data: corps);
+  // Charger une longue file peut prendre plus de 6 s (mpv qui démarre) : un
+  // délai trop court faisait croire à un échec et renvoyer pendant le chargement.
+  final r = await _dio.post<dynamic>(
+    '${a.base}$chemin',
+    data: corps,
+    options: chemin == '/jouer'
+        ? Options(receiveTimeout: const Duration(seconds: 25))
+        : null,
+  );
   return EtatDistant.fromJson(Map<String, dynamic>.from(r.data as Map));
 }
 
@@ -710,12 +718,19 @@ class CibleNotifier extends Notifier<Cible?> {
     await Future.wait([
       for (final m in c.membres)
         (m.ecart == null
-                ? _poster(m.appareil, '/commande', {'geste': 'aller', 'valeur': index}).then(
-                    (_) => _poster(m.appareil, '/commande', {
-                      'geste': 'chercher',
-                      'valeur': position,
-                    }),
-                  )
+                // Un appareil sans départ à l'heure (GulliOS < 1.140) : titre,
+                // position, puis on relance — sans ce dernier geste il restait
+                // en pause (vu le 2026-11-14, 3.100.0).
+                ? _poster(m.appareil, '/commande', {'geste': 'aller', 'valeur': index})
+                      .then(
+                        (_) => _poster(m.appareil, '/commande', {
+                          'geste': 'chercher',
+                          'valeur': position,
+                        }),
+                      )
+                      .then(
+                        (_) => _poster(m.appareil, '/commande', {'geste': 'reprendre'}),
+                      )
                 : _poster(m.appareil, '/commande', {
                     'geste': 'caler',
                     'valeur': {
