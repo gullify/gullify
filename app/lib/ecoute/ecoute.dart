@@ -339,6 +339,9 @@ class Appareils extends Notifier<List<Appareil>> {
     if (_fini) return;
     // Soi-même (la télé qui s'annonce, vue d'elle-même) : pas dans la liste.
     if (Recepteur.instance?.nomAnnonce == a.cle) return;
+    // Même adresse sous un autre nom (annonce Android, la nôtre, balayage) :
+    // c'est le même appareil, on garde le premier nom.
+    if (state.any((x) => x.cle != a.cle && x.base == a.base)) return;
     final deja = state.where((x) => x.cle == a.cle).firstOrNull;
     // Déjà là et qui répond : rien à refaire (la question repart toutes les 3 s).
     if (deja != null && deja.dispo && deja.hote == a.hote) return;
@@ -527,7 +530,11 @@ class CibleNotifier extends Notifier<Cible?> {
 
   /// Envoie la file d'ici à [appareils], au titre et à la seconde où l'on en
   /// est ; ils partent ensemble. Puis ce téléphone se met en pause.
-  Future<void> envoyer(List<Appareil> appareils) async {
+  Future<void> envoyer(List<Appareil> choisis) async {
+    // Un même appareil vu sous deux noms (annonce et balayage) ne reçoit
+    // qu'un envoi : deux /jouer à la fois mélangeaient sa file.
+    final vus = <String>{};
+    final appareils = [for (final a in choisis) if (vus.add(a.base)) a];
     if (appareils.isEmpty) return;
     final handler = ref.read(audioHandlerProvider);
     final client = ref.read(apiClientProvider);
@@ -804,7 +811,10 @@ class CibleNotifier extends Notifier<Cible?> {
     final c = state;
     if (c == null) return;
     if (c.membres.length == 1) return revenir();
-    state = Cible([for (final m in c.membres) if (m.appareil.cle != a.cle) m]);
+    final restants = [for (final m in c.membres) if (m.appareil.cle != a.cle) m];
+    // Plantage vu le 2026-11-14 (3.100.0) : un groupe vidé → Cible([]) → .first.
+    if (restants.isEmpty) return revenir();
+    state = Cible(restants);
     try {
       await _poster(a, '/commande', {'geste': 'arreter'});
     } catch (_) {}

@@ -116,7 +116,7 @@ class _TvLoginScreenState extends ConsumerState<TvLoginScreen> {
     final password = _pass.text;
     if (username.isEmpty || password.isEmpty) {
       setState(
-        () => _error = 'Il faut un nom d\'utilisateur et un mot de passe.',
+        () => _error = 'Il faut un identifiant et un mot de passe.',
       );
       return;
     }
@@ -126,7 +126,12 @@ class _TvLoginScreenState extends ConsumerState<TvLoginScreen> {
     });
     TvLog.add('connexion de $username');
     try {
-      await ref.read(authProvider.notifier).login(username, password);
+      // Comptes de la maison : le courriel et le mot de passe de la maison,
+      // comme sur le téléphone (3.100.2 ; la télé demandait toujours un nom).
+      final courriel = ref.read(comptesMaisonProvider).value ?? false;
+      await ref
+          .read(authProvider.notifier)
+          .login(username, password, courriel: courriel);
       TvLog.add('connecté');
     } on ApiException catch (e) {
       TvLog.add('connexion refusée : ${e.code}');
@@ -148,6 +153,7 @@ class _TvLoginScreenState extends ConsumerState<TvLoginScreen> {
   @override
   Widget build(BuildContext context) {
     final server = ref.watch(authProvider).serverUrl ?? '';
+    final courriel = ref.watch(comptesMaisonProvider).value ?? false;
     return _ConnectFrame(
       title: 'Connexion',
       subtitle: server.isEmpty
@@ -160,14 +166,14 @@ class _TvLoginScreenState extends ConsumerState<TvLoginScreen> {
         mainAxisSize: MainAxisSize.min,
         children: [
           TvImeField(
-            label: 'NOM D\'UTILISATEUR',
+            label: courriel ? 'COURRIEL' : 'NOM D\'UTILISATEUR',
             controller: _user,
             autofocus: true,
             onSubmitted: () => FocusScope.of(context).nextFocus(),
           ),
           const SizedBox(height: 10),
           TvImeField(
-            label: 'MOT DE PASSE',
+            label: courriel ? 'MOT DE PASSE DE LA MAISON' : 'MOT DE PASSE',
             controller: _pass,
             obscure: true,
             onSubmitted: _login,
@@ -179,6 +185,18 @@ class _TvLoginScreenState extends ConsumerState<TvLoginScreen> {
             expand: true,
             compact: true,
             onPressed: _busy ? null : _login,
+          ),
+          const SizedBox(height: 10),
+          // Revenir au choix de la maison (3.100.2 : la télé n'avait pas de
+          // retour une fois une adresse enregistrée).
+          TvPill(
+            label: 'Changer de serveur',
+            icon: Icons.dns_rounded,
+            expand: true,
+            compact: true,
+            onPressed: _busy
+                ? null
+                : () => ref.read(authProvider.notifier).changeServer(),
           ),
         ],
       ),

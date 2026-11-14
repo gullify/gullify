@@ -8,6 +8,10 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.100.2', [
+    'Télé : la connexion demande le courriel et le mot de passe de la maison quand la maison a ses comptes communs (elle demandait toujours un nom d\'utilisateur), et un bouton « Changer de serveur » ramène au choix de la maison.',
+    '« Écouter sur… » : un appareil vu sous deux noms n\'apparaît plus qu\'une fois et ne reçoit plus la musique en double ; retirer le dernier appareil d\'un groupe ne fait plus planter l\'app.',
+  ]),
   ReleaseNote('3.100.1', [
     '« Écouter sur… » : après une pause ou un changement de titre, un poste GulliOS pas encore à jour restait muet ; il repart maintenant. Et un envoi lent n\'est plus pris pour un échec (il faisait renvoyer la file pendant qu\'elle se chargeait, d\'où des morceaux autres que ceux affichés ; GulliOS 1.142 corrige aussi ce mélange de son côté).',
   ]),
