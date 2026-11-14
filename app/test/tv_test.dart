@@ -1052,7 +1052,7 @@ void main() {
       await tester.tap(submit);
       await tester.pump();
       expect(
-        find.text('Il faut un nom d\'utilisateur et un mot de passe.'),
+        find.text('Il faut un identifiant et un mot de passe.'),
         findsOneWidget,
       );
     });
