@@ -1775,11 +1775,21 @@ class GullifyAudioHandler extends BaseAudioHandler
   /// c'est-à-dire produirait exactement le saut qu'on corrige.
   double _volumeForSong(int? songId) {
     // La compensation de l'égaliseur (headroomGain) s'ajoute, normalisation ou non.
-    final base = fade.normalizes
-        ? (trackVolumeFor(songId == null ? null : _edges[songId]?.level) ?? _trackVolume)
-        : 1.0;
+    // Un titre sans mesure reprend le volume NORMALISÉ d'avant (_normBase), pas
+    // _trackVolume : celui-ci contient déjà la compensation, et la remultiplier
+    // à chaque titre non mesuré faisait fondre le son titre après titre (avec
+    // « Basses +6 dB », moitié moins à chaque piste — inaudible en cinq titres).
+    final measured = fade.normalizes
+        ? trackVolumeFor(songId == null ? null : _edges[songId]?.level)
+        : null;
+    if (measured != null) _normBase = measured;
+    final base = fade.normalizes ? (measured ?? _normBase) : 1.0;
     return base * equalizer.headroomGain;
   }
+
+  /// Le dernier volume de normalisation posé, SANS la compensation de
+  /// l'égaliseur : ce que reprend un titre qui n'a pas de mesure.
+  double _normBase = 1;
 
   /// Rend au titre en cours le volume que sa gravure lui vaut. Sert deux fois :
   /// quand le réglage bascule (la bascule s'entend tout de suite), et quand la
@@ -2373,6 +2383,7 @@ class GullifyAudioHandler extends BaseAudioHandler
     // La mise à niveau d'un croisement ne survit pas à l'arrêt : ce qui
     // repartira n'aura personne à égaler.
     _trackVolume = 1;
+    _normBase = 1;
     await _cancelFade();
     await _player.stop();
     await super.stop();

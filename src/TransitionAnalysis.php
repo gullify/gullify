@@ -107,12 +107,18 @@ class TransitionAnalysis
         self::ensureTable($db);
 
         $placeholders = implode(',', array_fill(0, count($ids), '?'));
+        // Les titres des autres comptes actifs de la maison aussi (aléatoire de
+        // la maison, Android Auto) : ils se lisent déjà par stream.php, et sans
+        // mesure ils échappaient à la normalisation du volume. Chaque fichier
+        // se cherche sous la racine de SON propriétaire.
         $stmt = $db->prepare(
-            "SELECT s.id, s.file_path
+            "SELECT s.id, s.file_path, ar.user AS owner
              FROM songs s
              JOIN albums al ON s.album_id = al.id
              JOIN artists ar ON al.artist_id = ar.id
-             WHERE s.id IN ($placeholders) AND ar.user = ?"
+             WHERE s.id IN ($placeholders)
+               AND (ar.user = ? OR EXISTS (
+                   SELECT 1 FROM users u WHERE u.username = ar.user AND u.is_active = 1))"
         );
         $stmt->execute(array_merge($ids, [$user]));
         $songs = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
@@ -120,11 +126,15 @@ class TransitionAnalysis
             return [];
         }
 
-        $base = self::userBase($user);
-        $out  = [];
+        $bases = [];
+        $out   = [];
         foreach ($songs as $song) {
-            $id   = (int)$song['id'];
-            $file = self::localFile($base, (string)$song['file_path']);
+            $id    = (int)$song['id'];
+            $owner = (string)$song['owner'];
+            if (!array_key_exists($owner, $bases)) {
+                $bases[$owner] = self::userBase($owner);
+            }
+            $file = self::localFile($bases[$owner], (string)$song['file_path']);
             if ($file === null) {
                 continue; // stockage distant, ou fichier disparu
             }

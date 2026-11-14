@@ -8,6 +8,9 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.98.0', [
+    'Android Auto et lecture aléatoire de la maison : le son des bibliothèques des autres baissait de titre en titre jusqu\'à devenir inaudible. Avec l\'égaliseur réglé, chaque titre sans mesure de volume reprenait deux fois la compensation de l\'égaliseur. C\'est corrigé, et le serveur mesure maintenant aussi les titres des autres personnes de la maison (serveur 1.22.1).',
+  ]),
   ReleaseNote('3.97.0', [
     'Android Auto : dans Bibliothèque, « Bibliothèques de la maison » lance d\'un tap la lecture aléatoire de toute la maison, ou celle d\'une autre personne du serveur (serveur 1.22.0).',
   ]),

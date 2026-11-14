@@ -81,3 +81,9 @@ administrateur. GulliFY n'a pas de « données précieuses orphelines » : rien 
   comprise, dédoublonnée par `file_path`) : même forme que `library.php random_songs`.
 - Android Auto : Bibliothèque → « Bibliothèques de la maison » (`BrowseIds.maison`), éléments jouables
   `MAISON_SHUFFLE_<username|*>`. Essai : `app/test/aa_play_all_test.dart`.
+
+## Normalisation et titres des autres (serveur 1.22.1, app 3.98.0)
+- `song_transitions` mesure aussi les titres des autres comptes ACTIFS de la maison, sous la racine de leur
+  propriétaire (`TransitionAnalysis::forSongs`). Sans ça, l'aléatoire de la maison jouait sans mesure.
+- App : un titre sans mesure reprend `_normBase` (volume normalisé SANS `headroomGain`), jamais `_trackVolume`
+  (qui contient déjà la compensation : la remultiplier faisait fondre le son titre après titre).
