@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:audio_service/audio_service.dart';
 import 'package:dio/dio.dart';
@@ -156,6 +157,8 @@ final appareilsProvider =
 
 class Appareils extends Notifier<List<Appareil>> {
   nsd.Discovery? _decouverte;
+  RawDatagramSocket? _socket;
+  Timer? _relance;
   bool _fini = false;
 
   @override
@@ -163,20 +166,118 @@ class Appareils extends Notifier<List<Appareil>> {
     _fini = false;
     ref.onDispose(() {
       _fini = true;
+      _relance?.cancel();
+      _socket?.close();
+      _socket = null;
       final d = _decouverte;
       _decouverte = null;
       if (d != null) unawaited(nsd.stopDiscovery(d).catchError((_) {}));
     });
-    if (!kIsWeb) unawaited(_demarrer());
+    if (!kIsWeb) {
+      unawaited(_demarrerMdns());
+      unawaited(_demarrerNsd());
+      unawaited(_balayer());
+    }
     return const [];
   }
 
-  Future<void> _demarrer() async {
+  /// Le filet (3.99.1) : si le Wi-Fi ne laisse passer aucune annonce (multicast
+  /// filtré par la borne ou le téléphone), on demande /etat à chaque adresse du
+  /// réseau du téléphone (/24), 32 à la fois, 600 ms chacune : ~3 s.
+  Future<void> _balayer() async {
     try {
-      final d = await nsd.startDiscovery(
-        kEcouteType,
-        ipLookupType: nsd.IpLookupType.any,
+      final ici = <String>{};
+      final reseaux = <String>{};
+      for (final i in await NetworkInterface.list(type: InternetAddressType.IPv4)) {
+        for (final a in i.addresses) {
+          final b = a.rawAddress;
+          final prive = b[0] == 10 ||
+              (b[0] == 172 && b[1] >= 16 && b[1] <= 31) ||
+              (b[0] == 192 && b[1] == 168);
+          if (!prive) continue;
+          ici.add(a.address);
+          reseaux.add('${b[0]}.${b[1]}.${b[2]}');
+        }
+      }
+      final cibles = [
+        for (final r in reseaux)
+          for (var h = 1; h < 255; h++)
+            if (!ici.contains('$r.$h')) '$r.$h',
+      ];
+      final rapide = Dio(
+        BaseOptions(
+          connectTimeout: const Duration(milliseconds: 600),
+          receiveTimeout: const Duration(milliseconds: 1500),
+          responseType: ResponseType.json,
+        ),
       );
+      for (var k = 0; k < cibles.length && !_fini; k += 32) {
+        await Future.wait([
+          for (final ip in cibles.skip(k).take(32))
+            rapide
+                .get<dynamic>('http://$ip:$kEcoutePort/etat')
+                .then((r) {
+                  final e = EtatDistant.fromJson(
+                    Map<String, dynamic>.from(r.data as Map),
+                  );
+                  if (e.nom.isEmpty) return;
+                  _ajouter(
+                    Appareil(
+                      cle: e.nom,
+                      nom: e.nom,
+                      hote: ip,
+                      port: kEcoutePort,
+                      genre: e.genre.isEmpty ? 'gullios' : e.genre,
+                    ),
+                  );
+                })
+                .catchError((_) {}),
+        ]);
+      }
+      rapide.close(force: true);
+    } catch (e) {
+      debugPrint('Écouter sur… : balayage impossible — $e');
+    }
+  }
+
+  /// Notre propre question mDNS (3.99.1), sans passer par Android : envoyée
+  /// depuis un port quelconque, elle reçoit sa réponse en direct (« legacy
+  /// unicast », RFC 6762 § 6.7) — pas besoin d'écouter le multicast, que bien
+  /// des téléphones filtrent. C'est elle qui trouve les GulliOS ; la
+  /// découverte d'Android (nsd) reste en parallèle.
+  Future<void> _demarrerMdns() async {
+    try {
+      final so = await RawDatagramSocket.bind(InternetAddress.anyIPv4, 0);
+      if (_fini) {
+        so.close();
+        return;
+      }
+      _socket = so;
+      so.listen((ev) {
+        if (ev != RawSocketEvent.read) return;
+        final d = so.receive();
+        if (d == null) return;
+        for (final a in lireReponseMdns(d.data, d.address.address)) {
+          _ajouter(a);
+        }
+      });
+      final question = questionMdns(kEcouteType);
+      void poser() {
+        try {
+          so.send(question, InternetAddress('224.0.0.251'), 5353);
+        } catch (_) {}
+      }
+
+      poser();
+      _relance = Timer.periodic(const Duration(seconds: 3), (_) => poser());
+    } catch (e) {
+      debugPrint('Écouter sur… : question mDNS impossible — $e');
+    }
+  }
+
+  Future<void> _demarrerNsd() async {
+    try {
+      final d = await nsd.startDiscovery(kEcouteType);
       if (_fini) {
         await nsd.stopDiscovery(d);
         return;
@@ -190,7 +291,7 @@ class Appareils extends Notifier<List<Appareil>> {
         }
       });
     } catch (e) {
-      debugPrint('Écouter sur… : découverte impossible — $e');
+      debugPrint('Écouter sur… : découverte Android impossible — $e');
     }
   }
 
@@ -203,22 +304,29 @@ class Appareils extends Notifier<List<Appareil>> {
         ? adresses.first.address
         : s.host;
     if (hote == null || s.port == null || s.name == null) return;
-    String? txt(String k) {
-      final v = s.txt?[k];
-      return v == null ? null : utf8.decode(v, allowMalformed: true);
-    }
-
-    final a = Appareil(
-      cle: s.name!,
-      nom: s.name!,
-      hote: hote,
-      port: s.port!,
-      genre: txt('genre') ?? 'gullios',
+    final g = s.txt?['genre'];
+    _ajouter(
+      Appareil(
+        cle: s.name!,
+        nom: s.name!,
+        hote: hote,
+        port: s.port!,
+        genre: g == null ? 'gullios' : utf8.decode(g, allowMalformed: true),
+      ),
     );
+  }
+
+  void _ajouter(Appareil a) {
+    if (_fini) return;
     // Soi-même (la télé qui s'annonce, vue d'elle-même) : pas dans la liste.
     if (Recepteur.instance?.nomAnnonce == a.cle) return;
-    state = [for (final x in state) if (x.cle != a.cle) x, a];
-    unawaited(_sonder(a));
+    final deja = state.where((x) => x.cle == a.cle).firstOrNull;
+    // Déjà là et qui répond : rien à refaire (la question repart toutes les 3 s).
+    if (deja != null && deja.dispo && deja.hote == a.hote) return;
+    if (deja == null || deja.hote != a.hote) {
+      state = [for (final x in state) if (x.cle != a.cle) x, a];
+    }
+    unawaited(_sonder(deja != null && deja.hote == a.hote ? deja : a));
   }
 
   Future<void> _sonder(Appareil a) async {
@@ -234,6 +342,102 @@ class Appareils extends Notifier<List<Appareil>> {
     } catch (_) {
       // Il s'annonce mais ne répond pas : un poste où personne n'est connecté.
     }
+  }
+}
+
+// ── mDNS, juste ce qu'il faut ────────────────────────────────────────────────
+
+/// La question PTR « qui offre ce service ? », bit QU posé.
+Uint8List questionMdns(String type) {
+  final b = BytesBuilder()..add([0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0]);
+  for (final etiquette in '$type.local'.split('.')) {
+    final e = utf8.encode(etiquette);
+    b
+      ..addByte(e.length)
+      ..add(e);
+  }
+  b.add([0, 0, 12, 0x80, 1]); // PTR, classe IN + bit « réponse directe »
+  return b.toBytes();
+}
+
+/// Les appareils d'une réponse mDNS : instance (PTR), port (SRV), genre (TXT),
+/// adresse (A, sinon celle de l'expéditeur). Une réponse mal formée ne donne
+/// rien.
+List<Appareil> lireReponseMdns(Uint8List d, String expediteur) {
+  try {
+    if (d.length < 12) return const [];
+    int u16(int i) => (d[i] << 8) | d[i + 1];
+    final n = u16(4) + u16(6) + u16(8) + u16(10);
+    final qd = u16(4);
+
+    // Un nom, compression comprise ; rend (nom, position après).
+    (String, int) nom(int i) {
+      final parts = <String>[];
+      var fin = -1;
+      for (var sauts = 0; sauts < 20; sauts++) {
+        final l = d[i];
+        if (l == 0) {
+          i++;
+          break;
+        }
+        if (l & 0xc0 == 0xc0) {
+          if (fin < 0) fin = i + 2;
+          i = ((l & 0x3f) << 8) | d[i + 1];
+          continue;
+        }
+        parts.add(utf8.decode(d.sublist(i + 1, i + 1 + l), allowMalformed: true));
+        i += 1 + l;
+      }
+      return (parts.join('.'), fin >= 0 ? fin : i);
+    }
+
+    var i = 12;
+    for (var q = 0; q < qd; q++) {
+      i = nom(i).$2 + 4;
+    }
+    final instances = <String>[];
+    final ports = <String, int>{};
+    final genres = <String, String>{};
+    final cibles = <String, String>{};
+    final adresses = <String, String>{};
+    final suffixe = '.$kEcouteType.local'.toLowerCase();
+    for (var r = 0; r < n - qd && i < d.length; r++) {
+      final (proprio, j) = nom(i);
+      final type = u16(j);
+      final longueur = u16(j + 8);
+      final debut = j + 10;
+      final cle = proprio.toLowerCase();
+      if (type == 12 && cle == '${kEcouteType.toLowerCase()}.local') {
+        final inst = nom(debut).$1;
+        if (inst.toLowerCase().endsWith(suffixe)) instances.add(inst);
+      } else if (type == 33) {
+        ports[cle] = u16(debut + 4);
+        cibles[cle] = nom(debut + 6).$1.toLowerCase();
+      } else if (type == 16) {
+        var k = debut;
+        while (k < debut + longueur) {
+          final l = d[k];
+          final t = utf8.decode(d.sublist(k + 1, k + 1 + l), allowMalformed: true);
+          if (t.startsWith('genre=')) genres[cle] = t.substring(6);
+          k += 1 + l;
+        }
+      } else if (type == 1 && longueur == 4) {
+        adresses[cle] = d.sublist(debut, debut + 4).join('.');
+      }
+      i = debut + longueur;
+    }
+    return [
+      for (final inst in instances)
+        Appareil(
+          cle: inst.substring(0, inst.length - suffixe.length),
+          nom: inst.substring(0, inst.length - suffixe.length),
+          hote: adresses[cibles[inst.toLowerCase()]] ?? expediteur,
+          port: ports[inst.toLowerCase()] ?? kEcoutePort,
+          genre: genres[inst.toLowerCase()] ?? 'gullios',
+        ),
+    ];
+  } catch (_) {
+    return const [];
   }
 }
 

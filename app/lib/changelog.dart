@@ -8,6 +8,9 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.99.1', [
+    '« Écouter sur… » ne trouvait aucun appareil sur certains Wi-Fi. Le téléphone pose maintenant lui-même la question sur le réseau, et à défaut demande à chaque adresse du réseau si un GulliOS ou une télé GulliFY écoute (quelques secondes).',
+  ]),
   ReleaseNote('3.99.0', [
     'Nouveau : « Écouter sur… » (l\'enceinte, en bas du lecteur). Sur le Wi-Fi où tu es — chez toi ou ailleurs —, choisis une télé où GulliFY est ouvert, un poste ou un serveur GulliOS : il joue ta file lui-même, depuis ton serveur, et ton téléphone devient la télécommande (pause, suivant, position, volume). Toucher le bandeau « Joue sur… » ramène la musique sur le téléphone (serveur 1.23.0, GulliOS 1.139).',
     'Sur la télé : tant que GulliFY est ouvert, elle apparaît dans « Écouter sur… » des téléphones du Wi-Fi, et passe toute seule au lecteur avec « Joue depuis le téléphone de … ».',
