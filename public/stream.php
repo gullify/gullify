@@ -16,6 +16,7 @@ require_once __DIR__ . '/../src/Storage/SFTPStorage.php';
 require_once __DIR__ . '/../src/Storage/StorageFactory.php';
 require_once __DIR__ . '/../src/Karaoke.php';
 require_once __DIR__ . '/../src/MaisonsAmies.php';
+require_once __DIR__ . '/../src/BilletEcoute.php';
 
 ini_set('max_execution_time', 0);
 
@@ -55,6 +56,20 @@ function streamAutorise(): bool {
         : ($_GET['token'] ?? $_COOKIE['gullify_session'] ?? null);
 
     if (!is_string($jeton) || $jeton === '') {
+        // « Écouter sur… » (1.23.0) : un appareil du Wi-Fi joue la file d'une personne d'ici, un
+        // billet par fichier, 12 h. La personne doit encore être active.
+        if (isset($_GET['ecoute'])) {
+            $personne = BilletEcoute::verifier($_GET['ecoute'], (string)($_GET['path'] ?? ''));
+            if ($personne === null) return false;
+            try {
+                $actif = AppConfig::getDB()->prepare('SELECT 1 FROM users WHERE username = ? AND is_active = 1');
+                $actif->execute([$personne]);
+                return (bool)$actif->fetchColumn();
+            } catch (Throwable $e) {
+                error_log('stream.php : billet d\'écoute invérifiable — ' . $e->getMessage());
+                return false;
+            }
+        }
         // Une maison amie (GulliOS 1.49) : son billet, signé par l'atelier, dans l'adresse. Le titre
         // doit encore appartenir à une personne qui partage sa musique (vérifié plus bas).
         if (MaisonsAmies::billetValable($_GET['billet'] ?? null) !== null) {
