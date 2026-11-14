@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../ecoute/ecoute.dart';
+import '../ecoute/ecoute_widgets.dart';
 import '../models/song.dart';
 import '../state/favorites.dart';
 import '../state/keep_screen_on.dart';
@@ -36,6 +38,10 @@ class NowPlayingScreen extends ConsumerWidget {
       });
       return const Scaffold(body: SizedBox.shrink());
     }
+
+    // « Écouter sur… » (3.99.0) : la musique joue sur un autre appareil du
+    // Wi-Fi, le lecteur devient sa télécommande.
+    if (ref.watch(cibleProvider) != null) return const TelecommandeScreen();
 
     // Sur tablette et grand écran, les commandes vivent dans la barre de
     // lecture du bas de la fenêtre : le lecteur ouvert n'a plus à les porter,
@@ -176,7 +182,7 @@ class NowPlayingScreen extends ConsumerWidget {
             ],
           );
 
-    final actionsRow = Row(
+    final actionsRowContent = Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
         if (!isRadio && server)
@@ -198,6 +204,7 @@ class NowPlayingScreen extends ConsumerWidget {
                   showChordsSheet(context, item.extras?['filePath'] as String?),
             ),
           ),
+        _actionPlate(retro, const EcouterSurButton()),
         _actionPlate(retro, const _SleepTimerButton()),
         _actionPlate(retro, const _KeepScreenOnButton()),
         if (!isRadio && songId != null && server)
@@ -233,6 +240,20 @@ class NowPlayingScreen extends ConsumerWidget {
             ),
           ),
       ],
+    );
+
+    // Sept actions depuis « Écouter sur… » (3.99.0) : sur un téléphone étroit,
+    // la rangée rapetisse un peu plutôt que de déborder.
+    final actionsRow = LayoutBuilder(
+      builder: (context, box) => FittedBox(
+        fit: BoxFit.scaleDown,
+        child: SizedBox(
+          width: box.maxWidth.isFinite && box.maxWidth > 7 * 48
+              ? box.maxWidth
+              : 7 * 48,
+          child: actionsRowContent,
+        ),
+      ),
     );
 
     // Swipe vers le bas pour fermer le lecteur (en plus de la flèche).

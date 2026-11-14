@@ -1,11 +1,18 @@
 import 'dart:async';
+import 'dart:io' show Platform;
+
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../ecoute/ecoute.dart';
+import '../../router.dart';
 import '../../state/app_update.dart';
+import '../../state/auth.dart';
+import '../../state/player.dart';
 import '../../state/tv_log.dart';
 import 'tv_bandcamp.dart';
 import 'tv_favorites_page.dart';
@@ -99,10 +106,38 @@ class _TvShellState extends ConsumerState<TvShell> {
   Timer? _backHint;
   bool _askingToQuit = false;
 
+  /// « Écouter sur… » (3.99.0) : tant que l'app est ouverte, la télé est une
+  /// enceinte pour les téléphones du Wi-Fi (voir ecoute/ecoute.dart).
+  Recepteur? _recepteur;
+
+  Future<void> _ecouter() async {
+    // Pas pendant les tests : pas de lecteur audio, ni de Wi-Fi.
+    if (kIsWeb || Platform.environment.containsKey('FLUTTER_TEST')) return;
+    final user = ref.read(authProvider).user;
+    final prenom = (user?.fullName?.trim().isNotEmpty ?? false)
+        ? user!.fullName!.trim().split(' ').first
+        : user?.username;
+    final r = await Recepteur.demarrer(
+      ref.read(audioHandlerProvider),
+      prenom == null || prenom.isEmpty ? 'Télé GulliFY' : 'Télé de $prenom',
+    );
+    if (!mounted) {
+      await r?.arreter();
+      return;
+    }
+    _recepteur = r;
+    TvLog.add(r == null ? 'écouter sur… : récepteur indisponible' : 'écouter sur… : ${r.nomAnnonce}');
+    r?.ouvrirLecteur = () {
+      final router = ref.read(routerProvider);
+      if (router.state.uri.path != '/tv/playing') router.push('/tv/playing');
+    };
+  }
+
   @override
   void initState() {
     super.initState();
     TvLog.add('coque ouverte (${widget.initialTab.name})');
+    unawaited(_ecouter());
     // Le périmètre du contenu doit être actif dès l'ouverture : un `autofocus`
     // ne s'applique qu'à un périmètre qui détient le focus, sinon plus rien
     // n'est visé du tout.
@@ -114,6 +149,7 @@ class _TvShellState extends ConsumerState<TvShell> {
 
   @override
   void dispose() {
+    unawaited(_recepteur?.arreter());
     _rescue?.cancel();
     _backHint?.cancel();
     _railScope.dispose();

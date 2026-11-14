@@ -8,6 +8,10 @@ class ReleaseNote {
 }
 
 const kChangelog = <ReleaseNote>[
+  ReleaseNote('3.99.0', [
+    'Nouveau : « Écouter sur… » (l\'enceinte, en bas du lecteur). Sur le Wi-Fi où tu es — chez toi ou ailleurs —, choisis une télé où GulliFY est ouvert, un poste ou un serveur GulliOS : il joue ta file lui-même, depuis ton serveur, et ton téléphone devient la télécommande (pause, suivant, position, volume). Toucher le bandeau « Joue sur… » ramène la musique sur le téléphone (serveur 1.23.0, GulliOS 1.139).',
+    'Sur la télé : tant que GulliFY est ouvert, elle apparaît dans « Écouter sur… » des téléphones du Wi-Fi, et passe toute seule au lecteur avec « Joue depuis le téléphone de … ».',
+  ]),
   ReleaseNote('3.98.0', [
     'Android Auto et lecture aléatoire de la maison : le son des bibliothèques des autres baissait de titre en titre jusqu\'à devenir inaudible. Avec l\'égaliseur réglé, chaque titre sans mesure de volume reprenait deux fois la compensation de l\'égaliseur. C\'est corrigé, et le serveur mesure maintenant aussi les titres des autres personnes de la maison (serveur 1.22.1).',
   ]),

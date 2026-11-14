@@ -1202,6 +1202,27 @@ class GullifyAudioHandler extends BaseAudioHandler
     await play();
   }
 
+  /// « Écouter sur… » (3.99.0) : la télé joue la file qu'un téléphone du Wi-Fi
+  /// lui envoie. Les adresses viennent du serveur DU TÉLÉPHONE, billet
+  /// compris (voir ecoute/ecoute.dart) : rien à résoudre ici.
+  Future<void> playEcoute(
+    List<MediaItem> items, {
+    int startIndex = 0,
+    Duration? startPosition,
+  }) async {
+    if (items.isEmpty) return;
+    _flushPlay();
+    await _cancelFade();
+    _switchingSource = true;
+    queue.add(items);
+    await _setSources(_player,
+      [for (final item in items) AudioSource.uri(Uri.parse(item.id))],
+      initialIndex: startIndex.clamp(0, items.length - 1),
+      initialPosition: startPosition,
+    );
+    await play();
+  }
+
   Future<void> playRadio({
     required String url,
     required String title,

@@ -6,6 +6,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../ecoute/ecoute.dart';
+
 import '../../state/favorites.dart';
 import '../../state/library.dart';
 import '../../state/player.dart';
@@ -108,6 +110,51 @@ class _TvNowPlayingScreenState extends ConsumerState<TvNowPlayingScreen> {
               ],
             ),
           ),
+          // « Écouter sur… » (3.99.0) : ce qui joue vient d'un téléphone.
+          if (item.extras?['ecoute'] == true && Recepteur.instance != null)
+            Positioned(
+              top: tvSafeV,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: ValueListenableBuilder<String>(
+                  valueListenable: Recepteur.instance!.de,
+                  builder: (_, de, _) => de.isEmpty
+                      ? const SizedBox.shrink()
+                      : DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: scheme.primary,
+                            borderRadius: BorderRadius.circular(30),
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 20,
+                              vertical: 9,
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.smartphone,
+                                  size: 22,
+                                  color: scheme.onPrimary,
+                                ),
+                                const SizedBox(width: 10),
+                                Text(
+                                  'Joue depuis le téléphone de $de',
+                                  style: TextStyle(
+                                    color: scheme.onPrimary,
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                ),
+              ),
+            ),
           if (_lyricsOpen)
             _LyricsPanel(
               filePath: item.extras?['filePath'] as String?,
